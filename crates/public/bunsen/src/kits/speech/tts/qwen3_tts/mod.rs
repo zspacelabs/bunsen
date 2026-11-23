@@ -42,6 +42,10 @@
 //!   [`Qwen3TtsEngine`](driver::Qwen3TtsEngine);
 //!   [`Qwen3TtsDriver`](driver::Qwen3TtsDriver) is the [TTS
 //!   driver](super::driver) over it.
+//! - [`Qwen3TtsTimedState`]: the model as a
+//!   [`TimedDecode`](crate::kits::support::timing::TimedDecode), for a
+//!   throughput harness: the talker prefilled, then a frame per step (the
+//!   talker's step and the code predictor's depth decode).
 //! - [`Qwen3TtsConstruct`]: a loaded model, its talker and code predictor and
 //!   codec with their configs, the prompt's ids, the release's take settings
 //!   and the tokenizer's files.
@@ -62,7 +66,9 @@ pub mod sampler;
 pub mod interop;
 
 mod construct;
+mod timed_decode;
 pub use construct::*;
+pub use timed_decode::*;
 
 pub mod driver;
 

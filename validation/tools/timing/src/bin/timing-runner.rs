@@ -45,7 +45,10 @@ use bunsen::{
                 voxtral::pretrained::default_voxtral_factory,
                 whisper::pretrained::default_whisper_factory,
             },
-            tts::zonos3::pretrained::default_zonos3_factory,
+            tts::{
+                qwen3_tts::pretrained::default_qwen3_tts_factory,
+                zonos3::pretrained::default_zonos3_factory,
+            },
         },
         support::{
             construct::LmConstruct,
@@ -260,8 +263,17 @@ fn time_row(
             cache,
             device,
         ),
+        "qwen3-tts" => time_built(
+            krate,
+            model,
+            &default_qwen3_tts_factory().map_err(lm)?,
+            |c| &c.model,
+            args,
+            cache,
+            device,
+        ),
         other => Err(format!(
-            "{other} has no timing adapter yet (qwen3, qwen3-5, gemma, nanochat, whisper, voxtral and zonos3 do)"
+            "{other} has no timing adapter yet (qwen3, qwen3-5, gemma, nanochat, whisper, voxtral, zonos3 and qwen3-tts do)"
         )),
     }
 }
@@ -531,13 +543,12 @@ fn print_record(r: &TimingRecord) {
         device(r.prefill_cold.device_ms)
     );
     println!(
-        "  {:<14} {:>10.2} {:>10}   median of {}, {:.0} {}/s",
+        "  {:<14} {:>10.2} {:>10}   median of {}, {:.0} positions/s",
         "prefill warm",
         r.prefill_warm.wall.median_ms,
         device(phase_device(&r.prefill_warm)),
         r.prefill_warm.count,
-        r.prefill_per_s(),
-        r.unit
+        r.prefill_per_s()
     );
     println!(
         "  {:<14} {:>10.2} {:>10}",

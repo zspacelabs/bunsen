@@ -29,10 +29,17 @@ use validate::{
 };
 
 /// The validation crates whose models the runner can time: those whose kit
-/// has a `TimedDecode` (every `CachedLm`, Whisper, Voxtral and ZONOS3's
-/// language model).
+/// has a `TimedDecode`: every `CachedLm`, Whisper, Voxtral, ZONOS3's
+/// language model and Qwen3-TTS.
 const TIMED: &[&str] = &[
-    "qwen3", "qwen3-5", "gemma", "nanochat", "whisper", "voxtral", "zonos3",
+    "qwen3",
+    "qwen3-5",
+    "gemma",
+    "nanochat",
+    "whisper",
+    "voxtral",
+    "zonos3",
+    "qwen3-tts",
 ];
 
 /// Times bunsen's decodes on the validation catalog's checkpoints.
