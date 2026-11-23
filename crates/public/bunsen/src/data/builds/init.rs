@@ -1,4 +1,8 @@
-use alloc::sync::Arc;
+use alloc::{
+    format,
+    sync::Arc,
+};
+use std::path::Path;
 
 use burn::tensor::Device;
 
@@ -15,7 +19,10 @@ use crate::{
             ResourceSet,
         },
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// What a kit builds from a resolved ref, and how: the kit's construct
@@ -27,7 +34,9 @@ use crate::{
 /// set calls for ([`for_resource_set`](Self::for_resource_set)), how a
 /// ref's resource set is completed before it is loaded
 /// ([`plan`](Self::plan)), and how the loaded parts become the built thing,
-/// behind an `Arc` ([`try_init`](Self::try_init)). A
+/// behind an `Arc` ([`try_init`](Self::try_init)); a kit that keeps a
+/// converted copy of its weights says which resources it stands in for, and
+/// builds from and saves it ([`converted_weights`](Self::converted_weights)). A
 /// [`DeferredBuild`](super::DeferredBuild) model pairs a ref with its construct
 /// config and runs the whole way: plan, [`ResourceCache::load`], `try_init`.
 ///
@@ -98,6 +107,59 @@ pub trait ConstructInit: Sized {
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<Self::Construct>>;
+
+    /// The resources of `map` a converted copy of the weights stands in
+    /// for: the weights' files, which a load keeping converted weights
+    /// ([`ResourceCacheOptions::converted_weights`](crate::data::resources::ResourceCacheOptions::converted_weights))
+    /// neither fetches nor reads when the kit's copy is in the cache.
+    /// `None`, the default, for a kit that keeps no copy.
+    fn converted_weights(
+        &self,
+        _map: &ResourceSet,
+    ) -> Option<ResourceSet> {
+        None
+    }
+
+    /// Builds as [`try_init`](Self::try_init) does, the weights read from
+    /// the kit's converted copy at `path` ([`save_converted`](Self::save_converted)'s)
+    /// rather than from their files, which `loaded` lacks: every other part
+    /// is local. Never fetches.
+    ///
+    /// # Errors
+    /// As [`try_init`](Self::try_init), and the kit's: a copy that does not
+    /// load into the model. The default, for a kit that keeps no copy:
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
+    fn try_init_converted(
+        &self,
+        _model: &BuildRef,
+        _loaded: &LoadedResourceSet,
+        _path: &Path,
+        _device: &Device,
+        _policy: crate::data::formats::LoadPolicy,
+    ) -> BunsenResult<Arc<Self::Construct>> {
+        Err(BunsenError::unsupported(format!(
+            "{} keeps no converted weights",
+            Self::KIT
+        )))
+    }
+
+    /// Writes `construct`'s weights, as its load placed them, to `path`:
+    /// the copy [`try_init_converted`](Self::try_init_converted) reads.
+    ///
+    /// # Errors
+    /// The kit's: a file that cannot be written. The default, for a kit
+    /// that keeps no copy:
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
+    fn save_converted(
+        &self,
+        _construct: &Self::Construct,
+        _path: &Path,
+    ) -> BunsenResult<()> {
+        Err(BunsenError::unsupported(format!(
+            "{} keeps no converted weights",
+            Self::KIT
+        )))
+    }
 
     /// The presets [`try_init`](Self::try_init) applied to `construct`:
     /// the default presets no selection displaced, then the selected, and

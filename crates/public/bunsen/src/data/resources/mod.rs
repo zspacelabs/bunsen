@@ -7,7 +7,11 @@
 //! set of them, and two sets [fuse](ResourceSet::fuse) by slot: strictly for
 //! authoring, where a repeated slot is a mistake, or as an overlay, where the
 //! right-hand set wins. A [`ResourceCache`] brings a set's files local, into
-//! a [`LoadedResourceSet`].
+//! a [`LoadedResourceSet`]. With
+//! [`converted_weights`](ResourceCacheOptions::converted_weights) on, it also
+//! keeps a kit's converted copy of a build's weights, as its loader made them,
+//! beside the build's files, and a load reads the copy instead of them
+//! ([`ResourceCache::converted_key`], [`ResourceCache::converted_path`]).
 //!
 //! None of this is about models: the kits' builds and the dataset shard sets
 //! both load through it. Everything but the plain data (the resources,
@@ -49,6 +53,8 @@
 mod cache;
 #[cfg(feature = "cache")]
 mod cached_files;
+#[cfg(feature = "cache")]
+mod converted;
 pub mod hub;
 #[cfg(feature = "cache")]
 mod loaded;
@@ -59,6 +65,8 @@ mod resource_set;
 pub use cache::*;
 #[cfg(feature = "cache")]
 pub use cached_files::*;
+#[cfg(feature = "cache")]
+pub use converted::*;
 #[cfg(feature = "cache")]
 pub use loaded::*;
 pub use resource::*;

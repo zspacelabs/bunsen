@@ -4,9 +4,14 @@ use alloc::{
     sync::Arc,
 };
 use core::fmt::Debug;
+use std::path::Path;
 
 use burn::{
     config::Config,
+    store::{
+        BurnpackStore,
+        ModuleSnapshot,
+    },
     tensor::Device,
 };
 
@@ -55,9 +60,10 @@ use crate::{
 ///
 /// What tells such kits apart is this trait's: the config, the model, and
 /// the kit's interop rungs (its `config.json` conversion and its loader) and
-/// probes. Each kit's construct config implements it, and is its
-/// [`ConstructInit`] hook by a blanket impl. The hook reads `config.json`
-/// once, through
+/// probes. Its weights' converted copy, where the cache keeps one, is the
+/// built model as a burnpack, loaded into the model `config.json` builds. Each
+/// kit's construct config implements it, and is its [`ConstructInit`] hook by a
+/// blanket impl. The hook reads `config.json` once, through
 /// [`config_from_path`](crate::kits::support::interop::transformers::config_from_path).
 pub trait TransformersLmKit: Default {
     /// The kit's name ([`ConstructInit::KIT`]).
@@ -139,23 +145,91 @@ impl<K: TransformersLmKit> ConstructInit for K {
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<Arc<LmConstruct<K::Model>>> {
-        let Some(part) = loaded.get(CONFIG) else {
-            return Err(BunsenError::invalid_resource(format!(
-                "a {} checkpoint without a config.json",
-                K::NAME
-            ))
-            .context(&loaded.map.name));
-        };
-        let (config, max_positions) =
-            config_from_path(&part.path, |c| Ok((K::config(c)?, lm_max_positions(c))))?;
+        let (config, max_positions) = read_config::<K>(loaded)?;
         let lm = K::load(loaded, &config, device, policy)?;
-        let policy = resolve_ref_presets(&LmPolicy::default(), model, &K::probed(loaded)?)?;
-        let mut bundle = LmConstruct::new(lm)
-            .with_max_positions(max_positions)
-            .with_policy(policy.config.clone(), policy.applied());
-        for (key, part) in &loaded.parts {
-            bundle = bundle.with_file(key, &part.path);
-        }
-        Ok(Arc::new(bundle))
+        bundle::<K>(model, loaded, lm, max_positions)
     }
+
+    /// The checkpoint: the one file, or the index and its shards.
+    fn converted_weights(
+        &self,
+        map: &ResourceSet,
+    ) -> Option<ResourceSet> {
+        let weights = map.family(K::CHECKPOINT);
+        (!weights.resources.is_empty()).then_some(weights)
+    }
+
+    /// The model built from `config.json`, its weights the burnpack at
+    /// `path`, every parameter of the model in it.
+    fn try_init_converted(
+        &self,
+        model: &BuildRef,
+        loaded: &LoadedResourceSet,
+        path: &Path,
+        device: &Device,
+        _policy: LoadPolicy,
+    ) -> BunsenResult<Arc<LmConstruct<K::Model>>> {
+        let (config, max_positions) = read_config::<K>(loaded)?;
+        let mut lm: K::Model = config.try_init(device)?;
+        let mut store = BurnpackStore::from_file(path).auto_extension(false);
+        let result = lm.load_from(&mut store).map_err(|e| {
+            BunsenError::invalid_resource(format!("cannot read {}: {e}", path.display()))
+        })?;
+        if !result.errors.is_empty() || !result.missing.is_empty() {
+            return Err(BunsenError::invalid_resource(format!(
+                "{} does not load into the {} model: {} errors, {} parameters missing",
+                path.display(),
+                K::NAME,
+                result.errors.len(),
+                result.missing.len()
+            )));
+        }
+        bundle::<K>(model, loaded, lm, max_positions)
+    }
+
+    fn save_converted(
+        &self,
+        construct: &LmConstruct<K::Model>,
+        path: &Path,
+    ) -> BunsenResult<()> {
+        let mut store = BurnpackStore::from_file(path)
+            .auto_extension(false)
+            .overwrite(true);
+        construct
+            .model
+            .save_into(&mut store)
+            .map_err(|e| BunsenError::sys(format!("write {}: {e}", path.display())))
+    }
+}
+
+/// The model config and the trained positions of `loaded`'s `config.json`.
+fn read_config<K: TransformersLmKit>(
+    loaded: &LoadedResourceSet
+) -> BunsenResult<(K::Config, Option<usize>)> {
+    let Some(part) = loaded.get(CONFIG) else {
+        return Err(BunsenError::invalid_resource(format!(
+            "a {} checkpoint without a config.json",
+            K::NAME
+        ))
+        .context(&loaded.map.name));
+    };
+    config_from_path(&part.path, |c| Ok((K::config(c)?, lm_max_positions(c))))
+}
+
+/// The construct of a built model: its positions, its policy (the ref's
+/// presets over the probed), and every file of `loaded` by its key.
+fn bundle<K: TransformersLmKit>(
+    model: &BuildRef,
+    loaded: &LoadedResourceSet,
+    lm: K::Model,
+    max_positions: Option<usize>,
+) -> BunsenResult<Arc<LmConstruct<K::Model>>> {
+    let policy = resolve_ref_presets(&LmPolicy::default(), model, &K::probed(loaded)?)?;
+    let mut bundle = LmConstruct::new(lm)
+        .with_max_positions(max_positions)
+        .with_policy(policy.config.clone(), policy.applied());
+    for (key, part) in &loaded.parts {
+        bundle = bundle.with_file(key, &part.path);
+    }
+    Ok(Arc::new(bundle))
 }
