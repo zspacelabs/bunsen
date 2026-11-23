@@ -25,12 +25,10 @@ use crate::{
         },
         transformers::{
             attention::rel_pos::{
-                RelPosAttnSublayer,
                 RelPosSelfAttention,
                 RelPosSelfAttentionConfig,
                 RelPosSelfAttentionMeta,
             },
-            encoders::conformer::ConformerConvSublayer,
             sublayer::{
                 ResidualSublayer,
                 ResidualSublayerConfig,
@@ -227,8 +225,12 @@ impl ConformerBlock {
         let x = self
             .feed_forward1
             .residual_update_with(x, |ff, z| ff.forward(z).mul_scalar(0.5));
-        let x = self.attn.rel_pos_attn(x, positions, valid.clone());
-        let x = self.conv.conformer_conv(x, valid);
+        let x = self
+            .attn
+            .residual_update_with(x, |attn, z| attn.forward(z, positions, valid.clone()));
+        let x = self
+            .conv
+            .residual_update_with(x, |conv, z| conv.forward(z, valid));
         let x = self
             .feed_forward2
             .residual_update_with(x, |ff, z| ff.forward(z).mul_scalar(0.5));

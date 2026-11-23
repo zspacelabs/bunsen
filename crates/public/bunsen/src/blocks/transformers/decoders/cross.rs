@@ -25,13 +25,8 @@ use crate::{
             BunsenNormalizationConfig,
         },
         transformers::sublayer::{
-            CrossAttnKvSublayer,
-            CrossAttnSublayer,
-            PlainSublayer,
             ResidualSublayer,
             ResidualSublayerConfig,
-            SelfAttnKvSublayer,
-            SelfAttnSublayer,
         },
     },
     burner::module::{
@@ -42,7 +37,11 @@ use crate::{
     errors::BunsenResult,
     ops::transformers::attention::{
         KVCache,
+        cross_attn,
+        cross_attn_w_kv_cache,
         project_kv,
+        self_attn,
+        self_attn_w_kv_cache,
     },
 };
 
@@ -213,11 +212,15 @@ impl CrossDecoderBlock {
         xa: Tensor<3>,
         mask: Option<Tensor<3, Bool>>,
     ) -> CrossDecoderRecord {
-        let x = self.attn.self_attn(x, mask);
+        let x = self
+            .attn
+            .residual_update_with(x, |attn, z| self_attn(attn, z, mask).context);
 
-        let (x, ca_weights) = self.cross_attn.cross_attn(x, xa);
+        let (x, ca_weights) = self
+            .cross_attn
+            .residual_update_with(x, |attn, z| cross_attn(attn, z, xa));
 
-        let x = self.mlp.forward(x);
+        let x = self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z));
 
         CrossDecoderRecord {
             output: x,
@@ -254,10 +257,14 @@ impl CrossDecoderBlock {
         cache: &mut KVCache,
         layer: usize,
     ) -> Tensor<3> {
-        let x = self.attn.self_attn_w_kv_cache(x, mask, cache, layer);
-        let x = self.cross_attn.cross_attn_w_kv_cache(x, cache, layer);
+        let x = self.attn.residual_update_with(x, |attn, z| {
+            self_attn_w_kv_cache(attn, z, mask, cache, layer)
+        });
+        let x = self
+            .cross_attn
+            .residual_update_with(x, |attn, z| cross_attn_w_kv_cache(attn, z, cache, layer));
 
-        self.mlp.forward(x)
+        self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z))
     }
 
     /// Projects the encoder output into this block's cross-attention keys and
