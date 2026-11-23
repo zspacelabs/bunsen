@@ -186,7 +186,7 @@
 <code>fineweb-edu-100b-shuffle</code> becomes a loaded model or a set of training
 files: what a name means, who answers it, where the files land, and why
 bunsen trusts them once they are there. The reference is
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/index.html" title="mod bunsen::data"><code>bunsen::data</code></a>, whose <a href="https://docs.rs/bunsen/0.43.0/bunsen/data/index.html#lifecycle" title="mod bunsen::data">lifecycle diagram</a> links
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/index.html" title="mod bunsen::data"><code>bunsen::data</code></a>, whose <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/index.html#lifecycle" title="mod bunsen::data">lifecycle diagram</a> links
 every step.</p>
 <p><code>bunsen::data</code> is split along what each part is about, each built on the
 one before:</p>
@@ -196,22 +196,22 @@ one before:</p>
 <tr><th>Module</th><th>What it holds</th><th>Chapter</th></tr>
 </thead>
 <tbody>
-<tr><td><a href="https://docs.rs/bunsen/0.43.0/bunsen/data/cache/index.html" title="mod bunsen::data::cache"><code>cache</code></a></td><td>the disk cache: where files land, digests, links, downloads</td><td><a href="./data/resources.html">Resources and the cache</a></td></tr>
-<tr><td><a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/index.html" title="mod bunsen::data::resources"><code>resources</code></a></td><td>pinned files, the places they come from, the resource cache, the Hub client</td><td><a href="./data/resources.html">Resources and the cache</a></td></tr>
-<tr><td><a href="https://docs.rs/bunsen/0.43.0/bunsen/data/catalog/index.html" title="mod bunsen::data::catalog"><code>catalog</code></a></td><td>what there is to build, as data: a layered catalog of contracts, builds, resources, tags and presets</td><td><a href="./data/catalog.html">The catalog</a></td></tr>
-<tr><td><a href="https://docs.rs/bunsen/0.43.0/bunsen/data/formats/index.html" title="mod bunsen::data::formats"><code>formats</code></a></td><td>reading the files: safetensors, <code>PyTorch</code>, MLX, the Phonon formats</td><td><a href="./data/formats.html">Formats</a></td></tr>
-<tr><td><a href="https://docs.rs/bunsen/0.43.0/bunsen/data/builds/index.html" title="mod bunsen::data::builds"><code>builds</code></a></td><td>a name to a model: providers, the factory, the kit’s hook</td><td><a href="./data/builds.html">Loading builds</a></td></tr>
-<tr><td><a href="https://docs.rs/bunsen/0.43.0/bunsen/data/pretrained/index.html" title="mod bunsen::data::pretrained"><code>pretrained</code></a></td><td>the kits’ prefabs, geometries by name</td><td><a href="./data/builds.html">Loading builds</a></td></tr>
-<tr><td><a href="https://docs.rs/bunsen/0.43.0/bunsen/data/datasets/index.html" title="mod bunsen::data::datasets"><code>datasets</code></a></td><td>dataset shard sets</td><td><a href="./data/datasets.html">Datasets</a></td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.44.0/bunsen/data/cache/index.html" title="mod bunsen::data::cache"><code>cache</code></a></td><td>the disk cache: where files land, digests, links, downloads</td><td><a href="./data/resources.html">Resources and the cache</a></td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/index.html" title="mod bunsen::data::resources"><code>resources</code></a></td><td>pinned files, the places they come from, the resource cache, the Hub client</td><td><a href="./data/resources.html">Resources and the cache</a></td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/index.html" title="mod bunsen::data::catalog"><code>catalog</code></a></td><td>what there is to build, as data: a layered catalog of contracts, builds, resources, tags and presets</td><td><a href="./data/catalog.html">The catalog</a></td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.44.0/bunsen/data/formats/index.html" title="mod bunsen::data::formats"><code>formats</code></a></td><td>reading the files: safetensors, <code>PyTorch</code>, MLX, the Phonon formats</td><td><a href="./data/formats.html">Formats</a></td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/index.html" title="mod bunsen::data::builds"><code>builds</code></a></td><td>a name to a model: providers, the factory, the kit’s hook</td><td><a href="./data/builds.html">Loading builds</a></td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.44.0/bunsen/data/pretrained/index.html" title="mod bunsen::data::pretrained"><code>pretrained</code></a></td><td>the kits’ prefabs, geometries by name</td><td><a href="./data/builds.html">Loading builds</a></td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.44.0/bunsen/data/datasets/index.html" title="mod bunsen::data::datasets"><code>datasets</code></a></td><td>dataset shard sets</td><td><a href="./data/datasets.html">Datasets</a></td></tr>
 </tbody>
 </table>
 </div>
 <p>The kits show three sizes of the same machinery.
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/kits/images/classification/resnet/pretrained/factory/fn.default_resnet_factory.html" title="fn bunsen::kits::images::classification::resnet::pretrained::factory::default_resnet_factory"><code>default_resnet_factory</code></a>
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/kits/images/classification/resnet/pretrained/factory/fn.default_resnet_factory.html" title="fn bunsen::kits::images::classification::resnet::pretrained::factory::default_resnet_factory"><code>default_resnet_factory</code></a>
 is the simple case: the catalog’s <code>torchvision</code> and <code>timm</code> checkpoints.
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/kits/speech/asr/whisper/pretrained/factory/fn.default_whisper_factory.html" title="fn bunsen::kits::speech::asr::whisper::pretrained::factory::default_whisper_factory"><code>default_whisper_factory</code></a>
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/kits/speech/asr/whisper/pretrained/factory/fn.default_whisper_factory.html" title="fn bunsen::kits::speech::asr::whisper::pretrained::factory::default_whisper_factory"><code>default_whisper_factory</code></a>
 is the full one: the catalog’s builds, and Hugging Face repos.
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/kits/speech/vad/silero_vad/pretrained/providers/fn.default_silero_factory.html" title="fn bunsen::kits::speech::vad::silero_vad::pretrained::providers::default_silero_factory"><code>default_silero_factory</code></a>
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/kits/speech/vad/silero_vad/pretrained/providers/fn.default_silero_factory.html" title="fn bunsen::kits::speech::vad::silero_vad::pretrained::providers::default_silero_factory"><code>default_silero_factory</code></a>
 is the smallest: one build, upstream’s 16 kHz checkpoint.</p>
 <h2 id="the-pathway"><a class="header" href="#the-pathway">The pathway</a></h2>
 <pre><code class="language-text">spec ("tiny", "hf:org/repo")
@@ -225,11 +225,11 @@ deferred model
   ▼
 loaded model, behind an Arc
 </code></pre>
-<p>A <a href="https://docs.rs/bunsen/0.43.0/bunsen/data/builds/factory/struct.BuildFactory.html" title="struct bunsen::data::builds::factory::BuildFactory"><code>BuildFactory</code></a> is the one object a
+<p>A <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/factory/struct.BuildFactory.html" title="struct bunsen::data::builds::factory::BuildFactory"><code>BuildFactory</code></a> is the one object a
 caller holds for a kit, and its
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/builds/factory/struct.BuildFactory.html#method.load" title="method bunsen::data::builds::factory::BuildFactory::load"><code>load</code></a> runs the whole pathway. A
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/factory/struct.BuildFactory.html#method.load" title="method bunsen::data::builds::factory::BuildFactory::load"><code>load</code></a> runs the whole pathway. A
 file on disk does not go through the factory at all: it is a given resource
-set (<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/resource_set/struct.ResourceSet.html#method.given" title="associated function bunsen::data::resources::resource_set::ResourceSet::given"><code>ResourceSet::given</code></a>),
+set (<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/resource_set/struct.ResourceSet.html#method.given" title="associated function bunsen::data::resources::resource_set::ResourceSet::given"><code>ResourceSet::given</code></a>),
 loaded the same way from the deferred step on. A dataset takes a shorter
 path: its build is a shard set, which a data loader reads
 (<a href="./data/datasets.html">Datasets</a>).</p>

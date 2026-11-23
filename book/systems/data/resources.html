@@ -182,19 +182,19 @@
                     <main>
                         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
 <h1 id="resources-and-the-cache"><a class="header" href="#resources-and-the-cache">Resources and the cache</a></h1>
-<p>A <a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/resource/struct.Resource.html" title="struct bunsen::data::resources::resource::Resource"><code>Resource</code></a> is one file: the slot a
+<p>A <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/resource/struct.Resource.html" title="struct bunsen::data::resources::resource::Resource"><code>Resource</code></a> is one file: the slot a
 kit reads it by (<code>checkpoint</code>, <code>vocabulary</code>), the file name it lands as, the
 SHA-256 that pins it, its format, its full name, and the
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/resource/enum.Source.html" title="enum bunsen::data::resources::resource::Source"><code>Source</code></a>s it can be had from, in order. A
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/resource_set/struct.ResourceSet.html" title="struct bunsen::data::resources::resource_set::ResourceSet"><code>ResourceSet</code></a> is a named set of them,
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/resource/enum.Source.html" title="enum bunsen::data::resources::resource::Source"><code>Source</code></a>s it can be had from, in order. A
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/resource_set/struct.ResourceSet.html" title="struct bunsen::data::resources::resource_set::ResourceSet"><code>ResourceSet</code></a> is a named set of them,
 what a loader reads, and two sets
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/resource_set/struct.ResourceSet.html#method.fuse" title="method bunsen::data::resources::resource_set::ResourceSet::fuse">fuse</a> by slot: strictly for
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/resource_set/struct.ResourceSet.html#method.fuse" title="method bunsen::data::resources::resource_set::ResourceSet::fuse">fuse</a> by slot: strictly for
 authoring, where a repeated slot is a mistake, or as an overlay, where the
 right-hand set wins. None of this is about models: a model’s build and a
 dataset’s shards both load through it
-(<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/index.html" title="mod bunsen::data::resources"><code>bunsen::data::resources</code></a>).</p>
+(<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/index.html" title="mod bunsen::data::resources"><code>bunsen::data::resources</code></a>).</p>
 <h2 id="the-cache-and-its-trust-model"><a class="header" href="#the-cache-and-its-trust-model">The cache and its trust model</a></h2>
-<p>A <a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/cache/struct.ResourceCache.html" title="struct bunsen::data::resources::cache::ResourceCache"><code>ResourceCache</code></a> keeps each
+<p>A <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/cache/struct.ResourceCache.html" title="struct bunsen::data::resources::cache::ResourceCache"><code>ResourceCache</code></a> keeps each
 pinned file at <code>&lt;cache&gt;/resources/&lt;name&gt;/&lt;sha256&gt;/&lt;file&gt;</code>. The name is the
 resource’s full name: a catalog resource’s (<code>qwen/qwen3/qwen3-0.6b/checkpoint</code>),
 so a file two builds share is cached once; an <code>hf:</code> repo’s
@@ -204,16 +204,16 @@ trust it without re-hashing gigabytes, and a model whose pin changes can
 never collide with a stale copy. The cache trusts the path whoever wrote it:
 a download, bundled bytes, or a build script or a deployment that laid the
 directory out ahead of time
-(<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/cache/struct.ResourceCache.html#trust-model" title="struct bunsen::data::resources::cache::ResourceCache">trust model</a>).</p>
+(<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/cache/struct.ResourceCache.html#trust-model" title="struct bunsen::data::resources::cache::ResourceCache">trust model</a>).</p>
 <p>The cache looks at that path first, then at a resource’s local sources, and
 only then at its URLs
-(<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/cache/struct.ResourceCache.html#source-order" title="struct bunsen::data::resources::cache::ResourceCache">source order</a>). A
+(<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/cache/struct.ResourceCache.html#source-order" title="struct bunsen::data::resources::cache::ResourceCache">source order</a>). A
 local directory, such as <code>openai-whisper</code>’s own cache, is a “trust me”
 source: its file is used in place and hashed only when the cache’s options
 ask for verification. Nothing is linked or copied into the cache, and only
 a download or bundled bytes write there. Downloads need the <code>fetch</code> feature.
 Without it, or on an offline cache, a file that only a URL can supply is
-reported as not found (<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/index.html#features" title="mod bunsen::data">features</a>).</p>
+reported as not found (<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/index.html#features" title="mod bunsen::data">features</a>).</p>
 <h2 id="bundling-is-a-populated-cache-directory"><a class="header" href="#bundling-is-a-populated-cache-directory">Bundling is a populated cache directory</a></h2>
 <p>Because the cache trusts its layout, shipping a model with a build does not
 need a special kind of source. It needs a cache directory that is already
@@ -226,14 +226,14 @@ directory ahead of time, and point the cache at it. Files a deployment ships
 in place are a catalog layer instead, which adds them to their builds as
 local-dir sources (<a href="./catalog.html#extension-layers">extension layers</a>).</p>
 <p>The other form links the bytes into the binary: a
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/resource/enum.Source.html#variant.Bundled" title="variant bunsen::data::resources::resource::Source::Bundled"><code>Source::Bundled</code></a>, checked
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/resource/enum.Source.html#variant.Bundled" title="variant bunsen::data::resources::resource::Source::Bundled"><code>Source::Bundled</code></a>, checked
 against its digest and written into the cache on first use. Both forms are
 described under
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/index.html#the-cache-and-bundles" title="mod bunsen::data::resources">the cache and bundles</a>.</p>
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/index.html#the-cache-and-bundles" title="mod bunsen::data::resources">the cache and bundles</a>.</p>
 <h2 id="the-hub"><a class="header" href="#the-hub">The Hub</a></h2>
-<p><a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/hub/index.html" title="mod bunsen::data::resources::hub"><code>resources::hub</code></a> is what a client of the
+<p><a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/hub/index.html" title="mod bunsen::data::resources::hub"><code>resources::hub</code></a> is what a client of the
 Hugging Face Hub needs to name its files: a
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/hub/struct.HubRepo.html" title="struct bunsen::data::resources::hub::HubRepo"><code>HubRepo</code></a> at a revision, a model’s
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/hub/struct.HubRepo.html" title="struct bunsen::data::resources::hub::HubRepo"><code>HubRepo</code></a> at a revision, a model’s
 or a dataset’s, the URLs it serves a file and its tree listing at, and the
 listing’s entries, whose LFS digests pin the files. The <code>hf:</code> provider reads
 a repo’s listing through the cache, and <code>cargo catalog</code> pins the catalog’s

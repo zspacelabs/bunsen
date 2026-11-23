@@ -185,8 +185,8 @@
 <p>A language model trains on a corpus too large to fetch at once, published as
 many numbered files. This chapter covers how bunsen names, pins and fetches
 those files, and where they go next. The reference is
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/datasets/index.html" title="mod bunsen::data::datasets"><code>bunsen::data::datasets</code></a>, whose
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/datasets/index.html#lifecycle" title="mod bunsen::data::datasets">lifecycle</a> links every step.</p>
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/datasets/index.html" title="mod bunsen::data::datasets"><code>bunsen::data::datasets</code></a>, whose
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/datasets/index.html#lifecycle" title="mod bunsen::data::datasets">lifecycle</a> links every step.</p>
 <h2 id="the-pathway"><a class="header" href="#the-pathway">The pathway</a></h2>
 <pre><code class="language-text">a catalog build             a dataset, a templated resource of numbered files
   │  view it, select a range of shards
@@ -199,14 +199,14 @@ shard paths
   ▼
 a data loader                bunsen-arrow-dataloaders, in train-chat
 </code></pre>
-<p>A <a href="https://docs.rs/bunsen/0.43.0/bunsen/data/datasets/descriptor/struct.ShardSetDescriptor.html" title="struct bunsen::data::datasets::descriptor::ShardSetDescriptor"><code>ShardSetDescriptor</code></a> says
+<p>A <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/datasets/descriptor/struct.ShardSetDescriptor.html" title="struct bunsen::data::datasets::descriptor::ShardSetDescriptor"><code>ShardSetDescriptor</code></a> says
 what a set is: its name, the base URLs its files come from, how they are
 named and numbered, and whether they are pinned. It is plain data, a view of
 a catalog build of a dataset contract (<code>parquet-shards</code>), whose shards are
-one templated resource; <a href="https://docs.rs/bunsen/0.43.0/bunsen/kits/language/generation/nanochat/datasets/index.html" title="mod bunsen::kits::language::generation::nanochat::datasets">NanoChat’s corpus</a>
+one templated resource; <a href="https://docs.rs/bunsen/0.44.0/bunsen/kits/language/generation/nanochat/datasets/index.html" title="mod bunsen::kits::language::generation::nanochat::datasets">NanoChat’s corpus</a>
 is the built-in catalog’s <code>karpathy/fineweb-edu-100b-shuffle</code>
-(<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/datasets/descriptor/struct.ShardSetDescriptor.html#method.from_builtin" title="associated function bunsen::data::datasets::descriptor::ShardSetDescriptor::from_builtin"><code>from_builtin</code></a>). A
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/datasets/set/struct.ShardSet.html" title="struct bunsen::data::datasets::set::ShardSet"><code>ShardSet</code></a> binds a descriptor to a
+(<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/datasets/descriptor/struct.ShardSetDescriptor.html#method.from_builtin" title="associated function bunsen::data::datasets::descriptor::ShardSetDescriptor::from_builtin"><code>from_builtin</code></a>). A
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/datasets/set/struct.ShardSet.html" title="struct bunsen::data::datasets::set::ShardSet"><code>ShardSet</code></a> binds a descriptor to a
 directory, the disk cache’s or one the caller gives, and brings shards in.
 Binding needs the <code>cache</code> feature; downloading needs <code>fetch</code>. Without
 <code>fetch</code>, a set works from shards that are already on disk.</p>
@@ -221,15 +221,15 @@ digests therefore can’t drift apart.</p>
 <p>bunsen’s part ends with a list of local paths. Reading them is a data
 loader’s job, and the loader that reads NanoChat’s Parquet shards is a
 separate crate,
-<a href="https://docs.rs/bunsen-arrow-dataloaders/0.43.0/bunsen_arrow_dataloaders/index.html" title="mod bunsen_arrow_dataloaders"><code>bunsen_arrow_dataloaders</code></a>, a preview that does
+<a href="https://docs.rs/bunsen-arrow-dataloaders/0.44.0/bunsen_arrow_dataloaders/index.html" title="mod bunsen_arrow_dataloaders"><code>bunsen_arrow_dataloaders</code></a>, a preview that does
 not depend on bunsen. Its
-<a href="https://docs.rs/bunsen-arrow-dataloaders/0.43.0/bunsen_arrow_dataloaders/dataloaders/chat/struct.ChatDataLoader.html" title="struct bunsen_arrow_dataloaders::dataloaders::chat::ChatDataLoader"><code>ChatDataLoader</code></a>
+<a href="https://docs.rs/bunsen-arrow-dataloaders/0.44.0/bunsen_arrow_dataloaders/dataloaders/chat/struct.ChatDataLoader.html" title="struct bunsen_arrow_dataloaders::dataloaders::chat::ChatDataLoader"><code>ChatDataLoader</code></a>
 streams the shards through text selection, tokenization and packing into
 fixed-shape blocks of token ids, with an optional shuffle
-(<a href="https://docs.rs/bunsen-arrow-dataloaders/0.43.0/bunsen_arrow_dataloaders/dataloaders/chat/index.html#pipeline-overview" title="mod bunsen_arrow_dataloaders::dataloaders::chat">pipeline overview</a>).</p>
+(<a href="https://docs.rs/bunsen-arrow-dataloaders/0.44.0/bunsen_arrow_dataloaders/dataloaders/chat/index.html#pipeline-overview" title="mod bunsen_arrow_dataloaders::dataloaders::chat">pipeline overview</a>).</p>
 <p>A selection of shards can also become a
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/resources/resource_set/struct.ResourceSet.html" title="struct bunsen::data::resources::resource_set::ResourceSet"><code>ResourceSet</code></a>, through
-<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/datasets/descriptor/struct.ShardSetDescriptor.html#method.to_resource_set" title="method bunsen::data::datasets::descriptor::ShardSetDescriptor::to_resource_set"><code>to_resource_set</code></a>,
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/resource_set/struct.ResourceSet.html" title="struct bunsen::data::resources::resource_set::ResourceSet"><code>ResourceSet</code></a>, through
+<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/datasets/descriptor/struct.ShardSetDescriptor.html#method.to_resource_set" title="method bunsen::data::datasets::descriptor::ShardSetDescriptor::to_resource_set"><code>to_resource_set</code></a>,
 for a build or a loader that takes the shards as resources.</p>
 <h2 id="end-to-end-train-chat"><a class="header" href="#end-to-end-train-chat">End to end: train-chat</a></h2>
 <p><a href="https://github.com/zspacelabs/bunsen/tree/main/examples/train-chat"><code>examples/train-chat</code></a>
