@@ -7,6 +7,8 @@
 //! - [`device`]: `--device` and `--device-index`, resolved into a configured
 //!   burn `Device` (its default float f32).
 //! - [`logging`]: log-level flags.
+//! - [`placement`]: `--cpus`, the CPUs the process's threads run on; an
+//!   accelerated device's threads pinned under one L3 cache by default.
 //! - [`precision`]: `--min-precision`, a floor under a loaded model's dtypes,
 //!   and `--init-dtype`, the dtype a program creates its own tensors in.
 //! - [`shards`]: dataset shard selection and fetch policy.
@@ -21,5 +23,6 @@ pub mod cache;
 pub mod catalog;
 pub mod device;
 pub mod logging;
+pub mod placement;
 pub mod precision;
 pub mod shards;

@@ -1249,6 +1249,7 @@ dependencies = [
  "clap",
  "document-features",
  "env_logger",
+ "libc",
  "log",
  "serde",
  "serde-saphyr",
