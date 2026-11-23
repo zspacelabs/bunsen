@@ -451,7 +451,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
     }
 
     fn device(&self) -> Device {
-        self.construct.lm.head.weight.device()
+        self.construct.lm.embedders[0].weight.device()
     }
 
     /// The last row's logits of `[1, T, K, V]`, `[K, V]`.

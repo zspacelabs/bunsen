@@ -56,7 +56,7 @@ fn is_weightless_scale(
     path: &str,
     _containers: &str,
 ) -> bool {
-    path == "stack.input_norm.gamma"
+    path == "decoder.stack.input_norm.gamma"
         || path.ends_with("attn.branch.q_norm.gamma")
         || path.ends_with("attn.branch.k_norm.gamma")
 }

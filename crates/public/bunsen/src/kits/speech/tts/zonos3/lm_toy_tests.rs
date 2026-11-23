@@ -159,7 +159,10 @@ fn test_toy_config() {
     assert_eq!((c.gdn_heads, c.gdn_head_dim), (2, 16));
     assert_eq!((c.n_experts, c.top_k, c.moe_latent), (4, 2, 32));
     assert!(!c.layer_attends(0) && c.layer_attends(1));
-    assert_eq!(toy.model.stack.routes.as_ref().unwrap().n_sources(), 5);
+    assert_eq!(
+        toy.model.decoder.stack.routes.as_ref().unwrap().n_sources(),
+        5
+    );
 }
 
 /// The toy's config and model answer the meta alike.

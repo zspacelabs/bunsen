@@ -37,9 +37,7 @@ use crate::{
                 attn_res::AttnResRoutesConfig,
                 causal::CausalDecoderBlockConfig,
                 stack::{
-                    DecoderStack,
                     DecoderStackCache,
-                    DecoderStackMeta,
                     DecoderStackStructureConfig,
                 },
             },
@@ -48,11 +46,18 @@ use crate::{
                 RotaryEmbeddingConfig,
                 RotaryPairLayout,
             },
+            head::LmHeadConfig,
             mixers::{
                 GatedDeltaNetConfig,
                 TokenMixerConfig,
             },
             mlp::TransformerFeedForwardConfig,
+            models::language_decoder::{
+                LmHybridKind,
+                LmStackDecoder,
+                LmStackDecoderConfig,
+                LmStackDecoderMeta,
+            },
             moe::{
                 experts::ExpertStackConfig,
                 router::{
@@ -244,6 +249,18 @@ impl Zonos3LmConfig {
             .with_input_norm(Some(self.rms()))
             .with_routes(Some(AttnResRoutesConfig::new().with_key_eps(self.norm_eps)))
     }
+
+    /// The decoder: [`stack`](Self::stack), and a head of its own, every
+    /// codebook's logits (`[D, K V_a]`, no bias), soft-capped by `c ·
+    /// tanh(x / c)`.
+    pub fn decoder(&self) -> LmStackDecoderConfig {
+        LmStackDecoderConfig::new(
+            LmHeadConfig::new(self.d_model, self.n_codebooks * self.audio_vocab())
+                .with_tied(false)
+                .with_softcap(Some(self.softcap)),
+            self.stack(),
+        )
+    }
 }
 
 /// A [`Zonos3Lm`]'s geometry, which its config and the model answer alike.
@@ -311,11 +328,11 @@ impl Zonos3LmMeta for Zonos3LmConfig {
 
 impl Zonos3LmMeta for Zonos3Lm {
     fn d_model(&self) -> usize {
-        self.head.weight.dims()[0]
+        self.decoder.d_model()
     }
 
     fn n_layers(&self) -> usize {
-        self.stack.n_layers()
+        LmStackDecoderMeta::n_layers(&self.decoder)
     }
 
     fn n_codebooks(&self) -> usize {
@@ -355,13 +372,9 @@ impl ModuleInit<Zonos3Lm> for Zonos3LmConfig {
                 .iter()
                 .map(|&n| EmbeddingConfig::new(n + 1, d).init(device))
                 .collect(),
-            stack: self.stack().try_init(device)?,
-            head: LinearConfig::new(d, self.n_codebooks * audio_vocab)
-                .with_bias(false)
-                .init(device),
+            decoder: self.decoder().try_init(device)?,
             n_codebooks: self.n_codebooks,
             audio_vocab,
-            softcap: self.softcap,
         })
     }
 }
@@ -404,7 +417,8 @@ pub struct Zonos3LmTrace {
 /// A row is `n_codebooks` audio ids and a text id; its embedding is the sum
 /// of each id's row in its own table (the text table last). A speaker row's
 /// and the condition rows' embeddings are replaced instead
-/// ([`Zonos3RowConditioning`]). The rows go through a [`DecoderStack`] with
+/// ([`Zonos3RowConditioning`]). The rows go through a
+/// [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack) with
 /// attention-residual routes in place of a residual stream, of gated
 /// `DeltaNet` and global attention layers, the first with a dense
 /// `SwiGLU`, the rest with a latent mixture of experts; one linear then
@@ -422,12 +436,10 @@ pub struct Zonos3Lm {
     /// Each condition's table, its buckets and an unknown bucket last.
     pub condition_embeddings: Vec<Embedding>,
 
-    /// The layers, with attention-residual routes in place of a residual
-    /// stream.
-    pub stack: DecoderStack,
-
-    /// Every codebook's logits, `[D, K V_a]`.
-    pub head: Linear,
+    /// The decoder: the layers, with attention-residual routes in place of
+    /// a residual stream, and the head, every codebook's logits (`[D, K
+    /// V_a]`, soft-capped).
+    pub decoder: LmStackDecoder<LmHybridKind>,
 
     /// The audio codebooks, `K`.
     #[module(skip)]
@@ -436,15 +448,11 @@ pub struct Zonos3Lm {
     /// Each codebook's vocabulary, `V_a`.
     #[module(skip)]
     pub audio_vocab: usize,
-
-    /// The logits' soft-cap.
-    #[module(skip)]
-    pub softcap: f64,
 }
 
 impl Zonos3Lm {
     /// A decode cache for `rows` batch rows of at most `positions` positions
-    /// ([`DecoderStack::decode_cache`]).
+    /// ([`DecoderStack::decode_cache`](crate::blocks::transformers::decoders::stack::DecoderStack::decode_cache)).
     pub fn decode_cache(
         &self,
         rows: usize,
@@ -452,7 +460,9 @@ impl Zonos3Lm {
         storage: KVCacheStorage,
         device: &Device,
     ) -> DecoderStackCache {
-        self.stack.decode_cache(rows, positions, storage, device)
+        self.decoder
+            .stack
+            .decode_cache(rows, positions, storage, device)
     }
 
     /// The rows' embeddings at absolute positions `start..start + T`: the
@@ -538,26 +548,25 @@ impl Zonos3Lm {
         let start = cache.as_ref().map_or(0, |c| c.pos());
         let (emb_sum, emb_cond) = self.embed(ids, rows, start);
         let (hidden, bank) = match cache {
-            Some(cache) => self.stack.forward_bank(
+            Some(cache) => self.decoder.stack.forward_bank(
                 emb_cond.clone(),
                 &cache.rotary,
                 Some(&mut cache.cache),
                 Some(&mut cache.linear),
             ),
             None => {
-                let rotary = self.stack.rotary(t, &emb_cond.device());
-                self.stack
+                let rotary = self.decoder.rotary(t, &emb_cond.device());
+                self.decoder
+                    .stack
                     .forward_bank(emb_cond.clone(), &rotary, None, None)
             }
         };
-        let c = self.softcap;
-        let logits = self
-            .head
-            .forward(hidden.clone())
-            .div_scalar(c)
-            .tanh()
-            .mul_scalar(c)
-            .reshape([b, t, self.n_codebooks, self.audio_vocab]);
+        let logits = self.decoder.logits(hidden.clone(), None).reshape([
+            b,
+            t,
+            self.n_codebooks,
+            self.audio_vocab,
+        ]);
         (
             logits,
             Zonos3LmTrace {
@@ -572,6 +581,12 @@ impl Zonos3Lm {
 
 impl CanonicalKeys for Zonos3Lm {
     fn canonical_rekey(&self) -> Rekey {
-        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
+        Rekey::keep_rest()
+            .rename("head.", "decoder.head.proj.")
+            .mount(
+                "stack.",
+                "decoder.stack.",
+                self.decoder.stack.canonical_rekey(),
+            )
     }
 }
