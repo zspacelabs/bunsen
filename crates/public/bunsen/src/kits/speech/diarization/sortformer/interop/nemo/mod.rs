@@ -19,7 +19,6 @@ use crate::{
     blocks::{
         layout::BoundaryPermutes,
         signals::DwStridingSubsamplingMeta,
-        transformers::encoders::residual::ResidualEncoderTransformerConfig,
     },
     burner::module::{
         Rekey,
@@ -244,10 +243,7 @@ impl NemoSortformerMirror {
                 .with_layout(BoundaryPermutes::SWAP_IN),
             SortformerHeadConfig::new(modules.tf_d_model, modules.num_spks),
         )
-        .with_transformer(Some(ResidualEncoderTransformerConfig::new(
-            transformer.transformer_encoder_block_config()?,
-            transformer.num_layers,
-        ))))
+        .with_transformer(Some(transformer.transformer_encoder_config()?)))
     }
 
     /// The front end the model was trained behind: the `preprocessor`
@@ -461,7 +457,7 @@ mod tests {
             ("encoder.layers.0.conv.batch_norm.num_batches_tracked", None),
             (
                 "transformer_encoder.layers.17.first_sub_layer.out_projection.weight",
-                Some("transformer.layers.17.attn.output.weight"),
+                Some("transformer.layers.17.attn.c_proj.weight"),
             ),
             (
                 "sortformer_modules.encoder_proj.weight",

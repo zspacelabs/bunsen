@@ -242,7 +242,7 @@ fn test_stages_match_nemo() {
             .transformer
             .as_ref()
             .expect("v2 has a transformer")
-            .forward(projected, enc_lengths);
+            .encoder_forward(projected, enc_lengths);
         assert_close(
             &io("transformed"),
             transformed,
