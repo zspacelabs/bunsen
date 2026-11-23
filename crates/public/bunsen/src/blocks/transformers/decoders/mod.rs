@@ -9,10 +9,11 @@
 //! - [`stack`]: a stack of causal layers and a final norm,
 //!   [`DecoderStack`](stack::DecoderStack), with the rotary embedding they
 //!   share and their KV cache's geometry: Qwen3's decoder, by config.
-//! - [`attn_res`]: a decoder stack's layers without a residual stream,
-//!   [`AttnResStack`](attn_res::AttnResStack): each sublayer reads a learned
+//! - [`attn_res`]: a decoder stack's routes in place of its residual stream,
+//!   [`AttnResRoutes`](attn_res::AttnResRoutes): each sublayer reads a learned
 //!   mixture of the stack's input and every earlier sublayer's output (Full
-//!   Attention Residuals); ZONOS3's.
+//!   Attention Residuals), a [`DecoderStack`](stack::DecoderStack) with routes;
+//!   ZONOS3's.
 //! - [`depth`]: a depth decoder, [`DepthDecoder`](depth::DepthDecoder): a small
 //!   causal decoder over one frame's codebooks after the first, from the
 //!   backbone's rows, each codebook its own table and head; Qwen3-TTS's code

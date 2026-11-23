@@ -45,11 +45,18 @@ use crate::{
             BunsenNormalizationConfig,
         },
         transformers::{
-            decoders::causal::{
-                CausalDecoderBlock,
-                CausalDecoderBlockConfig,
-                CausalDecoderBlockMeta,
-                DecoderSideInputs,
+            attention::csa::AttentionSides,
+            decoders::{
+                attn_res::{
+                    AttnResRoutes,
+                    AttnResRoutesConfig,
+                },
+                causal::{
+                    CausalDecoderBlock,
+                    CausalDecoderBlockConfig,
+                    CausalDecoderBlockMeta,
+                    DecoderSideInputs,
+                },
             },
             embedding::{
                 RotaryEmbeddingConfig,
@@ -185,6 +192,13 @@ pub struct DecoderStackStructureConfig {
     /// `Some(k)` for `rotary_alts[k]`; empty, every layer on `rotary`.
     #[config(default = "Vec::new()")]
     pub layer_rotary: Vec<Option<usize>>,
+
+    /// Full Attention Residuals in place of the residual stream: each
+    /// sublayer reads a learned route over the stack's input and every
+    /// earlier sublayer's output ([`AttnResRoutes`]); `None`, the residual
+    /// stream (ZONOS3's language model has routes).
+    #[config(default = "None")]
+    pub routes: Option<AttnResRoutesConfig>,
 }
 
 impl DecoderStackStructureConfig {
@@ -330,6 +344,10 @@ impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
             rotary: self.rotary.clone(),
             rotary_alts: self.rotary_alts.clone(),
             layer_rotary: self.layer_rotary.clone(),
+            routes: self
+                .routes
+                .as_ref()
+                .map(|r| r.init(self.layers.len(), width, device)),
         })
     }
 }
@@ -534,6 +552,11 @@ pub struct DecoderStack {
     /// ([`DecoderStackStructureConfig::layer_rotary`]).
     #[module(skip)]
     pub layer_rotary: Vec<Option<usize>>,
+
+    /// The routes in place of the residual stream, if the stack has them
+    /// ([`DecoderStackStructureConfig::routes`]): its forward is then
+    /// [`forward_bank`](Self::forward_bank)'s.
+    pub routes: Option<AttnResRoutes>,
 }
 
 impl DecoderStackMeta for DecoderStack {
@@ -891,6 +914,17 @@ impl DecoderStack {
         mut linear: Option<&mut DeltaNetCache>,
         sides: DecoderStackSides,
     ) -> Tensor<3> {
+        if self.routes.is_some() {
+            assert!(
+                sides.cond.is_none()
+                    && sides.value_embeds.iter().all(Option::is_none)
+                    && sides.mix.resid_x0.is_none()
+                    && sides.mix.backout.is_none()
+                    && sides.key_valid.is_none(),
+                "a stack with attention-residual routes takes no side inputs"
+            );
+            return self.forward_bank(x, r_emb, kv_cache, linear).0;
+        }
         let [batch, seq] = crate::contracts::unpack_shape_contract!(
             ["batch", "seq", "d_model"],
             &x.dims(),
@@ -950,6 +984,67 @@ impl DecoderStack {
         y
     }
 
+    /// The attention-residual forward of a stack with routes
+    /// ([`AttnResRoutes`]), and the bank it built: the input (after the
+    /// input norm), then each layer's attention and feed-forward updates,
+    /// `2 L + 1` tensors of `[batch, seq, d_model]`, at positions
+    /// `start..start + seq` through the caches when there are some.
+    ///
+    /// # Panics
+    /// If the stack has no routes: a residual stream keeps no bank.
+    pub fn forward_bank(
+        &self,
+        x: Tensor<3>,
+        r_emb: &RotarySet,
+        mut kv_cache: Option<&mut KVCache>,
+        mut linear: Option<&mut DeltaNetCache>,
+    ) -> (Tensor<3>, Vec<Tensor<3>>) {
+        let routes = self
+            .routes
+            .as_ref()
+            .expect("a stack with attention-residual routes");
+        let [batch, seq] = crate::contracts::unpack_shape_contract!(
+            ["batch", "seq", "d_model"],
+            &x.dims(),
+            &["batch", "seq"],
+            &[("d_model", self.d_model())]
+        );
+        let start = kv_cache.as_ref().map(|c| c.pos()).unwrap_or(0);
+        let r_emb = r_emb.clip_range(start..start + seq);
+        let x = match &self.input_norm {
+            Some(norm) => norm.forward(x),
+            None => x,
+        };
+        let mut bank = Vec::with_capacity(routes.n_sources());
+        bank.push(x);
+        for (i, layer) in self.layers.iter().enumerate() {
+            let a = layer.attn_residual(
+                routes.route(&bank, 2 * i),
+                r_emb.for_layer(i),
+                &mut kv_cache,
+                linear.as_deref_mut(),
+                AttentionSides::default(),
+            );
+            bank.push(a);
+            let f = layer.mlp_residual(routes.route(&bank, 2 * i + 1), None);
+            bank.push(f);
+        }
+        let y = self
+            .norm
+            .forward(routes.route(&bank, 2 * self.layers.len()));
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "seq", "d_model"],
+            &y.dims(),
+            &[("batch", batch), ("seq", seq), ("d_model", self.d_model())],
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = batch;
+
+        (y, bank)
+    }
+
     /// The attention weights of an uncached pass over `x`, at `layers`, each
     /// cut to the queries `rows` and the keys `cols`.
     ///
@@ -983,6 +1078,10 @@ impl DecoderStack {
             layers.iter().all(|&l| l < self.layers.len()),
             "layers {layers:?} of {}",
             self.layers.len()
+        );
+        assert!(
+            self.routes.is_none(),
+            "attention weights of a stack with attention-residual routes"
         );
         let r_emb = r_emb.clip_range(0..seq);
         let x = match &self.input_norm {

@@ -276,13 +276,13 @@ pub fn zonos3_lm_rekey(config: &Zonos3LmConfig) -> Rekey {
             .rename("multi_embedder.embedders.", "embedders.")
             .rename("speaker_projection.", "speaker_projection.")
             .rename("condition_embeddings.", "condition_embeddings.")
-            .exact("block_attnres_queries", "stack.queries")
-            .rename("out_norm.", "stack.stack.norm.")
+            .exact("block_attnres_queries", "stack.routes.queries")
+            .rename("out_norm.", "stack.norm.")
             .rename("multi_output.", "head."),
         |rekey, l| {
             rekey.mount(
                 format!("layers.{l}."),
-                format!("stack.stack.layers.{l}."),
+                format!("stack.layers.{l}."),
                 zonos3_lm_layer_rekey(config, l),
             )
         },
