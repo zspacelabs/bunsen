@@ -192,7 +192,7 @@ fn test_cached_matches_uncached() {
 fn test_kinds() {
     let device = cpu_device();
     let model: LmDecoderModel<LmHybridKind> = hybrid().init(&device);
-    assert_eq!(model.stack.layer_attends(), [false, true]);
+    assert_eq!(model.decoder.stack.layer_attends(), [false, true]);
     let tokens = Tensor::<2, Int>::from_data([[1, 5, 7]], &device);
     let hidden = model.forward_hidden(model.embed(tokens), &model.rotary(3, &device));
     assert_eq!(model.logits(hidden).dims(), [1, 3, 40]);
@@ -347,4 +347,71 @@ fn test_parts_agree() {
         ..structure
     };
     let _: LmDecoderModel = untied.init(&device);
+}
+
+/// The model is its embedding and its decoder: the decoder built from the
+/// structure's half holds the same parameters but the embedding's, and the
+/// model's logits are the decoder's handed the embedding's table; a decoder
+/// with a head of its own needs no table, and its meta is the stack's.
+#[test]
+fn test_stack_decoder() {
+    let device = cpu_device();
+    let structure = uniform(2).to_structure();
+    let model: LmDecoderModel = structure.init(&device);
+    let decoder: LmStackDecoder = structure.decoder().init(&device);
+    assert_eq!(
+        decoder.num_params() + model.embedding.num_params(),
+        model.num_params()
+    );
+    let meta = |m: &dyn LmStackDecoderMeta| {
+        (
+            m.n_logits(),
+            m.d_model(),
+            m.n_layers(),
+            m.n_kv_heads(),
+            m.head_dim(),
+        )
+    };
+    assert_eq!(meta(&decoder), (40, 12, 2, 1, 6));
+    assert_eq!(meta(&structure.decoder()), meta(&decoder));
+    assert_eq!(meta(&model.decoder), meta(&decoder));
+
+    let tokens = Tensor::<2, Int>::from_data([[1, 2, 3, 4]], &device);
+    let embeds = model.embed(tokens);
+    let r_emb = model.rotary(4, &device);
+    let hidden = model.forward_hidden(embeds.clone(), &r_emb, None);
+    assert_tensors_close(
+        &model.decoder.forward_hidden(embeds, &r_emb, None),
+        &hidden,
+        Tolerance::rel_abs(1e-6, 1e-6),
+    );
+    assert_tensors_close(
+        &model.logits(hidden.clone()),
+        &model
+            .decoder
+            .logits(hidden.clone(), Some(&model.embedding.weight)),
+        Tolerance::rel_abs(1e-6, 1e-6),
+    );
+
+    let own = LmStackDecoderConfig::new(
+        LmHeadConfig::new(12, 40).with_tied(false),
+        structure.stack.clone(),
+    );
+    let own: LmStackDecoder = own.init(&device);
+    assert_eq!(own.logits(hidden, None).dims(), [1, 4, 40]);
+}
+
+/// A decoder refuses a head whose width is not its stack's, and a stack not
+/// of its kind.
+#[test]
+fn test_stack_decoder_refusals() {
+    let device = cpu_device();
+    let structure = uniform(1).to_structure();
+    let wide = LmStackDecoderConfig::new(LmHeadConfig::new(16, 40), structure.stack.clone());
+    assert!(ModuleInit::<LmStackDecoder>::try_init(&wide, &device).is_err());
+    let hybrid = hybrid().to_structure();
+    assert!(ModuleInit::<LmStackDecoder>::try_init(&hybrid.decoder(), &device).is_err());
+    assert!(
+        ModuleInit::<LmStackDecoder<LmHybridKind>>::try_init(&hybrid.decoder(), &device).is_ok()
+    );
 }

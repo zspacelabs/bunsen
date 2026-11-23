@@ -27,7 +27,7 @@ pub fn load_gemma_tensors(
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: Option<FloatDType>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = gemma_rekey(model.lm.stack.layers[0].attn.post.is_some());
+    let rekey = gemma_rekey(model.lm.decoder.stack.layers[0].attn.post.is_some());
     load_lm_rekeyed(model, tensors, rekey, dtype)
 }
 

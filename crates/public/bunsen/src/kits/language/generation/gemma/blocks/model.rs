@@ -527,7 +527,7 @@ mod tests {
             (40, 12, 3, 1, 8)
         );
         assert_eq!(model.lm.embedding.scale, Some(12f64.sqrt()));
-        assert!(model.lm.head.proj.is_none(), "tied");
+        assert!(model.lm.decoder.head.proj.is_none(), "tied");
         assert_eq!(
             model.kv_cache_config().layer_windows,
             [Some(4), None, Some(4)]

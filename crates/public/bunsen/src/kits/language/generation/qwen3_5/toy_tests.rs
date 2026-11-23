@@ -100,7 +100,7 @@ impl Toy {
         let dropped = |n: &String| n.starts_with("model.visual.") || n.starts_with("mtp.");
         let rest: Vec<_> = applied.unused.iter().filter(|n| !dropped(n)).collect();
         if config.tied_head {
-            assert_eq!(rest, ["head.proj.weight"], "{name}");
+            assert_eq!(rest, ["decoder.head.proj.weight"], "{name}");
         } else {
             assert!(rest.is_empty(), "{name}: {rest:?}");
         }
@@ -127,6 +127,7 @@ impl Toy {
     fn first_full(&self) -> usize {
         self.model
             .lm
+            .decoder
             .stack
             .layer_attends()
             .iter()
@@ -146,7 +147,15 @@ fn test_toy_forward() {
         let r_emb = model.rotary(embeds.dims()[1], &toy.device);
         let full = toy.first_full();
         let mut x = embeds.clone();
-        for (i, layer) in model.lm.stack.layers.iter().enumerate().take(full + 1) {
+        for (i, layer) in model
+            .lm
+            .decoder
+            .stack
+            .layers
+            .iter()
+            .enumerate()
+            .take(full + 1)
+        {
             x = layer.forward(x, r_emb.for_layer(i), &mut None);
             if i == 0 {
                 close(

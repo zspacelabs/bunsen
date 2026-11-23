@@ -5,13 +5,18 @@ use alloc::{
 };
 use core::fmt::Debug;
 
+use burn::module::{
+    Module,
+    ModuleDisplay,
+};
+
 /// How an [`LmDecoderModel`](super::LmDecoderModel)'s stack decodes, as a type:
 /// which caches can hold its state, and so which forward API it has.
 ///
 /// A zero-size marker; building a model of a kind refuses a stack that is
 /// not of it.
 pub trait LmDecodeKind:
-    Clone + Copy + Debug + Default + PartialEq + Eq + Send + Sync + 'static
+    Module + ModuleDisplay + Clone + Copy + Debug + Default + PartialEq + Eq + Send + Sync + 'static
 {
     /// The kind's name, in errors.
     const NAME: &'static str;
@@ -31,7 +36,7 @@ pub trait LmDecodeKind:
 /// decode through a
 /// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
 /// as every kind does.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Module, Copy, Debug, Default, PartialEq, Eq)]
 pub struct LmAttentionOnlyKind;
 
 impl LmDecodeKind for LmAttentionOnlyKind {
@@ -51,7 +56,7 @@ impl LmDecodeKind for LmAttentionOnlyKind {
 ///
 /// Its models implement
 /// [`LmUncachedForwardHidden`](super::LmUncachedForwardHidden).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Module, Copy, Debug, Default, PartialEq, Eq)]
 pub struct LmHybridKind;
 
 impl LmDecodeKind for LmHybridKind {

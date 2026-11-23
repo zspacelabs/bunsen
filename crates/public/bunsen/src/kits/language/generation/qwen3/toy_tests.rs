@@ -70,10 +70,15 @@ impl Toy {
         let applied = load_qwen3_tensors(&mut model, fixture.take_weights(), None)
             .expect("load the toy weights");
         if config.tied_head {
-            assert_eq!(applied.unused, ["head.proj.weight"], "{name}");
+            assert_eq!(applied.unused, ["decoder.head.proj.weight"], "{name}");
         } else {
             assert!(applied.unused.is_empty(), "{name}: {:?}", applied.unused);
-            assert!(applied.applied.iter().any(|p| p == "head.proj.weight"));
+            assert!(
+                applied
+                    .applied
+                    .iter()
+                    .any(|p| p == "decoder.head.proj.weight")
+            );
         }
         Self {
             model,
@@ -130,7 +135,8 @@ fn check_forward(toy: &Toy) {
     let seq = embeds.dims()[1];
     let r_emb = model.rotary(seq, &toy.device);
 
-    let layer0 = model.lm.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
+    let layer0 =
+        model.lm.decoder.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
     assert_io_close("layer 0", layer0, toy.io("layer0"));
     let hidden = model.forward_hidden(embeds, &r_emb, None);
     assert_io_close("hidden", hidden.clone(), toy.io("hidden"));

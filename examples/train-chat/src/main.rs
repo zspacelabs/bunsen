@@ -480,7 +480,7 @@ impl ParamGroups {
         };
 
         let matrix = select(
-            "GptHost/NanoChatGpt/*[@name='lm']/*[@name='stack']/*[@name='layers']//Linear/*[@name='weight'][@rank=2]",
+            "GptHost/NanoChatGpt/*[@name='lm']/*[@name='decoder']/*[@name='stack']/*[@name='layers']//Linear/*[@name='weight'][@rank=2]",
         )?;
 
         // TODO: value_embeds
@@ -489,7 +489,8 @@ impl ParamGroups {
         // TODO: smear, smear_gate, blackout
 
         let embedding = select("GptHost/NanoChatGpt/*[@name='lm']/*[@name='embedding']")?;
-        let lm_head = select("GptHost/NanoChatGpt/*[@name='lm']/*[@name='head']")?;
+        let lm_head =
+            select("GptHost/NanoChatGpt/*[@name='lm']/*[@name='decoder']/*[@name='head']")?;
 
         let remnant: HashSet<ParamId> = mtree
             .param_ids()?
@@ -563,7 +564,7 @@ mod tests {
 
         // Muon gets every matrix in the blocks, not just some of them.
         let block_matrices: HashSet<ParamId> = mtree
-            .select_params("GptHost/NanoChatGpt/*[@name='lm']/*[@name='stack']/*[@name='layers']")
+            .select_params("GptHost/NanoChatGpt/*[@name='lm']/*[@name='decoder']/*[@name='stack']/*[@name='layers']")
             .to_param_descs()
             .unwrap()
             .iter()
