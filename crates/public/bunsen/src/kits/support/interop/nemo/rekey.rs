@@ -69,15 +69,17 @@ pub fn conformer_encoder_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rek
 }
 
 /// A `NeMo` `transformer_encoders.TransformerEncoder` layer's names onto a
-/// [`ResidualEncoderAttentionBlock`](crate::blocks::transformers::encoders::residual::ResidualEncoderAttentionBlock)'s,
-/// relative to it: `first_sub_layer` the attention, `second_sub_layer` the
-/// MLP, `layer_norm_{1,2}` their norms. Anything else is dropped.
+/// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)'s,
+/// relative to it: `first_sub_layer` the attention (its `{query, key,
+/// value}_net` and `out_projection` the block's `c_{q, k, v, proj}`),
+/// `second_sub_layer` the MLP, `layer_norm_{1,2}` their norms. Anything else
+/// is dropped.
 pub fn transformer_encoder_layer_rekey() -> Rekey {
     Rekey::drop_rest()
-        .rename("first_sub_layer.query_net.", "attn.query.")
-        .rename("first_sub_layer.key_net.", "attn.key.")
-        .rename("first_sub_layer.value_net.", "attn.value.")
-        .rename("first_sub_layer.out_projection.", "attn.output.")
+        .rename("first_sub_layer.query_net.", "attn.c_q.")
+        .rename("first_sub_layer.key_net.", "attn.c_k.")
+        .rename("first_sub_layer.value_net.", "attn.c_v.")
+        .rename("first_sub_layer.out_projection.", "attn.c_proj.")
         .rename("second_sub_layer.dense_in.", "mlp.linear1.")
         .rename("second_sub_layer.dense_out.", "mlp.linear2.")
         .rename("layer_norm_1.", "attn_norm.")
@@ -85,7 +87,7 @@ pub fn transformer_encoder_layer_rekey() -> Rekey {
 }
 
 /// `NeMo`'s `transformer_encoders.TransformerEncoder` names onto a
-/// [`ResidualEncoderTransformer`](crate::blocks::transformers::encoders::residual::ResidualEncoderTransformer)'s,
+/// [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)'s,
 /// relative to it: each `layers.{n}` by
 /// [`transformer_encoder_layer_rekey`]. Anything else is dropped.
 pub fn transformer_encoder_rekey() -> Rekey {
@@ -156,7 +158,7 @@ mod tests {
         for (nemo, bunsen) in [
             (
                 "layers.17.first_sub_layer.key_net.bias",
-                Some("layers.17.attn.key.bias"),
+                Some("layers.17.attn.c_k.bias"),
             ),
             (
                 "layers.0.second_sub_layer.dense_out.weight",

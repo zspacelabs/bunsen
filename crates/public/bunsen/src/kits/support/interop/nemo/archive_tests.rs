@@ -6,13 +6,7 @@ use serde::Deserialize;
 
 use super::*;
 use crate::{
-    blocks::transformers::encoders::{
-        SubsampledEncoder,
-        residual::{
-            ResidualEncoderTransformer,
-            ResidualEncoderTransformerConfig,
-        },
-    },
+    blocks::transformers::encoders::SubsampledEncoder,
     burner::module::{
         CanonicalKeys,
         ModuleInit,
@@ -97,10 +91,9 @@ fn test_config_sections() {
 fn test_bunsen_configs() {
     use crate::{
         blocks::transformers::{
-            encoders::{
-                conformer::ConformerEncoderMeta,
-                residual::ResidualEncoderAttentionBlockMeta,
-            },
+            attention::csa::CausalSelfAttentionMeta,
+            decoders::stack::DecoderStackMeta,
+            encoders::conformer::ConformerEncoderMeta,
             sublayer::NormPlacement,
         },
         kits::speech::support::nemo::FeatureNormalization,
@@ -123,14 +116,28 @@ fn test_bunsen_configs() {
     assert!(conformer.scale_input);
     assert_eq!(conformer.block.d_ff, 32);
 
-    let block = config
+    let stack = config
         .transformer_encoder
-        .transformer_encoder_block_config()
+        .transformer_encoder_config()
         .unwrap();
-    assert_eq!((block.d_model, block.n_heads()), (8, 2));
-    assert_eq!(block.expansion_factor, 2);
-    assert_eq!(block.norm_placement(), NormPlacement::Post);
-    assert!(block.key_bias);
+    let block = &stack.layers[0];
+    let attn = block.attn.attention();
+    assert_eq!((stack.d_model(), attn.n_head()), (8, 2));
+    let crate::blocks::transformers::mlp::TransformerFeedForwardConfig::Mlp(mlp) = &block.mlp
+    else {
+        panic!("a plain feed-forward");
+    };
+    assert_eq!(
+        crate::blocks::mlp::BunsenMlpMeta::d_hidden(mlp),
+        16,
+        "an inner size of twice the width"
+    );
+    assert_eq!(block.norm_placement, NormPlacement::Post);
+    assert!(attn.key_bias() && attn.output_bias);
+    assert!(matches!(
+        stack.norm,
+        crate::blocks::norm::BunsenNormalizationConfig::Identity
+    ));
 }
 
 /// A setting bunsen does not compute is refused, naming the field.
@@ -321,18 +328,16 @@ fn test_conformer_loads_in_either_flatten_order() {
         .assert_approx_eq::<f32>(&want.to_data(), Tolerance::absolute(1e-5));
 }
 
-/// The transformer's entries load into a stack of residual blocks built
-/// from the config, filling every parameter.
+/// The transformer's entries load into the stack built from the config,
+/// filling every parameter.
 #[test]
 fn test_transformer_loads() {
     let config: ToyConfig = toy().config().unwrap();
-    let block = config
+    let mut stack: crate::blocks::transformers::decoders::stack::DecoderStack = config
         .transformer_encoder
-        .transformer_encoder_block_config()
-        .unwrap();
-    let mut stack: ResidualEncoderTransformer =
-        ResidualEncoderTransformerConfig::new(block, config.transformer_encoder.num_layers)
-            .init(&cpu_device());
+        .transformer_encoder_config()
+        .unwrap()
+        .init(&cpu_device());
     let tensors = weights()
         .into_iter()
         .filter(|t| t.name.starts_with("transformer_encoder."));

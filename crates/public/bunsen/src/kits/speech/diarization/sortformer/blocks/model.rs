@@ -42,7 +42,12 @@ use crate::{
             },
             decoders::{
                 causal::CausalDecoderBlockConfig,
-                stack::UniformStackConfig,
+                stack::{
+                    DecoderStack,
+                    DecoderStackMeta,
+                    DecoderStackStructureConfig,
+                    UniformStackConfig,
+                },
             },
             embedding::{
                 RotaryDirection,
@@ -55,12 +60,6 @@ use crate::{
                 conformer::{
                     ConformerBlockConfig,
                     ConformerEncoderConfig,
-                },
-                residual::{
-                    ResidualEncoderAttentionBlockConfig,
-                    ResidualEncoderTransformer,
-                    ResidualEncoderTransformerConfig,
-                    ResidualEncoderTransformerMeta,
                 },
             },
             sublayer::NormPlacement,
@@ -120,7 +119,7 @@ pub struct SortformerStructureConfig {
     /// A transformer over the projected frames, at the head's width, when
     /// set.
     #[config(default = "None")]
-    pub transformer: Option<ResidualEncoderTransformerConfig>,
+    pub transformer: Option<DecoderStackStructureConfig>,
 
     /// Upsamples the projected frames before the head, when set; its width
     /// is the head's.
@@ -472,12 +471,23 @@ impl ToStructureConfig for SortformerV2Config {
             self.n_layers,
         )
         .with_scale_input(true);
-        let block = ResidualEncoderAttentionBlockConfig::new(self.d_hidden)
-            .with_d_head(self.d_hidden / self.transformer_heads.max(1))
-            .with_expansion_factor(self.transformer_ff_expansion)
-            .with_key_bias(true)
-            .with_norm_placement(NormPlacement::Post)
-            .with_activation(BunsenActivationConfig::Relu);
+        let (d, heads) = (self.d_hidden, self.transformer_heads.max(1));
+        let block = CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(heads, heads, d)
+                .with_norm(None)
+                .with_qkv_bias(true)
+                .with_output_bias(true)
+                .with_mask(AttentionMask::Bidirectional)
+                .into(),
+            BunsenMlpConfig::expansion(d, self.transformer_ff_expansion)
+                .with_activation(BunsenActivationConfig::Relu)
+                .with_bias(true)
+                .into(),
+        )
+        .with_norm(BunsenNormalizationConfig::Layer(
+            BunsenLayerNormConfig::new(0),
+        ))
+        .with_norm_placement(NormPlacement::Post);
         Ok(SortformerStructureConfig::new(
             // Fed `[batch, time, n_mels]`; the striding reads `[batch, n_mels,
             // time]`.
@@ -486,10 +496,15 @@ impl ToStructureConfig for SortformerV2Config {
                 .with_layout(BoundaryPermutes::SWAP_IN),
             SortformerHeadConfig::new(self.d_hidden, self.n_speakers),
         )
-        .with_transformer(Some(ResidualEncoderTransformerConfig::new(
-            block,
-            self.transformer_layers,
-        ))))
+        .with_transformer(Some(
+            UniformStackConfig::new(
+                self.transformer_layers,
+                block,
+                BunsenNormalizationConfig::Identity,
+                RotaryEmbeddingConfig::unrotated(d / heads),
+            )
+            .try_to_structure()?,
+        )))
     }
 }
 
@@ -530,7 +545,7 @@ pub struct Sortformer {
     pub projection: Linear,
 
     /// The transformer over the projected frames, if any.
-    pub transformer: Option<ResidualEncoderTransformer>,
+    pub transformer: Option<DecoderStack>,
 
     /// The upsample back to the mel frame rate, if any.
     pub upsample: Option<SubpixelUpsample1d>,
@@ -619,7 +634,7 @@ impl Sortformer {
         let x = self.encoder.forward_pre_encoded(embs, lengths);
         let x = self.projection.forward(x);
         let x = match &self.transformer {
-            Some(transformer) => transformer.forward(x, lengths),
+            Some(transformer) => transformer.encoder_forward(x, lengths),
             None => x,
         };
         let x = match &self.upsample {

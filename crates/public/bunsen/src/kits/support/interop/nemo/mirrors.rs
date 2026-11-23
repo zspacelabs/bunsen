@@ -7,18 +7,33 @@ use serde::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
+        mlp::BunsenMlpConfig,
+        norm::{
+            BunsenLayerNormConfig,
+            BunsenNormalizationConfig,
+        },
         signals::DwStridingSubsamplingConfig,
         transformers::{
-            encoders::{
-                conformer::{
-                    ConformerBlockConfig,
-                    ConformerEncoderConfig,
+            attention::csa::{
+                AttentionMask,
+                CausalSelfAttentionConfig,
+            },
+            decoders::{
+                causal::CausalDecoderBlockConfig,
+                stack::{
+                    DecoderStackStructureConfig,
+                    UniformStackConfig,
                 },
-                residual::ResidualEncoderAttentionBlockConfig,
+            },
+            embedding::RotaryEmbeddingConfig,
+            encoders::conformer::{
+                ConformerBlockConfig,
+                ConformerEncoderConfig,
             },
             sublayer::NormPlacement,
         },
     },
+    burner::module::ToStructureConfig,
     errors::{
         BunsenError,
         BunsenResult,
@@ -460,18 +475,16 @@ pub struct NemoTransformerEncoderMirror {
 }
 
 impl NemoTransformerEncoderMirror {
-    /// The layer this section stacks, as a
-    /// [`ResidualEncoderAttentionBlockConfig`]: every projection with a
-    /// bias, as `NeMo`'s `MultiHeadAttention` and `PositionWiseFF` have.
+    /// The layer this section stacks, as a [`CausalDecoderBlockConfig`]: a
+    /// bidirectional attention without rotary positions, every projection
+    /// with a bias, as `NeMo`'s `MultiHeadAttention` and `PositionWiseFF`
+    /// have, and layer norms where [`pre_ln`](Self::pre_ln) puts them.
     ///
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming
     /// the field and its value, for causal attention, an activation other
-    /// than `relu` and `gelu`, or a width the heads or the feed-forward do
-    /// not divide.
-    pub fn transformer_encoder_block_config(
-        &self
-    ) -> BunsenResult<ResidualEncoderAttentionBlockConfig> {
+    /// than `relu` and `gelu`, or a width the heads do not divide.
+    pub fn transformer_encoder_block_config(&self) -> BunsenResult<CausalDecoderBlockConfig> {
         const S: &str = "transformer_encoder";
         expect_target(
             S,
@@ -498,24 +511,51 @@ impl NemoTransformerEncoderMirror {
                 &format!("does not divide hidden_size {d}"),
             ));
         }
-        if d == 0 || !self.inner_size.is_multiple_of(d) {
-            return Err(unsupported(
-                S,
-                "inner_size",
-                self.inner_size,
-                &format!("not a whole multiple of hidden_size {d}"),
-            ));
-        }
-        Ok(ResidualEncoderAttentionBlockConfig::new(d)
-            .with_d_head(d / heads)
-            .with_expansion_factor(self.inner_size / d)
-            .with_key_bias(true)
-            .with_norm_placement(if self.pre_ln {
-                NormPlacement::Pre
-            } else {
-                NormPlacement::Post
-            })
-            .with_activation(activation))
+        Ok(CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(heads, heads, d)
+                .with_norm(None)
+                .with_qkv_bias(true)
+                .with_output_bias(true)
+                .with_mask(AttentionMask::Bidirectional)
+                .into(),
+            BunsenMlpConfig::new(d, self.inner_size, d)
+                .with_activation(activation)
+                .with_bias(true)
+                .into(),
+        )
+        .with_norm(BunsenNormalizationConfig::Layer(
+            BunsenLayerNormConfig::new(0),
+        ))
+        .with_norm_placement(if self.pre_ln {
+            NormPlacement::Pre
+        } else {
+            NormPlacement::Post
+        }))
+    }
+
+    /// The stack: [`num_layers`](Self::num_layers) of
+    /// [`transformer_encoder_block_config`](Self::transformer_encoder_block_config),
+    /// its final norm a layer norm when
+    /// [`transformer_encoder_final_norm`](Self::transformer_encoder_final_norm)
+    /// says so, else none.
+    ///
+    /// # Errors
+    /// As [`transformer_encoder_block_config`](Self::transformer_encoder_block_config).
+    pub fn transformer_encoder_config(&self) -> BunsenResult<DecoderStackStructureConfig> {
+        let block = self.transformer_encoder_block_config()?;
+        let head_dim = self.hidden_size / self.num_attention_heads;
+        let norm = if self.transformer_encoder_final_norm() {
+            BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0))
+        } else {
+            BunsenNormalizationConfig::Identity
+        };
+        UniformStackConfig::new(
+            self.num_layers,
+            block,
+            norm,
+            RotaryEmbeddingConfig::unrotated(head_dim),
+        )
+        .try_to_structure()
     }
 
     /// Whether the stack ends with a norm: `NeMo` adds it only to a pre-norm
