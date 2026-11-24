@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0](https://github.com/zspacelabs/bunsen/compare/bunsen-app-v0.44.0...bunsen-app-v0.45.0) - 2026-11-24
+
+### Added
+
+- *(cache)* converted weights, kept by the cache and loaded instead of the checkpoint ([#947](https://github.com/zspacelabs/bunsen/pull/947))
+- *(app)* --cpus pins an accelerator's process under one L3 cache ([#942](https://github.com/zspacelabs/bunsen/pull/942))
+
 ## [0.43.0](https://github.com/zspacelabs/bunsen/compare/bunsen-app-v0.42.0...bunsen-app-v0.43.0) - 2026-11-22
 
 ### Added

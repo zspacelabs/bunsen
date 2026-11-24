@@ -10,6 +10,19 @@ release (0.41.0), is in [its changelog](https://github.com/zspacelabs/bunsen/blo
 
 ## [Unreleased]
 
+## [0.45.0](https://github.com/zspacelabs/bunsen/compare/bunsen-tool-v0.44.0...bunsen-tool-v0.45.0) - 2026-11-24
+
+### Added
+
+- *(bunsen-tool)* `tts run --stream`, played as it is spoken ([#960](https://github.com/zspacelabs/bunsen/pull/960))
+- *(cache)* converted weights, kept by the cache and loaded instead of the checkpoint ([#947](https://github.com/zspacelabs/bunsen/pull/947))
+- *(app)* --cpus pins an accelerator's process under one L3 cache ([#942](https://github.com/zspacelabs/bunsen/pull/942))
+
+### Other
+
+- *(tts)* speech as a stream, in the book, the speech kits and the tool ([#962](https://github.com/zspacelabs/bunsen/pull/962))
+- *(bunsen-tool)* how to clone a voice for tts ([#949](https://github.com/zspacelabs/bunsen/pull/949))
+
 ## [0.44.0](https://github.com/zspacelabs/bunsen/compare/bunsen-tool-v0.43.0...bunsen-tool-v0.44.0) - 2026-11-23
 
 ### Added
