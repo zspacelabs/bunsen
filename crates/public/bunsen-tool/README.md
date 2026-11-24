@@ -492,11 +492,12 @@ bunsen-tool tts run --stream --play "Spoken while the rest is still being made."
 bunsen-tool tts run --stream -o out.wav "..."      # the same WAV as without --stream
 ```
 
-`--stream` speaks each take as it is generated: its frames are decoded as they become final, so `--play` starts once
-the first frames are decoded and `--prebuffer-ms` (200 by default) is queued, rather than after the whole text. A fresh
-process compiles its GPU kernels first, which can take seconds. The audio is the same as without it. When synthesis is slower than real time, playback runs dry and fills again; the summary counts the
-underruns, and a larger `--prebuffer-ms` waits longer before it starts. `--first-chunk` and `--max-chunk` set how many
-frames each decode takes (1, then up to 15).
+`--stream` speaks each take as it is generated: its frames are decoded as they become final, so `--play` starts once the
+first frames are decoded and `--prebuffer-ms` (200 by default) is queued, rather than after the whole text. A fresh
+process compiles its GPU kernels first, which can take seconds. The audio is the same as without it. When synthesis is
+slower than real time, playback runs dry and fills again; the summary counts the underruns, and a larger
+`--prebuffer-ms` waits longer before it starts. `--first-chunk` and `--max-chunk` set how many frames each decode takes
+(1, then up to 15).
 
 ### Cloning a voice
 
