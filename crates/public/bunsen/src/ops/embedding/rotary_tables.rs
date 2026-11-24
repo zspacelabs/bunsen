@@ -128,7 +128,26 @@ pub fn frequency_table(
     seq_len: usize,
     inv_freq: Tensor<1>,
 ) -> Tensor<2> {
-    let t = f32_tensor((0..seq_len).map(|p| p as f32).collect(), &inv_freq.device());
+    frequency_table_range(0..seq_len, inv_freq)
+}
+
+/// The rotation angles of the positions in `positions` at `inv_freq`'s
+/// frequencies: their outer product. A stream's table covers only the
+/// positions a call needs, however far into the stream they are.
+///
+/// Positions are f32, as the references compute them: exact up to 2^24.
+///
+/// # Arguments
+/// - `positions`: the positions, `start..end`.
+/// - `inv_freq`: `[F]` inverse frequencies, f32.
+///
+/// # Returns
+/// - `[end - start, F]`, in f32.
+pub fn frequency_table_range(
+    positions: core::ops::Range<usize>,
+    inv_freq: Tensor<1>,
+) -> Tensor<2> {
+    let t = f32_tensor(positions.map(|p| p as f32).collect(), &inv_freq.device());
     linalg::outer::<1, 2, _>(t, inv_freq)
 }
 
