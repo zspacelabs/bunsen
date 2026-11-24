@@ -1,6 +1,7 @@
 //! [`TtsDriver`]: a request through its stages and an engine, to speech.
 
 use alloc::{
+    boxed::Box,
     format,
     string::String,
     sync::Arc,
@@ -14,9 +15,11 @@ use burn::config::Config;
 use super::{
     StripInstruction,
     TtsCapabilities,
+    TtsChunkPolicy,
     TtsEngine,
     TtsRequest,
     TtsRequestStage,
+    TtsSpeechStream,
     TtsStageNote,
     TtsTakeInfo,
     TtsTakeRequest,
@@ -24,6 +27,10 @@ use super::{
     TtsVoiceInfo,
     TtsVoicePrint,
     TtsVoiceReference,
+    stream::{
+        TtsWholeSpeechStream,
+        driver_speech_stream,
+    },
     tts_split_text,
 };
 use crate::{
@@ -115,6 +122,27 @@ pub trait TtsSynthesizer: Debug + Send + Sync {
         &self,
         request: &TtsRequest,
     ) -> BunsenResult<TtsSpeech>;
+
+    /// `request`, spoken as a stream of events ([`TtsSpeechStream`]),
+    /// each take's final frames decoded as `chunks` groups them; joined, its
+    /// audio is [`synthesize`](Self::synthesize)'s.
+    ///
+    /// The default synthesizes the request whole at the call and says it as
+    /// events: a correct stream, not an early one. A [`TtsDriver`]'s is its
+    /// own ([`TtsDriver::stream`]).
+    ///
+    /// # Errors
+    /// As [`TtsDriver::stream`]; the default's as `synthesize`.
+    fn stream<'a>(
+        &'a self,
+        request: &TtsRequest,
+        chunks: TtsChunkPolicy,
+    ) -> BunsenResult<Box<dyn TtsSpeechStream + 'a>> {
+        chunks.check()?;
+        Ok(Box::new(TtsWholeSpeechStream::new(
+            self.synthesize(request)?,
+        )))
+    }
 
     /// The voice built from `reference` for this model
     /// ([`TtsEngine::build_voice`]); the default clones none.
@@ -252,30 +280,14 @@ impl<E: TtsEngine> TtsDriver<E> {
         &self,
         request: &TtsRequest,
     ) -> BunsenResult<TtsSpeech> {
-        let voice = self.engine.resolve_voice(&request.voice)?;
-        let tag = self
-            .engine
-            .language_tag(request.language.as_deref(), &voice)?;
-        let mut request = request.clone();
-        let mut notes = Vec::new();
-        for stage in &self.stages {
-            stage.check_language(tag.as_ref())?;
-            let (next, said) = stage.apply(request, tag.as_ref())?;
-            request = next;
-            notes.extend(said);
-        }
-        if request.instruction.is_some() && !self.engine.capabilities().instruction {
-            return Err(BunsenError::illegal(
-                "this model takes no instruction: drop it, or have the driver strip it \
-                 (`strip_instruction`)",
-            ));
-        }
-        let texts = self.takes(&request.text);
-        if texts.is_empty() {
-            return Err(BunsenError::illegal("no text to speak"));
-        }
+        let TtsPrepared {
+            voice,
+            request,
+            notes,
+            texts,
+        } = self.prepare(request)?;
         let sample_rate = self.engine.sample_rate();
-        let gap = (self.config.take_gap_seconds * f64::from(sample_rate)).round() as usize;
+        let gap = self.gap_samples();
         let mut samples = Vec::new();
         let mut takes = Vec::with_capacity(texts.len());
         for (i, text) in texts.iter().enumerate() {
@@ -301,6 +313,63 @@ impl<E: TtsEngine> TtsDriver<E> {
             notes,
         })
     }
+
+    /// The silence between two takes, in samples.
+    pub fn gap_samples(&self) -> usize {
+        (self.config.take_gap_seconds * f64::from(self.engine.sample_rate())).round() as usize
+    }
+
+    /// `request` as [`synthesize`](Self::synthesize) and
+    /// [`stream`](Self::stream) take it: its voice resolved, its stages run
+    /// in its language, the instruction checked, its text split into takes.
+    pub(crate) fn prepare(
+        &self,
+        request: &TtsRequest,
+    ) -> BunsenResult<TtsPrepared<E::Voice>> {
+        let voice = self.engine.resolve_voice(&request.voice)?;
+        let tag = self
+            .engine
+            .language_tag(request.language.as_deref(), &voice)?;
+        let mut request = request.clone();
+        let mut notes = Vec::new();
+        for stage in &self.stages {
+            stage.check_language(tag.as_ref())?;
+            let (next, said) = stage.apply(request, tag.as_ref())?;
+            request = next;
+            notes.extend(said);
+        }
+        if request.instruction.is_some() && !self.engine.capabilities().instruction {
+            return Err(BunsenError::illegal(
+                "this model takes no instruction: drop it, or have the driver strip it \
+                 (`strip_instruction`)",
+            ));
+        }
+        let texts = self.takes(&request.text);
+        if texts.is_empty() {
+            return Err(BunsenError::illegal("no text to speak"));
+        }
+        Ok(TtsPrepared {
+            voice,
+            request,
+            notes,
+            texts,
+        })
+    }
+}
+
+/// A request prepared for its takes ([`TtsDriver::prepare`]).
+pub(crate) struct TtsPrepared<V> {
+    /// The voice, resolved.
+    pub(crate) voice: V,
+
+    /// The request, after its stages.
+    pub(crate) request: TtsRequest,
+
+    /// What the stages said.
+    pub(crate) notes: Vec<TtsStageNote>,
+
+    /// The takes' texts.
+    pub(crate) texts: Vec<String>,
 }
 
 impl<E: TtsEngine> TtsSynthesizer for TtsDriver<E> {
@@ -321,6 +390,14 @@ impl<E: TtsEngine> TtsSynthesizer for TtsDriver<E> {
         request: &TtsRequest,
     ) -> BunsenResult<TtsSpeech> {
         TtsDriver::synthesize(self, request)
+    }
+
+    fn stream<'a>(
+        &'a self,
+        request: &TtsRequest,
+        chunks: TtsChunkPolicy,
+    ) -> BunsenResult<Box<dyn TtsSpeechStream + 'a>> {
+        driver_speech_stream(self, request, chunks)
     }
 
     fn build_voice(
