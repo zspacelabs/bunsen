@@ -18,7 +18,9 @@
 //! that each upsample by a factor through a causal transposed convolution
 //! and run residual units of `SnakeBeta` and dilated causal convolutions
 //! ([`DacDecoderBlock`], [`DacResidualUnit`]), and a convolution to one
-//! channel; Qwen3-TTS's codec vocoder.
+//! channel; Qwen3-TTS's codec vocoder. It also runs as a stream, over chunks
+//! of latents through a [`DacDecoderStreamContext`], each chunk's samples
+//! final at once and, joined, the whole forward's.
 //!
 //! And [`EncoderSubsampling`], an encoder's front end chosen by config, over
 //! the two downsamplings: what a
