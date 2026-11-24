@@ -318,8 +318,8 @@ impl ResidualBlock {
     ///
     /// # Arguments
     ///
-    /// - `input`: `[batch, in_planes, in_height=out_height*stride,
-    ///   in_width=out_width*stride]`.
+    /// - `input`: `[batch, in_planes, in_height, in_width]`; each side of the
+    ///   output is `ceil(in / stride)`, as torch's.
     ///
     /// # Returns
     ///
