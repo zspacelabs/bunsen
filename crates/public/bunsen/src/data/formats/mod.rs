@@ -20,6 +20,8 @@ mod apply_named;
 pub mod fermion;
 #[cfg(feature = "cache")]
 mod load_policy;
+#[cfg(feature = "store")]
+mod load_prepare;
 pub mod mlx;
 // A `.nemo` may be gzipped, which the `speech` feature's `flate2` reads.
 #[cfg(all(feature = "store", feature = "speech"))]
@@ -35,6 +37,11 @@ mod safetensors;
 pub use apply_named::*;
 #[cfg(feature = "cache")]
 pub use load_policy::*;
+#[cfg(feature = "store")]
+pub use load_prepare::{
+    MAX_LOAD_THREADS,
+    load_threads,
+};
 #[cfg(feature = "store")]
 pub use pytorch::*;
 #[cfg(feature = "store")]
