@@ -258,6 +258,203 @@ impl InverseStft {
             Tensor::cat(vec![y.slice(s![.., start..]), zeros], 1)
         }
     }
+
+    /// The first output sample's position in the synthesis: `N / 2` when
+    /// centred, else 0.
+    fn output_start(&self) -> usize {
+        if self.center { self.n_fft() / 2 } else { 0 }
+    }
+
+    /// A stream through the synthesis, not yet started.
+    ///
+    /// # Panics
+    /// For a hop past the FFT size (frames that do not overlap or touch).
+    pub fn new_stream_context(&self) -> InverseStftStreamContext {
+        assert!(
+            self.hop <= self.n_fft(),
+            "a streamed inverse STFT's hop is at most its FFT size; got {} > {}",
+            self.hop,
+            self.n_fft()
+        );
+        InverseStftStreamContext {
+            numerator: None,
+            envelope: None,
+            batch: 0,
+            dtype: None,
+            frames: 0,
+            next: self.output_start(),
+            finished: false,
+        }
+    }
+
+    /// The stream's next frames' spectra, to the samples they make final.
+    ///
+    /// A sample is final once no later frame reaches it: after `F` frames,
+    /// the synthesis' first `F · hop` samples, the first `N / 2` of them
+    /// skipped when centred. Joined with [`finish_stream`](Self::finish_stream)'s,
+    /// the stream's samples are [`istft`](Self::istft)'s over all the frames,
+    /// for any output that reaches the last frame's hop: every `length` of
+    /// at least `F · hop` less the skip, and `None` at a hop of at most
+    /// `N / 2`.
+    ///
+    /// # Arguments
+    /// - `real`, `imag`: `[B, N/2 + 1, T]`, `T ≥ 1`, the next frames' spectra.
+    ///
+    /// # Returns
+    /// `[B, n]`, the `n ≥ 1` samples now final; `None` when none is (a
+    /// centred stream's first `N / 2`).
+    ///
+    /// # Panics
+    /// As [`istft`](Self::istft); or for a finished stream.
+    pub fn istft_stream(
+        &self,
+        real: Tensor<3>,
+        imag: Tensor<3>,
+        ctx: &mut InverseStftStreamContext,
+    ) -> Option<Tensor<2>> {
+        assert!(!ctx.finished, "a push to a finished inverse STFT stream");
+        let (n, hop) = (self.n_fft(), self.hop);
+        let [b, t] = unpack_shape_contract!(
+            ["B", "K", "F"],
+            &real.dims(),
+            &["B", "F"],
+            &[("K", self.n_bins())]
+        );
+        assert!(t > 0, "an inverse STFT stream's push of no frames");
+        ctx.batch = b;
+        ctx.dtype = Some(real.dtype());
+        let frames = real
+            .swap_dims(1, 2)
+            .matmul(self.cos_basis.clone().unsqueeze())
+            + imag
+                .swap_dims(1, 2)
+                .matmul(self.sin_basis.clone().unsqueeze());
+        let window = self.window.clone().reshape([1, 1, n]);
+        let mut y = overlap_add(frames * window.clone(), hop);
+        let mut envelope = overlap_add(window.square().expand([1, t, n]), hop);
+        let tail = n - hop;
+        if let (Some(num), Some(env)) = (ctx.numerator.take(), ctx.envelope.take()) {
+            let head = s![.., 0..tail];
+            y = y.clone().slice_assign(head, y.slice(head) + num);
+            envelope = envelope
+                .clone()
+                .slice_assign(head, envelope.slice(head) + env);
+        }
+        let done = t * hop;
+        let len = (t - 1) * hop + n;
+        if tail > 0 {
+            ctx.numerator = Some(y.clone().slice(s![.., done..len]));
+            ctx.envelope = Some(envelope.clone().slice(s![.., done..len]));
+        }
+        let first = ctx.frames * hop;
+        ctx.frames += t;
+        let last = first + done;
+        if last <= ctx.next {
+            return None;
+        }
+        let from = ctx.next - first;
+        ctx.next = last;
+        Some(y.slice(s![.., from..done]) / envelope.slice(s![.., from..done]).clamp_min(1e-11))
+    }
+
+    /// The end of the stream: the samples no later frame would have reached,
+    /// to the length [`istft`](Self::istft) would return.
+    ///
+    /// # Arguments
+    /// - `length`: as `istft`'s, the samples of the whole output (zero-padded
+    ///   past the synthesis' end); `None`, all of them (less `N / 2` at each
+    ///   end when centred).
+    ///
+    /// # Returns
+    /// `[B, n]`, the rest; `None` when nothing is left, no frame was pushed,
+    /// or the stream was finished already.
+    ///
+    /// # Panics
+    /// For a `length` shorter than the samples already returned.
+    pub fn finish_stream(
+        &self,
+        ctx: &mut InverseStftStreamContext,
+        length: Option<usize>,
+    ) -> Option<Tensor<2>> {
+        if ctx.finished {
+            return None;
+        }
+        ctx.finished = true;
+        let (n, hop) = (self.n_fft(), self.hop);
+        let f = ctx.frames;
+        if f == 0 {
+            return None;
+        }
+        let start = self.output_start();
+        let total = (f - 1) * hop + n;
+        let end = match length {
+            Some(length) => start + length,
+            None if self.center => total - n / 2,
+            None => total,
+        };
+        assert!(
+            end >= ctx.next,
+            "an inverse STFT stream cut to {end} samples has returned {} already",
+            ctx.next
+        );
+        let first = f * hop;
+        let mut parts = Vec::with_capacity(2);
+        let synthesized = end.min(total);
+        if synthesized > ctx.next {
+            let num = ctx.numerator.take().expect("the synthesis' tail");
+            let env = ctx.envelope.take().expect("the envelope's tail");
+            let range = s![.., ctx.next - first..synthesized - first];
+            parts.push(num.slice(range) / env.slice(range).clamp_min(1e-11));
+        }
+        if end > total.max(ctx.next) {
+            let pad = end - total.max(ctx.next);
+            let dtype = ctx.dtype.unwrap_or_else(|| self.window.dtype());
+            parts.push(Tensor::zeros(
+                [ctx.batch, pad],
+                (&self.window.device(), dtype),
+            ));
+        }
+        ctx.next = end;
+        ctx.numerator = None;
+        ctx.envelope = None;
+        (!parts.is_empty()).then(|| Tensor::cat(parts, 1))
+    }
+}
+
+/// One stream through an [`InverseStft`]: the overlap-add's sums past the
+/// last final sample, and where the output stands.
+///
+/// Made by [`InverseStft::new_stream_context`], driven by
+/// [`istft_stream`](InverseStft::istft_stream) and
+/// [`finish_stream`](InverseStft::finish_stream). Each batch row is one
+/// stream.
+///
+/// A `Module` over bare tensors: the sums move with `to_device`, and are
+/// neither recorded nor visited.
+#[derive(Module, Debug)]
+pub struct InverseStftStreamContext {
+    /// `[B, N - hop]`: the windowed frames' overlap-add past the last final
+    /// sample; `None` before the first frame, or at a hop of `N`.
+    pub numerator: Option<Tensor<2>>,
+
+    /// `[1, N - hop]`: the squared window's overlap-add there.
+    pub envelope: Option<Tensor<2>>,
+
+    /// The rows, `B`; 0 before the first frame.
+    pub batch: usize,
+
+    /// The spectra's dtype; `None` before the first frame.
+    #[module(skip)]
+    pub dtype: Option<burn::tensor::DType>,
+
+    /// The frames pushed so far.
+    pub frames: usize,
+
+    /// The synthesis' next sample to return.
+    pub next: usize,
+
+    /// Whether [`finish_stream`](InverseStft::finish_stream) has run.
+    pub finished: bool,
 }
 
 #[cfg(test)]
@@ -388,5 +585,95 @@ mod tests {
         assert_eq!(uncentred.istft(spec.clone(), spec, None).dims(), [1, 18]);
         assert!(InverseStftConfig::new(8, 9).try_init(&device).is_err());
         assert!(InverseStftConfig::new(1, 1).try_init(&device).is_err());
+    }
+
+    /// A stream's samples, with its finish's, are the whole synthesis',
+    /// whatever the chunks of frames: centred or not, a hop that divides the
+    /// FFT size or not, one of the FFT size (no overlap), ZONOS3's head
+    /// sizes; each to the whole's own length and to a longer one.
+    #[test]
+    fn test_stream_matches_istft() {
+        let device = cpu_device();
+        let cases = [
+            (12, 4, true),
+            (10, 4, true),
+            (10, 4, false),
+            (6, 6, true),
+            (736, 184, true),
+            (2208, 184, true),
+        ];
+        for (i, &(n, hop, center)) in cases.iter().enumerate() {
+            let istft: InverseStft = InverseStftConfig::new(n, hop)
+                .with_center(center)
+                .init(&device);
+            let bins = n / 2 + 1;
+            for f in [1, 3, 9] {
+                let real: Tensor<3> = seeded_tensor(
+                    (10 * i + f) as u64,
+                    [2, bins, f],
+                    Distribution::Default,
+                    &device,
+                );
+                let imag: Tensor<3> = seeded_tensor(
+                    (10 * i + f + 100) as u64,
+                    [2, bins, f],
+                    Distribution::Default,
+                    &device,
+                );
+                for length in [None, Some(f * hop), Some(f * hop + n)] {
+                    let start = if center { n / 2 } else { 0 };
+                    let end = length.map_or((f - 1) * hop + n - start, |l| start + l);
+                    if end < f * hop {
+                        // A cut before the last frame's hop: no stream serves
+                        // it (a hop past N / 2, the length `None`).
+                        continue;
+                    }
+                    let whole = istft.istft(real.clone(), imag.clone(), length);
+                    for size in [1, 2, f] {
+                        let mut ctx = istft.new_stream_context();
+                        let mut parts = Vec::new();
+                        for at in (0..f).step_by(size) {
+                            let end = (at + size).min(f);
+                            parts.extend(istft.istft_stream(
+                                real.clone().slice(s![.., .., at..end]),
+                                imag.clone().slice(s![.., .., at..end]),
+                                &mut ctx,
+                            ));
+                        }
+                        parts.extend(istft.finish_stream(&mut ctx, length));
+                        if parts.is_empty() {
+                            // One centred frame, its own length: no samples.
+                            assert_eq!(whole.dims()[1], 0);
+                            continue;
+                        }
+                        assert_tensors_close(
+                            &Tensor::cat(parts, 1),
+                            &whole,
+                            Tolerance::rel_abs(1e-5, 1e-5),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// A centred stream returns nothing until a frame passes `N / 2`; then
+    /// each frame's hop, `F · hop - N / 2` in all.
+    #[test]
+    fn test_stream_latency() {
+        let device = cpu_device();
+        let istft: InverseStft = InverseStftConfig::new(12, 4).init(&device);
+        let mut ctx = istft.new_stream_context();
+        let frame = || Tensor::<3>::ones([1, 7, 1], &device);
+        assert!(istft.istft_stream(frame(), frame(), &mut ctx).is_none());
+        let y = istft
+            .istft_stream(frame(), frame(), &mut ctx)
+            .expect("past N / 2");
+        assert_eq!(y.dims(), [1, 2]);
+        let y = istft
+            .istft_stream(frame(), frame(), &mut ctx)
+            .expect("a hop");
+        assert_eq!(y.dims(), [1, 4]);
+        assert_eq!(ctx.next, 3 * 4);
     }
 }

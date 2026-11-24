@@ -280,6 +280,137 @@ impl SincPhaseKernels {
             .reshape([batch as i32, (frames * phases) as i32])
             .narrow(1, 0, keep)
     }
+
+    /// A stream through the resample, not yet started.
+    pub fn new_stream_context(&self) -> SincResampleStreamContext {
+        SincResampleStreamContext {
+            pending: None,
+            samples: 0,
+            emitted: 0,
+            finished: false,
+        }
+    }
+
+    /// The stream's next input samples, to the output samples they complete;
+    /// joined with [`finish_stream`](Self::finish_stream)'s, the stream's
+    /// output is [`resample`](Self::resample)'s over the whole input. An
+    /// output frame waits for the `width` input samples past it.
+    ///
+    /// # Arguments
+    /// - `input`: `[B, N]`, `N ≥ 1`, at the table's input rate.
+    ///
+    /// # Returns
+    /// `[B, n · out']`, the frames now complete; `None` when none is.
+    ///
+    /// # Panics
+    /// For no samples, a batch unlike the stream's, or a finished stream.
+    pub fn resample_stream(
+        &self,
+        input: Tensor<2>,
+        ctx: &mut SincResampleStreamContext,
+    ) -> Option<Tensor<2>> {
+        assert!(!ctx.finished, "a push to a finished resample stream");
+        let [b, n] = input.dims();
+        assert!(n >= 1, "a resample stream's push of at least one sample");
+        let head = match ctx.pending.take() {
+            Some(pending) => pending,
+            None if ctx.samples == 0 && self.width > 0 => {
+                Tensor::zeros([b, self.width], (&input.device(), input.dtype()))
+            }
+            None => {
+                ctx.samples += n;
+                return self.take_frames(input, ctx);
+            }
+        };
+        ctx.samples += n;
+        self.take_frames(Tensor::cat(alloc::vec![head, input], 1), ctx)
+    }
+
+    /// The end of the stream: the zeros the whole resample pads the signal
+    /// with after it, and the frames they complete, cut to the whole's
+    /// `ceil(N · out' / in')` samples.
+    ///
+    /// # Returns
+    /// `[B, n]`, the rest; `None` when nothing is left, no sample was
+    /// pushed, or the stream was finished already.
+    pub fn finish_stream(
+        &self,
+        ctx: &mut SincResampleStreamContext,
+    ) -> Option<Tensor<2>> {
+        if ctx.finished || ctx.samples == 0 {
+            ctx.finished = true;
+            return None;
+        }
+        ctx.finished = true;
+        let keep = (ctx.samples * self.phases()).div_ceil(self.stride);
+        // Never empty: the last `2 · width` samples always wait for a frame.
+        let pending = ctx.pending.take()?;
+        let [b, _] = pending.dims();
+        let zeros = Tensor::zeros(
+            [b, self.width + self.stride],
+            (&pending.device(), pending.dtype()),
+        );
+        let tail = Tensor::cat(alloc::vec![pending, zeros], 1);
+        let out = self.take_frames(tail, ctx)?;
+        ctx.pending = None;
+        let left = keep - (ctx.emitted - out.dims()[1]);
+        (left > 0).then(|| out.narrow(1, 0, left))
+    }
+
+    /// The frames whose windows `buffer` (`[B, L]`, the padding included)
+    /// holds, through the kernels; the rest kept as `pending`.
+    fn take_frames(
+        &self,
+        buffer: Tensor<2>,
+        ctx: &mut SincResampleStreamContext,
+    ) -> Option<Tensor<2>> {
+        let (r, s) = (self.kernels.dims()[1], self.stride);
+        let [b, l] = buffer.dims();
+        if l < r {
+            ctx.pending = Some(buffer);
+            return None;
+        }
+        let frames = (l - r) / s + 1;
+        let window = buffer.clone().narrow(1, 0, (frames - 1) * s + r);
+        ctx.pending = (frames * s < l).then(|| buffer.narrow(1, frames * s, l - frames * s));
+        let options = ConvOptions {
+            stride: [s],
+            padding: [(0, 0)],
+            dilation: [1],
+            groups: 1,
+        };
+        let weight = self.kernels.clone().unsqueeze_dim::<3>(1);
+        let out = conv1d(window.unsqueeze_dim::<3>(1), weight, None, options);
+        let samples = frames * self.phases();
+        ctx.emitted += samples;
+        Some(out.swap_dims(1, 2).reshape([b as i32, samples as i32]))
+    }
+}
+
+/// One stream through a [`SincPhaseKernels`] resample: the input samples a
+/// later frame still reads, and the count of what went in and came out.
+///
+/// Made by [`SincPhaseKernels::new_stream_context`], driven by
+/// [`resample_stream`](SincPhaseKernels::resample_stream) and
+/// [`finish_stream`](SincPhaseKernels::finish_stream). Each batch row is one
+/// stream.
+///
+/// A `Module` over bare tensors: the pending samples move with `to_device`,
+/// and are neither recorded nor visited.
+#[derive(Module, Debug)]
+pub struct SincResampleStreamContext {
+    /// `[B, P]`: the input samples not yet consumed, the leading zeros
+    /// included; `None` when none are.
+    pub pending: Option<Tensor<2>>,
+
+    /// The input samples pushed so far.
+    pub samples: usize,
+
+    /// The output samples returned so far, before the finish's cut.
+    pub emitted: usize,
+
+    /// Whether [`finish_stream`](SincPhaseKernels::finish_stream) has run.
+    pub finished: bool,
 }
 
 #[cfg(test)]
@@ -389,5 +520,52 @@ mod tests {
         assert_eq!(table.phases(), 2);
         let peak = table.kernels[table.width];
         assert!(table.kernels[..23].iter().all(|&w| w <= peak));
+    }
+
+    /// A stream's output, with its finish's, is the whole resample's,
+    /// whatever the pieces: ZONOS3's 44160 to 44100, a 441 : 320 one, and an
+    /// upsample.
+    #[test]
+    fn test_stream_matches_resample() {
+        use burn::tensor::Distribution;
+
+        use crate::{
+            ops::signal::resample::HannSincResampler,
+            support::testing::{
+                assert_tensors_close,
+                cpu_device,
+                seeded_tensor,
+            },
+        };
+        let device = cpu_device();
+        for (i, (from, to)) in [(44160, 44100), (44100, 32000), (16000, 24000)]
+            .into_iter()
+            .enumerate()
+        {
+            let kernels = HannSincResampler::new()
+                .kernels(from, to)
+                .to_kernels((&device, burn::tensor::DType::F32));
+            for n in [1, 37, 2000] {
+                let x: Tensor<2> =
+                    seeded_tensor((10 * i + n) as u64, [2, n], Distribution::Default, &device);
+                let whole = kernels.resample(x.clone());
+                for size in [1, 7, 500, n] {
+                    let mut ctx = kernels.new_stream_context();
+                    let mut parts = Vec::new();
+                    for at in (0..n).step_by(size) {
+                        let end = (at + size).min(n);
+                        parts.extend(
+                            kernels.resample_stream(x.clone().narrow(1, at, end - at), &mut ctx),
+                        );
+                    }
+                    parts.extend(kernels.finish_stream(&mut ctx));
+                    assert_tensors_close(
+                        &Tensor::cat(parts, 1),
+                        &whole,
+                        burn::tensor::Tolerance::rel_abs(1e-5, 1e-6),
+                    );
+                }
+            }
+        }
     }
 }

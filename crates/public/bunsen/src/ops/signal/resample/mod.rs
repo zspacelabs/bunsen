@@ -9,7 +9,9 @@
 //!   opened at another rate, or one model's output read by another.
 //! - [`HannSincResampler`]: `torchaudio`'s `sinc_interp_hann` conversion of a
 //!   whole signal, for a model trained behind it; it reproduces the reference,
-//!   sample for sample.
+//!   sample for sample. Its kernels also run as a stream, the whole
+//!   conversion's output in pieces
+//!   ([`SincPhaseKernels::resample_stream`](super::kernels::sinc::SincPhaseKernels::resample_stream)).
 
 mod hann_sinc;
 mod streaming;
