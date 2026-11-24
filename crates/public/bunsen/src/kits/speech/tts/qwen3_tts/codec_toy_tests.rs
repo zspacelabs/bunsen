@@ -152,3 +152,89 @@ fn test_toy_one_chunk_is_whole() {
         model.forward(codes),
     );
 }
+
+/// `codes` (`[B, K, T]`) cut into pushes of `sizes` (cycled), each through
+/// `push`: the audio joined.
+fn pushed(
+    codes: &Tensor<3, Int>,
+    sizes: &[usize],
+    mut push: impl FnMut(Tensor<3, Int>) -> Tensor<3>,
+) -> Tensor<3> {
+    let t = codes.dims()[2];
+    let (mut at, mut i, mut parts) = (0, 0, Vec::new());
+    while at < t {
+        let n = sizes[i % sizes.len()].min(t - at);
+        parts.push(push(codes.clone().slice(s![.., .., at..at + n])));
+        at += n;
+        i += 1;
+    }
+    Tensor::cat(parts, 2)
+}
+
+/// The exact stream's audio, joined, is the whole decode's, whatever the
+/// pushes; past the transformer's window (20 frames against the toy's).
+#[test]
+fn test_toy_stream_is_whole() {
+    let (_, model, fixture) = load();
+    let codes = fixture.io::<3>("codec.codes").int();
+    let whole = model.forward(codes.clone());
+    for sizes in [&[1][..], &[2], &[3], &[7], &[1, 4, 2], &[20]] {
+        let mut ctx = model.new_stream_context(1, &codes.device());
+        let streamed = pushed(&codes, sizes, |piece| model.forward_stream(piece, &mut ctx));
+        assert_eq!(ctx.frames, 20);
+        assert_io_close_within(
+            &format!("stream by {sizes:?}"),
+            streamed,
+            whole.clone(),
+            vocoder_tolerance(4),
+        );
+    }
+}
+
+/// The chunked stream's audio, joined, is the render's (`chunked_decode`,
+/// in chunks of 8 with 3 of context) and upstream's, whatever the pushes:
+/// pushes that end inside a chunk, on its edge, and across two.
+#[test]
+fn test_toy_chunked_stream_is_render() {
+    let (_, model, fixture) = load();
+    let codes = fixture.io::<3>("codec.codes").int();
+    let decode = Qwen3TtsDecodeConfig::new().with_chunk(8).with_context(3);
+    let render = model.chunked_decode(codes.clone(), &decode);
+    for sizes in [&[1][..], &[3], &[8], &[5, 11], &[20]] {
+        let mut ctx = model.new_chunked_stream_context(decode);
+        let streamed = pushed(&codes, sizes, |piece| {
+            model.forward_chunked_stream(piece, &mut ctx)
+        });
+        assert_eq!(ctx.frames, 20);
+        assert_io_close_within(
+            &format!("chunked stream by {sizes:?}"),
+            streamed.clone(),
+            render.clone(),
+            vocoder_tolerance(4),
+        );
+        assert_io_close_within(
+            &format!("chunked stream by {sizes:?}, upstream's"),
+            streamed,
+            fixture.io("codec.chunked_audio"),
+            vocoder_tolerance(4),
+        );
+    }
+}
+
+/// With no left context, each chunk is decoded alone.
+#[test]
+fn test_toy_chunked_stream_without_context() {
+    let (_, model, fixture) = load();
+    let codes = fixture.io::<3>("codec.codes").int();
+    let decode = Qwen3TtsDecodeConfig::new().with_chunk(6).with_context(0);
+    let mut ctx = model.new_chunked_stream_context(decode);
+    let streamed = pushed(&codes, &[4], |piece| {
+        model.forward_chunked_stream(piece, &mut ctx)
+    });
+    assert_io_close_within(
+        "no context",
+        streamed,
+        model.chunked_decode(codes, &decode),
+        vocoder_tolerance(4),
+    );
+}

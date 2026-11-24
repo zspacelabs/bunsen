@@ -27,6 +27,7 @@ use crate::{
         Rekey,
     },
     errors::BunsenResult,
+    ops::transformers::attention::KVCache,
 };
 
 /// Common meta for [`ProjectedDecoderStack`] and its configs.
@@ -142,6 +143,29 @@ impl ProjectedDecoderStack {
         let x = self
             .stack
             .forward_hidden(x.clone(), &self.stack.rotary(t, &x.device()), None);
+        match &self.output_proj {
+            Some(proj) => proj.forward(x),
+            None => x,
+        }
+    }
+
+    /// `[B, T, C_in]` to `[B, T, C_out]` at positions `start..start + T`,
+    /// `start` the cache's [`pos`](KVCache::pos), through the cache: a
+    /// stream's next chunk. Its rotary tables cover those positions only
+    /// ([`DecoderStack::rotary_range`]), so a stream runs any length; a
+    /// windowed stack's cache (from the stack's
+    /// [`kv_cache_config`](crate::ops::transformers::attention::KVCacheModel::kv_cache_config)) keeps each
+    /// layer's window only.
+    pub fn forward_cached(
+        &self,
+        x: Tensor<3>,
+        cache: &mut KVCache,
+    ) -> Tensor<3> {
+        let [_, t, _] = x.dims();
+        let start = cache.pos();
+        let x = self.input_proj.forward(x);
+        let r_emb = self.stack.rotary_range(start..start + t, &x.device());
+        let x = self.stack.forward_hidden(x, &r_emb, Some(cache));
         match &self.output_proj {
             Some(proj) => proj.forward(x),
             None => x,
