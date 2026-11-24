@@ -315,12 +315,17 @@ pub fn fetch_prefix(
 }
 
 /// A `GET` of `url`, of its first `prefix` bytes when set, up to its
-/// response headers: an error status is a [`FetchFailure::Status`].
+/// response headers: an error status is a [`FetchFailure::Status`]. A Hub
+/// URL carries the user's token ([`hub_authorization`](crate::hub_authorization)).
 fn get(
     url: &str,
     prefix: Option<u64>,
 ) -> Result<ureq::http::Response<ureq::Body>, FetchError> {
     let mut request = ureq::get(url);
+    // The user's token, to the Hub alone; dropped on any redirect.
+    if let Some(authorization) = crate::hub_authorization(url) {
+        request = request.header("Authorization", authorization);
+    }
     if let Some(len) = prefix {
         request = request.header("Range", format!("bytes=0-{}", len - 1));
     }
