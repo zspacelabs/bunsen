@@ -1366,6 +1366,7 @@ dependencies = [
  "minijinja",
  "minijinja-contrib",
  "rumqttc",
+ "safetensors 0.8.0",
  "serde",
  "serde-saphyr",
  "serde_json",

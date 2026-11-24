@@ -1,7 +1,8 @@
 //! `bunsen-tool summary`: the builds this binary can run, in brief: by
 //! command, contract and publisher.
 //!
-//! One section per command that runs builds (`asr`, `tts`, `chat`, `decide`);
+//! One section per command that runs builds (`asr`, `tts`, `chat`, `decide`,
+//! `classify`);
 //! in each, the builds grouped by their contract, then by their publisher (the
 //! first segment of their name), each a line of details and its description
 //! wrapped below it:
@@ -72,9 +73,9 @@ use bunsen_app::cache::human_bytes;
 
 /// The commands that run builds, as `--kind` takes them.
 #[cfg(feature = "speech")]
-const KIND_NAMES: &[&str] = &["asr", "tts", "chat", "decide"];
+const KIND_NAMES: &[&str] = &["asr", "tts", "chat", "decide", "classify"];
 #[cfg(not(feature = "speech"))]
-const KIND_NAMES: &[&str] = &["chat", "decide"];
+const KIND_NAMES: &[&str] = &["chat", "decide", "classify"];
 
 /// `bunsen-tool summary`'s flags.
 #[derive(clap::Args, Debug)]
@@ -83,7 +84,8 @@ pub struct SummaryCommand {
     #[arg(long, default_value_t = 75)]
     width: usize,
 
-    /// One command's builds alone: `asr`, `tts`, `chat` or `decide`.
+    /// One command's builds alone: `asr`, `tts`, `chat`, `decide` or
+    /// `classify`.
     #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(KIND_NAMES))]
     kind: Option<String>,
 }
@@ -188,6 +190,11 @@ pub fn kinds() -> BunsenResult<Vec<Kind>> {
             name: "decide",
             title: "Typed Decisions",
             families: vec![Family::of("laya", default_laya_factory()?)],
+        },
+        Kind {
+            name: "classify",
+            title: "Image Classification",
+            families: vec![Family::of("resnet", crate::classify::image_factory()?)],
         },
     ]);
     Ok(kinds)
