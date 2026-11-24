@@ -27,6 +27,12 @@
 //!   metadata). A request speaks in one as [`TtsVoiceChoice::Print`].
 //! - [`TtsSynthesizer`]: the driver as a trait object, what a tool or a test
 //!   holds whatever the model; its output is [`TtsSpeech`].
+//! - Streams: a request's speech as events pulled one at a time
+//!   ([`TtsDriver::stream`], [`TtsSynthesizer::stream`]: [`TtsSpeechStream`],
+//!   [`TtsEvent`]), each take generated a step at a time by its engine
+//!   ([`TtsEngine::start_stream`], [`TtsTakeStream`]) and its final frames
+//!   decoded in groups ([`TtsChunkPolicy`]). Joined, the stream's audio is the
+//!   whole synthesis'.
 //!
 //! The engines: ZONOS3's
 //! ([`Zonos3Engine`](crate::kits::speech::tts::zonos3::driver::Zonos3Engine))
@@ -43,6 +49,7 @@ pub mod interop;
 mod request;
 mod split;
 mod stages;
+mod stream;
 mod tts_driver;
 mod voice_print;
 mod voice_reference;
@@ -53,6 +60,7 @@ pub use engine::*;
 pub use request::*;
 pub use split::*;
 pub use stages::*;
+pub use stream::*;
 pub use tts_driver::*;
 pub use voice_print::*;
 pub use voice_reference::*;

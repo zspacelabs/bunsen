@@ -2,7 +2,10 @@
 
 use std::sync::Mutex;
 
-use super::*;
+use super::{
+    stream::TtsWholeTakeStream,
+    *,
+};
 use crate::{
     errors::{
         BunsenError,
@@ -34,6 +37,41 @@ struct Seen {
 struct Scripted {
     capabilities: TtsCapabilities,
     seen: Mutex<Vec<Seen>>,
+    /// Whether its stream returns a take a step at a time, a sample a
+    /// frame, decoded as the chunk policy groups them; else the default
+    /// whole-take stream.
+    stepped: bool,
+}
+
+/// [`Scripted`]'s own take stream: a frame a step, the frames' samples
+/// returned as the chunk policy groups them.
+struct ScriptedStream {
+    frames: usize,
+    generated: usize,
+    decoded: usize,
+    chunks: TtsChunkPolicy,
+}
+
+impl TtsTakeStream for ScriptedStream {
+    fn step(&mut self) -> BunsenResult<TtsStreamStep> {
+        self.generated += 1;
+        let done = self.generated == self.frames;
+        let ready = self.generated - self.decoded;
+        let samples = if done || ready >= self.chunks.need(self.decoded) {
+            self.decoded = self.generated;
+            vec![0.25; ready]
+        } else {
+            Vec::new()
+        };
+        Ok(TtsStreamStep {
+            samples,
+            end: done.then_some(TtsTakeInfo {
+                frames: self.frames,
+                steps: self.frames,
+                stop: TtsStop::End,
+            }),
+        })
+    }
 }
 
 impl Scripted {
@@ -57,6 +95,14 @@ impl Scripted {
                 clone_modes: Vec::new(),
             },
             seen: Mutex::new(Vec::new()),
+            stepped: false,
+        }
+    }
+
+    fn stepped(instruction: bool) -> Self {
+        Self {
+            stepped: true,
+            ..Self::new(instruction)
         }
     }
 
@@ -141,6 +187,26 @@ impl TtsEngine for Scripted {
             steps: take.0,
             stop: take.1,
         }
+    }
+
+    fn start_stream<'a>(
+        &'a self,
+        take: &TtsTakeRequest<'_, String>,
+        chunks: TtsChunkPolicy,
+    ) -> BunsenResult<Box<dyn TtsTakeStream + 'a>> {
+        if !self.stepped {
+            return Ok(Box::new(TtsWholeTakeStream {
+                engine: self,
+                take: Some(self.generate(take)?),
+            }));
+        }
+        let (frames, _) = self.generate(take)?;
+        Ok(Box::new(ScriptedStream {
+            frames,
+            generated: 0,
+            decoded: 0,
+            chunks,
+        }))
     }
 }
 
@@ -421,4 +487,109 @@ fn test_build_voice_unsupported() {
     let driver = TtsDriver::new(Scripted::new(false), TtsDriverConfig::new()).unwrap();
     let err = TtsSynthesizer::build_voice(&driver, &reference(None), None).unwrap_err();
     assert_eq!(err.kind(), BunsenErrorKind::Unsupported);
+}
+
+/// The chunk policy's ramp: 1, 2, 4, 8, then 15 at a time; a policy of no
+/// first frames, or a max under its first, is refused.
+#[test]
+fn test_chunk_policy() {
+    let policy = TtsChunkPolicy::new();
+    assert_eq!(
+        [0, 1, 3, 7, 15, 30].map(|decoded| policy.need(decoded)),
+        [1, 2, 4, 8, 15, 15]
+    );
+    policy.check().unwrap();
+    for bad in [
+        TtsChunkPolicy::new().with_first(0),
+        TtsChunkPolicy::new().with_first(4).with_max(3),
+    ] {
+        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&bad.check());
+    }
+}
+
+/// A stream's events, gathered, are the synthesis, for the default
+/// whole-take stream and a stepped one; the stepped one's audio comes as
+/// the policy groups its frames, each take between its start and end, the
+/// gap before every take but the first.
+#[test]
+fn test_stream_is_the_synthesis() {
+    let config = TtsDriverConfig::new()
+        .with_max_take_chars(12)
+        .with_take_gap_seconds(0.25);
+    let text = "One two. Three four. Five.";
+    for stepped in [false, true] {
+        let engine = if stepped {
+            Scripted::stepped(false)
+        } else {
+            Scripted::new(false)
+        };
+        let driver = TtsDriver::new(engine, config.clone()).unwrap();
+        let request = TtsRequest::new(text).with_seed(10);
+        let whole = driver.synthesize(&request).unwrap();
+        let mut stream = driver.stream(&request, TtsChunkPolicy::new()).unwrap();
+        assert_eq!(
+            TtsSpeech::from_stream(&mut stream).unwrap(),
+            whole,
+            "stepped {stepped}"
+        );
+        // Each take saw the same seed as the whole synthesis gave it.
+        let seeds: Vec<_> = driver.engine().seen().iter().map(|s| s.seed).collect();
+        assert_eq!(seeds[..3], seeds[3..]);
+    }
+
+    let driver = TtsDriver::new(Scripted::stepped(false), config).unwrap();
+    let mut stream = driver
+        .stream(&TtsRequest::new(text), TtsChunkPolicy::new())
+        .unwrap();
+    let mut events = Vec::new();
+    while let Some(event) = stream.next_event().unwrap() {
+        events.push(match event {
+            TtsEvent::TakeStart { index, .. } => format!("start {index}"),
+            TtsEvent::Audio(samples) if samples.iter().all(|&x| x == 0.0) => {
+                format!("gap {}", samples.len())
+            }
+            TtsEvent::Audio(samples) => format!("audio {}", samples.len()),
+            TtsEvent::TakeEnd { index, .. } => format!("end {index}"),
+            TtsEvent::Notes(_) => "notes".into(),
+        });
+    }
+    // "One two." is 8 frames: 1, 2, 4, then the last 1 at the end.
+    assert_eq!(
+        events,
+        [
+            "start 0", "audio 1", "audio 2", "audio 4", "audio 1", "end 0", "gap 2", "start 1",
+            "audio 1", "audio 2", "audio 4", "audio 4", "end 1", "gap 2", "start 2", "audio 1",
+            "audio 2", "audio 2", "end 2",
+        ]
+    );
+}
+
+/// Through the synthesizer as a trait object, the stream is the driver's;
+/// a stripped instruction's note comes first.
+#[test]
+fn test_synthesizer_stream() {
+    let driver = TtsDriver::new(
+        Scripted::stepped(false),
+        TtsDriverConfig::new().with_strip_instruction(true),
+    )
+    .unwrap();
+    let synthesizer: &dyn TtsSynthesizer = &driver;
+    let request = TtsRequest::new("hello").with_instruction("whisper");
+    let mut stream = synthesizer.stream(&request, TtsChunkPolicy::new()).unwrap();
+    assert_eq!(stream.sample_rate(), 8);
+    assert!(matches!(
+        stream.next_event().unwrap(),
+        Some(TtsEvent::Notes(notes)) if notes.len() == 1
+    ));
+    let rest = TtsSpeech::from_stream(&mut *stream).unwrap();
+    assert_eq!(
+        rest.samples,
+        synthesizer.synthesize(&request).unwrap().samples
+    );
+
+    ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(
+        &synthesizer
+            .stream(&request, TtsChunkPolicy::new().with_first(0))
+            .map(|_| ()),
+    );
 }

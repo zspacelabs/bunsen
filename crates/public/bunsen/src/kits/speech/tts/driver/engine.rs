@@ -1,16 +1,20 @@
 //! The engine seam: what a model provides a TTS driver.
 
 use alloc::{
+    boxed::Box,
     string::String,
     vec::Vec,
 };
 use core::fmt::Debug;
 
 use super::{
+    TtsChunkPolicy,
     TtsTakeRequest,
+    TtsTakeStream,
     TtsVoiceChoice,
     TtsVoicePrint,
     TtsVoiceReference,
+    stream::TtsWholeTakeStream,
 };
 use crate::{
     errors::{
@@ -296,6 +300,33 @@ pub trait TtsEngine: Debug + Send + Sync {
         &self,
         take: &Self::Take,
     ) -> TtsTakeInfo;
+
+    /// One take as a stream ([`TtsTakeStream`]): generated a step at a time,
+    /// its final frames decoded as `chunks` groups them, its samples
+    /// returned as they become final. Joined, they are
+    /// [`render`](Self::render)'s of [`generate`](Self::generate)'s take.
+    /// The stream copies what it needs of `take`.
+    ///
+    /// The default generates the take whole here and renders it whole at
+    /// the stream's one step: a correct stream, not an early one.
+    ///
+    /// # Errors
+    /// As [`generate`](Self::generate) (the default's), or the engine's
+    /// own, starting the take.
+    fn start_stream<'a>(
+        &'a self,
+        take: &TtsTakeRequest<'_, Self::Voice>,
+        chunks: TtsChunkPolicy,
+    ) -> BunsenResult<Box<dyn TtsTakeStream + 'a>>
+    where
+        Self: Sized,
+    {
+        let _ = chunks;
+        Ok(Box::new(TtsWholeTakeStream {
+            engine: self,
+            take: Some(self.generate(take)?),
+        }))
+    }
 
     /// The voice built from `reference` for this engine's build, in `mode` (the
     /// [default](TtsCapabilities::clone_mode) when `None`): its clips
