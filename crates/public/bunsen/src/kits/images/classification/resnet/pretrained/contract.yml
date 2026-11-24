@@ -7,8 +7,21 @@ resnet-classifier:
     checkpoint:
       $format: [pytorch fp32]
       $description: "The state dict, torchvision's or timm's."
+    labels:
+      $format: [synsets]
+      $optional: true
+      $description: "The class labels: one `WordNet` synset per class, in class order."
+    label_names:
+      $format: [synset-lemmas]
+      $optional: true
+      $description: "Each synset's lemmas, its readable name."
   $args:
     geometry: { $type: geometry, $description: "The network's blocks and widths." }
+    eval_transform:
+      $type: $object
+      $optional: true
+      $description: >-
+        The eval transform its images go through: an `ImageEvalTransformConfig`, as it serializes.
   geometry:
     $kind: type
     $description: >-

@@ -21,9 +21,13 @@
 //! the torchvision group answers first.
 //!
 //! [`default_resnet_factory`] is the index, and [`ResNetConstructConfig`] its
-//! hook: it builds the model from the row's prefab and reads the
-//! checkpoint into it with
-//! [`load_resnet`](super::interop::torchvision::load_resnet). A
+//! hook: it builds the model from the row's prefab, reads the checkpoint
+//! into it with [`load_resnet`](super::interop::torchvision::load_resnet),
+//! and reads the row's
+//! [`ImageModelCard`](crate::kits::images::support::card::ImageModelCard):
+//! the eval transform it states and the labels it binds (`ImageNet`-1k's,
+//! for every row). The loaded handle is an
+//! [`ImageModelConstruct`](crate::kits::images::support::card::ImageModelConstruct). A
 //! checkpoint does not describe its own geometry, so a model built from
 //! any other config, or a checkpoint given as a path, needs
 //! [`ResNetConstructConfig::with_config`]: resolve the name, set the config on
@@ -68,7 +72,8 @@
 //!             bunsen::data::formats::LoadPolicy::performance(),
 //!         )?
 //!         .handle,
-//! );
+//! )
+//! .model;
 //! # }
 //! # Ok::<(), bunsen::errors::BunsenError>(())
 //! ```

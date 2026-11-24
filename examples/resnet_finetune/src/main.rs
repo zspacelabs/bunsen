@@ -332,6 +332,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
         .context("loading pretrained weights")?;
 
     let mut model: ResNet = Arc::unwrap_or_clone(loaded.handle)
+        .model
         .map(&mut DTypeMapper::new(old_float_type))
         .with_classes(CLASSES.len())
         .with_stochastic_drop_block(args.drop_block_prob)

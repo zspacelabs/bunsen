@@ -50,7 +50,22 @@ $contracts:
         $description: The state dict, torchvision's or timm's.
         $format:
           - pytorch fp32
+      label_names:
+        $description: Each synset's lemmas, its readable name.
+        $format:
+          - synset-lemmas
+        $optional: true
+      labels:
+        $description: "The class labels: one `WordNet` synset per class, in class order."
+        $format:
+          - synsets
+        $optional: true
     $args:
+      eval_transform:
+        $description: "The eval transform its images go through: an `ImageEvalTransformConfig`, as
+          it serializes."
+        $type: $object
+        $optional: true
       geometry:
         $description: The network's blocks and widths.
         $type: geometry

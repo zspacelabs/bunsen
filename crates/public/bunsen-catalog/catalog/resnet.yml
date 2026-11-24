@@ -17,7 +17,25 @@ torchvision:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
+      eval_transform:
+        channels: 3
+        crop_mode: Center
+        crop_pct: 0.875
+        interpolation: Bilinear
+        mean:
+          - 0.485
+          - 0.456
+          - 0.406
+        size:
+          - 224
+          - 224
+        std:
+          - 0.229
+          - 0.224
+          - 0.225
       geometry:
         activation: Relu
         bottleneck_policy: null
@@ -53,7 +71,25 @@ torchvision:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
+      eval_transform:
+        channels: 3
+        crop_mode: Center
+        crop_pct: 0.875
+        interpolation: Bilinear
+        mean:
+          - 0.485
+          - 0.456
+          - 0.406
+        size:
+          - 224
+          - 224
+        std:
+          - 0.229
+          - 0.224
+          - 0.225
       geometry:
         activation: Relu
         bottleneck_policy: null
@@ -89,7 +125,25 @@ torchvision:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
+      eval_transform:
+        channels: 3
+        crop_mode: Center
+        crop_pct: 0.875
+        interpolation: Bilinear
+        mean:
+          - 0.485
+          - 0.456
+          - 0.406
+        size:
+          - 224
+          - 224
+        std:
+          - 0.229
+          - 0.224
+          - 0.225
       geometry:
         activation: Relu
         bottleneck_policy:
@@ -126,7 +180,25 @@ torchvision:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
+      eval_transform:
+        channels: 3
+        crop_mode: Center
+        crop_pct: 0.875
+        interpolation: Bilinear
+        mean:
+          - 0.485
+          - 0.456
+          - 0.406
+        size:
+          - 224
+          - 224
+        std:
+          - 0.229
+          - 0.224
+          - 0.225
       geometry:
         activation: Relu
         bottleneck_policy:
@@ -163,7 +235,25 @@ torchvision:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
+      eval_transform:
+        channels: 3
+        crop_mode: Center
+        crop_pct: 0.875
+        interpolation: Bilinear
+        mean:
+          - 0.485
+          - 0.456
+          - 0.406
+        size:
+          - 224
+          - 224
+        std:
+          - 0.229
+          - 0.224
+          - 0.225
       geometry:
         activation: Relu
         bottleneck_policy:
@@ -202,6 +292,8 @@ timm:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
       geometry:
         activation: Relu
@@ -238,6 +330,8 @@ timm:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
       geometry:
         activation: Relu
@@ -274,6 +368,8 @@ timm:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
       geometry:
         activation: Relu
@@ -310,6 +406,8 @@ timm:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
       geometry:
         activation: Relu
@@ -346,6 +444,8 @@ timm:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
       geometry:
         activation: Relu
@@ -382,6 +482,8 @@ timm:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
       geometry:
         activation: Relu
@@ -418,6 +520,8 @@ timm:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
       geometry:
         activation: Relu
@@ -454,6 +558,8 @@ timm:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
       geometry:
         activation: Relu
@@ -489,6 +595,8 @@ timm:
     $contract: resnet-classifier
     $resources:
       checkpoint: checkpoint
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
     $args:
       geometry:
         activation: Relu

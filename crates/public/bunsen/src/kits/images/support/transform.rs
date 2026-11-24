@@ -113,7 +113,7 @@ pub enum ImageCropMode {
 /// assert_eq!(transform.resize_size([480, 640]), [256, 341]);
 /// assert_eq!(transform.crop_size(), [224, 224]);
 /// ```
-#[derive(Config, Debug)]
+#[derive(Config, Debug, PartialEq)]
 pub struct ImageEvalTransformConfig {
     /// The channel count the model takes.
     #[config(default = 3)]

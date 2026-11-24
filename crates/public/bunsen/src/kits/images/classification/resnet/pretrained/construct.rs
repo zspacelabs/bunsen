@@ -22,10 +22,16 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    kits::images::classification::resnet::{
-        ResNet,
-        ResNetContractConfig,
-        pretrained::RESNET_KIT,
+    kits::images::{
+        classification::resnet::{
+            ResNet,
+            ResNetContractConfig,
+            pretrained::RESNET_KIT,
+        },
+        support::card::{
+            ImageModelCard,
+            ImageModelConstruct,
+        },
     },
 };
 
@@ -34,8 +40,9 @@ use crate::{
 ///
 /// `ResNet`'s [`ConstructInit`] hook, behind
 /// [`default_resnet_factory`](super::default_resnet_factory). It
-/// builds a [`ResNet`] from the config, then reads the checkpoint into
-/// it with [`load_resnet`](crate::kits::images::classification::resnet::interop::torchvision::load_resnet).
+/// builds a [`ResNet`] from the config, reads the checkpoint into it with
+/// [`load_resnet`](crate::kits::images::classification::resnet::interop::torchvision::load_resnet),
+/// and reads the build's [`ImageModelCard`]: its eval transform and labels.
 ///
 /// A checkpoint does not describe its own geometry, so the config comes
 /// from the prefab the row names, or from
@@ -96,7 +103,7 @@ impl ResNetConstructConfig {
 }
 
 impl ConstructInit for ResNetConstructConfig {
-    type Construct = ResNet;
+    type Construct = ImageModelConstruct<ResNet>;
 
     const KIT: &'static str = RESNET_KIT;
 
@@ -106,20 +113,21 @@ impl ConstructInit for ResNetConstructConfig {
         Ok(Self::new())
     }
 
-    /// Initialises the config's model and reads the checkpoint into it.
+    /// Initialises the config's model, reads the checkpoint into it, and
+    /// reads the build's card.
     fn try_init(
         &self,
         model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
-    ) -> BunsenResult<Arc<ResNet>> {
+    ) -> BunsenResult<Arc<ImageModelConstruct<ResNet>>> {
         let config = self.config_for(model)?;
-        Ok(Arc::new(
-            crate::kits::images::classification::resnet::interop::torchvision::load_resnet(
-                loaded, &config, device, load,
-            )?,
-        ))
+        let card = ImageModelCard::try_from_build(model, loaded)?;
+        let model = crate::kits::images::classification::resnet::interop::torchvision::load_resnet(
+            loaded, &config, device, load,
+        )?;
+        Ok(Arc::new(ImageModelConstruct { model, card }))
     }
 }
 
@@ -136,6 +144,62 @@ mod tests {
             },
         },
     };
+
+    /// A torchvision row states its eval transform (bilinear, a 0.875 crop:
+    /// timm's `tv_in1k` configs) and binds `ImageNet`-1k's labels.
+    #[test]
+    fn test_a_torchvision_row_states_its_card() {
+        use crate::{
+            data::{
+                cache::BunsenDiskCacheOptions,
+                resources::{
+                    ResourceCache,
+                    ResourceCacheOptions,
+                },
+            },
+            kits::images::support::{
+                card::{
+                    EVAL_TRANSFORM,
+                    LABEL_NAMES,
+                    LABELS,
+                },
+                transform::{
+                    ImageEvalTransformConfig,
+                    ImageInterpolation,
+                },
+            },
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ResourceCache::new(
+            ResourceCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true),
+        )
+        .unwrap();
+        let named = default_resnet_factory()
+            .unwrap()
+            .resolve("torchvision/resnet18", &cache)
+            .unwrap()
+            .model;
+        let transform: ImageEvalTransformConfig = named.stated(EVAL_TRANSFORM).unwrap().unwrap();
+        assert_eq!(
+            transform,
+            ImageEvalTransformConfig::new()
+                .with_interpolation(ImageInterpolation::Bilinear)
+                .with_crop_pct(0.875)
+        );
+        let set = named.to_resource_set();
+        assert_eq!(set.get(LABELS).unwrap().file, "imagenet_synsets.txt");
+        assert_eq!(
+            set.get(LABEL_NAMES).unwrap().file,
+            "imagenet_synset_to_lemma.txt"
+        );
+    }
 
     /// The hook builds from the prefab a row names, or from an explicit
     /// config, which wins; a given checkpoint with neither is refused

@@ -32,8 +32,18 @@ torchvision:
         num_classes: 1000
         output_stride: 32
         stem_width: 64
+      eval_transform:
+        channels: 3
+        size: [224, 224]
+        interpolation: Bilinear
+        crop_pct: 0.875
+        crop_mode: Center
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet18-f37072fd.pth
@@ -67,8 +77,18 @@ torchvision:
         num_classes: 1000
         output_stride: 32
         stem_width: 64
+      eval_transform:
+        channels: 3
+        size: [224, 224]
+        interpolation: Bilinear
+        crop_pct: 0.875
+        crop_mode: Center
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet34-b627a593.pth
@@ -103,8 +123,18 @@ torchvision:
         num_classes: 1000
         output_stride: 32
         stem_width: 64
+      eval_transform:
+        channels: 3
+        size: [224, 224]
+        interpolation: Bilinear
+        crop_pct: 0.875
+        crop_mode: Center
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet50-0676ba61.pth
@@ -139,8 +169,18 @@ torchvision:
         num_classes: 1000
         output_stride: 32
         stem_width: 64
+      eval_transform:
+        channels: 3
+        size: [224, 224]
+        interpolation: Bilinear
+        crop_pct: 0.875
+        crop_mode: Center
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet101-63fe2227.pth
@@ -175,8 +215,18 @@ torchvision:
         num_classes: 1000
         output_stride: 32
         stem_width: 64
+      eval_transform:
+        channels: 3
+        size: [224, 224]
+        interpolation: Bilinear
+        crop_pct: 0.875
+        crop_mode: Center
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet152-394f9c45.pth
@@ -214,6 +264,8 @@ timm:
         stem_width: 64
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet18_a1_0-d63eafa0.pth
@@ -249,6 +301,8 @@ timm:
         stem_width: 64
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet18_a2_0-b61bd467.pth
@@ -284,6 +338,8 @@ timm:
         stem_width: 64
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet18_a3_0-40c531c8.pth
@@ -320,6 +376,8 @@ timm:
         stem_width: 64
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet26-9aa10e23.pth
@@ -354,6 +412,8 @@ timm:
         stem_width: 64
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet34_a1_0-46f8f793.pth
@@ -389,6 +449,8 @@ timm:
         stem_width: 64
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet34_a2_0-82d47d71.pth
@@ -424,6 +486,8 @@ timm:
         stem_width: 64
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet34_a3_0-a20cabb6.pth
@@ -459,6 +523,8 @@ timm:
         stem_width: 64
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet34-43635321.pth
@@ -494,6 +560,8 @@ timm:
         stem_width: 64
     $resources:
       checkpoint: checkpoint
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
       $file: resnet101_a1_0-cdcb52a9.pth
