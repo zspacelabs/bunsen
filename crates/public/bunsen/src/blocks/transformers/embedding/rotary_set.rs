@@ -40,9 +40,15 @@ impl From<RotaryEmbedding> for RotarySet {
 }
 
 impl RotarySet {
-    /// The positions every table covers.
+    /// The number of positions every table covers.
     pub fn seq_len(&self) -> usize {
         self.tables[0].seq_len()
+    }
+
+    /// The positions every table covers
+    /// ([`RotaryEmbedding::positions`]).
+    pub fn positions(&self) -> Range<usize> {
+        self.tables[0].positions()
     }
 
     /// Layer `layer`'s table.

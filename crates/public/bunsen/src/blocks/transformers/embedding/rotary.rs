@@ -29,7 +29,7 @@ use crate::{
     },
     ops::embedding::{
         RotaryTableDTypePolicy,
-        frequency_table,
+        frequency_table_range,
         inverse_frequency_table,
     },
 };
@@ -52,7 +52,8 @@ pub trait RotaryEmbeddingMeta {
 /// Config for [`RotaryEmbedding`].
 #[derive(Config, Debug)]
 pub struct RotaryEmbeddingConfig {
-    /// Sequence Length.
+    /// Sequence Length: the positions the table covers, from
+    /// [`start`](Self::start).
     pub seq_len: usize,
 
     /// Head Dimension.
@@ -106,6 +107,12 @@ pub struct RotaryEmbeddingConfig {
     /// How the frequencies are scaled for a longer context.
     #[config(default = "RopeScaling::None")]
     pub scaling: RopeScaling,
+
+    /// The first position the table covers: it covers `start..start +
+    /// seq_len`. 0 for a whole sequence; a stream's tables start where its
+    /// call does.
+    #[config(default = 0)]
+    pub start: usize,
 }
 
 /// How a rotary embedding's frequencies are scaled, as `transformers`'
@@ -318,13 +325,14 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
                 direction: self.direction,
                 pair_layout: self.pair_layout,
                 widening: self.widening,
+                start: self.start,
                 cos: empty(),
                 sin: empty(),
             });
         }
 
-        let freq_matrix = frequency_table(
-            self.seq_len,
+        let freq_matrix = frequency_table_range(
+            self.start..self.start + self.seq_len,
             self.scaling
                 .scale_inverse_frequencies(inverse_frequency_table(self.base, rotary_dim, device)),
         );
@@ -359,6 +367,7 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
             direction: self.direction,
             pair_layout: self.pair_layout,
             widening: self.widening,
+            start: self.start,
             cos,
             sin,
         })
@@ -394,6 +403,9 @@ pub struct RotaryEmbedding {
     /// The dtype the rotation runs in ([`RotaryEmbeddingConfig::widening`]).
     #[module(skip)]
     pub widening: Widening,
+
+    /// The first position the tables cover: they cover `start..start + T`.
+    pub start: usize,
 
     /// a `[1, T, 1, R/2]` tensor, `R` the rotated dimensions.
     pub cos: Tensor<4>,
@@ -455,24 +467,40 @@ impl RotaryEmbedding {
         }
     }
 
+    /// The positions the tables cover, `start..start + T`.
+    pub fn positions(&self) -> Range<usize> {
+        self.start..self.start + self.seq_len()
+    }
+
     /// Clip the embedding to cover only the given range.
     ///
     /// # Arguments
-    /// - `range`: the ``start..end`` range to cover.
+    /// - `range`: the ``start..end`` positions to cover, within
+    ///   [`positions`](Self::positions).
     ///
     /// # Returns
-    /// - a clipped [`RotaryEmbedding`].
+    /// - a clipped [`RotaryEmbedding`], starting at `range.start`.
+    ///
+    /// # Panics
+    /// For a range outside the positions the tables cover.
     pub fn clip_range(
         &self,
         range: Range<usize>,
     ) -> Self {
+        let covered = self.positions();
+        assert!(
+            covered.start <= range.start && range.end <= covered.end,
+            "rotary positions {range:?} outside the table's {covered:?}"
+        );
+        let local = range.start - self.start..range.end - self.start;
         Self {
             head_dim: self.head_dim,
             direction: self.direction,
             pair_layout: self.pair_layout,
             widening: self.widening,
-            cos: self.cos.clone().slice_dim(1, range.clone()),
-            sin: self.sin.clone().slice_dim(1, range),
+            start: range.start,
+            cos: self.cos.clone().slice_dim(1, local.clone()),
+            sin: self.sin.clone().slice_dim(1, local),
         }
     }
 
@@ -575,7 +603,7 @@ mod tests {
             .init(&device);
         // The angles are the positions times the halved inverse frequencies.
         let inv = inverse_frequency_table(10000.0, 16, &device);
-        let expected = frequency_table(4, inv.div_scalar(2.0)).cos();
+        let expected = crate::ops::embedding::frequency_table(4, inv.div_scalar(2.0)).cos();
         scaled
             .cos
             .clone()
@@ -971,5 +999,17 @@ mod tests {
                 "{direction:?}: {y:?}"
             );
         }
+    }
+
+    /// A clip outside the positions a table covers panics.
+    #[test]
+    #[should_panic(expected = "outside the table's")]
+    fn test_clip_outside_positions() {
+        let device = crate::support::testing::cpu_device();
+        let table: RotaryEmbedding = RotaryEmbeddingConfig::new(4, 8)
+            .with_start(10)
+            .init(&device);
+        assert_eq!(table.positions(), 10..14);
+        let _ = table.clip_range(9..12);
     }
 }

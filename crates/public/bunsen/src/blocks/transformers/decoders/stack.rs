@@ -824,10 +824,22 @@ impl DecoderStack {
         seq_len: usize,
         device: &Device,
     ) -> RotarySet {
+        self.rotary_range(0..seq_len, device)
+    }
+
+    /// [`rotary`](Self::rotary)'s tables over the positions in `positions`
+    /// only: what a cached call at `start..start + seq` needs, however far
+    /// into a stream it is, without the table from position 0.
+    pub fn rotary_range(
+        &self,
+        positions: core::ops::Range<usize>,
+        device: &Device,
+    ) -> RotarySet {
         let dtype = crate::burner::module::module_float_dtype(self).map(burn::tensor::DType::from);
         let table = |config: &RotaryEmbeddingConfig| {
             let mut config = config.clone();
-            config.seq_len = seq_len;
+            config.start = positions.start;
+            config.seq_len = positions.len();
             let table = config.init(device);
             match dtype {
                 Some(dtype) => {
@@ -855,8 +867,8 @@ impl DecoderStack {
     ///
     /// # Arguments
     /// * `x` - `[batch, seq, d_model]`.
-    /// * `r_emb` - rotary tables covering `start + seq` positions
-    ///   ([`rotary`](Self::rotary)).
+    /// * `r_emb` - rotary tables covering positions `start..start + seq`
+    ///   ([`rotary`](Self::rotary), or [`rotary_range`](Self::rotary_range)).
     /// * `kv_cache` - the cache, at position `start`; `None` means `start` is 0
     ///   and nothing is kept.
     ///
@@ -1521,6 +1533,76 @@ mod tests {
                 Tolerance::rel_abs(1e-4, 1e-4),
             );
         }
+    }
+
+    /// A stream through a cache, each call with tables over its own
+    /// positions only ([`DecoderStack::rotary_range`]), is the uncached pass:
+    /// for chunks of 1, 2 and 3 over a window shorter than the sequence.
+    #[test]
+    #[serial]
+    fn test_streamed_with_range_tables() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let structure = PatternedStackConfig::new(
+            vec![layer(Some(3)), layer(Some(2))],
+            vec![0, 1],
+            BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)),
+            RotaryEmbeddingConfig::new(0, 8),
+        )
+        .to_structure();
+        device.seed(7);
+        let stack: DecoderStack = structure.init(&device);
+        let n = 9;
+        let x: Tensor<3> = seeded_tensor(13, [2, n, 16], Distribution::Default, &device);
+        let whole = stack.forward_hidden(x.clone(), &stack.rotary(n, &device), None);
+        for size in [1, 2, 3] {
+            let mut cache = stack
+                .kv_cache_config(2)
+                .with_batch_size(2)
+                .with_chunk_size(2)
+                .init(&device);
+            let parts: Vec<Tensor<3>> = (0..n)
+                .step_by(size)
+                .map(|start| {
+                    let end = (start + size).min(n);
+                    stack.forward_hidden(
+                        x.clone().slice_dim(1, start..end),
+                        &stack.rotary_range(start..end, &device),
+                        Some(&mut cache),
+                    )
+                })
+                .collect();
+            assert_tensors_close(
+                &Tensor::cat(parts, 1),
+                &whole,
+                Tolerance::rel_abs(1e-4, 1e-4),
+            );
+        }
+    }
+
+    /// A range's tables are the full table's rows at those positions.
+    #[test]
+    fn test_rotary_range_is_a_slice() {
+        let device = crate::support::testing::cpu_device();
+        let stack: DecoderStack = uniform(1).to_structure().init(&device);
+        let full = stack.rotary(12, &device);
+        let range = stack.rotary_range(5..12, &device);
+        assert_eq!(range.positions(), 5..12);
+        let clipped = full.clip_range(5..12);
+        assert_eq!(clipped.positions(), 5..12);
+        for (a, b) in [
+            (&range.tables[0].cos, &clipped.tables[0].cos),
+            (&range.tables[0].sin, &clipped.tables[0].sin),
+        ] {
+            assert_tensors_close(a, b, Tolerance::rel_abs(1e-6, 1e-6));
+        }
+        // A range's clip is absolute: positions 7..9 of the 5..12 table.
+        let inner = range.clip_range(7..9);
+        assert_tensors_close(
+            &inner.tables[0].cos,
+            &full.clip_range(7..9).tables[0].cos,
+            Tolerance::rel_abs(1e-6, 1e-6),
+        );
     }
 
     fn linear_layer() -> CausalDecoderBlockConfig {
