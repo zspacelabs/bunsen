@@ -18,6 +18,7 @@ use burn::{
     prelude::*,
 };
 
+pub use crate::ops::conv::CausalPadding;
 use crate::{
     burner::module::ModuleInit,
     contracts::{
@@ -28,17 +29,8 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
+    ops::conv::CausalConvStreamContext,
 };
-
-/// What a [`CausalConv1d`] pads its input with.
-#[derive(Config, Debug, Copy, PartialEq, Eq)]
-pub enum CausalPadding {
-    /// Zeros (`torch`'s `constant`).
-    Zeros,
-
-    /// The edge's own frame, repeated (`torch`'s `replicate`).
-    Replicate,
-}
 
 /// Common meta for [`CausalConv1d`] and [`CausalConv1dConfig`].
 pub trait CausalConv1dMeta {
@@ -190,6 +182,18 @@ impl ModuleInit<CausalConv1d> for CausalConv1dConfig {
 /// The convolution is burn's [`Conv1d`], as `conv`: checkpoints that hold it
 /// as `conv.weight` and `conv.bias` load as they are.
 ///
+/// # Streams
+///
+/// A stream runs the convolution over its input in chunks of any size:
+/// [`new_stream_context`](Self::new_stream_context) opens one,
+/// [`forward_stream`](Self::forward_stream) takes each chunk and returns the
+/// outputs it completes, and [`finish_stream`](Self::finish_stream) ends it.
+/// The outputs, joined, are [`forward`](Self::forward)'s over the whole
+/// input: the left padding is the stream's start (zeros, or its first frame
+/// repeated), and a partial last stride is padded only at the end. A strided
+/// stream holds back the frames of a partial stride, so a chunk can complete
+/// no output.
+///
 /// Built by [`CausalConv1dConfig`].
 #[derive(Module, Debug)]
 pub struct CausalConv1d {
@@ -236,18 +240,14 @@ impl CausalConv1d {
         before: usize,
         after: usize,
     ) -> Tensor<3> {
-        let [b, c, t] = x.dims();
-        let edge = |at: usize, frames: usize| match self.padding {
-            CausalPadding::Zeros => Tensor::zeros([b, c, frames], (&x.device(), x.dtype())),
-            CausalPadding::Replicate => x.clone().slice(s![.., .., at..=at]).repeat_dim(2, frames),
-        };
+        let t = x.dims()[2];
         let mut parts = Vec::with_capacity(3);
         if before > 0 {
-            parts.push(edge(0, before));
+            parts.push(self.padding.edge(&x, 0, before));
         }
         parts.push(x.clone());
         if after > 0 {
-            parts.push(edge(t - 1, after));
+            parts.push(self.padding.edge(&x, t - 1, after));
         }
         if parts.len() == 1 {
             x
@@ -283,6 +283,67 @@ impl CausalConv1d {
             &[("B", b), ("C_out", c_out), ("T_out", self.output_frames(t))]
         );
         y
+    }
+}
+
+impl CausalConv1d {
+    /// A stream through this convolution, not yet started.
+    pub fn new_stream_context(&self) -> CausalConvStreamContext {
+        CausalConvStreamContext::new(self.receptive_field(), self.stride(), self.padding)
+    }
+
+    /// The stream's next chunk: the outputs it completes.
+    ///
+    /// # Arguments
+    /// - `x`: `[B, C_in, T]`, `T ≥ 1`, the stream's next frames.
+    /// - `ctx`: the stream, from
+    ///   [`new_stream_context`](Self::new_stream_context).
+    ///
+    /// # Returns
+    /// `[B, C_out, n]`, the `n ≥ 1` outputs now complete; `None` when none
+    /// is.
+    ///
+    /// # Panics
+    /// As [`CausalConvStreamContext::push`]; or for a context of another
+    /// convolution's geometry.
+    pub fn forward_stream(
+        &self,
+        x: Tensor<3>,
+        ctx: &mut CausalConvStreamContext,
+    ) -> Option<Tensor<3>> {
+        let [c_in, _] = self.channels();
+        assert_shape_contract_periodically!(["B", "C_in", "T"], &x.dims(), &[("C_in", c_in)]);
+        self.check_stream(ctx);
+        ctx.push(x).map(|window| self.conv.forward(window))
+    }
+
+    /// The end of the stream: its last output, when a partial stride was
+    /// left.
+    ///
+    /// # Returns
+    /// `[B, C_out, 1]`; `None` when the stream's frames were a whole number
+    /// of strides (always, at a stride of 1).
+    ///
+    /// # Panics
+    /// For a context of another convolution's geometry.
+    pub fn finish_stream(
+        &self,
+        ctx: &mut CausalConvStreamContext,
+    ) -> Option<Tensor<3>> {
+        self.check_stream(ctx);
+        ctx.finish().map(|window| self.conv.forward(window))
+    }
+
+    fn check_stream(
+        &self,
+        ctx: &CausalConvStreamContext,
+    ) {
+        assert!(
+            ctx.receptive_field == self.receptive_field()
+                && ctx.stride == self.stride()
+                && ctx.padding == self.padding,
+            "a causal conv stream of another geometry"
+        );
     }
 }
 
@@ -433,6 +494,7 @@ mod tests {
     use burn::{
         module::Param,
         tensor::{
+            Distribution,
             TensorData,
             Tolerance,
         },
@@ -444,7 +506,11 @@ mod tests {
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        support::testing::cpu_device,
+        support::testing::{
+            assert_tensors_close,
+            cpu_device,
+            seeded_tensor,
+        },
     };
 
     /// The oracle's input, `[1, 2, 7]`: `x[i] = ((5 i mod 13) - 6) / 4`.
@@ -680,6 +746,104 @@ mod tests {
             ));
             assert_io_close(name, conv.forward(fixture.io(input)), fixture.io(output));
         }
+    }
+
+    /// `x` through `conv` as a stream, in chunks of `sizes` (cycled), then
+    /// finished: the outputs joined.
+    fn streamed(
+        conv: &CausalConv1d,
+        x: Tensor<3>,
+        sizes: &[usize],
+    ) -> Tensor<3> {
+        let t = x.dims()[2];
+        let mut ctx = conv.new_stream_context();
+        let mut outputs = Vec::new();
+        let (mut at, mut i) = (0, 0);
+        while at < t {
+            let n = sizes[i % sizes.len()].min(t - at);
+            outputs.extend(conv.forward_stream(x.clone().slice(s![.., .., at..at + n]), &mut ctx));
+            at += n;
+            i += 1;
+        }
+        outputs.extend(conv.finish_stream(&mut ctx));
+        Tensor::cat(outputs, 2)
+    }
+
+    /// A stream's outputs are the whole forward's, whatever the chunks: plain,
+    /// dilated and grouped, strided with each padding (Mimi's `k4 s2`
+    /// replicate downsample; a `SEANet` `k16 s8` stage), over lengths that end
+    /// on a partial stride and that do not.
+    #[test]
+    fn test_stream_matches_forward() {
+        let device = cpu_device();
+        let configs = [
+            CausalConv1dConfig::new([3, 4], 7),
+            CausalConv1dConfig::new([4, 6], 3)
+                .with_dilation(2)
+                .with_groups(2),
+            CausalConv1dConfig::new([3, 3], 4)
+                .with_stride(2)
+                .with_padding(CausalPadding::Replicate),
+            CausalConv1dConfig::new([2, 4], 16).with_stride(8),
+            CausalConv1dConfig::new([2, 2], 3)
+                .with_stride(3)
+                .with_padding(CausalPadding::Replicate),
+            CausalConv1dConfig::new([2, 2], 1),
+        ];
+        for (i, config) in configs.iter().enumerate() {
+            let conv = config.init(&device);
+            for t in [1, 5, 12, 13, 24] {
+                let x = seeded_tensor(
+                    (10 * i + t) as u64,
+                    [2, config.channels[0], t],
+                    Distribution::Normal(0.0, 1.0),
+                    &device,
+                );
+                let whole = conv.forward(x.clone());
+                for sizes in [&[1][..], &[2], &[3], &[5], &[1, 4, 2], &[t]] {
+                    assert_tensors_close(
+                        &streamed(&conv, x.clone(), sizes),
+                        &whole,
+                        Tolerance::rel_abs(1e-5, 1e-6),
+                    );
+                }
+            }
+        }
+    }
+
+    /// A chunk short of a stride completes no output; the stream holds it.
+    #[test]
+    fn test_stream_holds_partial_strides() {
+        let device = cpu_device();
+        let conv = CausalConv1dConfig::new([1, 1], 4)
+            .with_stride(2)
+            .init(&device);
+        let mut ctx = conv.new_stream_context();
+        let x = Tensor::<3>::ones([1, 1, 1], &device);
+        assert!(conv.forward_stream(x.clone(), &mut ctx).is_none());
+        assert_eq!(
+            conv.forward_stream(x.clone(), &mut ctx)
+                .expect("a whole stride")
+                .dims(),
+            [1, 1, 1]
+        );
+        assert!(conv.forward_stream(x, &mut ctx).is_none());
+        assert_eq!(
+            conv.finish_stream(&mut ctx)
+                .expect("the padded stride")
+                .dims(),
+            [1, 1, 1]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "a causal conv stream of another geometry")]
+    fn test_stream_of_another_geometry() {
+        let device = cpu_device();
+        let conv = CausalConv1dConfig::new([1, 1], 4).init(&device);
+        let other = CausalConv1dConfig::new([1, 1], 3).init(&device);
+        let mut ctx = other.new_stream_context();
+        let _ = conv.forward_stream(Tensor::ones([1, 1, 2], &device), &mut ctx);
     }
 
     /// A stride of 0, or past what the kernel covers, is refused.

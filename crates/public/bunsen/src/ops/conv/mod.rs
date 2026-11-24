@@ -31,6 +31,11 @@
 //! - **Functional convolution.** [`convolve_func_2d`] unfolds every window of a
 //!   `[batch, c_in, height, width]` input and hands them to one closure in a
 //!   single call, for window functions that are not a linear `Conv2d`.
+//! - **Streams.** [`CausalConvStreamContext`], one stream through a causal
+//!   convolution: the inputs a later call still needs, windowed as the whole
+//!   forward is, so the chunking is not observable; [`CausalPadding`], what its
+//!   edges are padded with. The convolution itself is
+//!   [`CausalConv1d`](crate::blocks::conv::CausalConv1d).
 //! - **Filters.** [`conv2d_kernel_midpoint_filter`] builds a 0/1 mask of the
 //!   positions where a kernel's midpoint can land;
 //!   [`drop_block_2d`](crate::ops::drop::drop_block_2d) uses it.
@@ -39,11 +44,13 @@
 //! [`Conv2d`]: burn::nn::conv::Conv2d
 //! [`ConvBlock2dMeta::try_output_resolution`]: crate::blocks::conv::ConvBlock2dMeta::try_output_resolution
 
+mod causal_stream;
 mod conv_func_2d;
 mod conv_shape;
 mod midpoint_filter;
 mod same_padding;
 
+pub use causal_stream::*;
 pub use conv_func_2d::*;
 pub use conv_shape::*;
 pub use midpoint_filter::*;
