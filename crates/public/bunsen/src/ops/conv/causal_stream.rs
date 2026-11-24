@@ -209,6 +209,122 @@ impl CausalConvStreamContext {
     }
 }
 
+/// One stream through a causal transposed convolution of `K` taps and
+/// stride `s`: what the inputs so far add to the outputs not yet returned.
+///
+/// Each input frame writes `K` output frames from its own `s`-th, so each
+/// call's unpadded transposed convolution reaches `K − s` frames past the
+/// `T · s` it completes. Those frames are the `overlap`, kept without the
+/// bias, and added into the next call's first frames. The whole forward
+/// trims them at the end of the input, so a stream ends with nothing more to
+/// return, and its outputs, joined, are the whole forward's, whatever the
+/// chunks.
+///
+/// The convolution's own module makes and drives it
+/// ([`CausalConvTranspose1d::forward_stream`](crate::blocks::conv::CausalConvTranspose1d::forward_stream)).
+/// Each batch row is one stream.
+///
+/// A `Module` over bare tensors: the overlap moves with `to_device`, and is
+/// neither recorded nor visited (a `ModuleMapper`'s cast skips it).
+#[derive(Module, Debug)]
+pub struct CausalConvTransposeStreamContext {
+    /// `[B, C_out, K − s]`: what the inputs so far add past the last frame
+    /// returned, without the bias; `None` before the first input, or for a
+    /// kernel of one stride.
+    pub overlap: Option<Tensor<3>>,
+
+    /// The frames pushed so far.
+    pub frames: usize,
+
+    /// The kernel's taps, `K`.
+    pub kernel_size: usize,
+
+    /// The stride, `s`.
+    pub stride: usize,
+}
+
+impl CausalConvTransposeStreamContext {
+    /// A stream not yet started.
+    ///
+    /// # Panics
+    /// For a stride of 0, or over the kernel.
+    pub fn new(
+        kernel_size: usize,
+        stride: usize,
+    ) -> Self {
+        assert!(
+            stride >= 1 && stride <= kernel_size,
+            "a causal transposed convolution's stride is in 1..={kernel_size}; got {stride}"
+        );
+        Self {
+            overlap: None,
+            frames: 0,
+            kernel_size,
+            stride,
+        }
+    }
+
+    /// The frames each call reaches past those it completes, `K − s`.
+    pub fn overlap_frames(&self) -> usize {
+        self.kernel_size - self.stride
+    }
+
+    /// Back to a stream not yet started.
+    pub fn reset(&mut self) {
+        self.overlap = None;
+        self.frames = 0;
+    }
+
+    /// Folds one call's unpadded output into the stream: the overlap added
+    /// in, the `T · s` frames now complete returned, the rest kept.
+    ///
+    /// # Arguments
+    /// - `y`: `[B, C_out, (T − 1) · s + K]`, the unpadded transposed
+    ///   convolution of the call's `T ≥ 1` input frames, its bias added.
+    /// - `bias`: `[C_out]`, that bias; `None` for none.
+    ///
+    /// # Returns
+    /// `[B, C_out, T · s]`.
+    ///
+    /// # Panics
+    /// For a `y` of no whole frame's length, or a batch or width unlike the
+    /// stream's.
+    pub fn fold(
+        &mut self,
+        y: Tensor<3>,
+        bias: Option<Tensor<1>>,
+    ) -> Tensor<3> {
+        let [b, c, n] = y.dims();
+        let (k, s, o) = (self.kernel_size, self.stride, self.overlap_frames());
+        assert!(
+            n >= k && (n - k) % s == 0,
+            "a transposed convolution's output of (T - 1) * {s} + {k} frames; got {n}"
+        );
+        let t = (n - k) / s + 1;
+        let y = match self.overlap.take() {
+            Some(overlap) => {
+                assert_shape_contract_periodically!(
+                    ["B", "C", "O"],
+                    &overlap.dims(),
+                    &[("B", b), ("C", c), ("O", o)]
+                );
+                let head = y.clone().slice(s![.., .., 0..o]) + overlap;
+                y.slice_assign(s![.., .., 0..o], head)
+            }
+            None => y,
+        };
+        self.frames += t;
+        if o > 0 {
+            let tail = y.clone().slice(s![.., .., t * s..n]);
+            self.overlap = Some(match bias {
+                Some(bias) => tail - bias.cast(y.dtype()).reshape([1, c, 1]),
+                None => tail,
+            });
+        }
+        y.slice(s![.., .., 0..t * s])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,6 +394,26 @@ mod tests {
         assert!(ctx.finish().is_none());
         ctx.reset();
         assert_eq!(values(ctx.push(frames(1, 1, &device))), [0.0, 0.0, 1.0]);
+    }
+
+    /// `K = 4`, `s = 2`: a call's last 2 frames are carried, less the bias,
+    /// into the next call's first 2.
+    #[test]
+    fn test_fold_overlap() {
+        let device = cpu_device();
+        let mut ctx = CausalConvTransposeStreamContext::new(4, 2);
+        assert_eq!(ctx.overlap_frames(), 2);
+        let bias = Tensor::<1>::from_floats([0.5], &device);
+        // One frame: 4 output frames, 2 complete.
+        let y = frames(1, 4, &device) + 0.5;
+        assert_eq!(values(Some(ctx.fold(y, Some(bias.clone())))), [1.5, 2.5]);
+        // [3, 4] carried; two frames: 6 output frames, 4 complete.
+        let y = frames(10, 6, &device) + 0.5;
+        assert_eq!(
+            values(Some(ctx.fold(y, Some(bias)))),
+            [13.5, 15.5, 12.5, 13.5]
+        );
+        assert_eq!(ctx.frames, 3);
     }
 
     #[test]

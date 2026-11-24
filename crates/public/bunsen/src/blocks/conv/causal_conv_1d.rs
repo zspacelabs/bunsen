@@ -29,7 +29,10 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    ops::conv::CausalConvStreamContext,
+    ops::conv::{
+        CausalConvStreamContext,
+        CausalConvTransposeStreamContext,
+    },
 };
 
 /// Common meta for [`CausalConv1d`] and [`CausalConv1dConfig`].
@@ -359,6 +362,9 @@ pub trait CausalConvTranspose1dMeta {
     /// The stride: output frames per input frame.
     fn stride(&self) -> usize;
 
+    /// The channel groups.
+    fn groups(&self) -> usize;
+
     /// The frames trimmed from the end: `K - s`.
     fn right_trim(&self) -> usize {
         self.kernel_size() - self.stride()
@@ -378,6 +384,11 @@ pub struct CausalConvTranspose1dConfig {
     #[config(default = 1)]
     pub stride: usize,
 
+    /// The channel groups; each divides both channel counts (their common
+    /// count is a depthwise upsampler, Mimi's).
+    #[config(default = 1)]
+    pub groups: usize,
+
     /// Whether the convolution adds a bias.
     #[config(default = true)]
     pub bias: bool,
@@ -394,6 +405,10 @@ impl CausalConvTranspose1dMeta for CausalConvTranspose1dConfig {
 
     fn stride(&self) -> usize {
         self.stride
+    }
+
+    fn groups(&self) -> usize {
+        self.groups
     }
 }
 
@@ -415,6 +430,7 @@ impl ModuleInit<CausalConvTranspose1d> for CausalConvTranspose1dConfig {
         Ok(CausalConvTranspose1d {
             conv: ConvTranspose1dConfig::new(self.channels, self.kernel_size)
                 .with_stride(self.stride)
+                .with_groups(self.groups)
                 .with_bias(self.bias)
                 .init(device),
         })
@@ -432,6 +448,14 @@ impl ModuleInit<CausalConvTranspose1d> for CausalConvTranspose1dConfig {
 ///
 /// The convolution is held as `conv`: checkpoints that hold it as
 /// `conv.weight` and `conv.bias` load as they are.
+///
+/// # Streams
+///
+/// A stream runs it over its input in chunks of any size:
+/// [`new_stream_context`](Self::new_stream_context) opens one, and
+/// [`forward_stream`](Self::forward_stream) returns each chunk's `T · s`
+/// frames, the `K - s` the chunks before it reached into added in. The
+/// outputs, joined, are [`forward`](Self::forward)'s over the whole input.
 ///
 /// Built by [`CausalConvTranspose1dConfig`].
 #[derive(Module, Debug)]
@@ -451,6 +475,10 @@ impl CausalConvTranspose1dMeta for CausalConvTranspose1d {
 
     fn stride(&self) -> usize {
         self.conv.stride
+    }
+
+    fn groups(&self) -> usize {
+        self.conv.groups
     }
 }
 
@@ -486,6 +514,41 @@ impl CausalConvTranspose1d {
             &[("B", b), ("C_out", c_out), ("T_out", frames)]
         );
         y
+    }
+
+    /// A stream through this convolution, not yet started.
+    pub fn new_stream_context(&self) -> CausalConvTransposeStreamContext {
+        CausalConvTransposeStreamContext::new(self.kernel_size(), self.stride())
+    }
+
+    /// The stream's next chunk: its `T · s` output frames, the overlap of
+    /// the chunks before it added in. A stream ends with nothing more to
+    /// return: [`forward`](Self::forward) trims what reaches past the input.
+    ///
+    /// # Arguments
+    /// - `x`: `[B, C_in, T]`, `T ≥ 1`, the stream's next frames.
+    /// - `ctx`: the stream, from
+    ///   [`new_stream_context`](Self::new_stream_context).
+    ///
+    /// # Returns
+    /// `[B, C_out, T · s]`.
+    ///
+    /// # Panics
+    /// As [`CausalConvTransposeStreamContext::fold`]; or for a context of
+    /// another convolution's geometry.
+    pub fn forward_stream(
+        &self,
+        x: Tensor<3>,
+        ctx: &mut CausalConvTransposeStreamContext,
+    ) -> Tensor<3> {
+        let [c_in, _] = self.channels();
+        assert_shape_contract_periodically!(["B", "C_in", "T"], &x.dims(), &[("C_in", c_in)]);
+        assert!(
+            ctx.kernel_size == self.kernel_size() && ctx.stride == self.stride(),
+            "a causal transposed conv stream of another geometry"
+        );
+        let bias = self.conv.bias.as_ref().map(|bias| bias.val());
+        ctx.fold(self.conv.forward(x), bias)
     }
 }
 
@@ -588,11 +651,16 @@ mod tests {
             assert_eq!(meta.output_frames(7), 4);
         }
 
-        let config = CausalConvTranspose1dConfig::new([4, 2], 6).with_stride(3);
+        let config = CausalConvTranspose1dConfig::new([4, 2], 6)
+            .with_stride(3)
+            .with_groups(2);
         let module = config.init(&cpu_device());
         for meta in [&config as &dyn CausalConvTranspose1dMeta, &module] {
             assert_eq!(meta.channels(), [4, 2]);
-            assert_eq!([meta.kernel_size(), meta.stride()], [6, 3]);
+            assert_eq!(
+                [meta.kernel_size(), meta.stride(), meta.groups()],
+                [6, 3, 2]
+            );
             assert_eq!(meta.right_trim(), 3);
         }
     }
@@ -834,6 +902,55 @@ mod tests {
                 .dims(),
             [1, 1, 1]
         );
+    }
+
+    /// A transposed stream's outputs are the whole forward's, whatever the
+    /// chunks: overlapping (`K = 2s`, `K = s + 3`), one stride (`K = s`, no
+    /// overlap) and depthwise (Mimi's upsampler).
+    #[test]
+    fn test_transposed_stream_matches_forward() {
+        let device = cpu_device();
+        let configs = [
+            CausalConvTranspose1dConfig::new([3, 2], 4).with_stride(2),
+            CausalConvTranspose1dConfig::new([2, 3], 4),
+            CausalConvTranspose1dConfig::new([2, 2], 3).with_stride(3),
+            CausalConvTranspose1dConfig::new([4, 4], 4)
+                .with_stride(2)
+                .with_groups(4),
+            CausalConvTranspose1dConfig::new([2, 2], 16)
+                .with_stride(8)
+                .with_bias(false),
+        ];
+        for (i, config) in configs.iter().enumerate() {
+            let conv = config.init(&device);
+            for t in [1, 5, 12] {
+                let x = seeded_tensor(
+                    (10 * i + t) as u64,
+                    [2, config.channels[0], t],
+                    Distribution::Normal(0.0, 1.0),
+                    &device,
+                );
+                let whole = conv.forward(x.clone());
+                for sizes in [&[1][..], &[2], &[3], &[1, 4, 2], &[t]] {
+                    let mut ctx = conv.new_stream_context();
+                    let mut outputs = Vec::new();
+                    let (mut at, mut j) = (0, 0);
+                    while at < t {
+                        let n = sizes[j % sizes.len()].min(t - at);
+                        outputs.push(
+                            conv.forward_stream(x.clone().slice(s![.., .., at..at + n]), &mut ctx),
+                        );
+                        at += n;
+                        j += 1;
+                    }
+                    assert_tensors_close(
+                        &Tensor::cat(outputs, 2),
+                        &whole,
+                        Tolerance::rel_abs(1e-5, 1e-6),
+                    );
+                }
+            }
+        }
     }
 
     #[test]

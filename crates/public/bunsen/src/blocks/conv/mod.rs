@@ -14,10 +14,11 @@
 //!   frame's past, channels first: padded before (zeros or the edge
 //!   [replicated](CausalPadding)) and convolved unpadded; and an upsampler
 //!   whose kernel's overlap past the last frame is trimmed. Encodec's, DAC's,
-//!   Mimi's and Qwen3-TTS's codec's. A [`CausalConv1d`] also runs as a stream,
-//!   in chunks of any size through a
-//!   [`CausalConvStreamContext`](crate::ops::conv::CausalConvStreamContext),
-//!   its outputs the whole forward's.
+//!   Mimi's and Qwen3-TTS's codec's. Both also run as streams, in chunks of any
+//!   size through a
+//!   [`CausalConvStreamContext`](crate::ops::conv::CausalConvStreamContext) or
+//!   a [`CausalConvTransposeStreamContext`](crate::ops::conv::CausalConvTransposeStreamContext),
+//!   their outputs the whole forward's.
 //! - [`CausalConvNext1d`]: a causal 1-d `ConvNeXt` block, channels last: a
 //!   depthwise convolution over each channel's past, a norm, a pointwise
 //!   expansion and projection, an optional per-channel layer scale, residual;
