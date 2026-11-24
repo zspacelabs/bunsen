@@ -30,6 +30,10 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
+    ops::conv::{
+        CausalConvStreamContext,
+        CausalConvTransposeStreamContext,
+    },
 };
 
 /// The decoder's activation, `SnakeBeta` in its log-scale parameterization,
@@ -52,6 +56,17 @@ fn causal_conv(
     CausalConv1dConfig::new(channels, kernel)
         .with_dilation(dilation)
         .try_init(device)
+}
+
+/// One chunk through a stride-1 causal convolution's stream: every frame is
+/// an output.
+fn conv_stream(
+    conv: &CausalConv1d,
+    x: Tensor<3>,
+    ctx: &mut CausalConvStreamContext,
+) -> Tensor<3> {
+    conv.forward_stream(x, ctx)
+        .expect("a stride-1 causal convolution completes every frame")
 }
 
 /// Common meta for [`DacResidualUnit`] and
@@ -167,6 +182,44 @@ impl DacResidualUnit {
         let h = self.conv1.forward(self.act1.forward(x.clone()));
         x + self.conv2.forward(self.act2.forward(h))
     }
+
+    /// A stream through the unit, not yet started.
+    pub fn new_stream_context(&self) -> DacResidualUnitStreamContext {
+        DacResidualUnitStreamContext {
+            conv1: self.conv1.new_stream_context(),
+            conv2: self.conv2.new_stream_context(),
+        }
+    }
+
+    /// The stream's next chunk; joined, the chunks' outputs are
+    /// [`forward`](Self::forward)'s.
+    ///
+    /// # Arguments
+    /// - `x`: `[B, C, T]`, `T ≥ 1`.
+    ///
+    /// # Returns
+    /// `[B, C, T]`.
+    pub fn forward_stream(
+        &self,
+        x: Tensor<3>,
+        ctx: &mut DacResidualUnitStreamContext,
+    ) -> Tensor<3> {
+        let h = conv_stream(&self.conv1, self.act1.forward(x.clone()), &mut ctx.conv1);
+        x + conv_stream(&self.conv2, self.act2.forward(h), &mut ctx.conv2)
+    }
+}
+
+/// One stream through a [`DacResidualUnit`]: its convolutions' streams.
+///
+/// A `Module` over bare tensors (see [`CausalConvStreamContext`]): moved with
+/// `to_device`, never recorded or visited.
+#[derive(Module, Debug)]
+pub struct DacResidualUnitStreamContext {
+    /// The dilated convolution's.
+    pub conv1: CausalConvStreamContext,
+
+    /// The pointwise convolution's.
+    pub conv2: CausalConvStreamContext,
 }
 
 /// Common meta for [`DacDecoderBlock`] and
@@ -294,6 +347,54 @@ impl DacDecoderBlock {
         let x = self.upsample.forward(self.act.forward(x));
         self.residuals.iter().fold(x, |x, unit| unit.forward(x))
     }
+
+    /// A stream through the block, not yet started.
+    pub fn new_stream_context(&self) -> DacDecoderBlockStreamContext {
+        DacDecoderBlockStreamContext {
+            upsample: self.upsample.new_stream_context(),
+            residuals: self
+                .residuals
+                .iter()
+                .map(DacResidualUnit::new_stream_context)
+                .collect(),
+        }
+    }
+
+    /// The stream's next chunk; joined, the chunks' outputs are
+    /// [`forward`](Self::forward)'s.
+    ///
+    /// # Arguments
+    /// - `x`: `[B, C_in, T]`, `T ≥ 1`.
+    ///
+    /// # Returns
+    /// `[B, C_out, T · factor]`.
+    pub fn forward_stream(
+        &self,
+        x: Tensor<3>,
+        ctx: &mut DacDecoderBlockStreamContext,
+    ) -> Tensor<3> {
+        let x = self
+            .upsample
+            .forward_stream(self.act.forward(x), &mut ctx.upsample);
+        self.residuals
+            .iter()
+            .zip(&mut ctx.residuals)
+            .fold(x, |x, (unit, ctx)| unit.forward_stream(x, ctx))
+    }
+}
+
+/// One stream through a [`DacDecoderBlock`]: its upsampler's and its
+/// residual units' streams.
+///
+/// A `Module` over bare tensors (see [`CausalConvStreamContext`]): moved with
+/// `to_device`, never recorded or visited.
+#[derive(Module, Debug)]
+pub struct DacDecoderBlockStreamContext {
+    /// The upsampler's.
+    pub upsample: CausalConvTransposeStreamContext,
+
+    /// Each residual unit's, in order.
+    pub residuals: Vec<DacResidualUnitStreamContext>,
 }
 
 /// Common meta for [`DacDecoder`] and [`DacDecoderConfig`].
@@ -445,5 +546,140 @@ impl DacDecoderMeta for DacDecoder {
 
     fn out_kernel(&self) -> usize {
         self.output.kernel_size()
+    }
+}
+
+impl DacDecoder {
+    /// Latents to a waveform, the whole input at once.
+    ///
+    /// # Arguments
+    /// - `z`: `[B, L, T]`, `L` the latent width.
+    ///
+    /// # Returns
+    /// `[B, 1, T · factor]`.
+    pub fn forward(
+        &self,
+        z: Tensor<3>,
+    ) -> Tensor<3> {
+        let y = self
+            .blocks
+            .iter()
+            .fold(self.input.forward(z), |y, block| block.forward(y));
+        self.output.forward(self.output_act.forward(y))
+    }
+
+    /// A stream through the decoder, not yet started.
+    pub fn new_stream_context(&self) -> DacDecoderStreamContext {
+        DacDecoderStreamContext {
+            input: self.input.new_stream_context(),
+            blocks: self
+                .blocks
+                .iter()
+                .map(DacDecoderBlock::new_stream_context)
+                .collect(),
+            output: self.output.new_stream_context(),
+        }
+    }
+
+    /// The stream's next chunk of latents, to its samples; joined, the
+    /// chunks' outputs are [`forward`](Self::forward)'s. Every layer is a
+    /// causal convolution of stride 1 or an upsampler, so a chunk's samples
+    /// are final at once, and a stream needs no finish.
+    ///
+    /// # Arguments
+    /// - `z`: `[B, L, T]`, `T ≥ 1`.
+    ///
+    /// # Returns
+    /// `[B, 1, T · factor]`.
+    pub fn forward_stream(
+        &self,
+        z: Tensor<3>,
+        ctx: &mut DacDecoderStreamContext,
+    ) -> Tensor<3> {
+        let y = conv_stream(&self.input, z, &mut ctx.input);
+        let y = self
+            .blocks
+            .iter()
+            .zip(&mut ctx.blocks)
+            .fold(y, |y, (block, ctx)| block.forward_stream(y, ctx));
+        conv_stream(&self.output, self.output_act.forward(y), &mut ctx.output)
+    }
+}
+
+/// One stream through a [`DacDecoder`]: each layer's stream.
+///
+/// A `Module` over bare tensors (see [`CausalConvStreamContext`]): moved with
+/// `to_device`, never recorded or visited.
+#[derive(Module, Debug)]
+pub struct DacDecoderStreamContext {
+    /// The input convolution's.
+    pub input: CausalConvStreamContext,
+
+    /// Each block's, in order.
+    pub blocks: Vec<DacDecoderBlockStreamContext>,
+
+    /// The output convolution's.
+    pub output: CausalConvStreamContext,
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::tensor::{
+        Distribution,
+        Tolerance,
+    };
+
+    use super::*;
+    use crate::support::testing::{
+        assert_tensors_close,
+        cpu_device,
+        seeded_tensor,
+    };
+
+    /// A small vocoder: two blocks (x2 and x3), two residual units each.
+    fn decoder(device: &Device) -> DacDecoder {
+        let residuals = |c: usize| {
+            [1, 3]
+                .into_iter()
+                .map(|d| DacResidualUnitConfig::new(c, d))
+                .collect::<Vec<_>>()
+        };
+        DacDecoderConfig::new(
+            3,
+            8,
+            alloc::vec![
+                DacDecoderBlockConfig::new([8, 4], 2, 4, residuals(4)),
+                DacDecoderBlockConfig::new([4, 2], 3, 6, residuals(2)),
+            ],
+        )
+        .init(device)
+    }
+
+    /// A stream's samples are the whole forward's, whatever the chunks of
+    /// latents.
+    #[test]
+    fn test_stream_matches_forward() {
+        let device = cpu_device();
+        let decoder = decoder(&device);
+        for t in [1, 4, 9] {
+            let z = seeded_tensor(t as u64, [2, 3, t], Distribution::Normal(0.0, 1.0), &device);
+            let whole = decoder.forward(z.clone());
+            assert_eq!(whole.dims(), [2, 1, t * 6]);
+            for size in [1, 2, 4, t] {
+                let mut ctx = decoder.new_stream_context();
+                let chunks: Vec<Tensor<3>> = (0..t)
+                    .step_by(size)
+                    .map(|at| {
+                        let end = (at + size).min(t);
+                        decoder.forward_stream(z.clone().slice(s![.., .., at..end]), &mut ctx)
+                    })
+                    .collect();
+                assert_tensors_close(
+                    &Tensor::cat(chunks, 2),
+                    &whole,
+                    Tolerance::rel_abs(1e-5, 1e-6),
+                );
+            }
+        }
     }
 }
