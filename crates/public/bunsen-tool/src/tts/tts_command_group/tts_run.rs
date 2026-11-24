@@ -18,9 +18,12 @@ use bunsen::{
     },
     kits::{
         speech::tts::driver::{
+            TtsChunkPolicy,
             TtsDriverConfig,
+            TtsEvent,
             TtsRequest,
             TtsSamplingOverrides,
+            TtsSpeech,
             TtsStop,
             TtsSynthesizer,
             TtsVoiceChoice,
@@ -163,6 +166,25 @@ pub struct TtsRunCommand {
     #[arg(long)]
     max_seconds: Option<f64>,
 
+    /// Speak as a stream: each take's audio as its frames are decoded.
+    ///
+    /// With `--play`, playback starts within `--prebuffer-ms` of the first
+    /// audio, while the rest is synthesized. The audio is the same as
+    /// without it; the summary adds when the first audio came.
+    #[arg(long)]
+    stream: bool,
+
+    /// With `--stream`, the frames of a take's first decode.
+    ///
+    /// Each later decode waits for as many more frames as were decoded
+    /// before it, up to `--max-chunk`: 1, 2, 4, 8, 15, ... by default.
+    #[arg(long, default_value_t = 1, requires = "stream")]
+    first_chunk: usize,
+
+    /// With `--stream`, the most frames of one decode.
+    #[arg(long, default_value_t = 15, requires = "stream")]
+    max_chunk: usize,
+
     /// The text; stdin when omitted (words joined by spaces).
     text: Vec<String>,
 }
@@ -204,7 +226,58 @@ impl TtsRunCommand {
             request.voice = voice;
         }
         let started = Instant::now();
-        let speech = synthesizer.synthesize(&request)?;
+        let mut first_audio = None;
+        #[cfg(feature = "live")]
+        let mut underruns = None;
+        let speech = if self.stream {
+            let chunks = TtsChunkPolicy::new()
+                .with_first(self.first_chunk)
+                .with_max(self.max_chunk);
+            let mut stream = synthesizer.stream(&request, chunks)?;
+            #[cfg(feature = "live")]
+            let mut live = match &playback {
+                Some(playback) => {
+                    eprintln!(
+                        "# playing on {} as it is spoken; Ctrl-C to stop",
+                        playback.name()
+                    );
+                    Some(playback.start_stream(stream.sample_rate(), self.playback.prebuffer_ms)?)
+                }
+                None => None,
+            };
+            let mut speech = TtsSpeech {
+                samples: Vec::new(),
+                sample_rate: stream.sample_rate(),
+                takes: Vec::new(),
+                notes: Vec::new(),
+            };
+            while let Some(event) = stream.next_event()? {
+                match event {
+                    TtsEvent::Audio(samples) => {
+                        first_audio.get_or_insert_with(|| started.elapsed().as_secs_f64());
+                        #[cfg(feature = "live")]
+                        if let Some(live) = &mut live {
+                            live.push(&samples);
+                        }
+                        speech.samples.extend(samples);
+                    }
+                    TtsEvent::Notes(notes) => speech.notes.extend(notes),
+                    TtsEvent::TakeEnd { info, .. } => speech.takes.push(info),
+                    TtsEvent::TakeStart { .. } => {}
+                }
+                #[cfg(feature = "live")]
+                if live.as_ref().is_some_and(|live| live.stopped()) {
+                    break;
+                }
+            }
+            #[cfg(feature = "live")]
+            {
+                underruns = live.map(|live| live.finish());
+            }
+            speech
+        } else {
+            synthesizer.synthesize(&request)?
+        };
         let spoken = started.elapsed().as_secs_f64();
         for note in &speech.notes {
             log::warn!("{}: {}", note.stage, note.note);
@@ -234,13 +307,25 @@ impl TtsRunCommand {
             .unwrap_or_else(|| "the default".to_string());
         eprintln!(
             "{place}: {:.2} s in {voice}'s voice ({model}), seed {seed}; {} takes synthesized \
-             in {spoken:.2} s ({steps} steps, {:.1} a second)",
+             in {spoken:.2} s ({steps} steps, {:.1} a second){}",
             speech.seconds(),
             speech.takes.len(),
             steps as f64 / spoken,
+            first_audio.map_or_else(String::new, |s| format!("; first audio at {s:.2} s")),
         );
         #[cfg(feature = "live")]
-        if let Some(playback) = &playback {
+        if let Some(underruns) = underruns
+            && underruns > 0
+        {
+            log::warn!(
+                "playback ran dry {underruns} times: synthesis is slower than real time; raise \
+                 --prebuffer-ms"
+            );
+        }
+        #[cfg(feature = "live")]
+        if !self.stream
+            && let Some(playback) = &playback
+        {
             eprintln!("# playing on {}; Ctrl-C to stop", playback.name());
             playback.play(&speech.samples, speech.sample_rate)?;
         }

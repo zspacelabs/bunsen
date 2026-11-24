@@ -43,16 +43,18 @@ use crate::support::{
 };
 
 /// How often playback checks whether it has finished, or been stopped.
-const POLL: Duration = Duration::from_millis(50);
+pub(super) const POLL: Duration = Duration::from_millis(50);
 
 /// What playback waits, after the last sample is handed over, for the
 /// device to sound it.
-const DRAIN: Duration = Duration::from_millis(250);
+pub(super) const DRAIN: Duration = Duration::from_millis(250);
 
 /// Whether to play the take, and on which output device.
 #[derive(clap::Args, Debug)]
 pub struct PlaybackArgs {
-    /// Play the speech on an output device, once it is synthesized.
+    /// Play the speech on an output device.
+    ///
+    /// Once it is synthesized; as it is, with `--stream`.
     #[arg(long)]
     pub play: bool,
 
@@ -66,6 +68,16 @@ pub struct PlaybackArgs {
     /// List the output devices, id and name, and exit. Loads nothing.
     #[arg(long)]
     pub list_output_devices: bool,
+
+    /// With `--stream`, the audio queued before playback starts, in
+    /// milliseconds.
+    ///
+    /// Playback starts once this much is queued, and again after an
+    /// underrun (the queue running dry before the speech ends, which the
+    /// summary counts). Raise it on a device that decodes slower than real
+    /// time.
+    #[arg(long, default_value_t = 200)]
+    pub prebuffer_ms: u64,
 }
 
 impl PlaybackArgs {
@@ -104,8 +116,8 @@ impl PlaybackArgs {
 
 /// An output device to play a take on.
 pub struct Playback {
-    device: Device,
-    name: String,
+    pub(super) device: Device,
+    pub(super) name: String,
 }
 
 impl Playback {
@@ -165,7 +177,7 @@ impl Playback {
 
 /// The playback configuration: the device's at `rate` in a format this
 /// writes, the fewest channels first; else its default, resampled to.
-fn pick_config(
+pub(super) fn pick_config(
     device: &Device,
     rate: u32,
 ) -> BunsenResult<SupportedStreamConfig> {
