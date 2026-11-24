@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-946ff7d1.js";
+            window.path_to_searchindex_js = "../searchindex-0591b7e1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8ef3ccc5.js"></script>
@@ -195,9 +195,9 @@ benchmarks print their own.</p>
 <tr><th>Bench</th><th>Measures</th><th>Runs on</th></tr>
 </thead>
 <tbody>
-<tr><td><code>contracts</code></td><td>shape-contract unpacks, asserts and periodic asserts (<a href="https://docs.rs/bunsen/0.44.0/bunsen/contracts/index.html#cost" title="mod bunsen::contracts">cost</a>)</td><td>the host</td></tr>
+<tr><td><code>contracts</code></td><td>shape-contract unpacks, asserts and periodic asserts (<a href="https://docs.rs/bunsen/0.45.0/bunsen/contracts/index.html#cost" title="mod bunsen::contracts">cost</a>)</td><td>the host</td></tr>
 <tr><td><code>drop_block</code></td><td>2D DropBlock over a small image batch</td><td>the CPU backend, always</td></tr>
-<tr><td><code>math</code></td><td><a href="https://docs.rs/bunsen/0.44.0/bunsen/support/math/iroot/fn.maybe_iroot.html" title="fn bunsen::support::math::iroot::maybe_iroot"><code>maybe_iroot</code></a> against a floating-point reference</td><td>the host</td></tr>
+<tr><td><code>math</code></td><td><a href="https://docs.rs/bunsen/0.45.0/bunsen/support/math/iroot/fn.maybe_iroot.html" title="fn bunsen::support::math::iroot::maybe_iroot"><code>maybe_iroot</code></a> against a floating-point reference</td><td>the host</td></tr>
 <tr><td><code>lbm</code></td><td>the D2Q9 lattice-Boltzmann collision, streaming and update steps, in <code>f32</code> and <code>f64</code></td><td><code>performance_device()</code></td></tr>
 <tr><td><code>whisper_decode</code></td><td>the Whisper encoder and decode loop at <code>base.en</code>’s shapes, with random weights, cold and warm</td><td><code>performance_device()</code></td></tr>
 </tbody>
@@ -213,6 +213,13 @@ optionally checks them against an expected JSON file.</li>
 <code>benchmark</code> subcommand reports the sustained steps per second of the 2D or
 3D Game of Life on the device <code>--device</code> selects. It measures the tensor
 kernels behind the simulation kits.</li>
+<li><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/tools/timing"><code>cargo timing</code></a>,
+in the validation workspace, times each kit’s decode on the catalog’s
+checkpoints, phase by phase (an encoder’s pass, the prefill, the steps by
+cache position), through its
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/kits/support/timing/timed_decode/trait.TimedDecode.html" title="trait bunsen::kits::support::timing::timed_decode::TimedDecode"><code>TimedDecode</code></a>, and compares
+two runs (commits, backends, dtypes, fusion). The validation README has its
+commands.</li>
 <li><a href="https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-tool/README.md"><code>bunsen-tool</code></a>’s
 <code>transcribe</code> logs, at <code>-v</code>, each file’s audio length, transcription time
 and realtime factor, and the totals over the set.</li>
@@ -229,6 +236,11 @@ to optimize, and know which one a number is.</p>
 <code>cold</code>.</li>
 <li><code>conway benchmark</code> leaves a warmup fraction of its steps out of the
 timing.</li>
+<li><code>cargo timing</code> reports each phase’s first call apart (<code>cold</code>) from the
+ones after it, and keeps every warm step’s time, so a step still partly
+cold shows. A cold call compiles kernels, and a backend may keep compiled
+kernels across runs (the CUDA driver’s cache), so a later run’s cold calls
+are shorter: cold is a process’s first call, not the machine’s.</li>
 <li><code>bunsen-tool</code> sizes every push to the stream driver’s grain, so the front
 end and the autotuned kernels behind it see one shape, not a drift of
 remainders.</li>
@@ -237,7 +249,7 @@ the kernel.</li>
 </ul>
 <h2 id="always-pass-a-backend"><a class="header" href="#always-pass-a-backend">Always pass a backend</a></h2>
 <p>A benchmark on
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/support/testing/common_devices/fn.performance_device.html" title="fn bunsen::support::testing::common_devices::performance_device"><code>performance_device</code></a>
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/support/testing/common_devices/fn.performance_device.html" title="fn bunsen::support::testing::common_devices::performance_device"><code>performance_device</code></a>
 measures whatever bunsen’s backend feature selected, and without one that is
 the CPU. It doesn’t fail; it reports CPU numbers
 (<a href="./testing.html#the-silent-cpu-fallback">Testing and backends</a>). Pass the

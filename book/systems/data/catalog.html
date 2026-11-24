@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../../searchindex-946ff7d1.js";
+            window.path_to_searchindex_js = "../../searchindex-0591b7e1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-8ef3ccc5.js"></script>
@@ -185,9 +185,9 @@
 <p>The catalog is what bunsen can build, as data: a stack of YAML layers that
 name contracts, builds, resources, tags and presets, imported one after
 another into one materialized state. The reference is
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/index.html" title="mod bunsen::data::catalog"><code>bunsen::data::catalog</code></a>: its
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/catalog_format/index.html" title="mod bunsen::data::catalog::catalog_format">format</a> describes the document and
-the stack, and its <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/usage/index.html" title="mod bunsen::data::catalog::usage">usage guide</a> the API, from
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/catalog/index.html" title="mod bunsen::data::catalog"><code>bunsen::data::catalog</code></a>: its
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/catalog/catalog_format/index.html" title="mod bunsen::data::catalog::catalog_format">format</a> describes the document and
+the stack, and its <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/catalog/usage/index.html" title="mod bunsen::data::catalog::usage">usage guide</a> the API, from
 importing layers to choosing a build.</p>
 <h2 id="entries"><a class="header" href="#entries">Entries</a></h2>
 <p>Every entry has a full name, a <code>/</code>-separated path (<code>qwen/qwen3/qwen3-0.6b</code>),
@@ -219,10 +219,10 @@ keep the Hub’s spelling.</p>
 <a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-catalog"><code>bunsen-catalog</code></a>:
 the prelude (the vocabulary and the contracts), the commons (the
 publishers), the Hub’s mirrors, the datasets, and a layer per kit, each with the bunsen feature
-it needs. <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/builtin/struct.BuiltinCatalog.html#method.get" title="associated function bunsen::data::catalog::builtin::BuiltinCatalog::get"><code>BuiltinCatalog::get</code></a>
+it needs. <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/catalog/builtin/struct.BuiltinCatalog.html#method.get" title="associated function bunsen::data::catalog::builtin::BuiltinCatalog::get"><code>BuiltinCatalog::get</code></a>
 imports and resolves it once in a process; its
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/builtin/struct.BuiltinCatalog.html#method.build" title="method bunsen::data::catalog::builtin::BuiltinCatalog::build"><code>build</code></a> is what a name
-means, and its <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/builtin/struct.BuiltinCatalog.html#method.provider" title="method bunsen::data::catalog::builtin::BuiltinCatalog::provider"><code>provider</code></a>
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/catalog/builtin/struct.BuiltinCatalog.html#method.build" title="method bunsen::data::catalog::builtin::BuiltinCatalog::build"><code>build</code></a> is what a name
+means, and its <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/catalog/builtin/struct.BuiltinCatalog.html#method.provider" title="method bunsen::data::catalog::builtin::BuiltinCatalog::provider"><code>provider</code></a>
 is a kit’s <code>catalog:</code> provider.</p>
 <p>The layers are built, not hand-written. <code>cargo catalog</code>, in the validation
 workspace, reads each layer’s source under
@@ -233,13 +233,13 @@ presets, and writes the built layers. <code>cargo catalog check</code> fails whe
 checked-in catalog is not what the sources build.</p>
 <h2 id="presets"><a class="header" href="#presets">Presets</a></h2>
 <p>A build’s presets are named, described
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/support/merge_patch/index.html" title="mod bunsen::support::merge_patch">merge patches</a> over the config its kit builds
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/support/merge_patch/index.html" title="mod bunsen::support::merge_patch">merge patches</a> over the config its kit builds
 the model under: a Whisper policy, a Sortformer streaming setup, a Qwen3
 generation policy
-(<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/document/preset/struct.PresetEntry.html" title="struct bunsen::data::catalog::document::preset::PresetEntry"><code>PresetEntry</code></a>). Which fields
+(<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/catalog/document/preset/struct.PresetEntry.html" title="struct bunsen::data::catalog::document::preset::PresetEntry"><code>PresetEntry</code></a>). Which fields
 a preset may set is the config’s business. A field the construction reads
 changes what is built, and one a driver reads changes how it runs.</p>
-<p>A build’s <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/presets/struct.ResolvedPresetSet.html" title="struct bunsen::data::catalog::presets::ResolvedPresetSet"><code>ResolvedPresetSet</code></a>
+<p>A build’s <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/catalog/presets/struct.ResolvedPresetSet.html" title="struct bunsen::data::catalog::presets::ResolvedPresetSet"><code>ResolvedPresetSet</code></a>
 groups them. An axis holds presets that exclude one another, such as
 Whisper’s <code>task</code> (<code>transcribe</code>, <code>translate</code>) or Sortformer’s <code>latency</code>; a
 selection names at most one member of each. The default selection is
@@ -249,7 +249,7 @@ its config under the default presets. A <code>common</code> patch holds what eve
 selection keeps, such as the stop tokens a checkpoint’s
 <code>generation_config.json</code> names.</p>
 <p>Resolution stacks the layers, each a patch over the one before
-(<a href="https://docs.rs/bunsen/0.44.0/bunsen/kits/support/model_config/presets/fn.resolve_presets.html" title="fn bunsen::kits::support::model_config::presets::resolve_presets"><code>resolve_presets</code></a>):</p>
+(<a href="https://docs.rs/bunsen/0.45.0/bunsen/kits/support/model_config/presets/fn.resolve_presets.html" title="fn bunsen::kits::support::model_config::presets::resolve_presets"><code>resolve_presets</code></a>):</p>
 <ol>
 <li>the family’s config, serialized;</li>
 <li>the set’s <code>common</code> patch;</li>
@@ -262,7 +262,7 @@ error, so their order never matters;</li>
 <p>Every layer is checked against the config it patches, so a misspelled field
 fails, naming the preset or the patch, and the result must deserialize as
 the config. A kit’s hook resolves presets before it builds, and
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/factory/struct.BuildFactory.html#method.resolve_presets" title="method bunsen::data::builds::factory::BuildFactory::resolve_presets"><code>BuildFactory::resolve_presets</code></a>
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/factory/struct.BuildFactory.html#method.resolve_presets" title="method bunsen::data::builds::factory::BuildFactory::resolve_presets"><code>BuildFactory::resolve_presets</code></a>
 resolves a build’s config with nothing fetched or built.</p>
 <p>A catalog states presets once per template class, and its builds inherit
 them under their own. An <code>hf:</code> repo that no build describes gets its
@@ -284,7 +284,7 @@ build’s, and last its own patch, <code>name{generation: {stop_ids: [1]}}</code
 <h2 id="choosing-a-build"><a class="header" href="#choosing-a-build">Choosing a build</a></h2>
 <p>The catalog also chooses among builds: a selection is a pipeline of stages
 over the builds a command may pick from, which keep, weigh and order them by
-their tags (<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/select/index.html" title="mod bunsen::data::catalog::select"><code>select</code></a>). <code>bunsen-tool chat</code>’s
+their tags (<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/catalog/select/index.html" title="mod bunsen::data::catalog::select"><code>select</code></a>). <code>bunsen-tool chat</code>’s
 <code>--model</code>, <code>--keep</code> and <code>--weigh</code> are stages, and <code>--think</code> is a shortcut
 into a build’s presets: it keeps only the builds that can think, and selects
 the preset that makes them.</p>

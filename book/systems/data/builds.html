@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../../searchindex-946ff7d1.js";
+            window.path_to_searchindex_js = "../../searchindex-0591b7e1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-8ef3ccc5.js"></script>
@@ -183,7 +183,7 @@
                         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
 <h1 id="loading-builds"><a class="header" href="#loading-builds">Loading builds</a></h1>
 <p>A kit loads a model by name through
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/index.html" title="mod bunsen::data::builds"><code>bunsen::data::builds</code></a>: providers answer names with builds, a factory
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/index.html" title="mod bunsen::data::builds"><code>bunsen::data::builds</code></a>: providers answer names with builds, a factory
 dispatches a spec to them, and the kit’s hook builds from the files the
 cache brings local.</p>
 <h2 id="prefabs-builds-and-resources"><a class="header" href="#prefabs-builds-and-resources">Prefabs, builds and resources</a></h2>
@@ -192,27 +192,27 @@ cache brings local.</p>
 <li>A <strong>prefab</strong> is a geometry by name, with no weights, so a name means a
 shape before anything is fetched. A kit’s prefabs are constructors on its
 config (<code>WhisperApiConfig::tiny_en()</code>), listed by
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/pretrained/prefabs/trait.Prefabs.html" title="trait bunsen::data::pretrained::prefabs::Prefabs"><code>Prefabs</code></a>.</li>
-<li>A <strong>build</strong>, a <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/catalog/resolve/struct.ResolvedBuild.html" title="struct bunsen::data::catalog::resolve::ResolvedBuild"><code>ResolvedBuild</code></a>, is
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/pretrained/prefabs/trait.Prefabs.html" title="trait bunsen::data::pretrained::prefabs::Prefabs"><code>Prefabs</code></a>.</li>
+<li>A <strong>build</strong>, a <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/catalog/resolve/struct.ResolvedBuild.html" title="struct bunsen::data::catalog::resolve::ResolvedBuild"><code>ResolvedBuild</code></a>, is
 what the catalog says one model is: its name and aliases, its tags and
 presets, the geometry it states, and the resources its contract’s slots are
 bound to.</li>
-<li>A <strong>resource</strong>, a <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/resources/resource/struct.Resource.html" title="struct bunsen::data::resources::resource::Resource"><code>Resource</code></a>, is one
+<li>A <strong>resource</strong>, a <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/resources/resource/struct.Resource.html" title="struct bunsen::data::resources::resource::Resource"><code>Resource</code></a>, is one
 file (<a href="./resources.html">Resources and the cache</a>).</li>
 </ul>
 <p>A build states its geometry rather than naming a prefab, and a kit’s tests
 check that every stated geometry is a prefab’s. One file can serve many
 builds: Whisper’s two vocabulary files serve its twelve checkpoints, each a
 resource the builds bind. Builds and resources know nothing about how a
-model is built: that is the kit’s business (<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/index.html#builds-and-resources" title="mod bunsen::data::builds">builds and
+model is built: that is the kit’s business (<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/index.html#builds-and-resources" title="mod bunsen::data::builds">builds and
 resources</a>).</p>
 <h2 id="providers"><a class="header" href="#providers">Providers</a></h2>
-<p>A <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/providers/trait.BuildProvider.html" title="trait bunsen::data::builds::providers::BuildProvider"><code>BuildProvider</code></a> is a namespace of
+<p>A <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/providers/trait.BuildProvider.html" title="trait bunsen::data::builds::providers::BuildProvider"><code>BuildProvider</code></a> is a namespace of
 builds: the <code>provider</code> in <code>provider:ref</code>. Two are in use. <code>catalog:</code>, a
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/catalog_provider/struct.CatalogBuildProvider.html" title="struct bunsen::data::builds::catalog_provider::CatalogBuildProvider"><code>CatalogBuildProvider</code></a>, holds
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/catalog_provider/struct.CatalogBuildProvider.html" title="struct bunsen::data::builds::catalog_provider::CatalogBuildProvider"><code>CatalogBuildProvider</code></a>, holds
 the builds of the kit’s contract in the built-in catalog, and in any
 extension layer imported over it. <code>hf:</code>, an
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/hf/struct.HfProvider.html" title="struct bunsen::data::builds::hf::HfProvider"><code>HfProvider</code></a>, is a Hugging Face repo, by
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/hf/struct.HfProvider.html" title="struct bunsen::data::builds::hf::HfProvider"><code>HfProvider</code></a>, is a Hugging Face repo, by
 <code>org/repo</code>, answered with a build named <code>hf/&lt;org&gt;/&lt;repo&gt;</code> from the repo’s
 listing, fetched once through the cache.</p>
 <p>A factory holds a kit’s providers in search order. A spec whose prefix names
@@ -223,37 +223,37 @@ reached when the spec names it. The two kinds of “no” are kept distinct. A
 provider that doesn’t have the build says so (<code>Ok(None)</code>), and the search
 moves on. A provider that fails returns an error, and the error aborts the
 lookup, because a hub that cannot be reached is not the same as a hub that
-has no such build (<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/factory/struct.BuildFactory.html#dispatch" title="struct bunsen::data::builds::factory::BuildFactory">dispatch</a>).</p>
+has no such build (<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/factory/struct.BuildFactory.html#dispatch" title="struct bunsen::data::builds::factory::BuildFactory">dispatch</a>).</p>
 <p>A spec is a lookup expression: <code>[provider:]name</code>, then an optional box of
 presets and an optional YAML patch over the resolved config, as in
 <code>'openai/small[translate]{beam_size: 1}'</code>. Quote it on a shell command line,
 since <code>[</code> and <code>]</code> glob. Only the name is dispatched. The box and the patch
 are checked against the build found before anything is fetched, and a kit
 that takes no presets refuses them rather than ignore them
-(<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/factory/struct.BuildFactory.html#lookup-expressions" title="struct bunsen::data::builds::factory::BuildFactory">lookup expressions</a>).
+(<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/factory/struct.BuildFactory.html#lookup-expressions" title="struct bunsen::data::builds::factory::BuildFactory">lookup expressions</a>).
 Catalog names compare ignoring case, so <code>Qwen/Qwen3-0.6B</code> finds
 <code>qwen/qwen3/qwen3-0.6b</code>. <code>hf:</code> names compare as given, since they are paths
 in URLs.</p>
 <p>There is no process-wide registry. Each kit ships a
 <code>default_{kit}_factory()</code>, and a caller that wants another provider adds it
-to that factory (<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/factory/struct.BuildFactory.html#no-registry" title="struct bunsen::data::builds::factory::BuildFactory">no registry</a>).</p>
+to that factory (<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/factory/struct.BuildFactory.html#no-registry" title="struct bunsen::data::builds::factory::BuildFactory">no registry</a>).</p>
 <h2 id="deferred-models-and-the-kits-hook"><a class="header" href="#deferred-models-and-the-kits-hook">Deferred models and the kit’s hook</a></h2>
-<p>What a name resolves to is a <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/deferred/struct.DeferredBuild.html" title="struct bunsen::data::builds::deferred::DeferredBuild"><code>DeferredBuild</code></a>
-model: a <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/build_ref/enum.BuildRef.html" title="enum bunsen::data::builds::build_ref::BuildRef"><code>BuildRef</code></a> (the build, or a given
+<p>What a name resolves to is a <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/deferred/struct.DeferredBuild.html" title="struct bunsen::data::builds::deferred::DeferredBuild"><code>DeferredBuild</code></a>
+model: a <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/build_ref/enum.BuildRef.html" title="enum bunsen::data::builds::build_ref::BuildRef"><code>BuildRef</code></a> (the build, or a given
 resource set), plus the kit’s
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/init/trait.ConstructInit.html" title="trait bunsen::data::builds::init::ConstructInit"><code>ConstructInit</code></a> hook. The hook is
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/init/trait.ConstructInit.html" title="trait bunsen::data::builds::init::ConstructInit"><code>ConstructInit</code></a> hook. The hook is
 chosen for the resource set by
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/init/trait.ConstructInit.html#tymethod.for_resource_set" title="associated function bunsen::data::builds::init::ConstructInit::for_resource_set"><code>for_resource_set</code></a>,
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/init/trait.ConstructInit.html#tymethod.for_resource_set" title="associated function bunsen::data::builds::init::ConstructInit::for_resource_set"><code>for_resource_set</code></a>,
 from the resources’ <code>format</code>s, because builds from different providers can
 need different readers: an OpenAI <code>.pt</code> checkpoint and a Hugging Face
 safetensors repo are both Whisper, read two ways.</p>
 <p>Loading runs three steps. The hook’s
-<a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/init/trait.ConstructInit.html#method.plan" title="method bunsen::data::builds::init::ConstructInit::plan"><code>plan</code></a> completes the resource
+<a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/init/trait.ConstructInit.html#method.plan" title="method bunsen::data::builds::init::ConstructInit::plan"><code>plan</code></a> completes the resource
 set and checks what the build promises, such as its stated geometry, before
 any bytes are fetched. The cache then brings the files local. Finally the
-hook’s <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/init/trait.ConstructInit.html#tymethod.try_init" title="method bunsen::data::builds::init::ConstructInit::try_init"><code>try_init</code></a> builds the
+hook’s <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/init/trait.ConstructInit.html#tymethod.try_init" title="method bunsen::data::builds::init::ConstructInit::try_init"><code>try_init</code></a> builds the
 model from them. Before loading, a caller can lay its own resources over the
-build’s with <a href="https://docs.rs/bunsen/0.44.0/bunsen/data/builds/deferred/struct.DeferredBuild.html#method.with_overlay" title="method bunsen::data::builds::deferred::DeferredBuild::with_overlay"><code>with_overlay</code></a>,
+build’s with <a href="https://docs.rs/bunsen/0.45.0/bunsen/data/builds/deferred/struct.DeferredBuild.html#method.with_overlay" title="method bunsen::data::builds::deferred::DeferredBuild::with_overlay"><code>with_overlay</code></a>,
 where the caller’s resource wins by slot. <code>bunsen-tool asr family whisper</code>’s
 <code>--vocab</code> flag works this way.</p>
 
