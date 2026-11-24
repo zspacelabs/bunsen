@@ -14,6 +14,8 @@
 mod family;
 #[cfg(feature = "live")]
 mod playback;
+#[cfg(feature = "live")]
+mod stream_playback;
 mod tts_command_group;
 mod tts_select;
 mod tts_voice_args;
@@ -21,6 +23,8 @@ mod tts_voice_args;
 pub use family::*;
 #[cfg(feature = "live")]
 pub use playback::*;
+#[cfg(feature = "live")]
+pub use stream_playback::*;
 pub use tts_command_group::*;
 pub use tts_select::*;
 pub use tts_voice_args::*;
