@@ -124,3 +124,39 @@ fn test_toy_codec() {
         fixture.io::<3>("codec.audio"),
     );
 }
+
+/// The stream's audio, with its finish's, is the whole decode's and the
+/// `-hf` port's, whatever the pushes; its first pushes return nothing while
+/// the tail's lookahead fills.
+#[test]
+fn test_toy_stream_is_whole() {
+    let (config, model, fixture) = load();
+    let codes: Tensor<3, Int> = fixture.io::<3>("codec.codes").int();
+    let t = codes.dims()[2];
+    let whole = model.forward(codes.clone());
+    for sizes in [&[1][..], &[2], &[5], &[1, 3], &[12]] {
+        let mut ctx = model.new_stream_context(1, &codes.device());
+        let (mut at, mut i, mut parts) = (0, 0, Vec::new());
+        while at < t {
+            let n = sizes[i % sizes.len()].min(t - at);
+            parts.extend(
+                model.forward_stream(codes.clone().slice(s![.., .., at..at + n]), &mut ctx),
+            );
+            at += n;
+            i += 1;
+        }
+        parts.extend(model.finish_stream(&mut ctx));
+        let streamed = Tensor::cat(parts, 1);
+        assert_eq!(streamed.dims(), [1, t * config.hop], "{sizes:?}");
+        close(
+            &format!("stream by {sizes:?}"),
+            streamed.clone(),
+            whole.clone(),
+        );
+        close(
+            &format!("stream by {sizes:?}, the port's"),
+            streamed.unsqueeze_dim::<3>(1),
+            fixture.io::<3>("codec.audio"),
+        );
+    }
+}

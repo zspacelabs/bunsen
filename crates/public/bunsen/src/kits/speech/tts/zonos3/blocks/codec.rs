@@ -472,24 +472,10 @@ impl Zonos3Codec {
         let frames = x.dims()[1];
         let h = self.head_blocks.iter().fold(x, |h, block| block.forward(h));
         let h = self.head_norm.forward(h).cast(DType::F32);
-        let branches: Vec<Tensor<2>> = self
-            .head_outs
-            .iter()
-            .zip(&self.istfts)
-            .map(|(out, istft)| {
-                let o = out.forward(h.clone()).cast(DType::F32);
-                let bins = o.dims()[2] / 2;
-                let magnitude = o
-                    .clone()
-                    .slice(s![.., .., ..bins])
-                    .clamp_max(100f64.ln())
-                    .exp();
-                let phase = o.slice(s![.., .., bins..]);
-                istft.istft(
-                    (magnitude.clone() * phase.clone().cos()).swap_dims(1, 2),
-                    (magnitude * phase.sin()).swap_dims(1, 2),
-                    Some(frames * self.head_hop),
-                )
+        let branches: Vec<Tensor<2>> = (0..self.istfts.len())
+            .map(|i| {
+                let (real, imag) = self.branch_spectra(i, h.clone());
+                self.istfts[i].istft(real, imag, Some(frames * self.head_hop))
             })
             .collect();
         let mixed = self
@@ -506,6 +492,28 @@ impl Zonos3Codec {
                 branches,
                 mixed,
             },
+        )
+    }
+
+    /// Branch `i`'s spectra of the head's normalized frames `h` (`[B, F, C]`,
+    /// f32): its log-magnitude (capped at `ln 100`) and phase, as
+    /// `([B, N_i/2 + 1, F], [B, N_i/2 + 1, F])` real and imaginary parts.
+    pub(crate) fn branch_spectra(
+        &self,
+        i: usize,
+        h: Tensor<3>,
+    ) -> (Tensor<3>, Tensor<3>) {
+        let o = self.head_outs[i].forward(h).cast(DType::F32);
+        let bins = o.dims()[2] / 2;
+        let magnitude = o
+            .clone()
+            .slice(s![.., .., ..bins])
+            .clamp_max(100f64.ln())
+            .exp();
+        let phase = o.slice(s![.., .., bins..]);
+        (
+            (magnitude.clone() * phase.clone().cos()).swap_dims(1, 2),
+            (magnitude * phase.sin()).swap_dims(1, 2),
         )
     }
 
