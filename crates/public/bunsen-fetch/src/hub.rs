@@ -1,12 +1,4 @@
 //! The Hugging Face Hub's credentials: a user's token, sent to the Hub alone.
-//!
-//! A gated repo (a dataset whose terms must be accepted, such as `ImageNet`'s
-//! mirrors) answers 401 or 403 to a request without a token. A request to
-//! the Hub ([`is_hub_url`]) carries the user's token when there is one
-//! ([`hub_token`]), found as `huggingface_hub` finds it. The token goes to
-//! the Hub's own hosts only: the HTTP client drops the header on every
-//! redirect (`ureq`'s `RedirectAuthHeaders::Never`), so the CDN a download
-//! is redirected to never sees it. It is never logged or shown.
 
 use std::path::{
     Path,
@@ -86,6 +78,14 @@ fn hub_token_from(
 
 /// The `Authorization` header value a request to `url` carries: `Bearer` and
 /// the user's token, for a Hub URL when there is a token; else `None`.
+///
+/// A gated repo (a dataset whose terms must be accepted, such as
+/// `ImageNet`'s mirrors) answers 401 or 403 to a request without a token. A
+/// request to the Hub ([`is_hub_url`]) carries the user's token when there is
+/// one ([`hub_token`]). The token goes to the Hub's own hosts only: the HTTP
+/// client drops the header on every redirect (`ureq`'s
+/// `RedirectAuthHeaders::Never`), so the CDN a download is redirected to never
+/// sees it. It is never logged or shown.
 pub fn hub_authorization(url: &str) -> Option<String> {
     is_hub_url(url)
         .then(hub_token)
