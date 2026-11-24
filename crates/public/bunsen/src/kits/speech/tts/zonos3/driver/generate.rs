@@ -12,6 +12,7 @@ use alloc::{
 use burn::{
     Tensor,
     config::Config,
+    module::Module,
     prelude::{
         Int,
         TensorData,
@@ -29,6 +30,7 @@ use super::{
     zonos3_output_stage,
 };
 use crate::{
+    blocks::transformers::decoders::stack::DecoderStackCache,
     errors::{
         BunsenError,
         BunsenResult,
@@ -277,6 +279,70 @@ pub struct Zonos3Codes {
     pub rows: usize,
 }
 
+/// A take in progress ([`Zonos3Engine::start_take`]): the model's cache and
+/// its last logits, the rows sampled so far, and the sampler.
+///
+/// A `Module` over bare tensors: moved with `to_device`, never recorded or
+/// visited.
+#[derive(Module, Debug)]
+pub struct Zonos3TakeRun {
+    /// The model's decode cache.
+    pub cache: DecoderStackCache,
+
+    /// `[n, V]`: the last row's logits, each codebook's.
+    pub logits: Tensor<2>,
+
+    /// The rows sampled so far, and the stop rule.
+    #[module(skip)]
+    pub take: Zonos3TakeRows,
+
+    /// Each codebook's codes so far, the sampler's history.
+    pub history: Vec<Vec<i64>>,
+
+    /// The prompt's silence prefill rows, `[P][n]`.
+    pub silence: Vec<Vec<u32>>,
+
+    /// The text pad, each generated row's text column.
+    pub text_pad: u32,
+
+    /// The sampler.
+    #[module(skip)]
+    pub sampler: Zonos3Sampler,
+
+    /// When the device pool's free memory is released.
+    #[module(skip)]
+    pub pool: PoolRelease,
+
+    /// The rows run through the model after the prompt.
+    pub step: usize,
+
+    /// Why the take stopped; `None` while it runs.
+    #[module(skip)]
+    pub stop: Option<Zonos3Stop>,
+}
+
+impl Zonos3TakeRun {
+    /// The take's codes so far: the frames a whole decode covers from
+    /// `overlap` frames into the silence prefill
+    /// ([`Zonos3TakeRows::frames`]).
+    ///
+    /// # Panics
+    /// For a take still running.
+    pub fn codes(
+        &self,
+        overlap: usize,
+    ) -> Zonos3Codes {
+        let stop = self.stop.expect("a take that stopped");
+        let (frames, start) = self.take.frames(&self.silence, overlap);
+        Zonos3Codes {
+            frames,
+            start,
+            stop,
+            rows: self.take.rows().len(),
+        }
+    }
+}
+
 /// ZONOS3-Mini as a TTS engine
 /// ([`TtsEngine`](crate::kits::speech::tts::driver::TtsEngine)): text and a
 /// speaker to codes, one take decoded whole, as the release generates it.
@@ -451,7 +517,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
         Ok(Zonos3SpeakerMode::Codes.speaker(self.stock_voice(name)?))
     }
 
-    fn device(&self) -> Device {
+    pub(crate) fn device(&self) -> Device {
         self.construct.lm.embedders[0].weight.device()
     }
 
@@ -487,6 +553,18 @@ impl<T: Tokenizer> Zonos3Engine<T> {
         request: &Zonos3Request,
         overrides: &TtsSamplingOverrides,
     ) -> BunsenResult<Zonos3Codes> {
+        self.generate_codes_sampled(request, &self.sampler_with(overrides))
+    }
+
+    /// The sampler a take with `overrides` draws by: the config's, the
+    /// overrides over it (none, the engine's own).
+    pub fn sampler_with(
+        &self,
+        overrides: &TtsSamplingOverrides,
+    ) -> Zonos3Sampler {
+        if *overrides == TtsSamplingOverrides::default() {
+            return self.sampler.clone();
+        }
         let mut config = self.config.sampler.clone();
         if let Some(t) = overrides.temperature {
             config.temperature = t;
@@ -503,7 +581,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
         if let Some(r) = overrides.repetition_penalty {
             config.repetition_penalty = r;
         }
-        self.generate_codes_sampled(request, &Self::sampler(&self.construct, &config))
+        Self::sampler(&self.construct, &config)
     }
 
     /// [`generate_codes`](Self::generate_codes), sampled by `sampler`.
@@ -515,6 +593,23 @@ impl<T: Tokenizer> Zonos3Engine<T> {
         request: &Zonos3Request,
         sampler: &Zonos3Sampler,
     ) -> BunsenResult<Zonos3Codes> {
+        let mut run = self.start_take(request, sampler.clone())?;
+        while self.step_take(&mut run).is_none() {}
+        Ok(run.codes(self.config.overlap_frames))
+    }
+
+    /// A take started, sampled by `sampler`: its prompt built and run
+    /// through the model, the device seeded, nothing sampled yet.
+    /// [`step_take`](Self::step_take) then samples it a row at a time;
+    /// [`generate_codes`](Self::generate_codes) is that loop.
+    ///
+    /// # Errors
+    /// As [`generate_codes`](Self::generate_codes).
+    pub fn start_take(
+        &self,
+        request: &Zonos3Request,
+        sampler: Zonos3Sampler,
+    ) -> BunsenResult<Zonos3TakeRun> {
         let lm = &self.construct.lm;
         let layout = &self.construct.prompt;
         let max_rows = self.construct.lm_config.max_rows;
@@ -552,53 +647,66 @@ impl<T: Tokenizer> Zonos3Engine<T> {
             .last()
             .is_none_or(|row| row[..n].iter().all(|&c| c == pad));
         let mut cache = lm.decode_cache(1, r + budget, self.config.storage, &device);
-        let mut logits = Self::last_logits(lm.forward(
+        let logits = Self::last_logits(lm.forward(
             prompt.ids(&device),
             &prompt.conditioning(&device),
             Some(&mut cache),
         ));
-
-        let mut take = Zonos3TakeRows::new(n, eoa, pad, cold_start, budget);
-        let mut history: Vec<Vec<i64>> = vec![Vec::new(); n];
-        let pool = PoolRelease::default();
-        let mut step = 0;
-        let stop = loop {
-            let mut codes: Vec<u32> = sampler
-                .sample(logits, &history)
-                .into_iter()
-                .map(|c| c as u32)
-                .collect();
-            let stop = take.push(&mut codes);
-            for (j, &c) in codes.iter().enumerate() {
-                history[j].push(i64::from(c));
-            }
-            if let Some(stop) = stop {
-                break stop;
-            }
-            let row: Vec<i64> = codes
-                .iter()
-                .map(|&c| i64::from(c))
-                .chain([i64::from(layout.text_pad)])
-                .collect();
-            let ids: Tensor<3, Int> =
-                Tensor::from_data(TensorData::new(row, [1, 1, n + 1]), &device);
-            logits = Self::last_logits(lm.forward(
-                ids,
-                &Zonos3RowConditioning::default(),
-                Some(&mut cache),
-            ));
-            pool.after_step(step, &device);
-            step += 1;
-        };
-
-        let silence = &prompt.rows[r - prompt.silence_rows..];
-        let (frames, start) = take.frames(silence, self.config.overlap_frames);
-        Ok(Zonos3Codes {
-            frames,
-            start,
-            stop,
-            rows: take.rows().len(),
+        Ok(Zonos3TakeRun {
+            cache,
+            logits,
+            take: Zonos3TakeRows::new(n, eoa, pad, cold_start, budget),
+            history: vec![Vec::new(); n],
+            silence: prompt.rows[r - prompt.silence_rows..].to_vec(),
+            text_pad: layout.text_pad,
+            sampler,
+            pool: PoolRelease::default(),
+            step: 0,
+            stop: None,
         })
+    }
+
+    /// The take's next row: sampled, recorded, and run through the model;
+    /// or why the take stopped.
+    ///
+    /// # Panics
+    /// For a take that stopped already.
+    pub fn step_take(
+        &self,
+        run: &mut Zonos3TakeRun,
+    ) -> Option<Zonos3Stop> {
+        assert!(run.stop.is_none(), "a step of a take that stopped");
+        let device = self.device();
+        let logits = run.logits.clone();
+        let mut codes: Vec<u32> = run
+            .sampler
+            .sample(logits, &run.history)
+            .into_iter()
+            .map(|c| c as u32)
+            .collect();
+        let stop = run.take.push(&mut codes);
+        for (j, &c) in codes.iter().enumerate() {
+            run.history[j].push(i64::from(c));
+        }
+        if stop.is_some() {
+            run.stop = stop;
+            return stop;
+        }
+        let n = codes.len();
+        let row: Vec<i64> = codes
+            .iter()
+            .map(|&c| i64::from(c))
+            .chain([i64::from(run.text_pad)])
+            .collect();
+        let ids: Tensor<3, Int> = Tensor::from_data(TensorData::new(row, [1, 1, n + 1]), &device);
+        run.logits = Self::last_logits(self.construct.lm.forward(
+            ids,
+            &Zonos3RowConditioning::default(),
+            Some(&mut run.cache),
+        ));
+        run.pool.after_step(run.step, &device);
+        run.step += 1;
+        None
     }
 
     /// The samples of a take's codes: the codec's audio, through the output
@@ -628,14 +736,17 @@ impl<T: Tokenizer> Zonos3Engine<T> {
                 "decoded frames must be {q} codes below {size}"
             )));
         }
-        let f = frames.len();
-        let flat: Vec<i64> = (0..q)
-            .flat_map(|j| frames.iter().map(move |frame| i64::from(frame[j])))
-            .collect();
-        let ids: Tensor<3, Int> =
-            Tensor::from_data(TensorData::new(flat, [1, q, f]), &self.device());
-        let mut samples: Vec<f32> = codec
-            .forward(ids)
+        let ids = self.frame_ids(frames);
+        self.output_samples(codec.forward(ids))
+    }
+
+    /// The codec's audio, `[B, N]`, through the output stage, as samples;
+    /// refused when not finite. What `render` and a take's stream share.
+    pub(crate) fn output_samples(
+        &self,
+        audio: Tensor<2>,
+    ) -> BunsenResult<Vec<f32>> {
+        let mut samples: Vec<f32> = audio
             .cast(DType::F32)
             .into_data()
             .try_into_vec_as::<f32>()
@@ -649,5 +760,17 @@ impl<T: Tokenizer> Zonos3Engine<T> {
             self.config.output_limit_dbfs,
         );
         Ok(samples)
+    }
+
+    /// A take's frames, `[F][n]`, as the codec reads them: `[1, n, F]`.
+    pub(crate) fn frame_ids(
+        &self,
+        frames: &[Vec<u32>],
+    ) -> Tensor<3, Int> {
+        let (q, f) = (frames[0].len(), frames.len());
+        let flat: Vec<i64> = (0..q)
+            .flat_map(|j| frames.iter().map(move |frame| i64::from(frame[j])))
+            .collect();
+        Tensor::from_data(TensorData::new(flat, [1, q, f]), &self.device())
     }
 }

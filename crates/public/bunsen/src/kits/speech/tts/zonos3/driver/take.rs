@@ -107,6 +107,57 @@ impl Zonos3TakeRows {
         })
     }
 
+    /// The end of the frames that are final so far, in the stream's frame
+    /// indices (the prefill's `prefill_len` rows counted): the frames
+    /// before it are complete, before every end of audio sampled yet, and
+    /// no later row can take one back (a row's end of audio falls at most
+    /// `n - 1` frames before it). `None` until a generated frame is final:
+    /// a take whose end comes first covers nothing.
+    ///
+    /// When the take stops, its frames end here: [`frames`](Self::frames)
+    /// covers from its start to this end.
+    pub fn final_end(
+        &self,
+        prefill_len: usize,
+    ) -> Option<usize> {
+        let n = self.n_codebooks;
+        let p = prefill_len;
+        let mut eos = self.eos_frame.map(|f| f + p);
+        for (i, row) in self.rows.iter().enumerate() {
+            if let Some(last) = row.iter().rposition(|&c| c == self.eoa) {
+                let at = (p + i).saturating_sub(last);
+                eos = Some(eos.map_or(at, |e| e.min(at)));
+            }
+        }
+        let complete = (p + self.rows.len()).saturating_sub(n - 1);
+        let target = eos.map_or(complete, |e| e.min(complete));
+        (target > p).then_some(target)
+    }
+
+    /// Frame `f`'s codes, in the stream's frame indices: codebook `j` from
+    /// row `f + j` of the prefill's rows then the generated ones. The frame
+    /// must be complete ([`final_end`](Self::final_end)).
+    ///
+    /// # Panics
+    /// For a frame not complete yet.
+    pub fn frame(
+        &self,
+        prefill: &[Vec<u32>],
+        f: usize,
+    ) -> Vec<u32> {
+        let p = prefill.len();
+        (0..self.n_codebooks)
+            .map(|j| {
+                let i = f + j;
+                if i < p {
+                    prefill[i][j]
+                } else {
+                    self.rows[i - p][j]
+                }
+            })
+            .collect()
+    }
+
     /// The frames a whole decode covers, `[F][n]`, and the first one's
     /// index in the stream (the prefill's rows counted).
     ///
@@ -244,5 +295,36 @@ mod tests {
         let mut take = Zonos3TakeRows::new(N, EOA, PAD, false, 100);
         take.push(&mut [EOA, EOA, EOA]);
         assert_eq!(take.frames(prefill, 4), (Vec::new(), 0));
+    }
+
+    /// The final frames, read a row at a time as a stream reads them, are the
+    /// whole decode's frames: with an end of audio and without one, a warm
+    /// start and a cold one.
+    #[test]
+    fn test_final_frames_are_the_whole_frames() {
+        let prefill: Vec<Vec<u32>> = (0..3).map(|i| vec![PAD - 1 - i as u32; N]).collect();
+        for (cold, eoa_row) in [(false, Some(5)), (false, None), (true, Some(4))] {
+            let mut take = Zonos3TakeRows::new(N, EOA, PAD, cold, 9);
+            let mut streamed = Vec::new();
+            let mut next = None;
+            for g in 0.. {
+                let mut codes = row(g);
+                if Some(g) == eoa_row {
+                    codes[N - 1] = EOA;
+                }
+                let stop = take.push(&mut codes);
+                if let Some(end) = take.final_end(prefill.len()) {
+                    let from = *next.get_or_insert(prefill.len() - 2);
+                    streamed.extend((from..end).map(|f| take.frame(&prefill, f)));
+                    next = Some(end);
+                }
+                if stop.is_some() {
+                    break;
+                }
+            }
+            let (whole, start) = take.frames(&prefill, 2);
+            assert_eq!(start, prefill.len() - 2);
+            assert_eq!(streamed, whole, "cold {cold}, end of audio at {eoa_row:?}");
+        }
     }
 }
