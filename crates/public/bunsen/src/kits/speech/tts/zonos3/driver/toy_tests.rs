@@ -20,6 +20,7 @@ use crate::{
         speech::tts::{
             driver::{
                 TTS_VOICE_REFERENCE_VERSION,
+                TtsChunkPolicy,
                 TtsClipRecord,
                 TtsCloneMode,
                 TtsDriver,
@@ -28,6 +29,7 @@ use crate::{
                 TtsReferenceClip,
                 TtsRequest,
                 TtsSamplingOverrides,
+                TtsSpeech,
                 TtsSynthesizer,
                 TtsVoiceChoice,
                 TtsVoiceReference,
@@ -394,6 +396,39 @@ fn test_tts_driver() {
         .synthesize(&TtsRequest::new("hi").with_voice(TtsVoiceChoice::Described("calm".into())))
         .unwrap_err();
     assert_eq!(error.kind(), BunsenErrorKind::Unsupported);
+}
+
+/// The stream is the synthesis: the same seeded takes, row for row, and
+/// their samples, a frame final `n - 1` rows behind the model; over two
+/// takes and their gap, sampled and greedy, the final frames decoded by the
+/// default policy and a frame at a time.
+#[test]
+fn test_stream_is_the_synthesis() {
+    let driver = TtsDriver::new(
+        engine(Zonos3EngineConfig::new()),
+        TtsDriverConfig::new().with_max_take_chars(8),
+    )
+    .unwrap();
+    let request = TtsRequest::new("hello. there.")
+        .with_seed(7)
+        .with_max_seconds(30.0 / 4900.0);
+    let greedy = request.clone().with_sampling(TtsSamplingOverrides {
+        temperature: Some(0.0),
+        ..TtsSamplingOverrides::default()
+    });
+    for request in [request, greedy] {
+        let whole = driver.synthesize(&request).unwrap();
+        assert_eq!(whole.takes.len(), 2);
+        for chunks in [TtsChunkPolicy::new(), TtsChunkPolicy::new().with_max(1)] {
+            let mut stream = driver.stream(&request, chunks).unwrap();
+            let streamed = TtsSpeech::from_stream(&mut stream).unwrap();
+            assert_eq!(streamed.takes, whole.takes, "{chunks:?}");
+            assert_eq!(streamed.samples.len(), whole.samples.len());
+            for (a, b) in streamed.samples.iter().zip(&whole.samples) {
+                assert!((a - b).abs() <= 1e-4, "{chunks:?}: {a} vs {b}");
+            }
+        }
+    }
 }
 
 #[test]

@@ -27,7 +27,9 @@ use bunsen::{
             support::testing::tts_synthesizer_round_trip,
             tts::{
                 driver::{
+                    TtsChunkPolicy,
                     TtsRequest,
+                    TtsSpeech,
                     TtsStop,
                     TtsSynthesizer,
                     TtsVoiceChoice,
@@ -68,6 +70,9 @@ pub const HARVARD: [&str; 5] = [
 /// The pooled word error rate the round trip holds to. Measured on wgpu
 /// f32: 0.000, every sentence heard word for word.
 pub const ROUND_TRIP_WER: f64 = 0.10;
+
+/// The most a streamed sample may stray from the synthesis'.
+pub const STREAM_ABS: f32 = 1e-4;
 
 /// ZONOS3-Mini's driver on `device`, the release's settings and
 /// normalization.
@@ -179,6 +184,35 @@ mod zonos3_mini {
 
     /// Takes of [`HARVARD`] in [`VOICE`]'s voice, transcribed by Whisper
     /// (`openai/base`, English), are within [`ROUND_TRIP_WER`], pooled.
+    /// A sampled take as a stream is the synthesis: the same take, row for
+    /// row, and its samples within [`STREAM_ABS`], its final frames decoded
+    /// 1, 2, 4, 8, then 15 at a time.
+    #[test]
+    #[serial_test::serial]
+    fn stream() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let driver = driver(&device);
+        let request = request(TEXT, 1);
+        let whole = driver.synthesize(&request).unwrap();
+        let mut stream = driver.stream(&request, TtsChunkPolicy::new()).unwrap();
+        let streamed = TtsSpeech::from_stream(&mut stream).unwrap();
+        assert_eq!(streamed.takes, whole.takes);
+        assert_eq!(streamed.samples.len(), whole.samples.len());
+        let gap = streamed
+            .samples
+            .iter()
+            .zip(&whole.samples)
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        eprintln!(
+            "{:?}, {:.2} s, off by at most {gap:.2e}",
+            whole.takes,
+            whole.seconds()
+        );
+        assert!(gap <= STREAM_ABS, "{gap}");
+    }
+
     #[test]
     #[serial_test::serial]
     fn round_trip() {
