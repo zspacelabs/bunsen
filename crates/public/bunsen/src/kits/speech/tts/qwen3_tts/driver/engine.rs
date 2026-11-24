@@ -1,6 +1,7 @@
 //! [`Qwen3TtsEngine`]: Qwen3-TTS as a TTS engine.
 
 use alloc::{
+    boxed::Box,
     format,
     string::String,
     sync::Arc,
@@ -8,6 +9,7 @@ use alloc::{
 };
 
 use burn::{
+    Tensor,
     config::Config,
     tensor::{
         DType,
@@ -25,13 +27,16 @@ use crate::{
         speech::tts::{
             driver::{
                 TtsCapabilities,
+                TtsChunkPolicy,
                 TtsDriver,
                 TtsDriverConfig,
                 TtsEngine,
                 TtsLanguage,
                 TtsStop,
+                TtsStreamStep,
                 TtsTakeInfo,
                 TtsTakeRequest,
+                TtsTakeStream,
                 TtsVoiceChoice,
                 TtsVoiceInfo,
             },
@@ -39,13 +44,17 @@ use crate::{
                 Qwen3TtsConstruct,
                 Qwen3TtsModelKind,
                 blocks::{
+                    Qwen3TtsChunkedStreamContext,
                     Qwen3TtsCodecDecoderMeta,
                     Qwen3TtsCodes,
                     Qwen3TtsDecodeConfig,
+                    Qwen3TtsSampledChooser,
                     Qwen3TtsStop,
                     Qwen3TtsTakeConfig,
+                    Qwen3TtsTakeRun,
                 },
                 prompt::{
+                    Qwen3TtsPrompt,
                     Qwen3TtsPromptRequest,
                     Qwen3TtsPromptRows,
                     Qwen3TtsTextPlacement,
@@ -341,6 +350,64 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Qwen3TtsEngine<T> {
         &self,
         take: &TtsTakeRequest<'_, Qwen3TtsVoice>,
     ) -> BunsenResult<Qwen3TtsCodes> {
+        let (config, prompt) = self.start_take(take)?;
+        Ok(self
+            .construct
+            .model
+            .generate_codes(&prompt, &self.construct.prompt, &config))
+    }
+
+    fn start_stream<'a>(
+        &'a self,
+        take: &TtsTakeRequest<'_, Qwen3TtsVoice>,
+        chunks: TtsChunkPolicy,
+    ) -> BunsenResult<Box<dyn TtsTakeStream + 'a>> {
+        let (config, prompt) = self.start_take(take)?;
+        let model = &self.construct.model;
+        let ids = &self.construct.prompt;
+        let decode = self.config.decode.unwrap_or(self.construct.decode);
+        Ok(Box::new(Qwen3TtsTakeStream {
+            engine: self,
+            chooser: model.sampled_chooser(ids, &config),
+            run: model.start_take(&prompt, ids, config.max_frames, config.min_frames),
+            codec: self.construct.codec.new_chunked_stream_context(decode),
+            decoded: 0,
+            chunks,
+        }))
+    }
+
+    fn render(
+        &self,
+        take: &Qwen3TtsCodes,
+    ) -> BunsenResult<Vec<f32>> {
+        if take.frames.is_empty() {
+            return Ok(Vec::new());
+        }
+        let decode = self.config.decode.unwrap_or(self.construct.decode);
+        codec_samples(
+            self.construct
+                .codec
+                .chunked_decode(take.codec_input(&self.device()), &decode),
+        )
+    }
+
+    fn take_info(
+        &self,
+        take: &Qwen3TtsCodes,
+    ) -> TtsTakeInfo {
+        qwen3_tts_take_info(take.frames.len(), take.stop)
+    }
+}
+
+impl<T: Tokenizer + Send + Sync> Qwen3TtsEngine<T> {
+    /// A take's config (the request's sampling and length over the
+    /// engine's) and its prompt, embedded; the device seeded with the take's
+    /// seed, as the take's generation then draws. What `generate` and
+    /// `start_stream` share.
+    fn start_take(
+        &self,
+        take: &TtsTakeRequest<'_, Qwen3TtsVoice>,
+    ) -> BunsenResult<(Qwen3TtsTakeConfig, Qwen3TtsPrompt)> {
         let sampling = take.sampling;
         if sampling.min_p.is_some() {
             return Err(BunsenError::unsupported("Qwen3-TTS's sampler has no min-p"));
@@ -375,46 +442,73 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Qwen3TtsEngine<T> {
         if let Some(seed) = take.seed {
             device.seed(seed);
         }
-        Ok(self
-            .construct
-            .model
-            .generate_codes(&prompt, &self.construct.prompt, &config))
+        Ok((config, prompt))
     }
+}
 
-    fn render(
-        &self,
-        take: &Qwen3TtsCodes,
-    ) -> BunsenResult<Vec<f32>> {
-        if take.frames.is_empty() {
-            return Ok(Vec::new());
-        }
-        let decode = self.config.decode.unwrap_or(self.construct.decode);
-        let audio = self
-            .construct
-            .codec
-            .chunked_decode(take.codec_input(&self.device()), &decode);
-        let samples: Vec<f32> = audio
-            .cast(DType::F32)
-            .into_data()
-            .try_into_vec_as::<f32>()
-            .map_err(|e| BunsenError::internal(format!("the codec's audio: {e:?}")))?;
-        if samples.iter().any(|x| !x.is_finite()) {
-            return Err(BunsenError::internal("the codec's audio is not finite"));
-        }
-        Ok(samples)
+/// What a take of `frames` frames, stopped by `stop`, was.
+fn qwen3_tts_take_info(
+    frames: usize,
+    stop: Qwen3TtsStop,
+) -> TtsTakeInfo {
+    TtsTakeInfo {
+        frames,
+        steps: frames,
+        stop: match stop {
+            Qwen3TtsStop::Eos => TtsStop::End,
+            Qwen3TtsStop::MaxFrames => TtsStop::Budget,
+        },
     }
+}
 
-    fn take_info(
-        &self,
-        take: &Qwen3TtsCodes,
-    ) -> TtsTakeInfo {
-        TtsTakeInfo {
-            frames: take.frames.len(),
-            steps: take.frames.len(),
-            stop: match take.stop {
-                Qwen3TtsStop::Eos => TtsStop::End,
-                Qwen3TtsStop::MaxFrames => TtsStop::Budget,
-            },
+/// The codec's audio, `[B, 1, N]`, as samples; refused when not finite.
+fn codec_samples(audio: Tensor<3>) -> BunsenResult<Vec<f32>> {
+    let samples: Vec<f32> = audio
+        .cast(DType::F32)
+        .into_data()
+        .try_into_vec_as::<f32>()
+        .map_err(|e| BunsenError::internal(format!("the codec's audio: {e:?}")))?;
+    if samples.iter().any(|x| !x.is_finite()) {
+        return Err(BunsenError::internal("the codec's audio is not finite"));
+    }
+    Ok(samples)
+}
+
+/// A Qwen3-TTS take as a stream ([`TtsEngine::start_stream`]): a frame a
+/// step, the final frames decoded through the codec's chunked stream (the
+/// render's decode) as the chunk policy groups them. Every frame is final
+/// as soon as it is chosen: EOS ends a take without taking a frame back.
+struct Qwen3TtsTakeStream<'a, T: Tokenizer + Send + Sync> {
+    engine: &'a Qwen3TtsEngine<T>,
+    run: Qwen3TtsTakeRun,
+    chooser: Qwen3TtsSampledChooser,
+    codec: Qwen3TtsChunkedStreamContext,
+    decoded: usize,
+    chunks: TtsChunkPolicy,
+}
+
+impl<T: Tokenizer + Send + Sync> TtsTakeStream for Qwen3TtsTakeStream<'_, T> {
+    fn step(&mut self) -> BunsenResult<TtsStreamStep> {
+        let construct = &self.engine.construct;
+        let stop = construct.model.step_take(&mut self.run, &mut self.chooser);
+        let ready = self.run.frames.len() - self.decoded;
+        let mut samples = Vec::new();
+        if ready > 0 && (stop.is_some() || ready >= self.chunks.need(self.decoded)) {
+            let frames = Qwen3TtsCodes {
+                frames: self.run.frames[self.decoded..].to_vec(),
+                stop: Qwen3TtsStop::Eos,
+            };
+            let codes = frames.codec_input(&self.engine.device());
+            samples = codec_samples(
+                construct
+                    .codec
+                    .forward_chunked_stream(codes, &mut self.codec),
+            )?;
+            self.decoded = self.run.frames.len();
         }
+        Ok(TtsStreamStep {
+            samples,
+            end: stop.map(|stop| qwen3_tts_take_info(self.run.frames.len(), stop)),
+        })
     }
 }

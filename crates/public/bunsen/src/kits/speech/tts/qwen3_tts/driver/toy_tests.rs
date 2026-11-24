@@ -20,11 +20,13 @@ use crate::{
     kits::{
         speech::tts::{
             driver::{
+                TtsChunkPolicy,
                 TtsDriver,
                 TtsDriverConfig,
                 TtsEngine,
                 TtsRequest,
                 TtsSamplingOverrides,
+                TtsSpeech,
                 TtsTakeRequest,
                 TtsVoiceChoice,
             },
@@ -341,6 +343,35 @@ fn test_synthesize() {
         .synthesize(&request.clone().with_max_seconds(0.2))
         .unwrap();
     assert!(short.takes[0].frames <= 3, "{:?}", short.takes);
+}
+
+/// The stream is the synthesis: the same seeded take, frame for frame,
+/// and its samples, under the release's decode and one that cuts the take
+/// into chunks of 2 frames with 1 of context, the final frames decoded 1,
+/// 2, … or 1 at a time.
+#[test]
+fn test_stream_is_the_synthesis() {
+    let request = TtsRequest::new("hello")
+        .with_voice(TtsVoiceChoice::Stock("ryan".into()))
+        .with_language("english")
+        .with_seed(3);
+    for decode in [
+        None,
+        Some(Qwen3TtsDecodeConfig::new().with_chunk(2).with_context(1)),
+    ] {
+        let driver =
+            qwen3_tts_driver(engine(Qwen3TtsEngineConfig::new().with_decode(decode))).unwrap();
+        let whole = driver.synthesize(&request).unwrap();
+        for chunks in [TtsChunkPolicy::new(), TtsChunkPolicy::new().with_max(1)] {
+            let mut stream = driver.stream(&request, chunks).unwrap();
+            let streamed = TtsSpeech::from_stream(&mut stream).unwrap();
+            assert_eq!(streamed.takes, whole.takes, "{decode:?} {chunks:?}");
+            assert_eq!(streamed.samples.len(), whole.samples.len());
+            for (a, b) in streamed.samples.iter().zip(&whole.samples) {
+                assert!((a - b).abs() <= 1e-4, "{decode:?} {chunks:?}: {a} vs {b}");
+            }
+        }
+    }
 }
 
 /// Refused: an instruction to a model that takes none (unless stripped), a
