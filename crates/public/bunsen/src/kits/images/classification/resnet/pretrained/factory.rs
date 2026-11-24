@@ -30,17 +30,19 @@ mod tests {
         },
     };
 
-    /// The default factory is the catalog provider alone, serving the
-    /// kit; one prefab has many rows across both groups.
+    /// The default factory is the catalog provider, then `hf:`, serving the
+    /// kit; a torchvision row states its prefab's geometry, and a timm row
+    /// takes its geometry from its `config.json`.
     #[test]
     fn test_the_defaults_register() {
         let factory = default_resnet_factory().unwrap();
         assert_eq!(factory.kit(), RESNET_KIT);
         assert_eq!(factory.providers().len(), 2);
-        assert_eq!(factory.ids().len(), 14);
+        assert_eq!(factory.ids().len(), 47);
         let (provider, row) = factory.lookup("resnet18_a1").unwrap();
         assert_eq!(provider, "catalog");
-        assert_eq!(row.name, "timm/resnet18_a1");
+        // A legacy name is an alias of the hub repo with its weights.
+        assert_eq!(row.name, "timm/resnet18.a1_in1k");
         // The rows that state resnet34's geometry.
         let resnet34 =
             serde_json::to_value(ResNetContractConfig::expect_prefab("resnet34")).unwrap();
@@ -55,16 +57,7 @@ mod tests {
             })
             .map(|(p, row)| format!("{p}:{}", row.name))
             .collect();
-        assert_eq!(
-            for_34,
-            [
-                "catalog:torchvision/resnet34",
-                "catalog:timm/resnet34_a1",
-                "catalog:timm/resnet34_a2",
-                "catalog:timm/resnet34_a3",
-                "catalog:timm/resnet34",
-            ]
-        );
+        assert_eq!(for_34, ["catalog:torchvision/resnet34"]);
         assert!(
             BuildFactory::<ResNetConstructConfig>::new()
                 .with_providers(default_resnet_providers())

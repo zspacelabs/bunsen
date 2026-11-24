@@ -9,7 +9,8 @@
 //! implements, and the top classes of its logits. The kits:
 //!
 //! - [`resnet`]: the `ResNet` family. Six prefabs, `resnet18` to `resnet152`,
-//!   and 14 pretrained rows, torchvision's and `timm`'s, loaded by name through
+//!   and 47 pretrained rows, torchvision's and `timm`'s hub repos, loaded by
+//!   name through
 //!   [`default_resnet_factory`](resnet::pretrained::default_resnet_factory).
 //!   Its [compatibility](resnet#compatibility) section lists what of `timm`'s
 //!   `ResNet` is missing.

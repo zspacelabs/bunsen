@@ -12,8 +12,8 @@
 //! s prefabs names the six geometries, `resnet18`
 //! to `resnet152`, and
 //! [`default_resnet_factory`](pretrained::default_resnet_factory) is the
-//! index of 14 torchvision and `timm` checkpoints: `torchvision/resnet50`,
-//! `timm/resnet18_a1`, or a bare `resnet50`.
+//! index of 47 torchvision and `timm` checkpoints: `torchvision/resnet50`,
+//! `timm/resnet50.a1_in1k`, or a bare `resnet50`.
 //!
 //! # Example
 //!

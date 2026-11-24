@@ -50,14 +50,18 @@ mod tests {
         kits::images::classification::resnet::ResNetContractConfig,
     };
 
-    /// Every row states the geometry of a prefab the map has, binds
-    /// `ImageNet`-1k's labels, and is one pinned checkpoint under its
-    /// namespace, fetched from that namespace's base; the digest's first
-    /// eight hex digits are the tag in the file's name.
+    /// Every row binds `ImageNet`-1k's labels. A torchvision row states the
+    /// geometry of a prefab and is one pinned `.pth` under torchvision's
+    /// base, the digest's first eight hex digits the tag in its name. A timm
+    /// row is a timm hub repo of a prefab's architecture, pinned: its
+    /// safetensors and its `config.json`, which give the geometry.
     #[test]
-    fn test_every_row_states_a_prefab_and_one_checkpoint() {
+    fn test_every_row_binds_labels_and_a_pinned_checkpoint() {
         use crate::{
-            data::builds::GEOMETRY,
+            data::builds::{
+                CONFIG,
+                GEOMETRY,
+            },
             kits::images::support::card::{
                 LABEL_NAMES,
                 LABELS,
@@ -65,90 +69,115 @@ mod tests {
         };
         let factory = super::super::default_resnet_factory().unwrap();
         let rows = factory.list();
+        let mut counts = (0, 0);
         for (_, row) in &rows {
             let name = &row.name;
-            let geometry = &row
-                .args
-                .get(GEOMETRY)
-                .expect("every resnet row states its geometry")
-                .value;
-            let config: crate::kits::images::classification::resnet::ResNetContractConfig =
-                serde_json::from_value(geometry.clone()).unwrap();
-            assert!(
-                ResNetContractConfig::PREFABS
-                    .iter()
-                    .any(|(_, prefab)| serde_json::to_value(prefab()).unwrap() == *geometry),
-                "{name}: geometry {config:?} is no prefab of ResNetContractConfig",
-            );
             let map = &row.resource_set();
             map.validate().unwrap();
-            assert_eq!(map.keys(), [CHECKPOINT, LABEL_NAMES, LABELS], "{name}");
             assert_eq!(
                 map.get(LABELS).unwrap().name,
                 "imagenet/synsets-1k",
                 "{name}"
             );
+            assert_eq!(
+                map.get(LABEL_NAMES).unwrap().name,
+                "imagenet/lemmas",
+                "{name}"
+            );
             let checkpoint = map.get(CHECKPOINT).unwrap();
-            let namespace = name.segments()[0].as_str();
-            assert!(["torchvision", "timm"].contains(&namespace), "{name}");
-            assert!(
-                checkpoint.name.starts_with(&format!("{namespace}/")),
-                "{name}: {}",
-                checkpoint.name
-            );
-            assert_eq!(checkpoint.format.as_deref(), Some(PYTORCH_FP32));
-            let sha256 = checkpoint.sha256.as_deref().expect("every row is pinned");
-            let tag = checkpoint
-                .file
-                .rsplit_once('-')
-                .map(|(_, tail)| tail.split('.').next().unwrap_or(""))
-                .unwrap_or("");
-            assert_eq!(tag.len(), 8, "{}", checkpoint.file);
-            assert!(sha256.starts_with(tag), "{}: {sha256}", checkpoint.file);
-            let urls = checkpoint.urls();
-            assert_eq!(urls.len(), 1, "{name}");
-            assert!(
-                urls[0].ends_with(&format!("/{}", checkpoint.file)),
-                "{}",
-                urls[0]
-            );
+            assert!(checkpoint.sha256.is_some(), "{name}: every row is pinned");
+            match name.segments()[0].as_str() {
+                "torchvision" => {
+                    counts.0 += 1;
+                    let geometry = &row
+                        .args
+                        .get(GEOMETRY)
+                        .expect("every torchvision row states its geometry")
+                        .value;
+                    assert!(
+                        ResNetContractConfig::PREFABS
+                            .iter()
+                            .any(|(_, prefab)| serde_json::to_value(prefab()).unwrap() == *geometry),
+                        "{name}: a geometry no prefab of ResNetContractConfig has",
+                    );
+                    assert_eq!(map.keys(), [CHECKPOINT, LABEL_NAMES, LABELS], "{name}");
+                    assert_eq!(checkpoint.format.as_deref(), Some(PYTORCH_FP32));
+                    let tag = checkpoint
+                        .file
+                        .rsplit_once('-')
+                        .map(|(_, tail)| tail.split('.').next().unwrap_or(""))
+                        .unwrap_or("");
+                    assert_eq!(tag.len(), 8, "{}", checkpoint.file);
+                    assert!(
+                        checkpoint.sha256.as_deref().unwrap().starts_with(tag),
+                        "{}",
+                        checkpoint.file
+                    );
+                }
+                "timm" => {
+                    counts.1 += 1;
+                    assert!(row.args.get(GEOMETRY).is_none(), "{name}");
+                    let repo = name.segments()[1].as_str();
+                    let architecture = repo.split_once('.').map(|(a, _)| a).unwrap_or(repo);
+                    assert!(
+                        ResNetContractConfig::prefab(architecture).is_some(),
+                        "{name}: {architecture} is no prefab"
+                    );
+                    assert_eq!(
+                        map.keys(),
+                        [CHECKPOINT, CONFIG, LABEL_NAMES, LABELS],
+                        "{name}"
+                    );
+                    assert_eq!(checkpoint.file, "model.safetensors");
+                    assert_eq!(checkpoint.format.as_deref(), Some("safetensors"));
+                    assert_eq!(map.get(CONFIG).unwrap().file, "config.json");
+                }
+                other => panic!("{name}: a row in {other}"),
+            }
         }
-        assert_eq!(rows.len(), 14);
+        assert_eq!(counts, (5, 42));
         assert_eq!(ResNetContractConfig::PREFABS.len(), 6);
     }
 
     /// The factory answers full names and shorter spellings, torchvision's
-    /// rows listed first; a bare name both namespaces have is ambiguous.
+    /// rows listed first; a legacy timm name is an alias of its hub repo; a
+    /// bare name both namespaces have is ambiguous.
     #[test]
-    fn test_the_factory_lists_fourteen_refs() {
+    fn test_the_factory_lists_its_refs() {
         let factory = super::super::default_resnet_factory().unwrap();
         let ids = factory.ids();
-        assert_eq!(ids.len(), 14);
+        assert_eq!(ids.len(), 47);
         assert_eq!(ids[0], "catalog:torchvision/resnet18");
-        assert_eq!(ids[5], "catalog:timm/resnet18_a1");
+        assert_eq!(ids[5], "catalog:timm/resnet18.a1_in1k");
 
         let file = |spec: &str| {
-            factory
-                .lookup(spec)
-                .ok()
-                .map(|(_, row)| row.resource_set().get(CHECKPOINT).unwrap().file.clone())
+            factory.lookup(spec).ok().map(|(_, row)| {
+                (
+                    row.name.to_string(),
+                    row.resource_set().get(CHECKPOINT).unwrap().file.clone(),
+                )
+            })
         };
-        assert_eq!(file("resnet50").as_deref(), Some("resnet50-0676ba61.pth"));
+        let row = |name: &str, file: &str| Some((name.to_string(), file.to_string()));
+        assert_eq!(
+            file("resnet50"),
+            row("torchvision/resnet50", "resnet50-0676ba61.pth")
+        );
         assert!(
             factory.lookup("resnet34").is_err(),
             "both namespaces have a resnet34"
         );
         assert_eq!(
-            file("torchvision/resnet50").as_deref(),
-            Some("resnet50-0676ba61.pth")
+            file("timm/resnet34"),
+            row("timm/resnet34.bt_in1k", "model.safetensors")
         );
         assert_eq!(
-            file("timm/resnet34").as_deref(),
-            Some("resnet34-43635321.pth")
+            file("resnet18_a1"),
+            row("timm/resnet18.a1_in1k", "model.safetensors")
         );
         assert_eq!(
-            file("resnet18_a1").as_deref(),
-            Some("resnet18_a1_0-d63eafa0.pth")
+            file("resnet50.a1_in1k"),
+            row("timm/resnet50.a1_in1k", "model.safetensors")
         );
         assert_eq!(file("resnet50_a1"), None);
     }
