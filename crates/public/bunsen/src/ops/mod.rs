@@ -152,6 +152,11 @@
 //! - [`signal`]: sliding-window STFT, analysis windows, and waveform-to-log-mel
 //!   conversion ([`signal::perceptive_audio`]), with per-stream contexts.
 //!
+//! ### Images
+//! - [`images`]: the tensor half of image preprocessing: center crops (with
+//!   padding where an image is smaller) at torchvision's offsets, and
+//!   per-channel normalisation.
+//!
 //! [`DropBlock2d`]: crate::blocks::images::drop::drop_block::DropBlock2d
 //! [`DropBlock2dConfig`]: crate::blocks::images::drop::drop_block::DropBlock2dConfig
 
@@ -160,6 +165,7 @@ pub mod clamp;
 pub mod conv;
 pub mod drop;
 pub mod embedding;
+pub mod images;
 pub mod math;
 pub mod noise;
 pub mod norm;
