@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.45.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.44.0...bunsen-v0.45.0) - 2026-11-24
+
+### Added
+
+- *(zonos3)* a take streams, row by row, its audio the render's ([#959](https://github.com/zspacelabs/bunsen/pull/959))
+- *(qwen3-tts)* a take streams, frame by frame, its audio the render's ([#958](https://github.com/zspacelabs/bunsen/pull/958))
+- *(tts)* speech as a stream of events, pulled; each take a stream of its engine's ([#957](https://github.com/zspacelabs/bunsen/pull/957))
+- *(zonos3)* the codec decoder runs as a stream, its audio the whole decode's ([#956](https://github.com/zspacelabs/bunsen/pull/956))
+- *(signal)* the inverse STFT and the sinc resample run as streams ([#955](https://github.com/zspacelabs/bunsen/pull/955))
+- *(qwen3-tts)* the codec decoder runs as a stream, exact or as the render decodes ([#954](https://github.com/zspacelabs/bunsen/pull/954))
+- *(blocks)* rotary tables over a range of positions, for streams of any length ([#953](https://github.com/zspacelabs/bunsen/pull/953))
+- *(blocks)* DAC's decoder runs as a stream, and has a forward of its own ([#952](https://github.com/zspacelabs/bunsen/pull/952))
+- *(blocks)* [**breaking**] a causal transposed convolution runs as a stream; it takes channel groups ([#951](https://github.com/zspacelabs/bunsen/pull/951))
+- *(blocks)* a causal convolution runs as a stream, its outputs the whole forward's ([#950](https://github.com/zspacelabs/bunsen/pull/950))
+- *(cache)* converted weights, kept by the cache and loaded instead of the checkpoint ([#947](https://github.com/zspacelabs/bunsen/pull/947))
+- *(timing)* beam reorders, sized states, pool cleanups, pinning; windows close on the read bytes ([#941](https://github.com/zspacelabs/bunsen/pull/941))
+- *(qwen3-tts)* Qwen3-TTS on the timing surface ([#936](https://github.com/zspacelabs/bunsen/pull/936))
+- *(zonos3)* ZONOS3's language model on the timing surface ([#935](https://github.com/zspacelabs/bunsen/pull/935))
+- *(voxtral)* Voxtral Realtime on the timing surface ([#934](https://github.com/zspacelabs/bunsen/pull/934))
+- *(whisper)* Whisper on the timing surface; `timed_encode` for an encoder's pass ([#933](https://github.com/zspacelabs/bunsen/pull/933))
+- *(kits)* `TimedDecode`, one surface for timing every architecture's decode ([#930](https://github.com/zspacelabs/bunsen/pull/930))
+
+### Other
+
+- *(tts)* speech as a stream, in the book, the speech kits and the tool ([#962](https://github.com/zspacelabs/bunsen/pull/962))
+- *(formats)* a load reads and adapts its tensors on threads, in 2 GB batches ([#946](https://github.com/zspacelabs/bunsen/pull/946))
+- *(formats)* a blocked transpose for loading PyTorch linear weights ([#945](https://github.com/zspacelabs/bunsen/pull/945))
+- *(decoding)* decode loops release the device pool's free memory every 64 steps ([#943](https://github.com/zspacelabs/bunsen/pull/943))
+- *(attention)* grouped-query attention groups the queries; keys and values are never repeated ([#940](https://github.com/zspacelabs/bunsen/pull/940))
+- *(kv)* a reorder permutes only the written positions ([#939](https://github.com/zspacelabs/bunsen/pull/939))
+- *(decoding)* chunked row reductions for the decode's vocabulary reads ([#938](https://github.com/zspacelabs/bunsen/pull/938))
+
 ## [0.44.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.43.0...bunsen-v0.44.0) - 2026-11-23
 
 ### Added
