@@ -8531,6 +8531,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "timm-model-validation"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "burn",
+ "safetensors 0.8.0",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sha2 0.11.1",
+]
+
+[[package]]
 name = "tiny-keccak"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

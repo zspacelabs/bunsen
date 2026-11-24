@@ -41,6 +41,7 @@ by release-plz ([Releasing](../development/release.md)).
 | [`burn_bug_repro`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/burn_bug_repro) | Reproductions of defects in burn and its ecosystem, each paired with a pin on today's behaviour. See [Upstream bug reproductions](../development/repros.md). |
 | [`silero-bench`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/silero-bench) | A benchmark CLI for Silero VAD. See [Benchmarks](../development/benchmarks.md). |
 | [`bunsen-test-audio`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/bunsen-test-audio) | The audio clips the tests, the validation suites and the fixture scripts read, with their provenance and ground truth. A leaf crate, so `bunsen` takes it as a dev-dependency. |
+| [`bunsen-test-images`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/bunsen-test-images) | The open images basic tests read: CC0 photos of `ImageNet`-1k classes, with their provenance. A leaf crate, so `bunsen` takes it as a dev-dependency. |
 
 ## The validation workspace
 
@@ -66,6 +67,7 @@ runs turn them on
 |---|---|
 | [`gemma-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/gemma-model-validation) | Gemma 2 and 3 against `transformers`' own greedy decodes, past each row's sliding window, at the end of a long conversation and in chat sessions, in float32 and, on CUDA, in bf16. |
 | [`nanochat-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/nanochat-model-validation) | nanochat against upstream's own code at the pinned commit of each model, on the community d20 and d18 checkpoints: prefill logits and greedy decodes, in float32 and, on CUDA, in bf16. |
+| [`timm-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/timm-model-validation) | The timm image families (`ResNet` first) against timm itself, on `ImageNet`'s validation images pulled at run time from a gated Hub mirror and never committed: each row's logits and pooled features on timm's preprocessed input, and bunsen's own preprocessing against timm's. |
 | [`parakeet-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/parakeet-model-validation) | Parakeet TDT against an independent implementation generated from `NeMo`'s own ONNX export, stage by stage. |
 | [`qwen3-asr-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/qwen3-asr-model-validation) | Qwen3-ASR against an implementation generated from an ONNX export, and against `transformers`' own decode of real speech. |
 | [`qwen3-tts-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/qwen3-tts-model-validation) | Qwen3-TTS-12Hz-0.6B-CustomVoice against `qwen_tts`, Qwen's own package, at a pinned release: the tokenizer exactly, every request's prompt and the talker's and code predictor's logits over a take dictated upstream's greedy codes in float32 and, on CUDA, in bf16 against `qwen_tts`' own bf16, the greedy take code for code, and the codec's audio from fixed codes through the chunked decode, past one chunk. |

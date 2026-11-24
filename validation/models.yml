@@ -335,6 +335,48 @@ crates:
         dtypes: [f32]
         varies: the only model - its ONNX reference (19.4 GB), the front end, the tekken vocabulary,
           streaming transcription
+  timm:
+    package: timm-model-validation
+    features: [checkpoints, gpu-tests]
+    models:
+      torchvision/resnet50:
+        size: small
+        gb: 0.21
+        core: true
+        dtypes: [f32]
+        varies: a torchvision `.pth` and a stated geometry and transform (bilinear, crop 0.875);
+          bottlenecks; ImageNet's validation images, pulled with the Hub token
+      timm/resnet50.a1_in1k:
+        size: small
+        gb: 0.21
+        core: true
+        dtypes: [f32]
+        varies: a timm hub repo - safetensors, its geometry and transform from `config.json`
+          (bicubic, crop 0.95)
+      timm/resnet101.tv2_in1k:
+        size: small
+        gb: 0.29
+        core: true
+        dtypes: [f32]
+        varies: a 176-pixel input, odd stage sizes (11x11 at stage 3)
+      torchvision/resnet18:
+        size: small
+        gb: 0.15
+        core: false
+        dtypes: [f32]
+        varies: basic blocks, a torchvision `.pth`
+      timm/resnet18.a1_in1k:
+        size: small
+        gb: 0.15
+        core: false
+        dtypes: [f32]
+        varies: basic blocks, a timm hub repo
+      timm/resnet26.bt_in1k:
+        size: small
+        gb: 0.17
+        core: false
+        dtypes: [f32]
+        varies: the resnet26 prefab, a timm hub repo
   laya:
     package: laya-model-validation
     features: [checkpoints, gpu-tests]
