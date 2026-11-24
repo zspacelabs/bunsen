@@ -28,6 +28,7 @@ use bunsen::{
             tts::{
                 driver::{
                     TtsChunkPolicy,
+                    TtsEvent,
                     TtsRequest,
                     TtsSpeech,
                     TtsStop,
@@ -73,6 +74,52 @@ pub const ROUND_TRIP_WER: f64 = 0.10;
 
 /// The most a streamed sample may stray from the synthesis'.
 pub const STREAM_ABS: f32 = 1e-4;
+
+/// How long a stream took: to its first audio, and in all, in seconds.
+#[derive(Clone, Copy, Debug)]
+pub struct StreamTiming {
+    /// From the request to its first audio.
+    pub first_audio: f64,
+
+    /// From the request to its last event.
+    pub total: f64,
+}
+
+/// `request` through `driver`'s stream (the default chunk policy), gathered
+/// and timed.
+fn timed_stream(
+    driver: &dyn TtsSynthesizer,
+    request: &TtsRequest,
+) -> (TtsSpeech, StreamTiming) {
+    let started = std::time::Instant::now();
+    let mut stream = driver.stream(request, TtsChunkPolicy::new()).unwrap();
+    let mut speech = TtsSpeech {
+        samples: Vec::new(),
+        sample_rate: stream.sample_rate(),
+        takes: Vec::new(),
+        notes: Vec::new(),
+    };
+    let mut first_audio = None;
+    while let Some(event) = stream.next_event().unwrap() {
+        match event {
+            TtsEvent::Audio(samples) => {
+                first_audio.get_or_insert_with(|| started.elapsed().as_secs_f64());
+                speech.samples.extend(samples);
+            }
+            TtsEvent::TakeEnd { info, .. } => speech.takes.push(info),
+            TtsEvent::Notes(notes) => speech.notes.extend(notes),
+            TtsEvent::TakeStart { .. } => {}
+        }
+    }
+    let total = started.elapsed().as_secs_f64();
+    (
+        speech,
+        StreamTiming {
+            first_audio: first_audio.unwrap_or(total),
+            total,
+        },
+    )
+}
 
 /// ZONOS3-Mini's driver on `device`, the release's settings and
 /// normalization.
@@ -186,7 +233,9 @@ mod zonos3_mini {
     /// (`openai/base`, English), are within [`ROUND_TRIP_WER`], pooled.
     /// A sampled take as a stream is the synthesis: the same take, row for
     /// row, and its samples within [`STREAM_ABS`], its final frames decoded
-    /// 1, 2, 4, 8, then 15 at a time.
+    /// 1, 2, 4, 8, then 15 at a time. Its first audio's latency and its
+    /// real-time factor are printed, on its first run (kernel shapes the
+    /// process has not run yet are compiled and tuned) and repeated.
     #[test]
     #[serial_test::serial]
     fn stream() {
@@ -194,9 +243,26 @@ mod zonos3_mini {
         let _memory = DeviceMemoryGuard::new(&device);
         let driver = driver(&device);
         let request = request(TEXT, 1);
+        let (_, first) = timed_stream(&driver, &request);
+        let started = std::time::Instant::now();
         let whole = driver.synthesize(&request).unwrap();
-        let mut stream = driver.stream(&request, TtsChunkPolicy::new()).unwrap();
-        let streamed = TtsSpeech::from_stream(&mut stream).unwrap();
+        let synthesized = started.elapsed().as_secs_f64();
+        let (streamed, repeated) = timed_stream(&driver, &request);
+        eprintln!(
+            "whole: {synthesized:.2} s for {:.2} s of audio (real-time factor {:.2})",
+            whole.seconds(),
+            synthesized / whole.seconds()
+        );
+        for (when, timing) in [("first", first), ("repeated", repeated)] {
+            eprintln!(
+                "{when}: first audio at {:.2} s, {:.2} s for {:.2} s of audio (real-time factor \
+                 {:.2})",
+                timing.first_audio,
+                timing.total,
+                whole.seconds(),
+                timing.total / whole.seconds()
+            );
+        }
         assert_eq!(streamed.takes, whole.takes);
         assert_eq!(streamed.samples.len(), whole.samples.len());
         let gap = streamed
