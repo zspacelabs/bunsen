@@ -20,9 +20,9 @@ pub const EVAL_TRANSFORM: &str = "eval_transform";
 /// What a pretrained image model comes with, beside its weights: the eval
 /// transform its images go through, and the labels of its classes.
 ///
-/// A build states them: its [`EVAL_TRANSFORM`] argument (timm's
-/// `pretrained_cfg`, for its rows), else the transform's defaults; its
-/// [`LABELS`] and [`LABEL_NAMES`] resources, else no labels.
+/// A build states them: its [`EVAL_TRANSFORM`] argument, else its timm
+/// `config.json`'s `pretrained_cfg` (bound as `config`), else the transform's
+/// defaults; its [`LABELS`] and [`LABEL_NAMES`] resources, else no labels.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageModelCard {
     /// The eval transform the model's images go through.
@@ -49,14 +49,18 @@ impl ImageModelCard {
         Self { labels, ..self }
     }
 
-    /// The card a build states: its [`EVAL_TRANSFORM`] argument (else the
-    /// transform's defaults) and its loaded [`LABELS`] and [`LABEL_NAMES`]
-    /// files (else no labels).
+    /// The card a build states: its [`EVAL_TRANSFORM`] argument, else its
+    /// loaded timm `config.json`'s (`config`), else the transform's defaults;
+    /// and its loaded [`LABELS`] and [`LABEL_NAMES`] files, else no labels.
     ///
     /// See the [errors convention](crate::errors#convention-try_x-and-x).
     ///
     /// # Errors
-    /// An [`EVAL_TRANSFORM`] that does not deserialize or validate; a label
+    /// An [`EVAL_TRANSFORM`] that does not deserialize or validate; a
+    /// `config.json` that is not timm's, or states a transform bunsen does
+    /// not build
+    /// ([`eval_transform_config`](super::interop::timm::TimmPretrainedCfgMirror::eval_transform_config));
+    /// a label
     /// file that does not read or parse
     /// ([`ImageLabelSet::try_from_files`]); [`LABEL_NAMES`] without
     /// [`LABELS`], [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource).
@@ -70,9 +74,15 @@ impl ImageModelCard {
             BunsenErrorKind,
         };
 
-        let transform = model
-            .stated::<ImageEvalTransformConfig>(EVAL_TRANSFORM)?
-            .unwrap_or_else(ImageEvalTransformConfig::new);
+        let transform = match model.stated::<ImageEvalTransformConfig>(EVAL_TRANSFORM)? {
+            Some(transform) => transform,
+            None => match loaded.get(crate::data::builds::CONFIG) {
+                Some(config) => super::interop::timm::timm_model_config_from_path(&config.path)?
+                    .pretrained_cfg
+                    .eval_transform_config()?,
+                None => ImageEvalTransformConfig::new(),
+            },
+        };
         transform.try_validate()?;
         let names = loaded.get(LABEL_NAMES).map(|r| &r.path);
         let labels = match loaded.get(LABELS) {
@@ -169,6 +179,35 @@ mod tests {
         let unlabeled =
             ImageModelCard::try_from_build(&build, &loaded(&[("checkpoint", &synsets)])).unwrap();
         assert_eq!(unlabeled.labels, None);
+    }
+
+    /// A bound timm `config.json` states the transform.
+    #[test]
+    fn test_try_from_build_reads_a_timm_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join("config.json");
+        std::fs::write(
+            &config,
+            r#"{"architecture": "resnet50", "num_classes": 1000, "num_features": 2048,
+                "pretrained_cfg": {"input_size": [3, 160, 160], "interpolation": "bilinear",
+                "crop_pct": 0.95, "mean": [0.5, 0.5, 0.5], "std": [0.5, 0.5, 0.5]}}"#,
+        )
+        .unwrap();
+        let build = BuildRef::from(ResourceSet::given("mine", "checkpoint", &config));
+        let card = ImageModelCard::try_from_build(
+            &build,
+            &loaded(&[(crate::data::builds::CONFIG, &config)]),
+        )
+        .unwrap();
+        assert_eq!(
+            card.transform,
+            ImageEvalTransformConfig::new()
+                .with_size([160, 160])
+                .with_interpolation(super::super::transform::ImageInterpolation::Bilinear)
+                .with_crop_pct(0.95)
+                .with_mean(vec![0.5; 3])
+                .with_std(vec![0.5; 3])
+        );
     }
 
     #[test]
