@@ -19,7 +19,9 @@ use bunsen::{
             support::testing::tts_synthesizer_round_trip,
             tts::{
                 driver::{
+                    TtsChunkPolicy,
                     TtsRequest,
+                    TtsSpeech,
                     TtsStop,
                     TtsSynthesizer,
                     TtsVoiceChoice,
@@ -61,6 +63,9 @@ pub const HARVARD: [&str; 5] = [
 /// f32: 0.049, one take of five opening with a laugh and mishearing a word.
 pub const ROUND_TRIP_WER: f64 = 0.10;
 
+/// The most a streamed sample may stray from the synthesis'.
+pub const STREAM_ABS: f32 = 1e-4;
+
 /// The driver on `device`, at the release's settings.
 fn driver(device: &Device) -> Qwen3TtsDriver<BunsenTokenizer> {
     let construct = load_construct(device);
@@ -100,6 +105,35 @@ mod qwen3_tts_12hz_0_6b_customvoice {
         assert_eq!(take.stop, TtsStop::End);
         assert!((1.0..10.0).contains(&speech.seconds()));
         assert!(speech.samples.iter().all(|x| x.abs() <= 1.0));
+    }
+
+    /// A sampled take as a stream is the synthesis: the same take, frame
+    /// for frame, and its samples within [`STREAM_ABS`], its final frames
+    /// decoded 1, 2, 4, 8, then 15 at a time.
+    #[test]
+    #[serial_test::serial]
+    fn stream() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let driver = driver(&device);
+        let request = request(HARVARD[0], 1);
+        let whole = driver.synthesize(&request).unwrap();
+        let mut stream = driver.stream(&request, TtsChunkPolicy::new()).unwrap();
+        let streamed = TtsSpeech::from_stream(&mut stream).unwrap();
+        assert_eq!(streamed.takes, whole.takes);
+        assert_eq!(streamed.samples.len(), whole.samples.len());
+        let gap = streamed
+            .samples
+            .iter()
+            .zip(&whole.samples)
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        eprintln!(
+            "{:?}, {:.2} s, off by at most {gap:.2e}",
+            whole.takes,
+            whole.seconds()
+        );
+        assert!(gap <= STREAM_ABS, "{gap}");
     }
 
     /// Takes of [`HARVARD`], transcribed by Whisper (`openai/base`,

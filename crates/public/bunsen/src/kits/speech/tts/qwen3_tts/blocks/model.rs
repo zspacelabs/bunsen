@@ -22,6 +22,7 @@ use crate::{
             DepthDecoder,
             DepthDecoderMeta,
         },
+        embedding::RotarySet,
         models::language_decoder::LmDecoderMeta,
     },
     burner::module::ModuleInit,
@@ -36,7 +37,10 @@ use crate::{
         },
         support::decoding::PoolRelease,
     },
-    ops::transformers::attention::KVCacheModel,
+    ops::transformers::attention::{
+        KVCache,
+        KVCacheModel,
+    },
 };
 
 /// Config for [`Qwen3TtsModel`].
@@ -210,15 +214,7 @@ impl Qwen3TtsModel {
         ids: &Qwen3TtsPromptConfig,
         config: &Qwen3TtsTakeConfig,
     ) -> Qwen3TtsCodes {
-        let vocab = self.talker.lm.n_logits();
-        let eos = i64::from(ids.codec_eos);
-        let control = vocab.saturating_sub(self.control_rows()) as i64..vocab as i64;
-        let mut chooser = SampledChoices {
-            talker: config.talker.init(control.filter(|&id| id != eos)),
-            code_predictor: config.code_predictor.init([]),
-            history: Vec::new(),
-            frame: Vec::new(),
-        };
+        let mut chooser = self.sampled_chooser(ids, config);
         self.run_take(
             prompt,
             ids,
@@ -241,12 +237,29 @@ impl Qwen3TtsModel {
         min_frames: usize,
         chooser: &mut impl Qwen3TtsChooser,
     ) -> Qwen3TtsCodes {
+        let mut run = self.start_take(prompt, ids, max_frames, min_frames);
+        loop {
+            if let Some(stop) = self.step_take(&mut run, chooser) {
+                return Qwen3TtsCodes {
+                    frames: run.frames,
+                    stop,
+                };
+            }
+        }
+    }
+
+    /// A take started: the talker prefilled with `prompt`, nothing chosen
+    /// yet. [`step_take`](Self::step_take) then runs it a frame at a time;
+    /// [`run_take`](Self::run_take) is that loop.
+    pub fn start_take(
+        &self,
+        prompt: &Qwen3TtsPrompt,
+        ids: &Qwen3TtsPromptConfig,
+        max_frames: usize,
+        min_frames: usize,
+    ) -> Qwen3TtsTakeRun {
         let device = prompt.embeds.device();
         let talker = &self.talker;
-        let predictor = &self.code_predictor;
-        let vocab = talker.lm.n_logits();
-        let eos = i64::from(ids.codec_eos);
-
         let l = prompt.embeds.dims()[1];
         let r_emb = talker.rotary(l + max_frames, &device);
         let mut cache = talker.kv_cache_config().init(&device);
@@ -254,58 +267,141 @@ impl Qwen3TtsModel {
             TensorData::new(vec![i64::from(ids.tts_pad)], [1, 1]),
             &device,
         ));
-        let trailing = prompt.trailing.dims()[1];
-
-        let last = |hidden: Tensor<3>| {
-            let t = hidden.dims()[1];
-            hidden.slice(s![.., t - 1..t, ..])
-        };
-        let mut hidden =
-            last(talker.forward_hidden(prompt.embeds.clone(), &r_emb, Some(&mut cache)));
-        let mut frames = Vec::new();
-        let pool = PoolRelease::default();
-        loop {
-            let f = frames.len();
-            if f == max_frames {
-                return Qwen3TtsCodes {
-                    frames,
-                    stop: Qwen3TtsStop::MaxFrames,
-                };
-            }
-            let logits = talker.logits(hidden.clone()).reshape([1, vocab]);
-            let blocked: &[i64] = if f < min_frames { &[eos] } else { &[] };
-            let first = chooser.codebook0(f, logits, blocked);
-            if first == eos {
-                return Qwen3TtsCodes {
-                    frames,
-                    stop: Qwen3TtsStop::Eos,
-                };
-            }
-
-            let code0 = Tensor::<2, Int>::from_data(TensorData::new(vec![first], [1, 1]), &device);
-            let embed0 = talker.codec_embed(code0);
-            let context = Tensor::cat(vec![hidden, embed0.clone()], 1);
-            let mut frame = vec![first as u32];
-            let rest = predictor.decode(context, |k, logits| {
-                let code = chooser.codebook(f, k, logits);
-                frame.push(code as u32);
-                Tensor::from_data(TensorData::new(vec![code], [1]), &device)
-            });
-            let mut row = embed0;
-            for k in 1..self.code_groups() {
-                row = row + predictor.embed(k, rest.clone().slice(s![.., k - 1..k]));
-            }
-            row = row
-                + if f < trailing {
-                    prompt.trailing.clone().slice(s![.., f..=f, ..])
-                } else {
-                    pad.clone()
-                };
-            frames.push(frame);
-            pool.after_step(f, &device);
-            hidden = talker.forward_hidden(row, &r_emb, Some(&mut cache));
+        let hidden = talker.forward_hidden(prompt.embeds.clone(), &r_emb, Some(&mut cache));
+        let t = hidden.dims()[1];
+        Qwen3TtsTakeRun {
+            r_emb,
+            cache,
+            pad,
+            trailing: prompt.trailing.clone(),
+            hidden: hidden.slice(s![.., t - 1..t, ..]),
+            frames: Vec::new(),
+            max_frames,
+            min_frames,
+            eos: i64::from(ids.codec_eos),
+            pool: PoolRelease::default(),
+            stop: None,
         }
     }
+
+    /// The take's next frame, each code chosen by `chooser`, EOS blocked
+    /// before its `min_frames`: the frame pushed onto
+    /// [`frames`](Qwen3TtsTakeRun::frames), or why the take stopped (no
+    /// frame pushed).
+    ///
+    /// # Panics
+    /// For a take that stopped already.
+    pub fn step_take(
+        &self,
+        run: &mut Qwen3TtsTakeRun,
+        chooser: &mut impl Qwen3TtsChooser,
+    ) -> Option<Qwen3TtsStop> {
+        assert!(run.stop.is_none(), "a step of a take that stopped");
+        let device = run.hidden.device();
+        let talker = &self.talker;
+        let predictor = &self.code_predictor;
+        let vocab = talker.lm.n_logits();
+        let f = run.frames.len();
+        if f == run.max_frames {
+            run.stop = Some(Qwen3TtsStop::MaxFrames);
+            return run.stop;
+        }
+        let logits = talker.logits(run.hidden.clone()).reshape([1, vocab]);
+        let eos = run.eos;
+        let blocked: &[i64] = if f < run.min_frames { &[eos] } else { &[] };
+        let first = chooser.codebook0(f, logits, blocked);
+        if first == eos {
+            run.stop = Some(Qwen3TtsStop::Eos);
+            return run.stop;
+        }
+
+        let code0 = Tensor::<2, Int>::from_data(TensorData::new(vec![first], [1, 1]), &device);
+        let embed0 = talker.codec_embed(code0);
+        let context = Tensor::cat(vec![run.hidden.clone(), embed0.clone()], 1);
+        let mut frame = vec![first as u32];
+        let rest = predictor.decode(context, |k, logits| {
+            let code = chooser.codebook(f, k, logits);
+            frame.push(code as u32);
+            Tensor::from_data(TensorData::new(vec![code], [1]), &device)
+        });
+        let mut row = embed0;
+        for k in 1..self.code_groups() {
+            row = row + predictor.embed(k, rest.clone().slice(s![.., k - 1..k]));
+        }
+        let trailing = run.trailing.dims()[1];
+        row = row
+            + if f < trailing {
+                run.trailing.clone().slice(s![.., f..=f, ..])
+            } else {
+                run.pad.clone()
+            };
+        run.frames.push(frame);
+        run.pool.after_step(f, &device);
+        run.hidden = talker.forward_hidden(row, &run.r_emb, Some(&mut run.cache));
+        None
+    }
+
+    /// The samplers' chooser of a take under `config`
+    /// ([`generate_codes`](Self::generate_codes)'s), for a caller that steps
+    /// the take itself ([`step_take`](Self::step_take)).
+    pub fn sampled_chooser(
+        &self,
+        ids: &Qwen3TtsPromptConfig,
+        config: &Qwen3TtsTakeConfig,
+    ) -> Qwen3TtsSampledChooser {
+        let vocab = self.talker.lm.n_logits();
+        let eos = i64::from(ids.codec_eos);
+        let control = vocab.saturating_sub(self.control_rows()) as i64..vocab as i64;
+        Qwen3TtsSampledChooser {
+            talker: config.talker.init(control.filter(|&id| id != eos)),
+            code_predictor: config.code_predictor.init([]),
+            history: Vec::new(),
+            frame: Vec::new(),
+        }
+    }
+}
+
+/// A take in progress ([`Qwen3TtsModel::start_take`]): the talker's cache
+/// and its last hidden row, and the frames chosen so far.
+///
+/// A `Module` over bare tensors: moved with `to_device`, never recorded or
+/// visited.
+#[derive(Module, Debug)]
+pub struct Qwen3TtsTakeRun {
+    /// The talker's rotary tables, over the prompt and the most frames.
+    pub r_emb: RotarySet,
+
+    /// The talker's KV cache.
+    pub cache: KVCache,
+
+    /// `[1, 1, W]`: the text pad's row, past the trailing rows.
+    pub pad: Tensor<3>,
+
+    /// `[1, t, W]`: what the first frames add, in order.
+    pub trailing: Tensor<3>,
+
+    /// `[1, 1, W]`: the talker's last hidden row.
+    pub hidden: Tensor<3>,
+
+    /// The frames so far, `[F][K + 1]`.
+    pub frames: Vec<Vec<u32>>,
+
+    /// The most frames.
+    pub max_frames: usize,
+
+    /// The frames before EOS may end the take.
+    pub min_frames: usize,
+
+    /// The codec's EOS id.
+    pub eos: i64,
+
+    /// When the device pool's free memory is released.
+    #[module(skip)]
+    pub pool: PoolRelease,
+
+    /// Why the take stopped; `None` while it runs.
+    #[module(skip)]
+    pub stop: Option<Qwen3TtsStop>,
 }
 
 /// What chooses a take's codes from its logits
@@ -331,17 +427,21 @@ pub trait Qwen3TtsChooser {
     ) -> i64;
 }
 
-/// [`Qwen3TtsModel::generate_codes`]'s chooser: the samplers, the talker's
-/// repetition penalty over the take's codebook-0 history, the predictor's
-/// over the frame's codes.
-struct SampledChoices {
+/// [`Qwen3TtsModel::generate_codes`]'s chooser
+/// ([`sampled_chooser`](Qwen3TtsModel::sampled_chooser)): the samplers, the
+/// talker's repetition penalty over the take's codebook-0 history, the
+/// predictor's over the frame's codes.
+#[derive(Debug)]
+pub struct Qwen3TtsSampledChooser {
     talker: crate::kits::speech::tts::qwen3_tts::sampler::Qwen3TtsSampler,
+
     code_predictor: crate::kits::speech::tts::qwen3_tts::sampler::Qwen3TtsSampler,
+
     history: Vec<i64>,
     frame: Vec<i64>,
 }
 
-impl Qwen3TtsChooser for SampledChoices {
+impl Qwen3TtsChooser for Qwen3TtsSampledChooser {
     fn codebook0(
         &mut self,
         _frame: usize,
