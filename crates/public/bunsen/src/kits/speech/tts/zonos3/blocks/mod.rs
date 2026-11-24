@@ -12,6 +12,11 @@
 //!   its codebooks' embeddings ([`Zonos3CodebookDecoder`]), its trunk stages
 //!   ([`Zonos3CodecStageConfig`], each a
 //!   [`ProjectedDecoderStack`](crate::blocks::transformers::decoders::projected::ProjectedDecoderStack)), and its head of inverse STFTs.
+//!   It also runs as a stream ([`Zonos3CodecStreamContext`]): its causal
+//!   trunk and heads carry their state, and its tail (the iSTFTs, the
+//!   centred mixer, the resampler) returns each sample once it is final, so
+//!   the stream lags by a fixed number of samples and, joined with its
+//!   finish, is the whole decode.
 //! - **Speaker encoder.** [`Zonos3SpeakerEncoder`] and
 //!   [`Zonos3SpeakerEncoderConfig`] (the `speaker_encoder` section,
 //!   [`Zonos3SpeakerEncoderMirror::speaker_config`](super::interop::zonos::Zonos3SpeakerEncoderMirror::speaker_config)):
@@ -24,12 +29,14 @@
 
 mod codec;
 mod codec_stage;
+mod codec_stream;
 mod lm;
 mod mect;
 mod speaker_encoder;
 
 pub use codec::*;
 pub use codec_stage::*;
+pub use codec_stream::*;
 pub use lm::*;
 pub use mect::*;
 pub use speaker_encoder::*;
