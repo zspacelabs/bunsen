@@ -31,7 +31,9 @@
 //!   [`SlidingStftContext`], with [`SlidingStftMeta`] on all three. Spectra are
 //!   `numpy.fft.rfft`-compatible; see [`SlidingStft`]'s *Spectrum convention*.
 //! - **Inverse STFT.** [`InverseStftConfig`] -> [`InverseStft`]: spectra back
-//!   to a waveform, as `torch.istft` computes it, at any FFT size.
+//!   to a waveform, as `torch.istft` computes it, at any FFT size; also as a
+//!   stream of frames, through an [`InverseStftStreamContext`], each sample
+//!   returned once no later frame reaches it.
 //! - **Kernels.** [`kernels`]: the coefficient math the operators apply, one
 //!   family to a module, each built on the host and on a device and the two
 //!   cross-tested there. [`kernels::window`]: the analysis windows (Hann,
