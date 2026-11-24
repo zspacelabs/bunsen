@@ -127,7 +127,9 @@ enum Command {
 /// Runs the command; a failure is printed as its report, then, for a name
 /// a table does not have, the names nearest it ([`did_you_mean`]).
 fn main() -> ExitCode {
-    let matches = Args::command().get_matches();
+    // A load keeps the converted copy of the weights it read, and uses it
+    // next time, unless `--converted-weights false`.
+    let matches = bunsen_app::cache::converted_weights_by_default(Args::command()).get_matches();
     let args = match Args::from_arg_matches(&matches) {
         Ok(args) => args,
         Err(error) => error.exit(),

@@ -93,9 +93,30 @@ pub struct ResourceCacheOptions {
     /// How the remote resources of a resource set are fetched together.
     #[cfg(feature = "fetch")]
     pub fetch: FetchPolicy,
+
+    /// Keep a kit's converted copy of each build's weights it loads, and
+    /// load from it, not from the weights' files, when it is here. Off by
+    /// default: a copy costs the weights' size again on disk.
+    ///
+    /// A copy is keyed by the weights' pins and the load's choices
+    /// ([`ResourceCache::converted_key`]), so a build whose weights' files
+    /// were cleared, its copy kept, loads without fetching them. Only kits
+    /// that convert (the `transformers` language models) keep copies, and
+    /// only of pinned weights.
+    pub converted_weights: bool,
 }
 
 impl ResourceCacheOptions {
+    /// Sets whether loads keep and use converted weights
+    /// ([`converted_weights`](Self::converted_weights)).
+    pub fn with_converted_weights(
+        mut self,
+        converted_weights: bool,
+    ) -> Self {
+        self.converted_weights = converted_weights;
+        self
+    }
+
     /// Sets the disk cache options.
     pub fn with_disk(
         mut self,
@@ -381,6 +402,7 @@ pub struct ResourceCache {
     verify_local_dirs: bool,
     #[cfg(feature = "fetch")]
     fetch: FetchPolicy,
+    pub(super) converted_weights: bool,
 }
 
 impl ResourceCache {
@@ -396,6 +418,7 @@ impl ResourceCache {
             verify_local_dirs: options.verify_local_dirs,
             #[cfg(feature = "fetch")]
             fetch: options.fetch,
+            converted_weights: options.converted_weights,
         })
     }
 

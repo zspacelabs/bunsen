@@ -1,8 +1,17 @@
 //! Deferred builds: a resolved ref and its hook, not yet loaded.
 
-use alloc::collections::BTreeMap;
+use alloc::{
+    collections::BTreeMap,
+    format,
+    sync::Arc,
+};
+use std::path::PathBuf;
 
-use burn::tensor::Device;
+use burn::tensor::{
+    DType,
+    Device,
+    FloatDType,
+};
 
 use crate::{
     data::{
@@ -13,6 +22,7 @@ use crate::{
         },
         resources::{
             CacheStatus,
+            LoadedResourceSet,
             ResourceCache,
             ResourceSet,
         },
@@ -144,10 +154,42 @@ impl<H: ConstructInit> DeferredBuild<H> {
     ) -> BunsenResult<Loaded<H::Construct>> {
         let load = || -> BunsenResult<Loaded<H::Construct>> {
             let planned = self.config.plan(&self.model, cache)?;
-            let resources = cache.load(&planned)?;
-            let handle = self
-                .config
-                .try_init(&self.model, &resources, device, policy)?;
+            let converted = self.converted(cache, &planned, device, policy);
+            let (resources, handle) = match &converted {
+                Some((weights, path)) if path.is_file() => {
+                    let rest = without(&planned, weights);
+                    let resources = cache.load(&rest)?;
+                    match self.config.try_init_converted(
+                        &self.model,
+                        &resources,
+                        path,
+                        device,
+                        policy,
+                    ) {
+                        Ok(handle) => {
+                            crate::data::resources::mark_converted_used(path);
+                            log::info!("{}: weights from {}", H::KIT, path.display());
+                            (resources, handle)
+                        }
+                        Err(e) => {
+                            log::warn!(
+                                "{}: the converted weights at {} did not load ({e}); loading the \
+                                 weights' files",
+                                H::KIT,
+                                path.display()
+                            );
+                            self.load_and_convert(cache, &planned, device, policy, Some(path))?
+                        }
+                    }
+                }
+                _ => self.load_and_convert(
+                    cache,
+                    &planned,
+                    device,
+                    policy,
+                    converted.as_ref().map(|(_, path)| path),
+                )?,
+            };
             let summary = self
                 .model
                 .summary()
@@ -163,6 +205,84 @@ impl<H: ConstructInit> DeferredBuild<H> {
             .with_context(|| format!("loading {} {:?}", H::KIT, self.id()))
             .as_policy()
     }
+}
+
+impl<H: ConstructInit> DeferredBuild<H> {
+    /// The weights a converted copy would stand in for, and where the copy
+    /// is or would be, when the cache keeps converted weights, the kit keeps
+    /// a copy, and the weights are pinned; `None` otherwise.
+    fn converted(
+        &self,
+        cache: &ResourceCache,
+        planned: &ResourceSet,
+        device: &Device,
+        policy: crate::data::formats::LoadPolicy,
+    ) -> Option<(ResourceSet, PathBuf)> {
+        if !cache.converted_weights() {
+            return None;
+        }
+        let weights = self.config.converted_weights(planned)?;
+        let floats = [
+            FloatDType::F16,
+            FloatDType::BF16,
+            FloatDType::F32,
+            FloatDType::F64,
+        ]
+        .map(|d| (d, device.supports_dtype(DType::from(d))));
+        let facets = format!("policy {policy:?}\ndevice floats {floats:?}");
+        let key = cache.converted_key(H::KIT, &weights, &facets)?;
+        let path = cache.converted_path(H::KIT, &weights, &key)?;
+        Some((weights, path))
+    }
+
+    /// `planned` loaded and built the whole way, and, given a `converted`
+    /// path, the weights as built written there for the next load: to a
+    /// `.partial` beside it first, then renamed, so a copy is never half
+    /// there. A copy that cannot be written is logged, not an error.
+    fn load_and_convert(
+        &self,
+        cache: &ResourceCache,
+        planned: &ResourceSet,
+        device: &Device,
+        policy: crate::data::formats::LoadPolicy,
+        converted: Option<&PathBuf>,
+    ) -> BunsenResult<(LoadedResourceSet, Arc<H::Construct>)> {
+        let resources = cache.load(planned)?;
+        let handle = self
+            .config
+            .try_init(&self.model, &resources, device, policy)?;
+        if let Some(path) = converted {
+            let partial = path.with_extension("bpk.partial");
+            let written = path
+                .parent()
+                .map_or(Ok(()), std::fs::create_dir_all)
+                .map_err(crate::errors::sys_at("create", path))
+                .and_then(|()| self.config.save_converted(&handle, &partial))
+                .and_then(|()| {
+                    std::fs::rename(&partial, path)
+                        .map_err(crate::errors::sys_at("rename", &partial))
+                });
+            match written {
+                Ok(()) => log::info!("{}: converted weights saved to {}", H::KIT, path.display()),
+                Err(e) => {
+                    let _ = std::fs::remove_file(&partial);
+                    log::warn!("{}: converted weights not saved ({e})", H::KIT);
+                }
+            }
+        }
+        Ok((resources, handle))
+    }
+}
+
+/// `planned` without `weights`' resources.
+fn without(
+    planned: &ResourceSet,
+    weights: &ResourceSet,
+) -> ResourceSet {
+    let mut rest = planned.clone();
+    rest.resources
+        .retain(|key, _| !weights.resources.contains_key(key));
+    rest
 }
 
 #[cfg(test)]
@@ -270,6 +390,154 @@ mod tests {
                 &cpu_device(),
                 crate::data::formats::LoadPolicy::load_as_stored(),
             ));
+    }
+
+    /// A hook that keeps converted weights: its construct is the
+    /// checkpoint's text, marked by where it was read from; its copy, the
+    /// text as a file.
+    #[derive(Clone, Debug, Default)]
+    struct Converting;
+
+    impl ConstructInit for Converting {
+        type Construct = String;
+
+        const KIT: &'static str = "toy";
+
+        fn for_resource_set(_map: &ResourceSet) -> BunsenResult<Self> {
+            Ok(Self)
+        }
+
+        fn try_init(
+            &self,
+            _model: &BuildRef,
+            loaded: &LoadedResourceSet,
+            _device: &Device,
+            _policy: crate::data::formats::LoadPolicy,
+        ) -> BunsenResult<Arc<String>> {
+            let text = fs::read_to_string(loaded.expect("checkpoint")?).unwrap();
+            Ok(Arc::new(format!("files: {text}")))
+        }
+
+        fn converted_weights(
+            &self,
+            map: &ResourceSet,
+        ) -> Option<ResourceSet> {
+            Some(map.family("checkpoint"))
+        }
+
+        fn try_init_converted(
+            &self,
+            _model: &BuildRef,
+            loaded: &LoadedResourceSet,
+            path: &std::path::Path,
+            _device: &Device,
+            _policy: crate::data::formats::LoadPolicy,
+        ) -> BunsenResult<Arc<String>> {
+            assert!(
+                loaded.get("checkpoint").is_none(),
+                "the weights' files are not loaded"
+            );
+            let text = fs::read_to_string(path).unwrap();
+            Ok(Arc::new(format!("converted: {text}")))
+        }
+
+        fn save_converted(
+            &self,
+            construct: &String,
+            path: &std::path::Path,
+        ) -> BunsenResult<()> {
+            let text = construct.strip_prefix("files: ").unwrap();
+            fs::write(path, text).unwrap();
+            Ok(())
+        }
+    }
+
+    /// `catalog:a/pinned`: one pinned, remote-only resource holding `text`,
+    /// with its file in `cache` already.
+    fn pinned_in(
+        cache: &ResourceCache,
+        text: &str,
+    ) -> BuildRef {
+        use sha2::Digest;
+        let pin: String = sha2::Sha256::digest(text.as_bytes())
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let n = |name: &str| CatalogName::parse(name).unwrap();
+        let mut entry = ResourceEntry::new(
+            "w.bin",
+            "toy",
+            vec![ResourceSource::Url("https://a.example/w.bin".to_string())],
+        );
+        entry.sha256 = Some(pin);
+        let build = ResolvedBuild::new(n("a/pinned"), "pinned weights").with_resource(
+            "checkpoint",
+            n("a/pinned/checkpoint"),
+            entry,
+        );
+        let model = BuildRef::named("catalog", build, Default::default());
+        let resource = model.to_resource_set().get("checkpoint").unwrap().clone();
+        let path = cache.resource_path(&resource).unwrap();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, text).unwrap();
+        model
+    }
+
+    /// A first load reads the weights' files and saves the kit's copy; the
+    /// next reads the copy; with the files cleared, an offline load still
+    /// builds, from the copy. Off, the cache keeps no copy.
+    #[test]
+    fn test_converted_weights() {
+        let dir = tempfile::tempdir().unwrap();
+        let policy = crate::data::formats::LoadPolicy::load_as_stored();
+        let device = cpu_device();
+        let off = offline_cache(dir.path());
+        let on = ResourceCache::new(
+            ResourceCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true)
+                .with_converted_weights(true),
+        )
+        .unwrap();
+        let model = DeferredBuild::<Converting>::new(pinned_in(&on, "w1")).unwrap();
+
+        let load = |cache: &ResourceCache| {
+            model
+                .load(cache, &device, policy)
+                .map(|l| (*l.handle).clone())
+        };
+        assert_eq!(load(&off).unwrap(), "files: w1");
+        let listed = |cache: &ResourceCache| {
+            cache
+                .cached_files(&"a/pinned".parse().unwrap())
+                .unwrap()
+                .into_iter()
+                .map(|f| f.name)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(listed(&on), ["a/pinned/checkpoint"], "off keeps no copy");
+
+        assert_eq!(load(&on).unwrap(), "files: w1");
+        assert_eq!(listed(&on), ["a/pinned/checkpoint", "a/pinned/converted"]);
+        assert_eq!(load(&on).unwrap(), "converted: w1");
+
+        let sources = on
+            .cached_files(&"a/pinned/checkpoint".parse().unwrap())
+            .unwrap();
+        on.remove_cached(&sources).unwrap();
+        assert_eq!(listed(&on), ["a/pinned/converted"]);
+        assert_eq!(
+            load(&on).unwrap(),
+            "converted: w1",
+            "no fetch: the cache is offline"
+        );
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("the cache is offline")
+            .assert_err(&load(&off));
     }
 
     /// An overlay replaces by key and keeps the hook the model was given.

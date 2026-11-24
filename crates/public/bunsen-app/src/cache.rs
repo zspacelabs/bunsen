@@ -2,7 +2,9 @@
 //! list and clear it.
 //!
 //! A binary flattens [`WeightsCacheArgs`] into every command that loads
-//! weights, and mounts [`CacheCommand`] as a `cache` subcommand:
+//! weights (one that keeps converted weights by default passes its command
+//! through [`converted_weights_by_default`]), and mounts [`CacheCommand`] as
+//! a `cache` subcommand:
 //! `cache path`, `cache list [NAME]`, and
 //! `cache clear [NAME] [--partial] [--age AGE] [--yes]`, `NAME` selecting the
 //! files cached under a name (`qwen`, `openai/whisper/base`, `hf/openai`).
@@ -51,6 +53,16 @@ pub struct WeightsCacheArgs {
     /// Never reach the network: a model not already local is an error.
     #[arg(long)]
     pub offline: bool,
+
+    /// Keep each model's weights converted, and load them from that copy.
+    ///
+    /// The first load writes the copy; later loads read it. A copy is the
+    /// weights again on disk, listed under the build's
+    /// `converted` name (`cache list`); with it, a load skips reading and
+    /// converting the checkpoint, and a build whose checkpoint was cleared
+    /// loads without fetching it. The language models keep copies.
+    #[arg(long, value_name = "BOOL", action = clap::ArgAction::Set, default_value_t = false)]
+    pub converted_weights: bool,
 }
 
 impl WeightsCacheArgs {
@@ -59,6 +71,7 @@ impl WeightsCacheArgs {
         ResourceCacheOptions::default()
             .with_disk(BunsenDiskCacheOptions::default().with_cache_dir(self.cache_dir.clone()))
             .with_offline(self.offline)
+            .with_converted_weights(self.converted_weights)
     }
 
     /// Opens the cache.
@@ -69,6 +82,27 @@ impl WeightsCacheArgs {
     pub fn init(&self) -> BunsenResult<ResourceCache> {
         ResourceCache::new(self.options()).as_policy()
     }
+}
+
+/// `command`, and every subcommand under it, with `--converted-weights`
+/// ([`WeightsCacheArgs::converted_weights`]) defaulting to `true`: for a
+/// binary that keeps converted weights unless told not to.
+pub fn converted_weights_by_default(command: clap::Command) -> clap::Command {
+    let command = if command
+        .get_arguments()
+        .any(|arg| arg.get_id() == "converted_weights")
+    {
+        command.mut_arg("converted_weights", |arg| arg.default_value("true"))
+    } else {
+        command
+    };
+    let names: Vec<String> = command
+        .get_subcommands()
+        .map(|sub| sub.get_name().to_string())
+        .collect();
+    names.into_iter().fold(command, |command, name| {
+        command.mut_subcommand(name, converted_weights_by_default)
+    })
 }
 
 /// The weights cache: where it is, what it holds, and clearing it.
@@ -330,9 +364,48 @@ mod tests {
         WeightsCacheArgs {
             cache_dir: Some(dir.to_path_buf()),
             offline: true,
+            converted_weights: false,
         }
         .init()
         .unwrap()
+    }
+
+    #[derive(Parser, Debug)]
+    struct Loader {
+        #[command(subcommand)]
+        cmd: LoaderCmd,
+    }
+
+    #[derive(clap::Subcommand, Debug)]
+    enum LoaderCmd {
+        Run {
+            #[command(flatten)]
+            cache: WeightsCacheArgs,
+        },
+    }
+
+    /// `--converted-weights` is off unless a binary turns it on by default,
+    /// which reaches every subcommand and still yields to the flag.
+    #[test]
+    fn test_converted_weights_by_default() {
+        use clap::{
+            CommandFactory,
+            FromArgMatches,
+        };
+        let parse = |command: clap::Command, args: &[&str]| {
+            let matches = command.try_get_matches_from(args).unwrap();
+            let LoaderCmd::Run { cache } = Loader::from_arg_matches(&matches).unwrap().cmd;
+            cache.options().converted_weights
+        };
+        assert!(!parse(Loader::command(), &["t", "run"]));
+        assert!(parse(
+            converted_weights_by_default(Loader::command()),
+            &["t", "run"]
+        ));
+        assert!(!parse(
+            converted_weights_by_default(Loader::command()),
+            &["t", "run", "--converted-weights", "false"]
+        ));
     }
 
     fn put(
