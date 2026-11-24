@@ -70,9 +70,44 @@ The pairs in the tree:
   a whole transcription, including the front-end and voice-activity
   contexts of one stream.
 
+- [`CausalConv1d`](bunsen::blocks::conv::CausalConv1d) and
+  [`CausalConvStreamContext`](bunsen::ops::conv::CausalConvStreamContext):
+  the inputs a later output still reads, a partial stride held back until
+  the end; and
+  [`CausalConvTranspose1d`](bunsen::blocks::conv::CausalConvTranspose1d)
+  with
+  [`CausalConvTransposeStreamContext`](bunsen::ops::conv::CausalConvTransposeStreamContext):
+  the overlap each call reaches past the frames it completes. The blocks
+  built of them stream through contexts of their contexts:
+  [`DacDecoder`](bunsen::blocks::signals::DacDecoder) and
+  [`DacDecoderStreamContext`](bunsen::blocks::signals::DacDecoderStreamContext).
+- [`InverseStft`](bunsen::ops::signal::InverseStft) and
+  [`InverseStftStreamContext`](bunsen::ops::signal::InverseStftStreamContext):
+  the overlap-add's sums past the last final sample; and
+  [`SincPhaseKernels`](bunsen::ops::signal::kernels::sinc::SincPhaseKernels)
+  with
+  [`SincResampleStreamContext`](bunsen::ops::signal::kernels::sinc::SincResampleStreamContext):
+  the input samples a later output frame reads.
+- The TTS codecs:
+  [`Qwen3TtsCodecDecoder`](bunsen::kits::speech::tts::qwen3_tts::blocks::Qwen3TtsCodecDecoder)
+  and
+  [`Qwen3TtsCodecStreamContext`](bunsen::kits::speech::tts::qwen3_tts::blocks::Qwen3TtsCodecStreamContext)
+  (or, decoded as its render decodes,
+  [`Qwen3TtsChunkedStreamContext`](bunsen::kits::speech::tts::qwen3_tts::blocks::Qwen3TtsChunkedStreamContext));
+  [`Zonos3Codec`](bunsen::kits::speech::tts::zonos3::blocks::Zonos3Codec)
+  and
+  [`Zonos3CodecStreamContext`](bunsen::kits::speech::tts::zonos3::blocks::Zonos3CodecStreamContext).
+
 The speech kits'
 [table of pairs](bunsen::kits::speech#stream-state-is-injected) adds
 Whisper's text-decoder cache.
+
+A cached transformer stack streams through its
+[`KVCache`](bunsen::ops::transformers::attention::KVCache), each windowed
+layer keeping its window, and its rotary tables cover only the positions a
+call needs
+([`DecoderStack::rotary_range`](bunsen::blocks::transformers::decoders::stack::DecoderStack::rotary_range)),
+so a stream runs any length.
 
 ### Chunking must not be observable
 
@@ -98,6 +133,53 @@ are not, yet. A context comes from
 [`SileroVadContextConfig::init`](bunsen::kits::speech::vad::silero_vad::SileroVadContextConfig::init)
 (which takes the model it serves). Look on the module first, then on a
 context config.
+
+## Speech as a stream
+
+A TTS request can be spoken as a stream: its audio returned as it becomes
+final, while the rest is still generated. The stream is the whole
+synthesis cut into pieces, never an approximation of it: joined, its audio
+is [`synthesize`](bunsen::kits::speech::tts::driver::TtsDriver::synthesize)'s.
+
+### Pulled, a step at a time
+
+[`TtsDriver::stream`](bunsen::kits::speech::tts::driver::TtsDriver::stream)
+prepares a request as `synthesize` does (its voice, its stages, its takes),
+and returns a
+[`TtsSpeechStream`](bunsen::kits::speech::tts::driver::TtsSpeechStream).
+The caller pulls its
+[`TtsEvent`](bunsen::kits::speech::tts::driver::TtsEvent)s one at a time:
+the stages' notes, each take's start and end, and audio. Nothing runs
+between pulls, so the caller paces it: a player pulls as fast as it can, a
+server can interleave many streams. A tool holding the driver as a trait
+object streams through
+[`TtsSynthesizer::stream`](bunsen::kits::speech::tts::driver::TtsSynthesizer::stream).
+
+Each take is its engine's stream
+([`TtsEngine::start_stream`](bunsen::kits::speech::tts::driver::TtsEngine::start_stream)):
+each [`step`](bunsen::kits::speech::tts::driver::TtsTakeStream::step) runs
+one generation step and returns the samples it made final. The engines'
+take loops are runs a step at a time (`start_take`, then `step_take`), and
+their whole-take functions are those loops, so a whole take and a stream
+take the same steps and draw the same samples.
+
+### What is final, and when
+
+A frame is final when nothing later can change it. Qwen3-TTS's frames are
+final as soon as they are chosen. ZONOS3's codebooks are delayed, so a
+frame is final `n - 1` rows later, once its last codebook is sampled (a
+later end of audio can never take back a complete frame).
+
+The final frames go through the codec's stream in groups
+([`TtsChunkPolicy`](bunsen::kits::speech::tts::driver::TtsChunkPolicy)):
+1, 2, 4, 8, then 15 at a time by default, so the first audio comes quickly
+and later decodes are larger. The codecs' streams are exact, so the
+grouping changes when the samples come out, never what they are.
+
+A causal codec returns a frame's samples at once. ZONOS3's tail is not
+causal (its inverse STFTs, a centred mixer, a resampler), so its stream
+holds each sample until the samples after it that it needs have arrived,
+and lags by a fixed amount that the take's end returns.
 
 ## The Whisper stream driver
 

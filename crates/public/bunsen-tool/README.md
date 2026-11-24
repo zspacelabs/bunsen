@@ -15,8 +15,8 @@ bunsen-tool asr transcribe recording.wav
 
 On Linux, the microphone and speaker commands link ALSA (`libasound2-dev`). The default features build every command;
 `--no-default-features --features speech` builds `asr` and `tts` without audio devices, and `--no-default-features`
-alone builds the tool without `asr` and `tts`. `bunsen-tool devices` lists the backends a build has, and what each device does with
-each float dtype.
+alone builds the tool without `asr` and `tts`. `bunsen-tool devices` lists the backends a build has, and what each
+device does with each float dtype.
 
 ## Models
 
@@ -481,9 +481,23 @@ bunsen-tool tts run --model qwen3-tts --voice ryan -o ryan.wav "Hello from Qwen.
 bunsen-tool tts voices                                   # a model's stock voices
 ```
 
-ZONOS3-Mini is the default; Qwen3-TTS's checkpoints add a style instruction (`--instruct`) and a voice described in words
-(`--describe`). The text is normalized as the model's release normalizes it, so `$12.50` is spoken as "twelve dollars
-fifty cents", and long text is spoken as several takes. A take is sampled; `--seed` repeats one.
+ZONOS3-Mini is the default; Qwen3-TTS's checkpoints add a style instruction (`--instruct`) and a voice described in
+words (`--describe`). The text is normalized as the model's release normalizes it, so `$12.50` is spoken as "twelve
+dollars fifty cents", and long text is spoken as several takes. A take is sampled; `--seed` repeats one.
+
+### Streaming
+
+```sh
+bunsen-tool tts run --stream --play "Spoken while the rest is still being made."
+bunsen-tool tts run --stream -o out.wav "..."      # the same WAV as without --stream
+```
+
+`--stream` speaks each take as it is generated: its frames are decoded as they become final, so `--play` starts once the
+first frames are decoded and `--prebuffer-ms` (200 by default) is queued, rather than after the whole text. A fresh
+process compiles its GPU kernels first, which can take seconds. The audio is the same as without it. When synthesis is
+slower than real time, playback runs dry and fills again; the summary counts the underruns, and a larger
+`--prebuffer-ms` waits longer before it starts. `--first-chunk` and `--max-chunk` set how many frames each decode takes
+(1, then up to 15).
 
 ### Cloning a voice
 
@@ -586,6 +600,6 @@ the checkpoint (Qwen3-4B on CUDA: 18 s the first time, under 5 s after), and sti
 checkpoint cleared (`cache clear qwen/qwen3/qwen3-4b/checkpoint`). `--converted-weights false` keeps
 and uses no copy.
 
-Every fetched file is pinned to a SHA-256 and verified as it lands. `--cache-dir` moves the cache, and `--offline` never reaches
-the network. Every command also takes `--device`, and the commands that load a model `--min-precision f32`, a floor
-under the dtypes its weights are placed in.
+Every fetched file is pinned to a SHA-256 and verified as it lands. `--cache-dir` moves the cache, and `--offline` never
+reaches the network. Every command also takes `--device`, and the commands that load a model `--min-precision f32`, a
+floor under the dtypes its weights are placed in.
