@@ -1,8 +1,8 @@
 //! # Image Support
 //!
 //! Image files, through the [`image`] crate (feature `images`): decoding
-//! ([`try_open_image`]), resizing with one of `image`'s filters
-//! ([`resize_image_exact`]), and pixels as an `f32` tensor
+//! ([`try_open_image`], or bytes with [`try_decode_image`]), resizing with one
+//! of `image`'s filters ([`resize_image_exact`]), and pixels as an `f32` tensor
 //! ([`image_to_f32_tensor`]).
 //!
 //! An image model's eval transform builds on these in the image kits, in

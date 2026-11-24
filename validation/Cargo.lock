@@ -1604,6 +1604,7 @@ name = "catalog-builder"
 version = "0.41.0"
 dependencies = [
  "bunsen",
+ "bunsen-fetch",
  "clap",
  "icu_locale",
  "ryl",

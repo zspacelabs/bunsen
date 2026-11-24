@@ -2,6 +2,7 @@
 $description: ImageNet's class label sets, as timm ships them.
 imagenet:
   $kind: namespace
+  $facet: family
   $description: >-
     ImageNet's class labels: each subset's WordNet synsets, in class order, and their lemmas,
     from timm's `timm/data/_info`.
@@ -21,3 +22,29 @@ imagenet:
     $sources:
       - $base_url: >-
           https://raw.githubusercontent.com/huggingface/pytorch-image-models/b4f423c19f778672f875e0948f296322c775f24b/timm/data/_info
+timm:
+  $kind: namespace
+  $merge: update
+  imagenet-1k-validation:
+    $kind: build
+    $description: >-
+      ImageNet-1k's 50,000 validation images, as timm's webdataset mirror shards them: 64 tars of
+      `<key>.jpg` and `<key>.cls` (the class index). Gated: the Hub serves them to an account that
+      has accepted ImageNet's terms, with its token. Fetched on use; never shipped.
+    $license: other
+    $origin: https://huggingface.co/datasets/timm/imagenet-1k-wds
+    $contract: webdataset-shards
+    $join:
+      - imagenet
+    $hub:
+      $repo: timm/imagenet-1k-wds
+      $revision: cdf403ce12f01022a0c36e584e588c0b9cebc4af
+      $dataset: true
+    $resources:
+      shards: shards
+    shards:
+      $kind: resource
+      $file: "imagenet1k-validation-{index}.tar"
+      $format: webdataset tar
+      $index_width: 2
+      $count: 64

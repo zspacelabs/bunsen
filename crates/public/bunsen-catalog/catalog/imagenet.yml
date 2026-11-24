@@ -4,6 +4,7 @@ imagenet:
   $kind: namespace
   $description: "ImageNet's class labels: each subset's WordNet synsets, in class order, and their
     lemmas, from timm's `timm/data/_info`."
+  $facet: family
   synsets-1k:
     $kind: resource
     $file: imagenet_synsets.txt
@@ -22,3 +23,222 @@ imagenet:
     $sources:
       - $base_url: >-
           https://raw.githubusercontent.com/huggingface/pytorch-image-models/b4f423c19f778672f875e0948f296322c775f24b/timm/data/_info
+timm:
+  $kind: namespace
+  $merge: update
+  imagenet-1k-validation:
+    $kind: build
+    $description: "ImageNet-1k's 50,000 validation images, as timm's webdataset mirror shards them:
+      64 tars of `<key>.jpg` and `<key>.cls` (the class index). Gated: the Hub serves them to an
+      account that has accepted ImageNet's terms, with its token. Fetched on use; never shipped."
+    $join:
+      - imagenet
+    $license: other
+    $origin: https://huggingface.co/datasets/timm/imagenet-1k-wds
+    $contract: webdataset-shards
+    $resources:
+      shards: shards
+    shards:
+      $kind: resource
+      $file: imagenet1k-validation-{index}.tar
+      $format: webdataset tar
+      $sources:
+        - $hub:
+            $repo: timm/imagenet-1k-wds
+            $revision: cdf403ce12f01022a0c36e584e588c0b9cebc4af
+            $dataset: true
+      $index_width: 2
+      $count: 64
+      $shards:
+        - $file: imagenet1k-validation-00.tar
+          $sha256: e94a88f9019f7b00cb5f0f9a54a131111b187ea8cacf2b89fd596436955332c9
+          $size: 107991040
+        - $file: imagenet1k-validation-01.tar
+          $sha256: 729de1e6ac4dfaacc8cf193dfd3b674d1e053f0857f8b5247c50a9f63e29fb5c
+          $size: 108718080
+        - $file: imagenet1k-validation-02.tar
+          $sha256: 449ecab9654830ae0f8dfc9b13ed775e080507140c4863b85e64eeb22b73ed36
+          $size: 110489600
+        - $file: imagenet1k-validation-03.tar
+          $sha256: 86027f1f09bbeabc52c3745fda0726499b416449086bd6bb0ad3024add50e099
+          $size: 105789440
+        - $file: imagenet1k-validation-04.tar
+          $sha256: d99013f120b6a09fad61e1e5cb1bf178d8e8f9ecab7e812b06b7265432d0591d
+          $size: 107028480
+        - $file: imagenet1k-validation-05.tar
+          $sha256: 793cea1b65153efb73786baf83ccf2e8073ac6a252634d244cf6a7ff84624095
+          $size: 109516800
+        - $file: imagenet1k-validation-06.tar
+          $sha256: 1f1285e7e984187d3b7ffedddf041a7402da2f79e1c290e53363bd85c845896d
+          $size: 107632640
+        - $file: imagenet1k-validation-07.tar
+          $sha256: 90aafafd3cc49d7cf4bd14d0322ba16b2d48bd5d247e9eb7d69234bbcd0a72a5
+          $size: 107694080
+        - $file: imagenet1k-validation-08.tar
+          $sha256: 3e4bd5a94d4275655626ed131965527dd3fb135b70fbc2a5286c5a6ac08094a1
+          $size: 106588160
+        - $file: imagenet1k-validation-09.tar
+          $sha256: b3ebd3ad99431e0eee1cf765e082d6c7b708c401eb6a6beb6d1d364183fc3719
+          $size: 104458240
+        - $file: imagenet1k-validation-10.tar
+          $sha256: 3015704df199dca1f1e8b3999ccc110bbd65c2f1ec030b3daa78a32fa17707f4
+          $size: 109312000
+        - $file: imagenet1k-validation-11.tar
+          $sha256: f9490524d5015b9385eec4b7ca624aa5e9381a18fb0e62a85dc3e2b641fba300
+          $size: 109445120
+        - $file: imagenet1k-validation-12.tar
+          $sha256: 8e2e79d0443cff6f93ef342aa7eb4176f3b990626fcb1ed5bafc528e4b6d2883
+          $size: 112609280
+        - $file: imagenet1k-validation-13.tar
+          $sha256: 331ca11ba6b1600c74af0598891181d99fe8f7288d418bcb6978d4aafba9491d
+          $size: 108113920
+        - $file: imagenet1k-validation-14.tar
+          $sha256: b732ca055829e1957fd30dc9e1a16efde402939a41118dd91365d7c06fd3c25b
+          $size: 108431360
+        - $file: imagenet1k-validation-15.tar
+          $sha256: 1bd884a3b483793e9aed855df188f15f998b5ede351cc1dc9dfa63c5def06094
+          $size: 113653760
+        - $file: imagenet1k-validation-16.tar
+          $sha256: 18c0a6cab18861201efe1bd3c64e8c7564060d1a74a83f8c862bfc40e59cc6d1
+          $size: 105502720
+        - $file: imagenet1k-validation-17.tar
+          $sha256: ab85eb7d04269fd76260a194b915f73db77403de70ec3408bb2769684c55e87e
+          $size: 111943680
+        - $file: imagenet1k-validation-18.tar
+          $sha256: d251327db2ad079c718f26f454090b8c69dbd2963f46edb403770eba2a39689f
+          $size: 110807040
+        - $file: imagenet1k-validation-19.tar
+          $sha256: cd96bd5df1de856e405c45cbfd9b0d047b823aa81302892e9fc4430f181aa38d
+          $size: 109608960
+        - $file: imagenet1k-validation-20.tar
+          $sha256: c5623f90d0cb130f7eec882e4100c8c3c4a178dcefffe949f0f9f89d8028d463
+          $size: 111667200
+        - $file: imagenet1k-validation-21.tar
+          $sha256: 4e708436fd2981cbad2100f07e8f13b10bbb57b1151dbab4d8021ea39fb77f0d
+          $size: 105154560
+        - $file: imagenet1k-validation-22.tar
+          $sha256: 13c0c2448d2189876e7dcc0c02fc7c30c258b05fa628f8c54fd8c76cd1a7c7d3
+          $size: 106772480
+        - $file: imagenet1k-validation-23.tar
+          $sha256: b8a224d6a9734ba3ac155cc36fcd279d46ee7668ee57bfb16547221687e52448
+          $size: 104970240
+        - $file: imagenet1k-validation-24.tar
+          $sha256: fea655c0c10297bdbd32416ef794c9bc2a9dbcef0144b173627c6b012caa21ce
+          $size: 107182080
+        - $file: imagenet1k-validation-25.tar
+          $sha256: 6517e1d8dbaeca18288b445500ff106b13e30c7d94d65d3d14e91ee966029885
+          $size: 109537280
+        - $file: imagenet1k-validation-26.tar
+          $sha256: 499715f27d63b0ce88b42abee797f41a4d97cf7ef7a38e347f00e8cb0dc2b2c0
+          $size: 106250240
+        - $file: imagenet1k-validation-27.tar
+          $sha256: e5d610493433eb92d4ed02bb5273ba7848e573977663deb310a4f3a809b06b5c
+          $size: 105031680
+        - $file: imagenet1k-validation-28.tar
+          $sha256: 0649617d6566670cfc8865bf225286d868a3239165cc725592fc16ecb26ecb89
+          $size: 113264640
+        - $file: imagenet1k-validation-29.tar
+          $sha256: d5d6f3505bcd4f658bfe863c6cff6c2469bfa98db3c91d50ac79b596671f8d40
+          $size: 107601920
+        - $file: imagenet1k-validation-30.tar
+          $sha256: 46dbacd5a40262a62e85d8833ef8002e4b8be64ad812ef358a61e09d9a9669de
+          $size: 112588800
+        - $file: imagenet1k-validation-31.tar
+          $sha256: b493698bfd743e88dc9b379bc85ba8f0534d384fbada7843e0d9054f53699ab3
+          $size: 108544000
+        - $file: imagenet1k-validation-32.tar
+          $sha256: 61f5d7de19d05267e8adb5916211706d64dabf92b710c95ee9b33c1fa3bc50e7
+          $size: 117166080
+        - $file: imagenet1k-validation-33.tar
+          $sha256: c38024809601894a0bb7a9d6f9d1abe01057d8825e107ae74fb962a3cca56f6d
+          $size: 106301440
+        - $file: imagenet1k-validation-34.tar
+          $sha256: b381c72d03ce07dbcb6bb73cea0e1ae634d0b990f3d475dee46817f464613b37
+          $size: 107315200
+        - $file: imagenet1k-validation-35.tar
+          $sha256: 086138f9d7880baa0ec8001180cbfc0dfe2332b929d4dc856fdbdde74369aa3e
+          $size: 109475840
+        - $file: imagenet1k-validation-36.tar
+          $sha256: 3f0e250b9718608b2197e7844dc194416a6d75902d6c3a536d16a8b931395643
+          $size: 111267840
+        - $file: imagenet1k-validation-37.tar
+          $sha256: 5c459cbf275f539ff073c220212095c5deed357f660f3fbc3a5c919d3c41e994
+          $size: 108779520
+        - $file: imagenet1k-validation-38.tar
+          $sha256: d3983bafb0c1a7cfeb4fa4506d83a5118295e046766542bf48159c00f04db317
+          $size: 110069760
+        - $file: imagenet1k-validation-39.tar
+          $sha256: 5d5c1e90cb06a15bbe1136546f8594ff89e0161ed2b3a2db9bd76e78252fad05
+          $size: 105236480
+        - $file: imagenet1k-validation-40.tar
+          $sha256: 9be23052467af16966206a1f68d83a72235fca3fe5f424c9e035d5482d919872
+          $size: 109465600
+        - $file: imagenet1k-validation-41.tar
+          $sha256: 8f187df3632ce0e1b2844233c93728db5ff5fe1c50af58113a69de0fbe87b164
+          $size: 111011840
+        - $file: imagenet1k-validation-42.tar
+          $sha256: 9f37c01e7f07f6d26cb3c898ad2bf8d6ff31ec9bfb758df9b346a1b278d58826
+          $size: 121661440
+        - $file: imagenet1k-validation-43.tar
+          $sha256: 7b5081936ccade7f25f6cc0f02cf30e6e541331bcd35601d7425f4e009dd9580
+          $size: 111226880
+        - $file: imagenet1k-validation-44.tar
+          $sha256: 9fc358f3c3d7156a1724b8db782cb2550319f9eda530df792cbcd559d87d62d8
+          $size: 109086720
+        - $file: imagenet1k-validation-45.tar
+          $sha256: 42721e35aa3db272a1cc26017a841e57ef7a417737d564fa84895a1d475ff3e6
+          $size: 109209600
+        - $file: imagenet1k-validation-46.tar
+          $sha256: 7f218763232de2785f697e0487430074dcca67b6fd815550c3d978c61528cd28
+          $size: 113059840
+        - $file: imagenet1k-validation-47.tar
+          $sha256: 501a141fae15a9349ff1f053e97f068173460eb4f6e07193cac0c650f0cdf241
+          $size: 116131840
+        - $file: imagenet1k-validation-48.tar
+          $sha256: 7198ce008f66178bcd84671b74c1ea06d85283590fb9d93765e43a1be6faf9c3
+          $size: 107919360
+        - $file: imagenet1k-validation-49.tar
+          $sha256: ea837da4818a867e2b2f5ad1620175a71800ff3993b6ad3ea0d030182d4b9b97
+          $size: 111667200
+        - $file: imagenet1k-validation-50.tar
+          $sha256: 3da00d93a068f8bfc30c985d172d8cbad50fa84e21cf11ec2304e974eb5566b9
+          $size: 109158400
+        - $file: imagenet1k-validation-51.tar
+          $sha256: ce1d52da4b214b95e37bb1836225fdd74056eea8b773b1c1d64caa6d2ab5c02a
+          $size: 117719040
+        - $file: imagenet1k-validation-52.tar
+          $sha256: 69b7c851d8e170443e7d038aba1fd86b91781962e01829933b3440a61e198d5e
+          $size: 109721600
+        - $file: imagenet1k-validation-53.tar
+          $sha256: a7d2549efd97ad9e61517d08c6fd46d6c053d018b75ae1849ab8ca137b4b57c5
+          $size: 113991680
+        - $file: imagenet1k-validation-54.tar
+          $sha256: c91dacb1bac9afde32a83f2640305949a2485f3dcb1ae4e8bd666e5edd377903
+          $size: 110295040
+        - $file: imagenet1k-validation-55.tar
+          $sha256: 9683fd3d0aa9be205b39d0d32d4754417c2dfb0c89a375c0aefa1d3e80efa417
+          $size: 106792960
+        - $file: imagenet1k-validation-56.tar
+          $sha256: 5e34ad940e5bab8fd173774412990c128086408dd794aed9c757625b1d3c290e
+          $size: 107028480
+        - $file: imagenet1k-validation-57.tar
+          $sha256: fdcfd51445bbce55817280b1d1b60705a8333b46b051d80eec281f36985af89e
+          $size: 105297920
+        - $file: imagenet1k-validation-58.tar
+          $sha256: 3993df1559f921ed50e359a1de6b09d358648f0ffefd72f7799394597b82ad2d
+          $size: 114749440
+        - $file: imagenet1k-validation-59.tar
+          $sha256: ca487f89f0edd66edcbff9097a05f17a01023fa0f54f9a0f9758881c77fd9f3b
+          $size: 107202560
+        - $file: imagenet1k-validation-60.tar
+          $sha256: 29773f15ec18c16b7cd91584c6a876c92d86528ab1b1467efd28871122e56089
+          $size: 110612480
+        - $file: imagenet1k-validation-61.tar
+          $sha256: d349376f1a7064f442002abf101af207353663471887b0834a05c1dcdd2c9838
+          $size: 109527040
+        - $file: imagenet1k-validation-62.tar
+          $sha256: d95800b1d9c181e5b90a15f8a8b9dc48ad4a3aa186a17b2334dffe234c21743e
+          $size: 105553920
+        - $file: imagenet1k-validation-63.tar
+          $sha256: e7344f2a25cb3366decab1d13245c75c82b60a98f32193cee269421fc71968da
+          $size: 103680000

@@ -1,0 +1,10 @@
+# What a webdataset shard set's loader reads: a dataset as numbered tar files.
+webdataset-shards:
+  $kind: contract
+  $description: >-
+    A dataset as numbered webdataset shards: tar files whose members are each sample's files,
+    named `<key>.<field>`.
+  $resources:
+    shards:
+      $format: [webdataset tar]
+      $description: "The shards: a templated resource, one file per index."

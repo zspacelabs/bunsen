@@ -37,6 +37,25 @@ pub fn try_open_image(path: impl AsRef<Path>) -> BunsenResult<DynamicImage> {
     image::open(path).map_err(|e| open_error(path, e))
 }
 
+/// Decodes an image file's bytes, in whatever format they are (JPEG, PNG and
+/// GIF are built in): an image read from an archive, say.
+///
+/// See the [errors convention](crate::errors#convention-try_x-and-x).
+///
+/// # Errors
+/// [`Unsupported`](BunsenErrorKind::Unsupported) for a format not built in;
+/// [`InvalidResource`](BunsenErrorKind::InvalidResource) for bytes that do not
+/// decode. The cause is the `image::ImageError`.
+pub fn try_decode_image(bytes: &[u8]) -> BunsenResult<DynamicImage> {
+    image::load_from_memory(bytes).map_err(|e| {
+        let kind = match e {
+            image::ImageError::Unsupported(_) => BunsenErrorKind::Unsupported,
+            _ => BunsenErrorKind::InvalidResource,
+        };
+        BunsenError::from_cause(kind, e).context("decoding an image")
+    })
+}
+
 /// The error of opening the image at `path`, by what `image` reports.
 fn open_error(
     path: &Path,
@@ -121,6 +140,23 @@ mod tests {
             .frame_contains("opening image")
             .has_cause::<image::ImageError>()
             .assert_err(&try_open_image(&junk));
+    }
+
+    /// Bytes decode as their file does; a cut file is an invalid resource,
+    /// and bytes of no format unsupported.
+    #[test]
+    fn test_try_decode_image() {
+        let mut png = Vec::new();
+        let source = image::RgbImage::from_fn(2, 2, |x, y| image::Rgb([x as u8, y as u8, 1]));
+        DynamicImage::ImageRgb8(source.clone())
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        assert_eq!(try_decode_image(&png).unwrap().to_rgb8(), source);
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .frame_contains("decoding an image")
+            .assert_err(&try_decode_image(&png[..png.len() / 2]));
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            .assert_err(&try_decode_image(b"no format at all"));
     }
 
     /// A saved PNG opens to the same pixels.

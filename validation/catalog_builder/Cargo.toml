@@ -17,6 +17,8 @@ workspace = true
 # The full default stack: the builder gathers every kit's contract, and runs
 # the kits' probes.
 bunsen = { path = "../../crates/public/bunsen" }
+# The Hub token a gated repo's listing and files need (`hub_authorization`).
+bunsen-fetch = { path = "../../crates/public/bunsen-fetch" }
 clap = { workspace = true, features = ["derive"] }
 icu_locale = { workspace = true }
 # Writes the built layers in the repository's YAML form (`.ryl.toml`); keep its

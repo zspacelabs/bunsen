@@ -61,6 +61,20 @@ impl Default for Http {
     }
 }
 
+/// `request` with the user's Hub token when `url` is the Hub's
+/// ([`bunsen_fetch::hub_authorization`]): a gated repo's listing masks its
+/// digests, and its files refuse, without it. `ureq` drops the header on a
+/// redirect.
+fn authorized<B>(
+    request: ureq::RequestBuilder<B>,
+    url: &str,
+) -> ureq::RequestBuilder<B> {
+    match bunsen_fetch::hub_authorization(url) {
+        Some(authorization) => request.header("Authorization", authorization),
+        None => request,
+    }
+}
+
 /// The `rel="next"` target of a `Link` header.
 pub fn next_link(link: &str) -> Option<String> {
     link.split(',').find_map(|part| {
@@ -80,9 +94,7 @@ impl Remote for Http {
         &self,
         url: &str,
     ) -> Result<(Vec<u8>, Option<String>), String> {
-        let mut response = self
-            .0
-            .get(url)
+        let mut response = authorized(self.0.get(url), url)
             .call()
             .map_err(|e| format!("GET {url}: {e}"))?;
         let next = response
@@ -104,9 +116,7 @@ impl Remote for Http {
         url: &str,
     ) -> Result<Option<u64>, String> {
         // A compressed response's length is not the file's.
-        let response = self
-            .0
-            .head(url)
+        let response = authorized(self.0.head(url), url)
             .header("Accept-Encoding", "identity")
             .call()
             .map_err(|e| format!("HEAD {url}: {e}"))?;
@@ -121,9 +131,7 @@ impl Remote for Http {
         &self,
         url: &str,
     ) -> Result<String, String> {
-        let mut response = self
-            .0
-            .get(url)
+        let mut response = authorized(self.0.get(url), url)
             .call()
             .map_err(|e| format!("GET {url}: {e}"))?;
         let mut reader = response.body_mut().as_reader();
