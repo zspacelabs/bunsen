@@ -6,6 +6,7 @@ commons.yml
 hub.yml
 datasets.yml
 laya.yml kits
+imagenet.yml kits
 resnet.yml kits
 gemma.yml kits
 nanochat.yml kits
