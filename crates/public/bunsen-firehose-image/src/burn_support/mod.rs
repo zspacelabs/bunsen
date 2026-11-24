@@ -78,14 +78,7 @@ use bunsen_firehose::{
     },
     define_firehose_operator,
 };
-use burn::{
-    prelude::Tensor,
-    tensor::{
-        Device,
-        TensorCreationOptions,
-        TensorData,
-    },
-};
+use burn::tensor::TensorData;
 use image::DynamicImage;
 
 pub mod image_to_tensor_data;
@@ -153,33 +146,7 @@ pub fn stack_tensor_data_column(
     Ok(TensorData::new(stack_data, stack_shape))
 }
 
-/// Converts an image to a tensor `[h, w, c]` Float tensor of type `f32`.
-///
-/// # Arguments
-///
-/// * `image` - The image to convert.
-/// * `device` - The device to create the tensor on.
-///
-/// # Returns
-///
-/// A tensor representation of the image with shape `[height, width, channels]`.
-pub fn image_to_f32_tensor(
-    image: &DynamicImage,
-    device: &Device,
-) -> Tensor<3> {
-    let height = image.height() as usize;
-    let width = image.width() as usize;
-    let colors = image.color().channel_count() as usize;
-    let shape = vec![height, width, colors];
-
-    let pixvec = image_to_pixeldepth_vec(image);
-    let data: Vec<f32> = pixvec
-        .iter()
-        .map(|p| pixeldepth_support::pixel_depth_to_f32(*p))
-        .collect();
-
-    Tensor::from_data(
-        TensorData::new(data, shape),
-        TensorCreationOptions::new(device.clone()).with_dtype(burn::tensor::DType::F32),
-    )
-}
+/// An image as an `f32` `[height, width, channels]` tensor: bunsen's
+/// `support::images::image_to_f32_tensor`
+/// (8-bit values over 255, 16-bit over 65535, float values as they are).
+pub use bunsen::support::images::image_to_f32_tensor;
