@@ -485,6 +485,38 @@ ZONOS3-Mini is the default; Qwen3-TTS's checkpoints add a style instruction (`--
 (`--describe`). The text is normalized as the model's release normalizes it, so `$12.50` is spoken as "twelve dollars
 fifty cents", and long text is spoken as several takes. A take is sampled; `--seed` repeats one.
 
+### Cloning a voice
+
+ZONOS3-Mini speaks in a voice cloned from recordings of a speaker. Qwen3-TTS's checkpoints clone none.
+
+```sh
+bunsen-tool tts clone ada.voice-ref ada-1.wav ada-2.mp3 --voice-dir voices
+bunsen-tool tts run --voice ada --voice-dir voices -o ada.wav "Hello, in Ada's voice."
+bunsen-tool tts voices --voice-dir voices           # stock voices, then the voice files
+```
+
+`clone` takes a reference directory to make, new or empty, and the clips: WAV, mp3, ..., at any rate and channels. Up
+to a minute of one speaker, with no music or other voices, is used. It does two steps, which also run alone:
+
+- `tts collect-voice ada.voice-ref CLIPS...` copies the clips into the reference directory as they are, with a
+  `reference.json` that records them and what you give of the voice: `--name` (the reference directory's name, less
+  `.voice-ref`, when omitted), `--language`, `--gender`, `--style` and `--transcript`. With the `live` feature,
+  `--record` adds a clip from the microphone, until Ctrl-C or `--seconds`.
+- `tts build-voice ada.voice-ref` builds the voice file from the reference for one checkpoint: `-o FILE`, or
+  `--voice-dir DIR` for `DIR/NAME.voice.safetensors`. A voice file is never written over.
+
+A voice file holds the speaker embedding, and is spoken only by checkpoints with the speaker encoder it was built with,
+so keep the reference directory: `build-voice` makes the voice again for another checkpoint. `tts run` speaks in a
+cloned voice three ways:
+
+```sh
+bunsen-tool tts run --voice ada --voice-dir voices -o out.wav "..."          # by name, from a voice directory
+bunsen-tool tts run --voice-file ada.voice.safetensors -o out.wav "..."      # a voice file
+bunsen-tool tts run --voice-reference ada.voice-ref -o out.wav "..."         # built for this run, not written
+```
+
+A stock voice's name wins over a voice file's: name a cloned voice so that it differs from the model's (`tts voices`).
+
 ## chat: Qwen3, Qwen3.5, Gemma and nanochat
 
 ```sh
