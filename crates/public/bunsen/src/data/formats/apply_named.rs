@@ -7,7 +7,6 @@ use burn::{
         ModuleAdapter,
         ModuleSnapshot,
         PathFilter,
-        PyTorchToBurnAdapter,
         burn_pack::Tensor as PackTensor,
     },
     tensor::{
@@ -17,6 +16,7 @@ use burn::{
     },
 };
 
+use super::BunsenPyTorchToBurnAdapter;
 use crate::{
     burner::module::{
         Rekey,
@@ -44,8 +44,9 @@ pub struct NamedTensorsApplied {
 ///
 /// Each name is rewritten by `rename` to the module path it loads into, or
 /// dropped when `rename` returns `None` (a buffer the module has no
-/// parameter for). The tensors are adapted by [`PyTorchToBurnAdapter`]:
-/// linear weights transposed, normalization `weight` / `bias` read as
+/// parameter for). The tensors are adapted by [`BunsenPyTorchToBurnAdapter`]
+/// (burn's `PyTorchToBurnAdapter`'s rules): linear weights transposed,
+/// normalization `weight` / `bias` read as
 /// `gamma` / `beta`. Enum variants are skipped in paths.
 ///
 /// # Errors
@@ -170,12 +171,12 @@ fn apply_in_batches<M: ModuleSnapshot>(
 
     let adapter = || -> Box<dyn ModuleAdapter> {
         match float_dtype {
-            Some(dtype) => Box::new(PyTorchToBurnAdapter.chain(FloatCastKeepingWidth {
+            Some(dtype) => Box::new(BunsenPyTorchToBurnAdapter.chain(FloatCastKeepingWidth {
                 cast: FloatCastAdapter::to(dtype),
                 target: dtype,
                 keep_width,
             })),
-            None => Box::new(PyTorchToBurnAdapter),
+            None => Box::new(BunsenPyTorchToBurnAdapter),
         }
     };
     let paths: Vec<String> = module

@@ -6,7 +6,7 @@
 //! tensors ([`mlx`]), `FermionResearch`'s Phonon formats ([`fermion`]),
 //! `NeMo`'s `.nemo` archive ([`nemo`]), and
 //! [`apply_named_tensors`], which loads any of them into a module under a
-//! kit's names, or [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to),
+//! kit's names (through [`BunsenPyTorchToBurnAdapter`]), or [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to),
 //! under a [`Rekey`](crate::burner::module::Rekey) whose targets may also
 //! change a tensor's data on the way. A [`LoadPolicy`] is the load call's
 //! choice of the float dtype the parameters are placed in.
@@ -27,6 +27,8 @@ pub mod nemo;
 #[cfg(feature = "store")]
 mod pytorch;
 #[cfg(feature = "store")]
+mod pytorch_adapter;
+#[cfg(feature = "store")]
 mod safetensors;
 
 #[cfg(feature = "store")]
@@ -35,5 +37,7 @@ pub use apply_named::*;
 pub use load_policy::*;
 #[cfg(feature = "store")]
 pub use pytorch::*;
+#[cfg(feature = "store")]
+pub use pytorch_adapter::*;
 #[cfg(feature = "store")]
 pub use safetensors::*;
