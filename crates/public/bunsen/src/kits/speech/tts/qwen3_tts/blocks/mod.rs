@@ -21,6 +21,11 @@
 //!   ([`DacDecoder`](crate::blocks::signals::DacDecoder), DAC's, its blocks and
 //!   residual units). The codec's `config.json` (its `decoder_config`) and the
 //!   codec file's `decoder.*` tensors.
+//! - **Codec streams.** The decoder also runs as a stream, a chunk of codes'
+//!   audio final at once: exact ([`Qwen3TtsCodecStreamContext`], joined the
+//!   whole decode's), or as the render decodes a take
+//!   ([`Qwen3TtsChunkedStreamContext`], joined `chunked_decode`'s, its chunk
+//!   resets and left context included).
 
 mod code_predictor;
 mod codec;
