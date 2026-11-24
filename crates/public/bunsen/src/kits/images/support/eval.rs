@@ -256,6 +256,22 @@ mod tests {
         }
     }
 
+    /// The open test photos, each a different size and aspect, through the
+    /// default transform: one `[6, 3, 224, 224]` batch of finite values.
+    #[test]
+    fn test_the_test_images_transform() {
+        let device = cpu_device();
+        let paths: Vec<_> = bunsen_test_images::ALL.iter().map(|i| i.path()).collect();
+        let batch = try_load_eval_batch(&ImageEvalTransformConfig::new(), &paths, &device).unwrap();
+        assert_eq!(batch.dims(), [6, 3, 224, 224]);
+        let values = batch
+            .into_data()
+            .convert::<f32>()
+            .try_into_vec::<f32>()
+            .unwrap();
+        assert!(values.iter().all(|v| v.is_finite()));
+    }
+
     /// Files to a batch; a bad file names its path.
     #[test]
     fn test_try_load_eval_batch() {
