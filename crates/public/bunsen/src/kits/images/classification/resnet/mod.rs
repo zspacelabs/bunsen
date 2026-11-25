@@ -17,7 +17,7 @@
 //! [`ResNetContractConfig`]'s prefabs name the 76 geometries, by timm's
 //! architecture names, and
 //! [`default_resnet_factory`](pretrained::default_resnet_factory) is the
-//! index of 140 torchvision and `timm` checkpoints: `torchvision/resnet50`,
+//! index of 145 torchvision and `timm` checkpoints: `torchvision/resnet50`,
 //! `timm/resnet50.a1_in1k`, or a bare `resnet50`.
 //!
 //! # Example
@@ -91,7 +91,6 @@
 //! * per-stage unit kinds (`test_resnet`)
 //! * `senet154`'s halved first convs and `3x3` shortcuts
 //! * the pruned ECA nets' per-conv widths (`ecaresnet50d_pruned`)
-//! * rows of the ImageNet-12k heads (`resnetaa50d.sw_in12k`): their labels
 
 pub mod pretrained;
 

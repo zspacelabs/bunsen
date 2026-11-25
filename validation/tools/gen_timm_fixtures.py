@@ -9,7 +9,8 @@ For each eval transform the rows use, timm's `transforms_imagenet_eval` (the pla
 crop_pct, crop mode, mean and std) makes the preprocessed `[images, 3, h, w]` float32 batch,
 written to the plan's `inputs` path, in the cache: local, never committed, as it is pixels.
 
-For each row, timm's own model of the row's architecture, its checkpoint loaded strictly, runs in
+For each row, timm's own model of the row's architecture and class count (its `config.json`'s;
+1000 for a torchvision row), its checkpoint loaded strictly, runs in
 float64 on the CPU on that batch. The row's fixture (committed) is the logits and the pre-logits
 features as float32, with, in the safetensors metadata, the row, the input key and the SHA-256 of
 the input batch's float32 bytes, the sample keys, their classes, and the versions below.
@@ -97,7 +98,9 @@ def main(plan_path: str) -> None:
 
     for row in plan["rows"]:
         batch, sha = inputs[row["input_key"]]
-        model = timm.create_model(row["architecture"], pretrained=False, num_classes=1000)
+        model = timm.create_model(
+            row["architecture"], pretrained=False, num_classes=row["classes"]
+        )
         timm.models.load_checkpoint(model, row["checkpoint"], strict=True)
         model = model.to(torch.float64).eval()
         with torch.no_grad():
@@ -120,8 +123,11 @@ def main(plan_path: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         save_file(tensors, str(path), metadata=metadata)
         top1 = logits.argmax(1).tolist()
-        hits = sum(int(t == int(c)) for t, c in zip(top1, labels))
-        print(row["row"], "top1", top1, f"{hits}/{len(labels)} correct", path.name)
+        if row["classes"] == 1000:
+            hits = sum(int(t == int(c)) for t, c in zip(top1, labels))
+            print(row["row"], "top1", top1, f"{hits}/{len(labels)} correct", path.name)
+        else:
+            print(row["row"], "top1", top1, f"({row['classes']} classes)", path.name)
 
 
 if __name__ == "__main__":

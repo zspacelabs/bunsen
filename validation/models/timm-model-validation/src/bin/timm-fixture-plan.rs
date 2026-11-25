@@ -48,18 +48,21 @@ fn main() {
                 .unwrap_or_else(|e| panic!("{row}'s card: {e:#}"));
             // timm's own architecture name: a hub repo's config says it; a
             // torchvision row is the timm architecture of its name.
-            let architecture = match loaded.get(CONFIG) {
+            // A torchvision row has no config: its name is the
+            // architecture, its head `ImageNet`-1k's.
+            let (architecture, classes) = match loaded.get(CONFIG) {
                 Some(config) => {
-                    timm_model_config_from_path(&config.path)
-                        .unwrap_or_else(|e| panic!("{row}'s config: {e:#}"))
-                        .architecture
+                    let config = timm_model_config_from_path(&config.path)
+                        .unwrap_or_else(|e| panic!("{row}'s config: {e:#}"));
+                    (config.architecture, config.num_classes)
                 }
-                None => row.rsplit('/').next().unwrap().to_string(),
+                None => (row.rsplit('/').next().unwrap().to_string(), 1000),
             };
             let key = input_key(&card.transform);
             serde_json::json!({
                 "row": row,
                 "architecture": architecture,
+                "classes": classes,
                 "checkpoint": loaded.expect("checkpoint").unwrap(),
                 "transform": card.transform,
                 "input_key": key,

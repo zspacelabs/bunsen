@@ -199,8 +199,10 @@ cargo catalog update --kit resnet       # then build them
 
 `timm-rows` replaces the source's lines between its `BEGIN` / `END` markers
 with a build for each repo timm publishes under one of the kit's prefab names,
-provided the repo has a `model.safetensors` and a `config.json` of the kit's
-class count. It skips a `tv_in1k` repo whose architecture has a `torchvision/`
+provided the repo has a `model.safetensors` and a `config.json` whose head has
+an `ImageNet` label set's class count (1k, 12k, 21k Google's or 21k MIIL's): the
+row binds that set's labels. A kit that loads other heads (a headless tower, a
+CLIP projection) has them written too, with no labels. It skips a `tv_in1k` repo whose architecture has a `torchvision/`
 row, since that row holds the same weights, and prints each repo it leaves
 out, with the reason. A row keeps its revision and license pins; `--refresh`
 pins every row again from the Hub.
