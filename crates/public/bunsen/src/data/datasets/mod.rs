@@ -29,6 +29,12 @@
 //! which the fetch verifies as the bytes land. A selection of shards is
 //! also a [`ResourceSet`](crate::data::resources::ResourceSet)
 //! ([`ShardSetDescriptor::to_resource_set`]).
+//!
+//! A `webdataset-shards` set ([`WEBDATASET_SHARDS_CONTRACT`]) is a shard set
+//! too: tar files, each a run of samples, whose members are a sample's files
+//! (`<key>.jpg`, `<key>.cls`). With the `store` feature,
+//! `try_read_webdataset` reads a shard's samples. `ImageNet`'s validation
+//! images, which the image validation pulls from a gated Hub mirror, are one.
 
 /// The name the datasets' contracts are gathered under, beside the kits'.
 pub const DATASETS_KIT: &str = "datasets";
@@ -41,13 +47,27 @@ pub const PARQUET_SHARDS_CONTRACT: &str = include_str!("contract.yml");
 /// catalog's `$contracts`.
 pub const PARQUET_SHARDS_CATALOG_CONTRACT: &str = "parquet-shards";
 
+/// The contract a webdataset shard set's builds are of, `webdataset-shards`:
+/// one slot, [`SHARDS`], a templated resource of tar files whose members are
+/// each sample's files (`<key>.jpg`, `<key>.cls`), read by
+/// `WebDatasetSamples` (feature `store`).
+pub const WEBDATASET_SHARDS_CONTRACT: &str = include_str!("webdataset_contract.yml");
+
+/// The contract of a webdataset shard set, by its name in the built-in
+/// catalog's `$contracts`.
+pub const WEBDATASET_SHARDS_CATALOG_CONTRACT: &str = "webdataset-shards";
+
 /// The slot a shard set's files fill.
 pub const SHARDS: &str = "shards";
 
 mod descriptor;
 #[cfg(feature = "cache")]
 mod set;
+#[cfg(feature = "store")]
+mod webdataset;
 
 pub use descriptor::*;
 #[cfg(feature = "cache")]
 pub use set::*;
+#[cfg(feature = "store")]
+pub use webdataset::*;

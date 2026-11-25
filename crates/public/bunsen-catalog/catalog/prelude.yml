@@ -18,6 +18,15 @@ $contracts:
         $description: "The shards: a templated resource, one file per index."
         $format:
           - parquet
+  webdataset-shards:
+    $kind: contract
+    $description: "A dataset as numbered webdataset shards: tar files whose members are each
+      sample's files, named `<key>.<field>`."
+    $resources:
+      shards:
+        $description: "The shards: a templated resource, one file per index."
+        $format:
+          - webdataset tar
   laya-decision:
     $kind: contract
     $description: "A Laya decision model: a ModernBERT encoder and a decision head, in one

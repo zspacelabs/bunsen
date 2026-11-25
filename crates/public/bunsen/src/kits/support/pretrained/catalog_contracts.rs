@@ -82,6 +82,10 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
             crate::data::datasets::DATASETS_KIT,
             crate::data::datasets::PARQUET_SHARDS_CONTRACT,
         ),
+        contract(
+            crate::data::datasets::DATASETS_KIT,
+            crate::data::datasets::WEBDATASET_SHARDS_CONTRACT,
+        ),
         contract(LAYA_KIT, LAYA_CONTRACT),
         contract(RESNET_KIT, RESNET_CONTRACT),
         contract(GEMMA_KIT, GEMMA_CONTRACT),
