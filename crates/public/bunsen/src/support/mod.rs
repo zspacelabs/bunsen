@@ -19,19 +19,23 @@
 //! |--------|---------------|-----|
 //! | `testing` | Test devices, seeded inputs, device-memory hygiene, float assertions. Needs the `testing` feature. | users' tests |
 //! | `audio` | `load_audio_mono_sr`: decode a mono WAV or mp3 at a required sample rate, without resampling; `Resampler` / `resample`, a windowed-sinc rate conversion the caller decides on. Needs the `audio` feature. | users (speech kits) |
+//! | `images` | `try_open_image`: decode an image file; `resize_image_exact`, a resize with one of `image`'s filters; `image_to_f32_tensor`, its pixels as a tensor. Needs the `images` feature. | users (image kits, tools) |
 //! | [`validators`] | [`try_probability`](validators::try_probability) / [`expect_probability`](validators::expect_probability), a `try_x` / `x` pair of the [errors convention]. | users |
 //! | [`geometry`] | [`GridShape2D`](geometry::GridShape2D), a `W,H` grid size that parses from a string; the sims kits' configs use it. | users, through the sims kits |
 //! | [`math`] | [`maybe_iroot`](math::maybe_iroot), the exact integer root that shape contracts solve with; [`nan_to_num`](math::nan_to_num); [`FRAC_1_SQRT_3`](math::FRAC_1_SQRT_3). | plumbing |
 //! | [`merge_patch`] | JSON merge patches (RFC 7386): [`apply`](merge_patch::apply), and the path checks over them, [`validate_paths`](merge_patch::validate_paths) and [`conflicts`](merge_patch::conflicts). | plumbing |
 //!
-//! `testing` and `audio` are listed without links because they exist only
-//! with their features; when they are on, rustdoc lists them under
-//! "Modules" below. The `testing` feature turns on `audio`.
+//! `testing`, `audio` and `images` are listed without links because they
+//! exist only with their features; when they are on, rustdoc lists them
+//! under "Modules" below. The `testing` feature turns on `audio` and
+//! `images`.
 //!
 //! [errors convention]: crate::errors#convention-try_x-and-x
 
 #[cfg(feature = "audio")]
 pub mod audio;
+#[cfg(feature = "images")]
+pub mod images;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 

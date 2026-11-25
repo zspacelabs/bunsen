@@ -84,11 +84,12 @@
 //!     Ok(())
 //! }
 //! ```
-use bunsen::errors::{
-    BunsenError,
-    BunsenErrorKind,
-    BunsenResult,
-    sys_at,
+use bunsen::{
+    errors::BunsenResult,
+    support::images::{
+        resize_image_exact,
+        try_open_image,
+    },
 };
 use bunsen_firehose::{
     core::{
@@ -271,12 +272,16 @@ impl FirehoseOperator for ImageLoader {
     ) -> BunsenResult<()> {
         let path = txn.maybe_get("path").unwrap().parse_as::<String>()?;
 
-        let mut image = image::open(&path).map_err(|e| open_error(&path, e))?;
+        let mut image = try_open_image(&path)?;
 
         if let Some(spec) = &self.resize
             && (image.width() != spec.shape.width || image.height() != spec.shape.height)
         {
-            image = image.resize_exact(spec.shape.width, spec.shape.height, spec.filter);
+            image = resize_image_exact(
+                &image,
+                [spec.shape.height as usize, spec.shape.width as usize],
+                spec.filter,
+            );
         }
 
         if let Some(color) = &self.recolor {
@@ -290,36 +295,11 @@ impl FirehoseOperator for ImageLoader {
     }
 }
 
-/// Sorts an `image::open` failure on `path` into a [`BunsenError`].
-///
-/// An I/O failure sorts by its `io::Error`, through [`sys_at`]: a missing or
-/// unreadable file is a [`Lookup`](BunsenErrorKind::Lookup). A format the
-/// build cannot decode is [`Unsupported`](BunsenErrorKind::Unsupported), and a
-/// file that does not decode is
-/// [`InvalidResource`](BunsenErrorKind::InvalidResource).
-fn open_error(
-    path: &str,
-    error: image::ImageError,
-) -> BunsenError {
-    match error {
-        image::ImageError::IoError(e) => sys_at("open image", path)(e),
-        image::ImageError::Unsupported(_) => {
-            BunsenError::from_cause(BunsenErrorKind::Unsupported, error)
-                .context(format!("opening image {path}"))
-        }
-        _ => BunsenError::from_cause(BunsenErrorKind::InvalidResource, error)
-            .context(format!("opening image {path}")),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
-    use bunsen::errors::{
-        sys_op,
-        testing::ErrorMatcher,
-    };
+    use bunsen::errors::sys_op;
     use bunsen_firehose::{
         core::{
             FirehoseRowBatch,
@@ -344,31 +324,6 @@ mod tests {
         assert_image_close,
         generate_gradient_pattern,
     };
-
-    #[test]
-    fn test_open_error_kinds() {
-        let temp_dir = tempfile::tempdir().unwrap();
-
-        let missing = temp_dir
-            .path()
-            .join("missing.png")
-            .to_string_lossy()
-            .to_string();
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .has_cause::<std::io::Error>()
-            .assert(&open_error(&missing, image::open(&missing).unwrap_err()));
-
-        let junk = temp_dir
-            .path()
-            .join("junk.png")
-            .to_string_lossy()
-            .to_string();
-        std::fs::write(&junk, b"not a png").unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
-            .frame_contains("opening image")
-            .has_cause::<image::ImageError>()
-            .assert(&open_error(&junk, image::open(&junk).unwrap_err()));
-    }
 
     #[test]
     fn test_image_loader() -> BunsenResult<()> {

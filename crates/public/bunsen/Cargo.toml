@@ -186,6 +186,16 @@ audio = [
     "dep:symphonia",
 ]
 
+## Image files, `support::images`: decoding them (`image`: JPEG, PNG and GIF),
+## resizing them with one of `image`'s filters, their pixels as a tensor. With
+## `kits`, also an image model's eval transform from a file to its input
+## (`kits::images::support::eval`); the transform's settings and its tensor
+## half (`kits::images::support::transform`, `ops::images`) need no feature.
+images = [
+    "std",
+    "dep:image",
+]
+
 ## Every tokenizer dependency, for the kits' tokenizers
 ## (`kits::support::tokens`):
 ##
@@ -250,12 +260,13 @@ flex = ["burn/flex"]
 
 
 ## Test support: `support::testing` (test devices, seeded
-## tensors, device memory, assertion helpers), with the `audio`, `tokenizer`
-## and `flex` features it needs, and `bunsen-fetch`'s test support when the
+## tensors, device memory, assertion helpers), with the `audio`, `images`,
+## `tokenizer` and `flex` features it needs, and `bunsen-fetch`'s test support when the
 ## cache is on. Not a default; bunsen's own tests turn it on through a
 ## dev-dependency on bunsen itself.
 testing = [
     "audio",
+    "images",
     "tokenizer",
     "flex",
     "bunsen-fetch?/testing",
@@ -338,6 +349,7 @@ xee-xpath = { workspace = true, optional = true }
 
 hound = { workspace = true, optional = true }
 symphonia = { workspace = true, optional = true }
+image = { workspace = true, optional = true, features = ["jpeg", "png", "gif"] }
 
 # Decode-only. `default-features = false` is the point: the default set pulls
 # a downloader, TLS and rayon, none of which turning ids into text needs.

@@ -99,7 +99,7 @@ pub enum ImageCropMode {
 /// center crop, the `ImageNet` mean and std.
 ///
 /// The transform is in two halves. Decoding and resizing need the `image`
-/// crate, and are `support::images`' (feature `images`), sized by
+/// crate, and are the `eval` module's (feature `images`), sized by
 /// [`try_resize_size`](Self::try_resize_size). The rest works on the resized
 /// `[batch, channels, height, width]` pixels in `[0, 1]`:
 /// [`try_crop_and_normalize`](Self::try_crop_and_normalize).
