@@ -66,6 +66,9 @@ pub const ROWS: &[&str] = &[
     "timm/resnet50s.gluon_in1k",
     "timm/seresnet50.a1_in1k",
     "timm/ecaresnet50d.miil_in1k",
+    "timm/resnetblur50.bt_in1k",
+    "timm/resnetaa50.a1h_in1k",
+    "timm/seresnextaa101d_32x8d.sw_in12k_ft_in1k_288",
 ];
 
 /// How many validation images a fixture covers: the first of the shard.

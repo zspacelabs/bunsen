@@ -9,6 +9,8 @@ use burn::{
     config::Config,
     module::Module,
     nn::pool::{
+        AvgPool2d,
+        AvgPool2dConfig,
         MaxPool2d,
         MaxPool2dConfig,
     },
@@ -17,10 +19,17 @@ use burn::{
 };
 
 use crate::{
-    blocks::conv::{
-        ConvBlock2d,
-        ConvBlock2dConfig,
-        ConvBlock2dMeta,
+    blocks::{
+        conv::{
+            ConvBlock2d,
+            ConvBlock2dConfig,
+            ConvBlock2dMeta,
+        },
+        images::anti_alias::{
+            BlurPool2d,
+            BlurPool2dConfig,
+            BlurPool2dMeta,
+        },
     },
     burner::module::ModuleInit,
     errors::{
@@ -44,12 +53,20 @@ pub trait ConvStemMeta {
 
 /// The stem's pool: the config of a [`ConvStemPool`].
 ///
-/// A seam: each kind is a module of its own. Built today: a max pool
-/// (`ResNet`'s `3x3`, stride 2). `ResNet-RS`'s conv pool is a further kind.
+/// A seam: each kind is a module of its own. Built: a max pool (`ResNet`'s
+/// `3x3`, stride 2), and the anti-aliased nets' (timm's `aa_layer`): an
+/// average pool, or a max pool of stride 1 and a blur of the stride.
+/// `ResNet-RS`'s conv pool is a further kind.
 #[derive(Config, Debug)]
 pub enum ConvStemPoolConfig {
     /// A max pool.
     Max(MaxPool2dConfig),
+
+    /// An average pool.
+    Avg(AvgPool2dConfig),
+
+    /// A max pool, then a blur that strides.
+    MaxBlur(MaxBlurPoolConfig),
 }
 
 impl ConvStemPoolConfig {
@@ -57,18 +74,73 @@ impl ConvStemPoolConfig {
     pub fn stride(&self) -> usize {
         match self {
             Self::Max(config) => config.strides[0],
+            Self::Avg(config) => config.strides[0],
+            Self::MaxBlur(config) => config.max.strides[0] * config.blur.stride(),
         }
+    }
+
+    /// The pool.
+    ///
+    /// # Errors
+    ///
+    /// As [`BlurPool2dConfig::try_init`].
+    pub fn try_init(&self) -> BunsenResult<ConvStemPool> {
+        Ok(match self {
+            Self::Max(config) => ConvStemPool::Max(config.init()),
+            Self::Avg(config) => ConvStemPool::Avg(config.init()),
+            Self::MaxBlur(config) => ConvStemPool::MaxBlur(MaxBlurPool {
+                max: config.max.init(),
+                blur: config.blur.try_init()?,
+            }),
+        })
     }
 }
 
-/// The stem's pool; built by [`ConvStemPoolConfig`].
+/// The config of a [`MaxBlurPool`].
+#[derive(Config, Debug)]
+pub struct MaxBlurPoolConfig {
+    /// The max pool, at stride 1 in timm's.
+    pub max: MaxPool2dConfig,
+
+    /// The blur, which strides.
+    pub blur: BlurPool2dConfig,
+}
+
+/// A max pool, then a blur that strides: an anti-aliased `ResNet`'s stem
+/// pool (timm's `MaxPool2d(3, 1, 1)` and `BlurPool2d`).
+#[derive(Module, Debug)]
+pub struct MaxBlurPool {
+    /// The max pool.
+    pub max: MaxPool2d,
+
+    /// The blur.
+    pub blur: BlurPool2d,
+}
+
+/// The stem's pool; built by [`ConvStemPoolConfig`]. No kind has
+/// parameters.
 #[derive(Module, Debug)]
 pub enum ConvStemPool {
     /// A max pool.
     Max(MaxPool2d),
+
+    /// An average pool.
+    Avg(AvgPool2d),
+
+    /// A max pool, then a blur that strides.
+    MaxBlur(MaxBlurPool),
 }
 
 impl ConvStemPool {
+    /// The pool's stride.
+    pub fn stride(&self) -> usize {
+        match self {
+            Self::Max(pool) => pool.stride[0],
+            Self::Avg(pool) => pool.stride[0],
+            Self::MaxBlur(pool) => pool.max.stride[0] * pool.blur.stride(),
+        }
+    }
+
     /// Applies the pool: `[batch, channels, height, width]` to
     /// `[batch, channels, out_height, out_width]`.
     pub fn forward(
@@ -77,6 +149,8 @@ impl ConvStemPool {
     ) -> Tensor<4> {
         match self {
             Self::Max(pool) => pool.forward(input),
+            Self::Avg(pool) => pool.forward(input),
+            Self::MaxBlur(pool) => pool.blur.forward(pool.max.forward(input)),
         }
     }
 }
@@ -160,9 +234,11 @@ impl ModuleInit<ConvStem> for ConvStemConfig {
                 .iter()
                 .map(|c| c.try_init(device))
                 .collect::<BunsenResult<_>>()?,
-            pool: self.pool.as_ref().map(|pool| match pool {
-                ConvStemPoolConfig::Max(config) => ConvStemPool::Max(config.init()),
-            }),
+            pool: self
+                .pool
+                .as_ref()
+                .map(ConvStemPoolConfig::try_init)
+                .transpose()?,
         })
     }
 }
@@ -190,10 +266,7 @@ impl ConvStemMeta for ConvStem {
 
     fn stride(&self) -> usize {
         let convs: usize = self.convs.iter().map(|c| c.stride()[0]).product();
-        convs
-            * self.pool.as_ref().map_or(1, |pool| match pool {
-                ConvStemPool::Max(pool) => pool.stride[0],
-            })
+        convs * self.pool.as_ref().map_or(1, ConvStemPool::stride)
     }
 }
 

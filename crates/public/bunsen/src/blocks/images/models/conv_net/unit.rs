@@ -32,6 +32,10 @@ use crate::{
             ConvBlock2dMeta,
         },
         images::{
+            anti_alias::{
+                AntiAlias,
+                AntiAliasConfig,
+            },
             attention::{
                 ChannelAttention,
                 ChannelAttentionConfig,
@@ -459,6 +463,11 @@ pub struct ResidualUnitConfig {
     /// drop block follows its norm.
     pub mixer: usize,
 
+    /// The anti-aliased downsampling after the mixer's activation, which then
+    /// takes the stride from the mixer (timm's `aa`).
+    #[config(default = "None")]
+    pub aa: Option<AntiAliasConfig>,
+
     /// The shortcut, when the path changes the channels or the size; else the
     /// identity.
     #[config(default = "None")]
@@ -493,7 +502,8 @@ impl ResidualUnitMeta for ResidualUnitConfig {
     }
 
     fn stride(&self) -> usize {
-        self.convs.iter().map(|c| c.stride()).product()
+        self.convs.iter().map(|c| c.stride()).product::<usize>()
+            * self.aa.as_ref().map_or(1, AntiAliasConfig::stride)
     }
 }
 
@@ -611,6 +621,11 @@ impl ModuleInit<ResidualUnit> for ResidualUnitConfig {
                 .map(|c| c.try_init(device))
                 .collect::<BunsenResult<_>>()?,
             mixer: self.mixer,
+            aa: self
+                .aa
+                .as_ref()
+                .map(AntiAliasConfig::try_init)
+                .transpose()?,
             shortcut: self
                 .shortcut
                 .as_ref()
@@ -642,8 +657,9 @@ fn drop_path_layer(
 /// A residual unit: a conv path added to a shortcut, then an activation.
 ///
 /// `act(shortcut(x) + drop_path(attn(path(x))))`, where the path runs
-/// `convs` in order and a drop block follows the mixer's norm, and `attn` is
-/// the channel attention, when there is one. The shortcut is the
+/// `convs` in order, a drop block follows the mixer's norm and the
+/// anti-aliasing pool its activation, and `attn` is the channel attention,
+/// when there is one. The shortcut is the
 /// identity when there is none. Built by [`ResidualUnitConfig`].
 ///
 /// Implements [`ResidualUnitMeta`].
@@ -654,6 +670,9 @@ pub struct ResidualUnit {
 
     /// The index in `convs` of the spatial mixer.
     pub mixer: usize,
+
+    /// The anti-aliased downsampling after the mixer.
+    pub aa: Option<AntiAlias>,
 
     /// The shortcut; the identity when none.
     pub shortcut: Option<ConvShortcut>,
@@ -681,7 +700,8 @@ impl ResidualUnitMeta for ResidualUnit {
     }
 
     fn stride(&self) -> usize {
-        self.convs.iter().map(|c| c.stride()).product()
+        self.convs.iter().map(|c| c.stride()).product::<usize>()
+            * self.aa.as_ref().map_or(1, AntiAlias::stride)
     }
 }
 
@@ -724,6 +744,11 @@ impl ResidualUnit {
                 }
                 _ => conv.forward(x),
             };
+            if idx == self.mixer
+                && let Some(aa) = &self.aa
+            {
+                x = aa.forward(x);
+            }
         }
         if let Some(attn) = &self.attn {
             x = attn.forward(x);

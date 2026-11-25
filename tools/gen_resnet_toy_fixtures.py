@@ -1,6 +1,6 @@
 """Generate the resnet kit's toy fixtures: tiny seeded timm `ResNet`s and their answers.
 
-Nine toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
+Twelve toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
 narrow stage widths (its `channels`), on timm's fixed 64-wide 7x7 stem, 10 classes (timm's
 forward runs exactly four stages):
 
@@ -20,10 +20,17 @@ forward runs exactly four stages):
   and their `avg_down` pools are timm's `AvgPool2dSame`;
 - `toy_se`: `Bottleneck`s of `(8, 16, 32, 64)` planes with timm's `'se'` attention
   (reductions of 1/16 in 8s: 8, 8, 8, 16), as a `seresnet50`'s;
-- `toy_eca`: the same with `'eca'` (kernels 3, 3, 5, 5), as an `ecaresnet50d`'s blocks.
+- `toy_eca`: the same with `'eca'` (kernels 3, 3, 5, 5), as an `ecaresnet50d`'s blocks;
+- `toy_blur`: `BasicBlock`s anti-aliased by `BlurPool2d` (the stem's max pool at stride 1,
+  then a blur), as a `resnetblur18`'s;
+- `toy_aa`: `Bottleneck`s on a deep stem with `avg_down`, anti-aliased by `nn.AvgPool2d` (the
+  stem's pool a `2x2` average), as a `resnetaa50d`'s;
+- `toy_blur_dilated`: `Bottleneck`s anti-aliased by `BlurPool2d` at `output_stride=16`: the
+  last stage's first unit blurs at stride 1 where it would have strided.
 
-The stem toys run on 36x36 images, so the stages see odd sizes (9, 5, 3) and the shortcuts'
-ceil-mode pools a partial window; the others on 32x32.
+The stem and blur toys run on 36x36 images, so the stages see odd sizes (9, 5, 3) and the shortcuts'
+ceil-mode pools a partial window; the others on 32x32. (`toy_aa` can't be odd: timm's own
+`AvgPool2d(2)` floors an odd side that its `avg_down` shortcut's ceil-mode pool rounds up.)
 
 The toy test builds each as bunsen's `ResNetContractConfig`, with the same `channels`.
 
@@ -48,6 +55,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import torch  # noqa: E402
+from timm.layers import BlurPool2d  # noqa: E402
 from timm.models.resnet import BasicBlock, Bottleneck, ResNet  # noqa: E402
 
 from toy_fixture import (  # noqa: E402
@@ -84,10 +92,21 @@ TOYS = {
     "toy_eca": dict(
         block=Bottleneck, channels=(8, 16, 32, 64), block_args=dict(attn_layer="eca"),
     ),
+    "toy_blur": dict(block=BasicBlock, channels=(8, 16, 32, 64), aa_layer=BlurPool2d),
+    "toy_aa": dict(
+        block=Bottleneck, channels=(8, 16, 32, 64), stem_type="deep", stem_width=16,
+        avg_down=True, aa_layer=torch.nn.AvgPool2d,
+    ),
+    "toy_blur_dilated": dict(
+        block=Bottleneck, channels=(8, 16, 32, 64), aa_layer=BlurPool2d, output_stride=16,
+    ),
 }
 
 # The image side of each toy: odd stage sizes for the stem toys.
-SIZES = {"toy_deep": 36, "toy_tiered": 36, "toy_dilated": 36}
+SIZES = {
+    name: 36
+    for name in ("toy_deep", "toy_tiered", "toy_dilated", "toy_blur", "toy_blur_dilated")
+}
 
 
 def norm_names(model: torch.nn.Module) -> set:

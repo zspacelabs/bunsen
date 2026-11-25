@@ -751,6 +751,30 @@ run them.
 
 * timm/seresnext101_64x4d.gluon_in1k: [354.6 MB]
   timm's `seresnext101_64x4d`, its `gluon_in1k` weights.
+
+* timm/resnetblur50.bt_in1k: [103.2 MB]
+  timm's `resnetblur50`, its `bt_in1k` weights.
+
+* timm/resnetaa50.a1h_in1k: [103.2 MB]
+  timm's `resnetaa50`, its `a1h_in1k` weights.
+
+* timm/resnetaa50d.sw_in12k_ft_in1k: [103.3 MB]
+  timm's `resnetaa50d`, its `sw_in12k_ft_in1k` weights.
+
+* timm/resnetaa101d.sw_in12k_ft_in1k: [179.5 MB]
+  timm's `resnetaa101d`, its `sw_in12k_ft_in1k` weights.
+
+* timm/seresnextaa101d_32x8d.ah_in1k: [376.0 MB]
+  timm's `seresnextaa101d_32x8d`, its `ah_in1k` weights.
+
+* timm/seresnextaa101d_32x8d.sw_in12k_ft_in1k: [376.0 MB]
+  timm's `seresnextaa101d_32x8d`, its `sw_in12k_ft_in1k` weights.
+
+* timm/seresnextaa101d_32x8d.sw_in12k_ft_in1k_288: [376.0 MB]
+  timm's `seresnextaa101d_32x8d`, its `sw_in12k_ft_in1k_288` weights.
+
+* timm/seresnextaa201d_32x8d.sw_in12k_ft_in1k_384: [599.9 MB]
+  timm's `seresnextaa201d_32x8d`, its `sw_in12k_ft_in1k_384` weights.
 ```
 
 <!-- /card -->
