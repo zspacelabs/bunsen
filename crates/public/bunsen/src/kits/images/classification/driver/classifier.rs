@@ -10,9 +10,15 @@ use burn::{
     tensor::activation::softmax,
 };
 
-use crate::kits::images::support::{
-    encoder::ImageEncoder,
-    labels::ImageLabelSet,
+use crate::{
+    blocks::images::models::conv_net::{
+        ConvNetMeta,
+        ConvNetModel,
+    },
+    kits::images::support::{
+        encoder::ImageEncoder,
+        labels::ImageLabelSet,
+    },
 };
 
 /// An image classifier: an [`ImageEncoder`] with a head that scores each
@@ -29,6 +35,21 @@ pub trait ImageClassifier: ImageEncoder {
         &self,
         images: Tensor<4>,
     ) -> Tensor<2>;
+}
+
+/// The generic conv net as an image classifier: its head's logits
+/// ([`ConvNetModel::forward`]).
+impl ImageClassifier for ConvNetModel {
+    fn n_classes(&self) -> usize {
+        self.num_classes()
+    }
+
+    fn forward_logits(
+        &self,
+        images: Tensor<4>,
+    ) -> Tensor<2> {
+        self.forward(images)
+    }
 }
 
 /// One of a row's top classes.
@@ -109,7 +130,55 @@ pub fn top_k(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        blocks::images::models::conv_net::{
+            ConvNetContractConfig,
+            ConvStageContractConfig,
+            ConvStemContractConfig,
+            ConvUnitKind,
+        },
+        burner::module::ModuleInit,
+        kits::images::support::encoder::ImageFeatures,
+        support::testing::cpu_device,
+    };
+
+    /// The conv net through the seam: the stem's and the stages' maps at
+    /// timm's strides, pooled features of the head's width, the head's
+    /// classes, all through a `dyn ImageClassifier`.
+    #[test]
+    fn test_the_conv_net_is_an_image_classifier() {
+        let device = cpu_device();
+        let model: ConvNetModel = ConvNetContractConfig::new(
+            ConvStemContractConfig::new(vec![8]),
+            vec![
+                ConvStageContractConfig::new(1, ConvUnitKind::Basic, 8, 8).with_stride(1),
+                ConvStageContractConfig::new(1, ConvUnitKind::Basic, 16, 16),
+            ],
+            7,
+        )
+        .init(&device);
+        let classifier: &dyn ImageClassifier = &model;
+        let images = Tensor::<4>::zeros([2, 3, 32, 32], &device);
+
+        assert_eq!(classifier.input_channels(), 3);
+        assert_eq!(classifier.n_classes(), 7);
+        assert_eq!(classifier.d_features(), 16);
+        let stages: Vec<_> = classifier
+            .forward_intermediates(images.clone())
+            .iter()
+            .map(|x| x.dims())
+            .collect();
+        assert_eq!(stages, [[2, 8, 16, 16], [2, 8, 8, 8], [2, 16, 4, 4]]);
+        let ImageFeatures::Spatial(features) = classifier.forward_features(images.clone()) else {
+            panic!("a conv net's features are spatial");
+        };
+        assert_eq!(features.dims(), [2, 16, 4, 4]);
+        assert_eq!(classifier.forward_pooled(images.clone()).dims(), [2, 16]);
+        classifier
+            .forward_logits(images.clone())
+            .to_data()
+            .assert_eq(&model.forward(images).to_data(), true);
+    }
 
     /// The top classes, most probable first, with their softmax
     /// probabilities and their labels.

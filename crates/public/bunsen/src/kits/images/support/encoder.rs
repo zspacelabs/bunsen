@@ -6,6 +6,11 @@ use core::fmt::Debug;
 
 use burn::Tensor;
 
+use crate::blocks::images::models::conv_net::{
+    ConvNetMeta,
+    ConvNetModel,
+};
+
 /// An image encoder's unpooled output: a conv net's feature map, or a
 /// transformer's tokens.
 #[derive(Debug, Clone)]
@@ -64,4 +69,38 @@ pub trait ImageEncoder: Debug + Send + Sync {
         &self,
         images: Tensor<4>,
     ) -> Vec<Tensor<4>>;
+}
+
+/// The generic conv net as an image encoder: its unpooled features are the
+/// last stage's map, and its stages are timm's `feature_info` for a conv
+/// net, the stem's convs (stride 2 on a `ResNet`) and then each stage.
+impl ImageEncoder for ConvNetModel {
+    fn input_channels(&self) -> usize {
+        self.in_channels()
+    }
+
+    fn d_features(&self) -> usize {
+        ConvNetMeta::d_features(self)
+    }
+
+    fn forward_features(
+        &self,
+        images: Tensor<4>,
+    ) -> ImageFeatures {
+        ImageFeatures::Spatial(self.feature_map(images))
+    }
+
+    fn forward_pooled(
+        &self,
+        images: Tensor<4>,
+    ) -> Tensor<2> {
+        self.pooled_features(images)
+    }
+
+    fn forward_intermediates(
+        &self,
+        images: Tensor<4>,
+    ) -> Vec<Tensor<4>> {
+        self.stage_maps(images)
+    }
 }
