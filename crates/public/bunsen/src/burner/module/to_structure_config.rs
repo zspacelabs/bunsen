@@ -34,10 +34,10 @@ use crate::{
 /// - [`SileroVadSignalConfig`] and [`SileroVadStftConfig`] are two chained
 ///   policies. The inherent [`to_stft`] refines the first into the second, and
 ///   both name [`SileroVadStructureConfig`] as their `Structure`.
-/// - [`SwinTransformerV2ContractConfig`] has a fallible lowering: its
+/// - [`SwinV2ContractConfig`] has a fallible lowering onto a generic model: its
 ///   `try_to_structure` is where the policy is validated, and it returns an
-///   [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error for stages that
-///   do not fit the input or the window.
+///   [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error for stages
+///   whose heads do not divide their width.
 ///
 /// The trait is in [`crate::prelude`], next to `ModuleInit`.
 ///
@@ -119,7 +119,7 @@ use crate::{
 /// [`SileroVadStftConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStftConfig
 /// [`SileroVadStructureConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStructureConfig
 /// [`to_stft`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig::to_stft
-/// [`SwinTransformerV2ContractConfig`]: crate::kits::images::classification::swin::v2::SwinTransformerV2ContractConfig
+/// [`SwinV2ContractConfig`]: crate::kits::images::classification::swin::v2::SwinV2ContractConfig
 pub trait ToStructureConfig {
     /// The structure config this policy lowers to.
     type Structure;

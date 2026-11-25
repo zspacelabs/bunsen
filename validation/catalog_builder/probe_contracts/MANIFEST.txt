@@ -9,6 +9,7 @@ imagenet.yml kits
 resnet.yml kits
 vit.yml kits
 deit.yml kits
+swin-v2.yml kits
 gemma.yml kits
 nanochat.yml kits
 qwen3.yml kits

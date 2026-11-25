@@ -5,10 +5,13 @@ extern crate core;
 use std::sync::Arc;
 
 use bunsen::{
-    blocks::images::drop::drop_block::{
-        DropBlock2d,
-        DropBlock2dConfig,
-        DropBlockOptions,
+    blocks::{
+        images::drop::drop_block::{
+            DropBlock2d,
+            DropBlock2dConfig,
+            DropBlockOptions,
+        },
+        transformers::models::staged_vision_encoder::StagedVisionEncoderModel,
     },
     burner::module::ModuleInit,
     errors::{
@@ -16,11 +19,7 @@ use bunsen::{
         BunsenResult,
         ResultContext,
     },
-    kits::images::classification::swin::v2::{
-        LayerConfig,
-        SwinTransformerV2,
-        SwinTransformerV2ContractConfig,
-    },
+    kits::images::classification::swin::v2::SwinV2ContractConfig,
 };
 use bunsen_app::device::{
     DeviceArgs,
@@ -205,9 +204,8 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
     // Training records gradients: autodiff before the model and inputs.
     let device: Device = args.device.init(&DevicePrefs::training())?;
 
-    let h: usize = 32;
-    let w: usize = 32;
-    let image_dimensions = [h, w];
+    // Square 32x32 images.
+    let image_size: usize = 32;
     let image_channels: usize = 3;
     let num_classes: usize = 10;
 
@@ -215,17 +213,21 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
     let window_size: usize = 4;
     let embed_dim = ((image_channels * patch_size.pow(2)) as f64 * args.embed_ratio) as usize;
 
-    let swin_config = SwinTransformerV2ContractConfig::new(
-        image_dimensions,
-        patch_size,
-        image_channels,
-        num_classes,
+    // Two stages of 8 blocks (6 and 12 heads): an 8x8 grid of patches, then
+    // 4x4 after the merge, in 4x4 windows.
+    let swin_config = SwinV2ContractConfig::new(
+        image_size,
         embed_dim,
-        vec![LayerConfig::new(8, 6), LayerConfig::new(8, 12)],
+        vec![8, 8],
+        vec![6, 12],
+        window_size,
+        num_classes,
     )
-    .with_window_size(window_size)
+    .with_patch_size(patch_size)
+    .with_in_channels(image_channels)
     .with_attn_drop_rate(0.2)
-    .with_drop_rate(0.2);
+    .with_drop_rate(0.2)
+    .with_drop_path_rate(0.1);
 
     device.seed(args.seed);
 
@@ -407,7 +409,7 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
 #[derive(Config, Debug)]
 pub struct ModelConfig {
     pub drop_block: DropBlock2dConfig,
-    pub swin: SwinTransformerV2ContractConfig,
+    pub swin: SwinV2ContractConfig,
 }
 
 impl ModuleInit<Model> for ModelConfig {
@@ -425,7 +427,7 @@ impl ModuleInit<Model> for ModelConfig {
 #[derive(Module, Debug)]
 pub struct Model {
     pub drop_block: DropBlock2d,
-    pub swin: SwinTransformerV2,
+    pub swin: StagedVisionEncoderModel,
 }
 
 impl Model {

@@ -15,7 +15,7 @@
 //! |---|---|
 //! | [`language::decision::laya`] | Laya, an open decision model: a `ModernBERT` encoder and a head that answers typed questions with calibrated probabilities over their options. |
 //! | [`images::classification::resnet`] | `ResNet` image classifiers, with 140 torchvision and `timm` checkpoints by name. |
-//! | [`images::classification::swin::v2`] | Swin Transformer V2 image classifiers: configs and model, no pretrained weights. |
+//! | [`images::classification::swin::v2`] | Swin Transformer V2 image classifiers, the generic staged vision encoder, with 12 `timm` checkpoints by name. |
 //! | [`language::generation::nanochat`] | karpathy's nanochat GPT, upstream's 2025 and 2026 models: a pretrained index of community checkpoints (`nanochat-students/rl-d20` by default), upstream's own checkpoint files loaded as they are, cached decoding, and the corpus it trains on. |
 //! | [`language::generation::qwen3_5`] | The dense Qwen3.5 decoder, a hybrid of gated `DeltaNet` and gated full-attention layers: a pretrained index of its 0.8B to 27B checkpoints' text models (`qwen/qwen3.5-0.8b` by default), and cached decoding through a KV cache and the linear layers' states. |
 //! | [`language::generation::qwen3`] | The Qwen3 decoder: a pretrained index of the dense Qwen3 checkpoints up to 8B (`qwen/qwen3-0.6b` by default), and the text model of [`speech::asr::qwen3_asr`]. |
@@ -119,8 +119,9 @@
 //! | Example | `examples/resnet_finetune`, `examples/resnet_tiny` | `bunsen-tool asr` | `bunsen-tool asr`, as the VAD gate | `bunsen-tool asr` | `bunsen-tool asr` | none | `bunsen-tool chat` | `bunsen-tool chat` | `bunsen-tool chat` | `bunsen-tool asr` | `examples/train-chat` | none | none |
 //!
 //! The other kits have a model, its configs, and an example, and no prefabs
-//! or weights. Swin is Stacked
-//! (`examples/swin_tiny`). `NanoChat` is Stacked too, and adds a table of
+//! or weights. Swin V2 is Stacked, and trains in `examples/swin_tiny`; it
+//! has timm's weights too, but no table of its own here, as `ViT` and `DeiT`
+//! have none. `NanoChat` is Stacked too, and adds a table of
 //! the corpus it trains on, a [`data::datasets`](crate::data::datasets) shard
 //! set (`examples/train-chat`).
 //!
@@ -154,8 +155,8 @@
 //!   A kit's module is named for its model, as close to the model's own name as
 //!   a Rust identifier allows, even when that repeats its group
 //!   ([`speech::asr::qwen3_asr`]). An op that only one kit uses lives in that
-//!   kit's `ops` ([`images::classification::swin::ops`]). A kit is found by
-//!   what it is, and kit-only code stays out of the shared layers.
+//!   kit's `ops`. A kit is found by what it is, and kit-only code stays out of
+//!   the shared layers.
 //! - **A loaded model is immutable.** Decode and stream state is a context or a
 //!   cache that the caller creates and passes back in
 //!   ([`WhisperStreamContext`](speech::asr::whisper::driver::WhisperStreamContext)),

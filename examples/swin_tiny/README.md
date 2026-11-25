@@ -9,8 +9,8 @@ additionally applies DropBlock regularization to the model.
 
 ## Bunsen features exercised
 
-- `bunsen::kits::images::classification::swin::v2` — the `SwinTransformerV2` model with
-  `SwinTransformerV2ContractConfig` / `LayerConfig`.
+- `bunsen::kits::images::classification::swin::v2` — `SwinV2ContractConfig`, the Swin V2
+  policy, building the generic `StagedVisionEncoderModel`.
 - `bunsen::blocks::images::drop::drop_block` — the `DropBlock2d` /
   `DropBlock2dConfig` structured-dropout regularizer.
 - `bunsen::burner::module::ModuleInit` — module initialization.

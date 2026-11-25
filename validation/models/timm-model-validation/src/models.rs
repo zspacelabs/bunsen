@@ -346,4 +346,22 @@ mod timm {
     fn deit3_small_patch16_224_fb_in1k() {
         check_row("timm/deit3_small_patch16_224.fb_in1k");
     }
+
+    #[test]
+    #[serial_test::serial]
+    fn swinv2_tiny_window8_256_ms_in1k() {
+        check_row("timm/swinv2_tiny_window8_256.ms_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn swinv2_tiny_window16_256_ms_in1k() {
+        check_row("timm/swinv2_tiny_window16_256.ms_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn swinv2_base_window12to16_192to256_ms_in22k_ft_in1k() {
+        check_row("timm/swinv2_base_window12to16_192to256.ms_in22k_ft_in1k");
+    }
 }
