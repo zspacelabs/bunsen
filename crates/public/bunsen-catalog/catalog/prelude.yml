@@ -134,6 +134,47 @@ $contracts:
       $kind: type
       $description: A `ViTContractConfig`, as it serializes.
       $type: $object
+  deit-classifier:
+    $kind: contract
+    $description: "A DeiT image classifier: a timm hub repo's checkpoint (safetensors, or an older
+      repo's PyTorch state dict) and `config.json`."
+    $resources:
+      checkpoint:
+        $description: "The state dict: a timm hub repo's `model.safetensors`, or an older repo's
+          `pytorch_model.bin`."
+        $format:
+          - safetensors
+          - pytorch fp32
+      config:
+        $description: "A timm hub repo's `config.json`: its architecture, classes, pool and eval
+          transform."
+        $format:
+          - json
+        $optional: true
+      label_names:
+        $description: Each synset's lemmas, its readable name.
+        $format:
+          - synset-lemmas
+        $optional: true
+      labels:
+        $description: "The class labels: one `WordNet` synset per class, in class order."
+        $format:
+          - synsets
+        $optional: true
+    $args:
+      eval_transform:
+        $description: "The eval transform its images go through: an `ImageEvalTransformConfig`, as
+          it serializes."
+        $type: $object
+        $optional: true
+      geometry:
+        $description: The network's geometry; without it, `config.json`'s architecture.
+        $type: geometry
+        $optional: true
+    geometry:
+      $kind: type
+      $description: A `DeiTContractConfig`, as it serializes.
+      $type: $object
   gemma-lm:
     $kind: contract
     $description: "A Gemma 1, 2 or 3 text model, as transformers lays it out: its geometry from

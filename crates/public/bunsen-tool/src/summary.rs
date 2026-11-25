@@ -203,6 +203,10 @@ pub fn kinds() -> BunsenResult<Vec<Kind>> {
                     "vit",
                     bunsen::kits::images::classification::vit::pretrained::default_vit_factory()?,
                 ),
+                Family::of(
+                    "deit",
+                    bunsen::kits::images::classification::deit::pretrained::default_deit_factory()?,
+                ),
             ],
         },
     ]);

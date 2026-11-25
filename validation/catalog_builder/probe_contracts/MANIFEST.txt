@@ -8,6 +8,7 @@ laya.yml kits
 imagenet.yml kits
 resnet.yml kits
 vit.yml kits
+deit.yml kits
 gemma.yml kits
 nanochat.yml kits
 qwen3.yml kits

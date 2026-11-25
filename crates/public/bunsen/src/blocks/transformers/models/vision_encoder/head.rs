@@ -33,8 +33,8 @@ use crate::{
 /// The pool over a vision transformer's tokens, timm's `global_pool_nlc`
 /// kinds: the config of a [`TokenPool`].
 ///
-/// Every kind but [`Token`](Self::Token) reduces the patch tokens alone,
-/// the prefix tokens left out.
+/// The reducing kinds take the patch tokens alone, the prefix tokens left
+/// out.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum TokenPoolConfig {
     /// The class token, the sequence's first (timm's `token`).
@@ -48,6 +48,11 @@ pub enum TokenPoolConfig {
 
     /// The mean of the two (timm's `avgmax`).
     AvgMax,
+
+    /// The class and distillation tokens, the first two: their mean pooled,
+    /// each through its own classifier, the two logits averaged (timm's
+    /// `VisionTransformerDistilled`, `DeiT`'s distilled models).
+    Distilled,
 }
 
 impl TokenPoolConfig {
@@ -66,7 +71,18 @@ impl TokenPoolConfig {
     /// Whether timm normalises after this pool rather than before it: its
     /// `fc_norm` default, on for the reducing pools.
     pub fn timm_fc_norm(self) -> bool {
-        !matches!(self, Self::Token)
+        matches!(self, Self::Avg | Self::Max | Self::AvgMax)
+    }
+
+    /// The prefix tokens the pool reads: the class token for
+    /// [`Token`](Self::Token), it and the distillation token for
+    /// [`Distilled`](Self::Distilled), none for the reducing pools.
+    pub fn prefix_read(self) -> usize {
+        match self {
+            Self::Token => 1,
+            Self::Distilled => 2,
+            Self::Avg | Self::Max | Self::AvgMax => 0,
+        }
     }
 }
 
@@ -100,6 +116,7 @@ impl TokenPool {
         let patches = || tokens.clone().slice(s![.., self.n_prefix..n]);
         let pooled: Tensor<3> = match self.kind {
             TokenPoolConfig::Token => tokens.clone().slice(s![.., 0..1]),
+            TokenPoolConfig::Distilled => tokens.clone().slice(s![.., 0..2]).mean_dim(1),
             TokenPoolConfig::Avg => patches().mean_dim(1),
             TokenPoolConfig::Max => patches().max_dim(1),
             TokenPoolConfig::AvgMax => (patches().max_dim(1) + patches().mean_dim(1)) * 0.5,
@@ -143,8 +160,8 @@ impl ModuleInit<VisionHead> for VisionHeadConfig {
     /// # Errors
     ///
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a zero
-    /// width, a class-token pool with no prefix, or a dropout that is not a
-    /// probability.
+    /// width, a pool reading more prefix tokens than there are, a norm after
+    /// a distilled pool, or a dropout that is not a probability.
     fn try_init(
         &self,
         device: &Device,
@@ -152,9 +169,17 @@ impl ModuleInit<VisionHead> for VisionHeadConfig {
         if self.d_model == 0 {
             return Err(ConstraintError::zero_or_empty("VisionHeadConfig", "d_model").into());
         }
-        if self.pool == TokenPoolConfig::Token && self.n_prefix == 0 {
+        let read = self.pool.prefix_read();
+        if read > self.n_prefix {
+            return Err(BunsenError::illegal(alloc::format!(
+                "a {:?} pool reads {read} prefix tokens: the head has {}",
+                self.pool,
+                self.n_prefix
+            )));
+        }
+        if self.pool == TokenPoolConfig::Distilled && self.fc_norm.is_some() {
             return Err(BunsenError::illegal(
-                "a class-token pool needs a class token: the head has no prefix tokens",
+                "a distilled head has no norm after its pool",
             ));
         }
         try_probability(self.drop_rate)?;
@@ -172,12 +197,16 @@ impl ModuleInit<VisionHead> for VisionHeadConfig {
             drop: (self.drop_rate != 0.0).then(|| DropoutConfig::new(self.drop_rate).init()),
             fc: (self.num_classes > 0)
                 .then(|| LinearConfig::new(self.d_model, self.num_classes).init(device)),
+            fc_dist: (self.num_classes > 0 && self.pool == TokenPoolConfig::Distilled)
+                .then(|| LinearConfig::new(self.d_model, self.num_classes).init(device)),
         })
     }
 }
 
 /// A vision transformer's head: a pool over the tokens, a norm, a dropout,
-/// then a linear layer, timm's `VisionTransformer.forward_head`. Built by
+/// then a linear layer, timm's `VisionTransformer.forward_head`; for a
+/// [`Distilled`](TokenPoolConfig::Distilled) pool, a classifier on each of
+/// the class and distillation tokens, averaged. Built by
 /// [`VisionHeadConfig`].
 #[derive(Module, Debug)]
 pub struct VisionHead {
@@ -195,6 +224,10 @@ pub struct VisionHead {
 
     /// The classifier (timm's `head`); `None` for a headless model.
     pub fc: Option<Linear>,
+
+    /// A distilled head's classifier on the distillation token (timm's
+    /// `head_dist`).
+    pub fc_dist: Option<Linear>,
 }
 
 impl VisionHead {
@@ -225,36 +258,45 @@ impl VisionHead {
         }
     }
 
-    /// The logits of pooled features, through the dropout; the features
-    /// themselves for a headless model.
+    /// `fc`'s logits of `x`, through the dropout; `x` itself with no `fc`.
+    fn classify(
+        &self,
+        fc: Option<&Linear>,
+        x: Tensor<2>,
+    ) -> Tensor<2> {
+        let x = match &self.drop {
+            Some(drop) => drop.forward(x),
+            None => x,
+        };
+        match fc {
+            Some(fc) => fc.forward(x),
+            None => x,
+        }
+    }
+
+    /// The logits: the classifier over the pooled features, through the
+    /// dropout; for a distilled head, the mean of the classifier over the
+    /// class token and the distillation classifier over the distillation
+    /// token; the pooled features for a headless model.
     ///
     /// # Arguments
     ///
-    /// - `pooled`: `[batch, d]`.
+    /// - `tokens`: `[batch, n_prefix + patches, d]`.
     ///
     /// # Returns
     ///
     /// `[batch, num_classes]`, or `[batch, d]` for a headless model.
-    pub fn classify(
-        &self,
-        pooled: Tensor<2>,
-    ) -> Tensor<2> {
-        let pooled = match &self.drop {
-            Some(drop) => drop.forward(pooled),
-            None => pooled,
-        };
-        match &self.fc {
-            Some(fc) => fc.forward(pooled),
-            None => pooled,
-        }
-    }
-
-    /// [`pool`](Self::pool), then [`classify`](Self::classify).
     pub fn forward(
         &self,
         tokens: Tensor<3>,
     ) -> Tensor<2> {
-        self.classify(self.pool(tokens))
+        match (&self.fc, &self.fc_dist) {
+            (Some(fc), Some(fc_dist)) => {
+                let token = |i: usize| tokens.clone().slice(s![.., i..i + 1]).squeeze_dim::<2>(1);
+                (self.classify(Some(fc), token(0)) + self.classify(Some(fc_dist), token(1))) * 0.5
+            }
+            (fc, _) => self.classify(fc.as_ref(), self.pool(tokens)),
+        }
     }
 
     /// The head re-initialized for `num_classes` classes (0: headless), on
@@ -264,9 +306,10 @@ impl VisionHead {
         num_classes: usize,
         device: &Device,
     ) -> Self {
+        let linear = || LinearConfig::new(self.d_model, num_classes).init(device);
         Self {
-            fc: (num_classes > 0)
-                .then(|| LinearConfig::new(self.d_model, num_classes).init(device)),
+            fc: (num_classes > 0).then(linear),
+            fc_dist: (num_classes > 0 && self.pool.kind == TokenPoolConfig::Distilled).then(linear),
             ..self
         }
     }
@@ -311,6 +354,53 @@ mod tests {
         assert_eq!(TokenPoolConfig::from_timm("map"), None);
     }
 
+    /// The distilled pool is the mean of the first two tokens; its logits the
+    /// mean of its two classifiers'.
+    #[test]
+    fn test_distilled_head() {
+        let device = cpu_device();
+        let tokens = Tensor::<3>::from_data(
+            TensorData::new(alloc::vec![1f32, 2., 5., 6., 9., 9.], [1, 3, 2]),
+            &device,
+        );
+        let mut head: VisionHead = VisionHeadConfig::new(2, 1, 2)
+            .with_pool(TokenPoolConfig::Distilled)
+            .init(&device);
+        assert_eq!(
+            head.pool(tokens.clone())
+                .into_data()
+                .try_to_vec::<f32>()
+                .unwrap(),
+            [3., 4.]
+        );
+        let linear = |w: [f32; 2], b: f32| {
+            let mut fc = LinearConfig::new(2, 1).init(&device);
+            fc.weight = burn::module::Param::from_tensor(Tensor::from_data(
+                TensorData::new(w.to_vec(), [2, 1]),
+                &device,
+            ));
+            fc.bias = Some(burn::module::Param::from_tensor(Tensor::from_data(
+                TensorData::new(alloc::vec![b], [1]),
+                &device,
+            )));
+            fc
+        };
+        head.fc = Some(linear([1., 0.], 0.));
+        head.fc_dist = Some(linear([0., 1.], 1.));
+        // (1 + (6 + 1)) / 2
+        assert_eq!(
+            head.forward(tokens)
+                .into_data()
+                .try_to_vec::<f32>()
+                .unwrap(),
+            [4.]
+        );
+        let headless: VisionHead = VisionHeadConfig::new(2, 0, 2)
+            .with_pool(TokenPoolConfig::Distilled)
+            .init(&device);
+        assert!(headless.fc_dist.is_none());
+    }
+
     /// A headless head passes its pooled features through; a class-token
     /// pool needs a prefix.
     #[test]
@@ -318,10 +408,12 @@ mod tests {
         let device = cpu_device();
         let head: VisionHead = VisionHeadConfig::new(2, 0, 1).init(&device);
         assert_eq!(head.num_classes(), 0);
-        let pooled =
-            Tensor::<2>::from_data(TensorData::new(alloc::vec![1f32, 2.], [1, 2]), &device);
+        let tokens = Tensor::<3>::from_data(
+            TensorData::new(alloc::vec![1f32, 2., 5., 6.], [1, 2, 2]),
+            &device,
+        );
         assert_eq!(
-            head.classify(pooled)
+            head.forward(tokens)
                 .into_data()
                 .try_to_vec::<f32>()
                 .unwrap(),
@@ -331,7 +423,7 @@ mod tests {
         assert_eq!(head.num_classes(), 5);
         assert_eq!(head.with_classes(3, &device).num_classes(), 3);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
-            .message_contains("needs a class token")
+            .message_contains("reads 1 prefix tokens: the head has 0")
             .assert_err(&ModuleInit::<VisionHead>::try_init(
                 &VisionHeadConfig::new(2, 5, 0),
                 &device,

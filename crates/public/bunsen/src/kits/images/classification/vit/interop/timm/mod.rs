@@ -10,7 +10,8 @@
 //! - **Names:** [`vit_row_splits`] (the fused `qkv`, split) and [`vit_rekey`],
 //!   onto the model's canonical names.
 //! - **Loading** (feature `store`): `load_vit_tensors`; with `cache`,
-//!   `load_vit`, a resource set's safetensors checkpoint.
+//!   `load_vit`, a resource set's checkpoint into a model it builds, and
+//!   `load_vit_into`, into one a family built.
 
 use alloc::format;
 
@@ -37,23 +38,36 @@ mod weights;
 pub use weights::*;
 
 /// The [`ViTContractConfig`] a timm `config.json` describes: the prefab of
-/// its architecture's name (`vit_base_patch16_224`, …), with its class count
-/// (0 for a headless tower), its global pool, and its input size, the size
-/// the position embedding is learnt for.
+/// its architecture's name (`vit_base_patch16_224`, …), with the config's
+/// classes, pool and size ([`with_timm_config`]).
 ///
 /// # Errors
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for an
-/// architecture the kit has no prefab of, a pool the head doesn't build
-/// (`map`, `''`), or an input that isn't square or has other channels than
-/// the architecture's.
+/// architecture the kit has no prefab of; as [`with_timm_config`].
 pub fn vit_contract_config(config: &TimmModelConfigMirror) -> BunsenResult<ViTContractConfig> {
     let architecture = config.architecture.as_str();
-    let mut contract = ViTContractConfig::prefab(architecture).ok_or_else(|| {
+    let contract = ViTContractConfig::prefab(architecture).ok_or_else(|| {
         BunsenError::unsupported(format!(
             "timm's {architecture}: the vit kit builds {}",
             ViTContractConfig::prefab_names().join(", ")
         ))
     })?;
+    with_timm_config(contract, config)
+}
+
+/// `contract`, the geometry of a timm `config.json`'s architecture, with
+/// the config's class count (0 for a headless tower), its global pool, and
+/// its input size, the size the position embedding is learnt for.
+///
+/// # Errors
+/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a pool
+/// the head doesn't build (`map`, `''`), or an input that isn't square or
+/// has other channels than the architecture's.
+pub fn with_timm_config(
+    mut contract: ViTContractConfig,
+    config: &TimmModelConfigMirror,
+) -> BunsenResult<ViTContractConfig> {
+    let architecture = config.architecture.as_str();
     if let Some(pool) = config.global_pool.as_deref() {
         contract.global_pool = TokenPoolConfig::from_timm(pool).ok_or_else(|| {
             BunsenError::unsupported(format!(
@@ -98,6 +112,7 @@ pub fn vit_row_splits() -> [TensorLoadRowSplit; 2] {
 /// |---|---|
 /// | `patch_embed.proj` | `patch_embed.projection` |
 /// | `cls_token`, `reg_token`, `pos_embed` | `tokens.cls_token`, `tokens.reg_token`, `tokens.pos_embed` |
+/// | a distilled `ViT`'s `dist_token`, `head_dist` (`DeiT`'s) | `tokens.dist_token`, `head.fc_dist` |
 /// | `norm_pre` | `stack.input_norm` |
 /// | `blocks.{i}` | `stack.layers.{i}` |
 /// | a block's `norm1`, `norm2` | its `attn_norm`, `mlp_norm` |
@@ -133,6 +148,8 @@ pub fn vit_rekey() -> Rekey {
         .rename("patch_embed.proj.", "patch_embed.projection.")
         .exact("cls_token", "tokens.cls_token")
         .exact("reg_token", "tokens.reg_token")
+        .exact("dist_token", "tokens.dist_token")
+        .rename("head_dist.", "head.fc_dist.")
         .exact("pos_embed", "tokens.pos_embed")
         .rename("norm_pre.", "stack.input_norm.")
         .rename("fc_norm.", "head.fc_norm.")
@@ -235,6 +252,8 @@ mod tests {
             ("norm.weight", "stack.norm.weight"),
             ("fc_norm.bias", "head.fc_norm.bias"),
             ("head.weight", "head.fc.weight"),
+            ("dist_token", "tokens.dist_token"),
+            ("head_dist.bias", "head.fc_dist.bias"),
         ] {
             assert_eq!(rekey.apply(timm).as_deref(), Some(bunsen), "{timm}");
         }

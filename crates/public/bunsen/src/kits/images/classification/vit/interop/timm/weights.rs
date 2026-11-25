@@ -53,10 +53,8 @@ pub fn load_vit_tensors(
 /// `policy` asks.
 ///
 /// # Errors
-/// As [`SafetensorsCheckpoint::tensors`](crate::data::formats::SafetensorsCheckpoint::tensors)
-/// or [`read_pytorch_tensors`](crate::data::formats::read_pytorch_tensors)
-/// reading the file; otherwise as [`load_vit_tensors`], under a frame naming
-/// the file, and [`LoadPolicy::place`](crate::data::formats::LoadPolicy::place).
+/// As [`ModuleInit::try_init`](crate::burner::module::ModuleInit::try_init)
+/// of `config`, and as [`load_vit_into`].
 #[cfg(feature = "cache")]
 pub fn load_vit(
     loaded: &crate::data::resources::LoadedResourceSet,
@@ -64,8 +62,28 @@ pub fn load_vit(
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<VisionEncoderModel> {
+    use crate::burner::module::ModuleInit;
+    load_vit_into(loaded, config.try_init(device)?, device, policy)
+}
+
+/// `model`, with `loaded`'s timm checkpoint (its `checkpoint`: a
+/// `model.safetensors`, or an older repo's `pytorch_model.bin`, as its
+/// format says) read into it: the file's precision, or wider as `policy`
+/// asks. A `ViT` family's loader builds its model, then reads into it here.
+///
+/// # Errors
+/// As [`SafetensorsCheckpoint::tensors`](crate::data::formats::SafetensorsCheckpoint::tensors)
+/// or [`read_pytorch_tensors`](crate::data::formats::read_pytorch_tensors)
+/// reading the file; otherwise as [`load_vit_tensors`], under a frame naming
+/// the file, and [`LoadPolicy::place`](crate::data::formats::LoadPolicy::place).
+#[cfg(feature = "cache")]
+pub fn load_vit_into(
+    loaded: &crate::data::resources::LoadedResourceSet,
+    mut model: VisionEncoderModel,
+    device: &burn::tensor::Device,
+    policy: crate::data::formats::LoadPolicy,
+) -> BunsenResult<VisionEncoderModel> {
     use crate::{
-        burner::module::ModuleInit,
         data::{
             formats::{
                 SafetensorsCheckpoint,
@@ -79,11 +97,10 @@ pub fn load_vit(
     let path = loaded.expect(CHECKPOINT)?;
     let safetensors =
         loaded.map.get(CHECKPOINT).and_then(|r| r.format.as_deref()) == Some(SAFETENSORS);
-    let mut vit: VisionEncoderModel = config.try_init(device)?;
     let applied = match safetensors {
-        true => load_vit_tensors(&mut vit, SafetensorsCheckpoint::single(path).tensors()?),
-        false => load_vit_tensors(&mut vit, read_pytorch_tensors(path)?),
+        true => load_vit_tensors(&mut model, SafetensorsCheckpoint::single(path).tensors()?),
+        false => load_vit_tensors(&mut model, read_pytorch_tensors(path)?),
     };
     applied.with_context(|| format!("loading {}", path.display()))?;
-    policy.place(vit, device, |_| true)
+    policy.place(model, device, |_| true)
 }

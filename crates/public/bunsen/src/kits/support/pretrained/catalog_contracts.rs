@@ -42,6 +42,10 @@ pub struct KitCatalogContract {
 pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
     use crate::kits::{
         images::classification::{
+            deit::pretrained::{
+                DEIT_CONTRACT,
+                DEIT_KIT,
+            },
             resnet::pretrained::{
                 RESNET_CONTRACT,
                 RESNET_KIT,
@@ -95,6 +99,7 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
         contract(LAYA_KIT, LAYA_CONTRACT),
         contract(RESNET_KIT, RESNET_CONTRACT),
         contract(VIT_KIT, VIT_CONTRACT),
+        contract(DEIT_KIT, DEIT_CONTRACT),
         contract(GEMMA_KIT, GEMMA_CONTRACT),
         contract(NANOCHAT_KIT, NANOCHAT_CONTRACT),
         contract(QWEN3_KIT, QWEN3_CONTRACT),

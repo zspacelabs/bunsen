@@ -1,0 +1,588 @@
+# The deit kit's builds: a probe-contract source of the built-in catalog. The timm hub rows are
+# written by `cargo catalog timm-rows --kit deit`.
+$description: "The DeiT checkpoints bunsen knows by name: timm's hub repos."
+timm:
+  $kind: namespace
+  $merge: update
+  # BEGIN `cargo catalog timm-rows`: generated, don't edit by hand.
+  deit_tiny_patch16_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit_tiny_patch16_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit_tiny_patch16_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit_tiny_patch16_224.fb_in1k
+      $revision: 80e968688553f219e4a86f940ed945a23709c16f
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit_small_patch16_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit_small_patch16_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit_small_patch16_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit_small_patch16_224.fb_in1k
+      $revision: 91327a9c99f98fe6b524cd4d397b7226b80e1365
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit_base_patch16_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit_base_patch16_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit_base_patch16_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit_base_patch16_224.fb_in1k
+      $revision: b78cc5532a69df6bcad9c3a8d76653fd20b31ac6
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit_base_patch16_384.fb_in1k:
+    $kind: build
+    $description: "timm's `deit_base_patch16_384`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit_base_patch16_384.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit_base_patch16_384.fb_in1k
+      $revision: da012eac9934dd7d6392e7bc8d772e78573a3f7d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit_tiny_distilled_patch16_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit_tiny_distilled_patch16_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit_tiny_distilled_patch16_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit_tiny_distilled_patch16_224.fb_in1k
+      $revision: 05380d1a867937598c4ecb14852fafde6c976bd8
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit_small_distilled_patch16_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit_small_distilled_patch16_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit_small_distilled_patch16_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit_small_distilled_patch16_224.fb_in1k
+      $revision: b53f4f1eb32f73f8a02164626258a9d3c5ad8a62
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit_base_distilled_patch16_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit_base_distilled_patch16_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit_base_distilled_patch16_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit_base_distilled_patch16_224.fb_in1k
+      $revision: ae7e500ba066fc77dcce2bf518f54a093b9f9c01
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit_base_distilled_patch16_384.fb_in1k:
+    $kind: build
+    $description: "timm's `deit_base_distilled_patch16_384`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit_base_distilled_patch16_384.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit_base_distilled_patch16_384.fb_in1k
+      $revision: 58d8039f65bba74a27f2b7e070cc149c4a9eddfb
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_small_patch16_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit3_small_patch16_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_small_patch16_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_small_patch16_224.fb_in1k
+      $revision: f3f500f06a4e005ba9f75277265cf96de6809031
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_small_patch16_224.fb_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `deit3_small_patch16_224`, its `fb_in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_small_patch16_224.fb_in22k_ft_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_small_patch16_224.fb_in22k_ft_in1k
+      $revision: eca139c3ff931ec68bed87677b68d247a7bdddf8
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_small_patch16_384.fb_in1k:
+    $kind: build
+    $description: "timm's `deit3_small_patch16_384`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_small_patch16_384.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_small_patch16_384.fb_in1k
+      $revision: f7a09e33c2a3b4745072ffb822b0dd151cf98149
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_small_patch16_384.fb_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `deit3_small_patch16_384`, its `fb_in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_small_patch16_384.fb_in22k_ft_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_small_patch16_384.fb_in22k_ft_in1k
+      $revision: 8d59b2810f277c19d0cdd1b1e691d93c24aab6db
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_medium_patch16_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit3_medium_patch16_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_medium_patch16_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_medium_patch16_224.fb_in1k
+      $revision: 36b55aaaecc8189c8f7fa66c6cb989597c400db8
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_medium_patch16_224.fb_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `deit3_medium_patch16_224`, its `fb_in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_medium_patch16_224.fb_in22k_ft_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_medium_patch16_224.fb_in22k_ft_in1k
+      $revision: 68625c7426aa62fc8c8dde077505bf14bfb3086c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_base_patch16_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit3_base_patch16_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_base_patch16_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_base_patch16_224.fb_in1k
+      $revision: 19c7b54db6681c96466eaa67507afba7cf8db449
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_base_patch16_224.fb_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `deit3_base_patch16_224`, its `fb_in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_base_patch16_224.fb_in22k_ft_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_base_patch16_224.fb_in22k_ft_in1k
+      $revision: b5791d4983082b0c680da556954beb5b1962e85f
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_base_patch16_384.fb_in1k:
+    $kind: build
+    $description: "timm's `deit3_base_patch16_384`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_base_patch16_384.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_base_patch16_384.fb_in1k
+      $revision: 18ceb8bd331b2fcbcb657369aa01a402caa013d9
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_base_patch16_384.fb_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `deit3_base_patch16_384`, its `fb_in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_base_patch16_384.fb_in22k_ft_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_base_patch16_384.fb_in22k_ft_in1k
+      $revision: fbeda0e6c195155f112433b11c7374d91e25d695
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_large_patch16_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit3_large_patch16_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_large_patch16_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_large_patch16_224.fb_in1k
+      $revision: 2d17c2b36838f52e15aa4a378a09304cdc138d9f
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_large_patch16_224.fb_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `deit3_large_patch16_224`, its `fb_in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_large_patch16_224.fb_in22k_ft_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_large_patch16_224.fb_in22k_ft_in1k
+      $revision: 88d1d0cc4c98cabaa4c88b504c606c90772213c1
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_large_patch16_384.fb_in1k:
+    $kind: build
+    $description: "timm's `deit3_large_patch16_384`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_large_patch16_384.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_large_patch16_384.fb_in1k
+      $revision: 73ddae0adb096ccdcab155665a23672869f27f93
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_large_patch16_384.fb_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `deit3_large_patch16_384`, its `fb_in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_large_patch16_384.fb_in22k_ft_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_large_patch16_384.fb_in22k_ft_in1k
+      $revision: 0bdbb374f5844d0e62417058b91ffcfcb7ce3444
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_huge_patch14_224.fb_in1k:
+    $kind: build
+    $description: "timm's `deit3_huge_patch14_224`, its `fb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_huge_patch14_224.fb_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_huge_patch14_224.fb_in1k
+      $revision: da684172847d8158a803badece8fc39fe5a33b39
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  deit3_huge_patch14_224.fb_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `deit3_huge_patch14_224`, its `fb_in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/deit3_huge_patch14_224.fb_in22k_ft_in1k
+    $contract: deit-classifier
+    $join:
+      - deit
+    $hub:
+      $repo: timm/deit3_huge_patch14_224.fb_in22k_ft_in1k
+      $revision: c317ed807ed60d2292f57ec5a2eab3c330621ace
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      # END `cargo catalog timm-rows`.
+deit:
+  $kind: namespace
+  $facet: family
+  $description: DeiT and DeiT III ImageNet-1k classifiers.

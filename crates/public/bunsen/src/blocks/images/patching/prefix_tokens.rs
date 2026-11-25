@@ -1,8 +1,9 @@
 //! # Prefix tokens and the learnt position embedding
 //!
 //! A vision transformer's learnt tokens before its patch tokens (a class
-//! token, register tokens), and the learnt absolute position embedding added
-//! to the sequence: timm's `VisionTransformer._pos_embed`.
+//! token, a distillation token, register tokens), and the learnt absolute
+//! position embedding added to the sequence: timm's
+//! `VisionTransformer._pos_embed`.
 
 use alloc::vec::Vec;
 
@@ -38,7 +39,10 @@ pub trait PrefixTokensMeta {
     /// Whether a class token leads the sequence.
     fn class_token(&self) -> bool;
 
-    /// The register tokens after the class token.
+    /// Whether a distillation token follows the class token (`DeiT`'s).
+    fn dist_token(&self) -> bool;
+
+    /// The register tokens after the class and distillation tokens.
     fn reg_tokens(&self) -> usize;
 
     /// Whether the position embedding covers the prefix tokens as well as
@@ -46,10 +50,10 @@ pub trait PrefixTokensMeta {
     /// `no_embed_class`). `None` when there is no position embedding.
     fn embed_prefix(&self) -> Option<bool>;
 
-    /// The tokens before the patch grid: the class token, then the register
-    /// tokens.
+    /// The tokens before the patch grid: the class token, the distillation
+    /// token, then the register tokens.
     fn n_prefix(&self) -> usize {
-        usize::from(self.class_token()) + self.reg_tokens()
+        usize::from(self.class_token()) + usize::from(self.dist_token()) + self.reg_tokens()
     }
 
     /// The position embedding's length: the patches, and the prefix when it
@@ -81,6 +85,11 @@ pub struct PrefixTokensConfig {
     #[config(default = true)]
     pub class_token: bool,
 
+    /// Whether a distillation token follows the class token (timm's
+    /// `VisionTransformerDistilled`, `DeiT`'s distilled models).
+    #[config(default = false)]
+    pub dist_token: bool,
+
     /// The register tokens after the class token (timm's `reg_tokens`).
     #[config(default = 0)]
     pub reg_tokens: usize,
@@ -108,6 +117,10 @@ impl PrefixTokensMeta for PrefixTokensConfig {
 
     fn class_token(&self) -> bool {
         self.class_token
+    }
+
+    fn dist_token(&self) -> bool {
+        self.dist_token
     }
 
     fn reg_tokens(&self) -> usize {
@@ -146,6 +159,7 @@ impl ModuleInit<PrefixTokens> for PrefixTokensConfig {
         };
         Ok(PrefixTokens {
             cls_token: self.class_token.then(|| param(1, 1e-6)),
+            dist_token: self.dist_token.then(|| param(1, 0.02)),
             reg_token: (self.reg_tokens > 0).then(|| param(self.reg_tokens, 1e-6)),
             pos_embed: self.pos_embed_len().map(|len| param(len, 0.02)),
             n_patches: self.n_patches,
@@ -159,14 +173,18 @@ impl ModuleInit<PrefixTokens> for PrefixTokensConfig {
 /// register tokens before the patch tokens and adds the position embedding,
 /// as timm's `VisionTransformer._pos_embed` does at the model's own size.
 ///
-/// The parameters keep timm's shapes and names: `cls_token` `[1, 1, d]`,
-/// `reg_token` `[1, reg_tokens, d]`, `pos_embed` `[1, len, d]`.
+/// The parameters keep timm's shapes and names: `cls_token` and
+/// `dist_token` `[1, 1, d]`, `reg_token` `[1, reg_tokens, d]`, `pos_embed`
+/// `[1, len, d]`.
 ///
 /// Built by [`PrefixTokensConfig`]; implements [`PrefixTokensMeta`].
 #[derive(Module, Debug)]
 pub struct PrefixTokens {
     /// The class token, `[1, 1, d]`.
     pub cls_token: Option<Param<Tensor<3>>>,
+
+    /// The distillation token, `[1, 1, d]`.
+    pub dist_token: Option<Param<Tensor<3>>>,
 
     /// The register tokens, `[1, reg_tokens, d]`.
     pub reg_token: Option<Param<Tensor<3>>>,
@@ -184,12 +202,17 @@ pub struct PrefixTokens {
 
 impl PrefixTokensMeta for PrefixTokens {
     fn d_model(&self) -> usize {
-        [&self.cls_token, &self.reg_token, &self.pos_embed]
-            .into_iter()
-            .flatten()
-            .map(|p| p.dims()[2])
-            .next()
-            .unwrap_or(0)
+        [
+            &self.cls_token,
+            &self.dist_token,
+            &self.reg_token,
+            &self.pos_embed,
+        ]
+        .into_iter()
+        .flatten()
+        .map(|p| p.dims()[2])
+        .next()
+        .unwrap_or(0)
     }
 
     fn n_patches(&self) -> usize {
@@ -198,6 +221,10 @@ impl PrefixTokensMeta for PrefixTokens {
 
     fn class_token(&self) -> bool {
         self.cls_token.is_some()
+    }
+
+    fn dist_token(&self) -> bool {
+        self.dist_token.is_some()
     }
 
     fn reg_tokens(&self) -> usize {
@@ -218,8 +245,8 @@ impl PrefixTokens {
     /// * `patches` - `[batch, n_patches, d]`.
     ///
     /// # Returns
-    /// `[batch, n_prefix + n_patches, d]`: the class token, the register
-    /// tokens, then the patches.
+    /// `[batch, n_prefix + n_patches, d]`: the class token, the distillation
+    /// token, the register tokens, then the patches.
     pub fn forward(
         &self,
         patches: Tensor<3>,
@@ -230,7 +257,7 @@ impl PrefixTokens {
             &["batch"],
             &[("n_patches", self.n_patches), ("d", self.d_model())],
         );
-        let prefix: Vec<Tensor<3>> = [&self.cls_token, &self.reg_token]
+        let prefix: Vec<Tensor<3>> = [&self.cls_token, &self.dist_token, &self.reg_token]
             .into_iter()
             .flatten()
             .map(|t| t.val().expand([batch as i64, -1, -1]))
@@ -317,6 +344,13 @@ mod tests {
                 Some(4),
             ),
             (PrefixTokensConfig::new(8, 4).with_pos_embed(false), 1, None),
+            (
+                PrefixTokensConfig::new(8, 4)
+                    .with_dist_token(true)
+                    .with_reg_tokens(1),
+                3,
+                Some(7),
+            ),
         ] {
             let tokens: PrefixTokens = config.init(&device);
             assert_eq!(config.n_prefix(), prefix, "{config:?}");
@@ -341,6 +375,7 @@ mod tests {
         let tolerance = Tolerance::rel_abs(1e-6, 1e-6);
         let tokens = |pos: Option<&[f32]>, embed_prefix| PrefixTokens {
             cls_token: Some(param(&[10.0, 20.0], &device)),
+            dist_token: None,
             reg_token: Some(param(&[30.0, 40.0], &device)),
             pos_embed: pos.map(|p| param(p, &device)),
             n_patches: 2,
@@ -361,6 +396,29 @@ mod tests {
             &tokens(Some(&all[..4]), false).forward(patches(&device)),
             &expect(&[10.0, 20.0, 30.0, 40.0, 1.1, 2.2, 3.3, 4.4], &device),
             tolerance,
+        );
+    }
+
+    /// The distillation token sits between the class token and the
+    /// registers.
+    #[test]
+    fn test_the_dist_token_follows_the_class_token() {
+        let device = cpu_device();
+        let tokens = PrefixTokens {
+            cls_token: Some(param(&[10.0, 20.0], &device)),
+            dist_token: Some(param(&[50.0, 60.0], &device)),
+            reg_token: Some(param(&[30.0, 40.0], &device)),
+            pos_embed: None,
+            n_patches: 2,
+            embed_prefix: true,
+        };
+        assert_tensors_close(
+            &tokens.forward(patches(&device)),
+            &expect(
+                &[10.0, 20.0, 50.0, 60.0, 30.0, 40.0, 1.0, 2.0, 3.0, 4.0],
+                &device,
+            ),
+            Tolerance::rel_abs(1e-6, 1e-6),
         );
     }
 

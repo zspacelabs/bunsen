@@ -24,10 +24,10 @@ use super::*;
 
 /// How far bunsen's float32 (on wgpu) may be from timm's float64, per
 /// value: `|bunsen - timm| <= ABS + REL * |timm|`. Measured on the rows
-/// (2026-11-25): at most 5.3e-5 on an `ImageNet`-1k logit
-/// (`vit_base_patch16_224.augreg2_in21k_ft_in1k`; a `ResNet`'s at most
-/// 3.4e-5) and 2.7e-4 on an `ImageNet`-12k one, whose logits are larger
-/// (`resnetaa50d.sw_in12k`); 1.8e-4 on a feature, DINO's, whose features are
+/// (2026-11-25): at most 6.2e-5 on an `ImageNet`-1k logit
+/// (`deit3_small_patch16_224.fb_in1k`; a `ResNet`'s at most 3.4e-5) and 2.7e-4
+/// on an `ImageNet`-12k one, whose logits are larger (`resnetaa50d.sw_in12k`);
+/// 1.8e-4 on a feature, DINO's, whose features are
 /// larger (`vit_small_patch16_224.dino`; a `ResNet`'s at most 2.6e-5).
 const ABS: f32 = 1e-4;
 /// See [`ABS`].
@@ -327,5 +327,23 @@ mod timm {
     #[serial_test::serial]
     fn vit_base_patch32_clip_224_openai() {
         check_row("timm/vit_base_patch32_clip_224.openai");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn deit_small_patch16_224_fb_in1k() {
+        check_row("timm/deit_small_patch16_224.fb_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn deit_base_distilled_patch16_224_fb_in1k() {
+        check_row("timm/deit_base_distilled_patch16_224.fb_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn deit3_small_patch16_224_fb_in1k() {
+        check_row("timm/deit3_small_patch16_224.fb_in1k");
     }
 }
