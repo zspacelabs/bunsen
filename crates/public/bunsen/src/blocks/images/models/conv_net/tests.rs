@@ -371,16 +371,6 @@ const TIMM_DROP_PATH_2222_AT_0_1: [f64; 8] = [
     0.1,
 ];
 
-/// Each unit's drop-path probability in a structure, in net order.
-fn structure_drop_path_probs(structure: &ConvNetStructureConfig) -> Vec<f64> {
-    structure
-        .stages
-        .iter()
-        .flat_map(|stage| stage.units.iter())
-        .map(|unit| unit.drop_path_prob)
-        .collect()
-}
-
 /// Each unit's drop-path probability in a model, in net order; 0 for a unit
 /// without a `DropPath`.
 fn module_drop_path_probs(model: &ConvNetModel) -> Vec<f64> {
@@ -402,30 +392,27 @@ fn assert_rates_eq(
     }
 }
 
-/// The structure's and the module's stochastic-depth schedules are timm's.
+/// The model's stochastic-depth schedule is timm's.
 #[test]
 fn test_drop_path_schedules_match_timm() {
-    let structure = resnet_like(&[2, 2, 2, 2], 8, ConvUnitKind::Basic).to_structure();
-    let model: ConvNetModel = structure.init(&cpu_device());
+    let model: ConvNetModel =
+        resnet_like(&[2, 2, 2, 2], 8, ConvUnitKind::Basic).init(&cpu_device());
     assert_rates_eq(
         &module_drop_path_probs(&model.with_stochastic_path_depth(0.1)),
-        &TIMM_DROP_PATH_2222_AT_0_1,
-    );
-    assert_rates_eq(
-        &structure_drop_path_probs(&structure.with_stochastic_depth_drop_path_rate(0.1)),
         &TIMM_DROP_PATH_2222_AT_0_1,
     );
 
-    // Two units: timm gives `[0.0, 0.1]`.
-    let structure = resnet_like(&[1, 1], 8, ConvUnitKind::Basic).to_structure();
-    let model: ConvNetModel = structure.init(&cpu_device());
+    // Two units: timm gives `[0.0, 0.1]`; one unit, 0 (timm divides by
+    // zero).
+    let model: ConvNetModel = resnet_like(&[1, 1], 8, ConvUnitKind::Basic).init(&cpu_device());
     assert_rates_eq(
         &module_drop_path_probs(&model.with_stochastic_path_depth(0.1)),
         &[0.0, 0.1],
     );
+    let model: ConvNetModel = resnet_like(&[1], 8, ConvUnitKind::Basic).init(&cpu_device());
     assert_rates_eq(
-        &structure_drop_path_probs(&structure.with_stochastic_depth_drop_path_rate(0.1)),
-        &[0.0, 0.1],
+        &module_drop_path_probs(&model.with_stochastic_path_depth(0.1)),
+        &[0.0],
     );
 }
 
@@ -453,15 +440,6 @@ fn timm_drop_blocks_2222_at_0_1() -> Vec<Option<DropBlockOptions>> {
     ]
 }
 
-fn structure_drop_blocks(structure: &ConvNetStructureConfig) -> Vec<Option<DropBlockOptions>> {
-    structure
-        .stages
-        .iter()
-        .flat_map(|stage| stage.units.iter())
-        .map(|unit| unit.drop_block.clone())
-        .collect()
-}
-
 fn module_drop_blocks(model: &ConvNetModel) -> Vec<Option<DropBlockOptions>> {
     model
         .stages
@@ -471,24 +449,12 @@ fn module_drop_blocks(model: &ConvNetModel) -> Vec<Option<DropBlockOptions>> {
         .collect()
 }
 
-/// The structure's `DropBlock` schedule is timm's, a model built from it
-/// keeps it, and the module's schedule is the same.
+/// The model's `DropBlock` schedule is timm's.
 #[test]
 fn test_drop_block_schedules_match_timm() {
     let device = cpu_device();
-    let structure = resnet_like(&[2, 2, 2, 2], 8, ConvUnitKind::Basic).to_structure();
-    let model: ConvNetModel = structure.init(&device);
-    assert_eq!(
-        module_drop_blocks(&model.with_stochastic_drop_block(0.1)),
-        timm_drop_blocks_2222_at_0_1()
-    );
-
-    let structure = structure.with_standard_drop_block_prob(0.1);
-    assert_eq!(
-        structure_drop_blocks(&structure),
-        timm_drop_blocks_2222_at_0_1()
-    );
-    let model: ConvNetModel = structure.init(&device);
+    let model: ConvNetModel = resnet_like(&[2, 2, 2, 2], 8, ConvUnitKind::Basic).init(&device);
+    let model = model.with_stochastic_drop_block(0.1);
     assert_eq!(module_drop_blocks(&model), timm_drop_blocks_2222_at_0_1());
 
     // A model with drop blocks still runs (in eval they are identities).
@@ -497,23 +463,19 @@ fn test_drop_block_schedules_match_timm() {
 }
 
 /// With fewer than 2 stages there is no second-to-last stage for the
-/// `DropBlock` schedule: a nonzero rate is an error from both `try_` forms;
-/// a rate of 0 places nothing.
+/// `DropBlock` schedule: a nonzero rate is an error; a rate of 0 places
+/// nothing.
 #[test]
 fn test_drop_block_schedules_reject_one_stage() {
-    let structure = resnet_like(&[2], 8, ConvUnitKind::Basic).to_structure();
-    let model: ConvNetModel = structure.init(&cpu_device());
+    let model: ConvNetModel = resnet_like(&[2], 8, ConvUnitKind::Basic).init(&cpu_device());
 
-    let one_stage =
-        ErrorMatcher::kind(BunsenErrorKind::Illegal).message_contains("at least 2 stages");
-    one_stage.assert_err(&structure.clone().try_with_standard_drop_block_prob(0.1));
-    one_stage.assert_err(&model.clone().try_with_stochastic_drop_block(0.1));
+    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        .message_contains("at least 2 stages")
+        .assert_err(&model.clone().try_with_stochastic_drop_block(0.1));
     ErrorMatcher::kind(BunsenErrorKind::Illegal)
         .frame_contains("drop_prob")
-        .assert_err(&structure.clone().try_with_standard_drop_block_prob(1.5));
+        .assert_err(&model.clone().try_with_stochastic_drop_block(1.5));
 
-    let structure = structure.try_with_standard_drop_block_prob(0.0).unwrap();
-    assert_eq!(structure_drop_blocks(&structure), vec![None, None]);
     let model = model.try_with_stochastic_drop_block(0.0).unwrap();
     assert_eq!(module_drop_blocks(&model), vec![None, None]);
 }
@@ -522,7 +484,6 @@ fn test_drop_block_schedules_reject_one_stage() {
 #[test]
 #[should_panic(expected = "at least 2 stages")]
 fn test_drop_block_schedule_panics_on_one_stage() {
-    let _ = resnet_like(&[2], 8, ConvUnitKind::Basic)
-        .to_structure()
-        .with_standard_drop_block_prob(0.1);
+    let model: ConvNetModel = resnet_like(&[2], 8, ConvUnitKind::Basic).init(&cpu_device());
+    let _ = model.with_stochastic_drop_block(0.1);
 }
