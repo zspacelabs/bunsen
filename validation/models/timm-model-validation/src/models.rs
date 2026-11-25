@@ -5,16 +5,7 @@ use bunsen::{
         datasets::try_read_webdataset,
         formats::LoadPolicy,
     },
-    kits::images::{
-        classification::{
-            driver::ImageClassifier,
-            resnet::pretrained::default_resnet_factory,
-        },
-        support::{
-            encoder::ImageEncoder,
-            eval::try_eval_input,
-        },
-    },
+    kits::images::support::eval::try_eval_input,
     support::{
         images::try_decode_image,
         testing::performance_device,
@@ -33,10 +24,11 @@ use super::*;
 
 /// How far bunsen's float32 (on wgpu) may be from timm's float64, per
 /// value: `|bunsen - timm| <= ABS + REL * |timm|`. Measured on the rows
-/// (2026-11-25): at most 3.4e-5 on an `ImageNet`-1k logit (the group norm's
-/// `resnet50_gn`) and 2.7e-4 on an `ImageNet`-12k one, whose logits are
-/// larger (`resnetaa50d.sw_in12k`); 2.6e-5 on a feature (the 101-layer
-/// `seresnextaa101d_32x8d` at 288 pixels).
+/// (2026-11-25): at most 5.3e-5 on an `ImageNet`-1k logit
+/// (`vit_base_patch16_224.augreg2_in21k_ft_in1k`; a `ResNet`'s at most
+/// 3.4e-5) and 2.7e-4 on an `ImageNet`-12k one, whose logits are larger
+/// (`resnetaa50d.sw_in12k`); 1.8e-4 on a feature, DINO's, whose features are
+/// larger (`vit_small_patch16_224.dino`; a `ResNet`'s at most 2.6e-5).
 const ABS: f32 = 1e-4;
 /// See [`ABS`].
 const REL: f32 = 1e-4;
@@ -99,16 +91,13 @@ fn check_row(row: &str) {
     let device = performance_device();
     let fixture = read_fixture(row);
     let cache = weights_cache();
-    let construct = default_resnet_factory()
-        .expect("the resnet factory")
-        .load_construct(
-            row,
-            &cache,
-            &device,
-            LoadPolicy::min_precision(FloatDType::F32),
-        )
-        .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-    let (model, card) = (&construct.model, &construct.card);
+    let (model, card) = load_row(
+        row,
+        &cache,
+        &device,
+        LoadPolicy::min_precision(FloatDType::F32),
+    );
+    let card = &card;
     let key = input_key(&card.transform);
     assert_eq!(
         key, fixture.input_key,
@@ -296,5 +285,41 @@ mod timm {
     #[serial_test::serial]
     fn resnetaa50d_sw_in12k() {
         check_row("timm/resnetaa50d.sw_in12k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_base_patch16_224_augreg2_in21k_ft_in1k() {
+        check_row("timm/vit_base_patch16_224.augreg2_in21k_ft_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_small_patch16_224_augreg_in21k() {
+        check_row("timm/vit_small_patch16_224.augreg_in21k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_base_patch16_224_miil_in21k() {
+        check_row("timm/vit_base_patch16_224_miil.in21k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_base_patch16_384_augreg_in21k_ft_in1k() {
+        check_row("timm/vit_base_patch16_384.augreg_in21k_ft_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_base_patch32_clip_224_laion400m_e32() {
+        check_row("timm/vit_base_patch32_clip_224.laion400m_e32");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_small_patch16_224_dino() {
+        check_row("timm/vit_small_patch16_224.dino");
     }
 }

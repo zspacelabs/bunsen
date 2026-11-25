@@ -71,6 +71,12 @@ pub const ROWS: &[&str] = &[
     "timm/seresnextaa101d_32x8d.sw_in12k_ft_in1k_288",
     "timm/resnetrs50.tf_in1k",
     "timm/resnetaa50d.sw_in12k",
+    "timm/vit_base_patch16_224.augreg2_in21k_ft_in1k",
+    "timm/vit_small_patch16_224.augreg_in21k",
+    "timm/vit_base_patch16_224_miil.in21k",
+    "timm/vit_base_patch16_384.augreg_in21k_ft_in1k",
+    "timm/vit_base_patch32_clip_224.laion400m_e32",
+    "timm/vit_small_patch16_224.dino",
 ];
 
 /// How many validation images a fixture covers: the first of the shard.
@@ -263,6 +269,89 @@ pub fn validation_shard(cache: &bunsen::data::resources::ResourceCache) -> PathB
     ShardSet::in_cache(cache.disk(), desc)
         .fetch(ShardId(0))
         .unwrap_or_else(|e| panic!("fetch ImageNet's validation shard: {e:#}"))
+}
+
+/// The image kits whose rows are checked here, by the factory that holds a
+/// row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowKit {
+    /// `kits::images::classification::resnet`.
+    ResNet,
+    /// `kits::images::classification::vit`.
+    ViT,
+}
+
+impl RowKit {
+    /// The kit whose factory names `row`: the vit kit's, else the resnet
+    /// kit's.
+    pub fn of(row: &str) -> Self {
+        use bunsen::kits::images::classification::vit::pretrained::default_vit_factory;
+        match default_vit_factory().expect("the vit factory").lookup(row) {
+            Ok(_) => Self::ViT,
+            Err(_) => Self::ResNet,
+        }
+    }
+}
+
+/// `row`'s build, resolved through its kit's factory.
+#[cfg(feature = "checkpoints")]
+pub fn resolve_row(
+    row: &str,
+    cache: &bunsen::data::resources::ResourceCache,
+) -> bunsen::data::builds::BuildRef {
+    use bunsen::kits::images::classification::{
+        resnet::pretrained::default_resnet_factory,
+        vit::pretrained::default_vit_factory,
+    };
+    let resolved = match RowKit::of(row) {
+        RowKit::ResNet => default_resnet_factory()
+            .expect("the resnet factory")
+            .resolve(row, cache)
+            .map(|d| d.model),
+        RowKit::ViT => default_vit_factory()
+            .expect("the vit factory")
+            .resolve(row, cache)
+            .map(|d| d.model),
+    };
+    resolved.unwrap_or_else(|e| panic!("resolve {row}: {e:#}"))
+}
+
+/// `row`'s model, its weights loaded under `policy`, and its card, through
+/// its kit's factory.
+#[cfg(feature = "checkpoints")]
+pub fn load_row(
+    row: &str,
+    cache: &bunsen::data::resources::ResourceCache,
+    device: &burn::tensor::Device,
+    policy: bunsen::data::formats::LoadPolicy,
+) -> (
+    Box<dyn bunsen::kits::images::classification::driver::ImageClassifier>,
+    bunsen::kits::images::support::card::ImageModelCard,
+) {
+    use std::sync::Arc;
+
+    use bunsen::kits::images::classification::{
+        resnet::pretrained::default_resnet_factory,
+        vit::pretrained::default_vit_factory,
+    };
+    match RowKit::of(row) {
+        RowKit::ResNet => {
+            let construct = default_resnet_factory()
+                .expect("the resnet factory")
+                .load_construct(row, cache, device, policy)
+                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
+            let construct = Arc::unwrap_or_clone(construct);
+            (Box::new(construct.model), construct.card)
+        }
+        RowKit::ViT => {
+            let construct = default_vit_factory()
+                .expect("the vit factory")
+                .load_construct(row, cache, device, policy)
+                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
+            let construct = Arc::unwrap_or_clone(construct);
+            (Box::new(construct.model), construct.card)
+        }
+    }
 }
 
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]

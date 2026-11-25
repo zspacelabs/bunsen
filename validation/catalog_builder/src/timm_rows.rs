@@ -38,7 +38,10 @@ use bunsen::{
             HubRepo,
         },
     },
-    kits::images::classification::resnet::ResNetContractConfig,
+    kits::images::classification::{
+        resnet::ResNetContractConfig,
+        vit::ViTContractConfig,
+    },
 };
 use serde::Deserialize;
 
@@ -116,13 +119,22 @@ impl TimmKit {
 
 /// The kits whose timm rows are generated.
 pub fn timm_kits() -> Vec<TimmKit> {
-    vec![TimmKit {
-        name: "resnet",
-        contract: "resnet-classifier",
-        join: &["resnet"],
-        architectures: ResNetContractConfig::prefab_names(),
-        unlabelled: false,
-    }]
+    vec![
+        TimmKit {
+            name: "resnet",
+            contract: "resnet-classifier",
+            join: &["resnet"],
+            architectures: ResNetContractConfig::prefab_names(),
+            unlabelled: false,
+        },
+        TimmKit {
+            name: "vit",
+            contract: "vit-classifier",
+            join: &["vit"],
+            architectures: ViTContractConfig::prefab_names(),
+            unlabelled: true,
+        },
+    ]
 }
 
 /// One generated build's pins.

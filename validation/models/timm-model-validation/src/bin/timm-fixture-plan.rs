@@ -8,12 +8,9 @@
 
 use bunsen::{
     data::builds::CONFIG,
-    kits::images::{
-        classification::resnet::pretrained::default_resnet_factory,
-        support::{
-            card::ImageModelCard,
-            interop::timm::timm_model_config_from_path,
-        },
+    kits::images::support::{
+        card::ImageModelCard,
+        interop::timm::timm_model_config_from_path,
     },
 };
 use timm_model_validation::{
@@ -22,6 +19,7 @@ use timm_model_validation::{
     fixture_path,
     input_key,
     inputs_path,
+    resolve_row,
     validation_shard,
     weights_cache,
 };
@@ -34,17 +32,14 @@ fn main() {
         args
     };
     let cache = weights_cache();
-    let factory = default_resnet_factory().expect("the resnet factory");
     let plan_rows: Vec<serde_json::Value> = rows
         .iter()
         .map(|row| {
-            let deferred = factory
-                .resolve(row, &cache)
-                .unwrap_or_else(|e| panic!("resolve {row}: {e:#}"));
+            let model = resolve_row(row, &cache);
             let loaded = cache
-                .load(&deferred.model.to_resource_set())
+                .load(&model.to_resource_set())
                 .unwrap_or_else(|e| panic!("fetch {row}: {e:#}"));
-            let card = ImageModelCard::try_from_build(&deferred.model, &loaded)
+            let card = ImageModelCard::try_from_build(&model, &loaded)
                 .unwrap_or_else(|e| panic!("{row}'s card: {e:#}"));
             // timm's own architecture name: a hub repo's config says it; a
             // torchvision row is the timm architecture of its name.
