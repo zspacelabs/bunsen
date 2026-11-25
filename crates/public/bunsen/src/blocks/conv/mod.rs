@@ -33,11 +33,6 @@
 //! - [`ConvBlock2dConfig`] holds a [`Conv2dConfig`] plus the norm and
 //!   activation configs; [`ModuleInit`] builds a [`ConvBlock2d`] from it,
 //!   sizing the norm to the conv's output channels.
-//! - [`AbstractConvBlock2dConfig`] is the norm-and-activation policy on its
-//!   own, before a conv is chosen. A model states it once (for example "batch
-//!   norm, then `ReLU`") and calls
-//!   [`build_config`](AbstractConvBlock2dConfig::build_config) with each
-//!   `Conv2dConfig` to get a matched `ConvBlock2dConfig`.
 //! - [`ConvBlock2dMeta`] is implemented by both the config and the module, so
 //!   channels, kernel, stride and the predicted output size
 //!   ([`try_output_resolution`](ConvBlock2dMeta::try_output_resolution),

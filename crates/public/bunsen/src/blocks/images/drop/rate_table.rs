@@ -69,11 +69,6 @@ impl DropPathRateDepthTable {
         &self.layer_depths
     }
 
-    /// Returns the total depth of all layers.
-    pub fn total_depth(&self) -> usize {
-        self.layer_depths.iter().sum()
-    }
-
     /// Returns the total number of layers.
     #[must_use]
     pub fn num_layers(&self) -> usize {
@@ -172,7 +167,7 @@ mod tests {
         let depths = vec![2, 3, 4];
         let dpr_table = DropPathRateDepthTable::new(0.1, &depths);
 
-        assert_eq!(dpr_table.total_depth(), 9);
+        assert_eq!(dpr_table.layer_depths().iter().sum::<usize>(), 9);
 
         assert_that!(
             &dpr_table.layer_depths().to_vec(),

@@ -33,42 +33,6 @@ use crate::{
     ops::conv::maybe_conv_output_shape,
 };
 
-/// Abstract policy for [`ConvBlock2d`] Config.
-///
-/// Defines a [`BunsenNormalizationConfig`] and [`BunsenActivationConfig`],
-/// and can be lifted to a [`ConvBlock2dConfig`] to match a [`Conv2dConfig`].
-///
-/// The abstract [`BunsenNormalizationConfig`] will be feature matched
-/// with the target [`Conv2dConfig`].
-#[derive(Config, Debug)]
-pub struct AbstractConvBlock2dConfig {
-    /// The [`BunsenNormalization`] config.
-    pub norm: Option<BunsenNormalizationConfig>,
-
-    /// Activation Config.
-    #[config(default = "Some(BunsenActivationConfig::Relu)")]
-    pub act: Option<BunsenActivationConfig>,
-}
-
-impl AbstractConvBlock2dConfig {
-    /// Merges with a [`Conv2dConfig`] to construct a [`ConvBlock2dConfig`].
-    ///
-    /// The abstract [`BunsenNormalizationConfig`] will be feature matched
-    /// with the target [`Conv2dConfig`], resulting in a normalization
-    /// layer sized appropriately for the input convolution.
-    pub fn build_config(
-        &self,
-        conv: Conv2dConfig,
-    ) -> ConvBlock2dConfig {
-        ConvBlock2dConfig {
-            conv,
-            norm: self.norm.clone(),
-            act: self.act.clone(),
-        }
-        .match_norm_features()
-    }
-}
-
 /// [`ConvBlock2d`] Meta.
 pub trait ConvBlock2dMeta {
     /// Number of input channels.
@@ -441,17 +405,18 @@ mod tests {
 
     #[test]
     fn test_conv_norm_config() {
-        let abstract_config = AbstractConvBlock2dConfig::new().with_norm(Some(
-            BunsenNormalizationConfig::Batch(BatchNormConfig::new(0)),
-        ));
-
         let conv_config = Conv2dConfig::new([2, 4], [3, 3])
             .with_stride([2, 2])
             .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .with_bias(false);
 
-        let config: ConvBlock2dConfig = abstract_config.build_config(conv_config.clone());
+        let config = ConvBlock2dConfig::new(conv_config)
+            .with_norm(Some(BunsenNormalizationConfig::Batch(
+                BatchNormConfig::new(0),
+            )))
+            .match_norm_features();
 
+        assert_eq!(config.norm.as_ref().unwrap().num_features(), 4);
         assert_eq!(config.in_channels(), 2);
         assert_eq!(config.out_channels(), 4);
         assert_eq!(config.groups(), 1);
