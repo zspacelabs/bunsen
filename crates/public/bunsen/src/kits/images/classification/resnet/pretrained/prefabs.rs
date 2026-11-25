@@ -8,7 +8,10 @@ use alloc::{
 use burn::nn::GroupNormConfig;
 
 use crate::{
-    blocks::images::models::conv_net::ConvAttentionKind,
+    blocks::images::models::conv_net::{
+        ConvAaKind,
+        ConvAttentionKind,
+    },
     data::pretrained::{
         PrefabTable,
         Prefabs,
@@ -351,6 +354,72 @@ impl ResNetContractConfig {
         Self::resnext101_64x4d().with_attention(Some(ConvAttentionKind::SE))
     }
 
+    /// The `resnetblur18` prefab: ResNet-18 with blur anti-aliasing.
+    pub fn resnetblur18() -> Self {
+        Self::resnet18().with_anti_alias(Some(ConvAaKind::Blur))
+    }
+
+    /// The `resnetblur50` prefab: ResNet-50 with blur anti-aliasing.
+    pub fn resnetblur50() -> Self {
+        Self::resnet50().with_anti_alias(Some(ConvAaKind::Blur))
+    }
+
+    /// The `resnetblur50d` prefab: ResNet-50-D with blur anti-aliasing.
+    pub fn resnetblur50d() -> Self {
+        Self::resnet50d().with_anti_alias(Some(ConvAaKind::Blur))
+    }
+
+    /// The `resnetblur101d` prefab: ResNet-101-D with blur anti-aliasing.
+    pub fn resnetblur101d() -> Self {
+        Self::resnet101d().with_anti_alias(Some(ConvAaKind::Blur))
+    }
+
+    /// The `resnetaa34d` prefab: ResNet-34-D with average-pool anti-aliasing.
+    pub fn resnetaa34d() -> Self {
+        Self::resnet34d().with_anti_alias(Some(ConvAaKind::Avg))
+    }
+
+    /// The `resnetaa50` prefab: ResNet-50 with average-pool anti-aliasing.
+    pub fn resnetaa50() -> Self {
+        Self::resnet50().with_anti_alias(Some(ConvAaKind::Avg))
+    }
+
+    /// The `resnetaa50d` prefab: ResNet-50-D with average-pool anti-aliasing.
+    pub fn resnetaa50d() -> Self {
+        Self::resnet50d().with_anti_alias(Some(ConvAaKind::Avg))
+    }
+
+    /// The `resnetaa101d` prefab: ResNet-101-D with average-pool anti-aliasing.
+    pub fn resnetaa101d() -> Self {
+        Self::resnet101d().with_anti_alias(Some(ConvAaKind::Avg))
+    }
+
+    /// The `seresnetaa50d` prefab: SE-ResNet-50-D with average-pool
+    /// anti-aliasing.
+    pub fn seresnetaa50d() -> Self {
+        Self::resnet50d()
+            .with_attention(Some(ConvAttentionKind::SE))
+            .with_anti_alias(Some(ConvAaKind::Avg))
+    }
+
+    /// The `seresnextaa101d_32x8d` prefab: SE-ResNeXt-101-D 32x8d with
+    /// average-pool anti-aliasing.
+    pub fn seresnextaa101d_32x8d() -> Self {
+        Self::seresnext101d_32x8d().with_anti_alias(Some(ConvAaKind::Avg))
+    }
+
+    /// The `seresnextaa201d_32x8d` prefab: SE-ResNeXt-201-D [3, 24, 36, 4], 32
+    /// groups of 8, on a deep stem of width 64, average-pool shortcuts,
+    /// squeeze-excite and average-pool anti-aliasing.
+    pub fn seresnextaa201d_32x8d() -> Self {
+        Self::grouped(vec![3, 24, 36, 4], 32, 8)
+            .with_stem_type(ResNetStemKind::Deep)
+            .with_stem_width(64)
+            .with_avg_down(true)
+            .with_attention(Some(ConvAttentionKind::SE))
+            .with_anti_alias(Some(ConvAaKind::Avg))
+    }
+
     /// A bottleneck `ResNet` of `layers` whose mixers are `cardinality`
     /// groups of `base_width` channels per 64 planes.
     fn grouped(
@@ -413,13 +482,14 @@ impl ResNetContractConfig {
     }
 }
 
-/// The `ResNet` geometries by name, timm's architecture names: 58
+/// The `ResNet` geometries by name, timm's architecture names: 69
 /// [`ResNetContractConfig`]s, each with 1000 classes: `resnet18` to
 /// `resnet152` and `resnet50_gn`; the deep- and tiered-stem C, D, S and T
 /// variants (`resnet50d`, `resnet10t`, …, `resnext50d_32x4d`); the
 /// `ResNeXt`s, `resnext50_32x4d` to `resnext101_64x4d`; the wide
-/// `wide_resnet50_2` and `wide_resnet101_2`; and the squeeze-excite and ECA
-/// nets (`seresnet50`, `ecaresnet50d`, …).
+/// `wide_resnet50_2` and `wide_resnet101_2`; the squeeze-excite and ECA
+/// nets (`seresnet50`, `ecaresnet50d`, …); and the anti-aliased nets
+/// (`resnetaa50d`, `resnetblur50`, `seresnextaa101d_32x8d`, …).
 ///
 /// A prefab has no weights. The catalog rows state the geometry of the
 /// prefab they instantiate, and
@@ -484,6 +554,17 @@ impl Prefabs for ResNetContractConfig {
         ("seresnext101_32x8d", Self::seresnext101_32x8d),
         ("seresnext101d_32x8d", Self::seresnext101d_32x8d),
         ("seresnext101_64x4d", Self::seresnext101_64x4d),
+        ("resnetblur18", Self::resnetblur18),
+        ("resnetblur50", Self::resnetblur50),
+        ("resnetblur50d", Self::resnetblur50d),
+        ("resnetblur101d", Self::resnetblur101d),
+        ("resnetaa34d", Self::resnetaa34d),
+        ("resnetaa50", Self::resnetaa50),
+        ("resnetaa50d", Self::resnetaa50d),
+        ("resnetaa101d", Self::resnetaa101d),
+        ("seresnetaa50d", Self::seresnetaa50d),
+        ("seresnextaa101d_32x8d", Self::seresnextaa101d_32x8d),
+        ("seresnextaa201d_32x8d", Self::seresnextaa201d_32x8d),
     ];
     const PREFAB_TABLE: &'static str = "resnet";
 }

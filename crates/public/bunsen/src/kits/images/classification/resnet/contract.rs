@@ -14,6 +14,7 @@ use crate::{
     blocks::{
         activation::BunsenActivationConfig,
         images::models::conv_net::{
+            ConvAaKind,
             ConvAttentionKind,
             ConvLayersConfig,
             ConvNetContractConfig,
@@ -21,6 +22,7 @@ use crate::{
             ConvShortcutKind,
             ConvStageContractConfig,
             ConvStemContractConfig,
+            ConvStemPoolKind,
             ConvUnitKind,
         },
         norm::BunsenNormalizationConfig,
@@ -156,6 +158,14 @@ pub struct ResNetContractConfig {
     #[config(default = "None")]
     pub attention: Option<ConvAttentionKind>,
 
+    /// Anti-aliased downsampling (timm's `aa_layer`): each unit that strides
+    /// 2 moves its stride from its mixer onto this pool, after the mixer's
+    /// activation, and the stem's max pool becomes a `2x2` average pool
+    /// ([`Avg`](ConvAaKind::Avg), `nn.AvgPool2d`) or a stride-1 max pool and
+    /// a blur of stride 2 ([`Blur`](ConvAaKind::Blur), `BlurPool2d`).
+    #[config(default = "None")]
+    pub anti_alias: Option<ConvAaKind>,
+
     /// The net's stride at its last stage: 32, or 16 or 8 for a dilated net.
     #[config(default = "32")]
     pub output_stride: usize,
@@ -184,7 +194,8 @@ impl ResNetContractConfig {
     }
 
     /// The generic conv net's policy of this `ResNet`: its stem
-    /// ([`ResNetStemKind`]; its first conv strides 2) and a `3x3` max pool;
+    /// ([`ResNetStemKind`]; its first conv strides 2) and a `3x3` max pool
+    /// (or an anti-aliased pool, [`anti_alias`](Self::anti_alias));
     /// then a stage per entry of `layers`, the first at stride 1 and each
     /// later one at stride 2.
     ///
@@ -237,6 +248,11 @@ impl ResNetContractConfig {
                 ConvStemContractConfig::new(vec![3 * (w / 4), w, 2 * w]).with_kernel_size(3)
             }
         };
+        let stem = stem.with_pool(match self.anti_alias {
+            None => ConvStemPoolKind::Max,
+            Some(ConvAaKind::Avg) => ConvStemPoolKind::Avg,
+            Some(ConvAaKind::Blur) => ConvStemPoolKind::MaxBlur,
+        });
         let shortcut = if self.avg_down {
             ConvShortcutKind::AvgConv
         } else {
@@ -250,7 +266,8 @@ impl ResNetContractConfig {
                     .with_norm(self.normalization.clone())
                     .with_act(self.activation.clone())
                     .with_shortcut(shortcut)
-                    .with_attn(self.attention),
+                    .with_attn(self.attention)
+                    .with_aa(self.anti_alias),
             ))
     }
 

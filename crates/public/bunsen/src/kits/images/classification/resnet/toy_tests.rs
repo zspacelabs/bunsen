@@ -1,14 +1,15 @@
 //! The toy models against timm's own `ResNet`.
 //!
-//! `testdata/resnet/` holds nine tiny seeded timm `ResNet`s and their
+//! `testdata/resnet/` holds twelve tiny seeded timm `ResNet`s and their
 //! answers, computed in float64 (`tools/gen_resnet_toy_fixtures.py`, timm's
 //! `timm.models.resnet.ResNet`), each four stages of one block: on its
 //! 64-wide 7x7 stem, one of basic blocks and one of bottlenecks at timm's
 //! `channels=(8, 16, 32, 64)`, one of bottlenecks at 32 planes with timm's
 //! group norm, and one of grouped bottlenecks (`ResNeXt`'s); then, on odd
 //! stage sizes, a deep stem and a tiered one with average-pool shortcuts, and
-//! the tiered one dilated past stride 8; and bottlenecks with timm's
-//! squeeze-excite and with its ECA.
+//! the tiered one dilated past stride 8; bottlenecks with timm's
+//! squeeze-excite and with its ECA; and timm's anti-aliasing, a blur (also
+//! dilated past stride 16) and an average pool.
 //! Each is the [`ResNetContractConfig`] of the same knobs. The weights, under
 //! timm's names, load through [`load_resnet_tensors`]; each stage output, the
 //! pooled features and the logits are checked against timm's.
@@ -28,6 +29,7 @@ use super::{
 };
 use crate::{
     blocks::images::models::conv_net::{
+        ConvAaKind,
         ConvAttentionKind,
         ConvNetModel,
     },
@@ -189,5 +191,42 @@ fn test_eca_toy_is_timms() {
     check_toy(
         "toy_eca",
         toy_policy(true, [8, 16, 32, 64]).with_attention(Some(ConvAttentionKind::Eca)),
+    );
+}
+
+/// timm's `BlurPool2d` anti-aliasing: the stem's stride-1 max pool and blur,
+/// and each striding unit's blur after its mixer; on odd sizes.
+#[test]
+fn test_blur_toy_is_timms() {
+    check_toy(
+        "toy_blur",
+        toy_policy(false, [8, 16, 32, 64]).with_anti_alias(Some(ConvAaKind::Blur)),
+    );
+}
+
+/// timm's `nn.AvgPool2d` anti-aliasing on a deep stem with average-pool
+/// shortcuts: the stem's `2x2` average pool, each striding unit's after its
+/// mixer.
+#[test]
+fn test_avg_aa_toy_is_timms() {
+    check_toy(
+        "toy_aa",
+        toy_policy(true, [8, 16, 32, 64])
+            .with_stem_type(ResNetStemKind::Deep)
+            .with_stem_width(16)
+            .with_avg_down(true)
+            .with_anti_alias(Some(ConvAaKind::Avg)),
+    );
+}
+
+/// Blur anti-aliasing at output stride 16: the dilated stage's first unit
+/// blurs at stride 1.
+#[test]
+fn test_blur_dilated_toy_is_timms() {
+    check_toy(
+        "toy_blur_dilated",
+        toy_policy(true, [8, 16, 32, 64])
+            .with_anti_alias(Some(ConvAaKind::Blur))
+            .with_output_stride(16),
     );
 }

@@ -11,7 +11,10 @@ use burn::{
         BatchNormConfig,
         PaddingConfig2d,
         conv::Conv2dConfig,
-        pool::MaxPool2dConfig,
+        pool::{
+            AvgPool2dConfig,
+            MaxPool2dConfig,
+        },
     },
 };
 
@@ -20,6 +23,10 @@ use crate::{
         activation::BunsenActivationConfig,
         conv::ConvBlock2dConfig,
         images::{
+            anti_alias::{
+                AntiAliasConfig,
+                BlurPool2dConfig,
+            },
             attention::{
                 ChannelAttentionConfig,
                 EcaConfig,
@@ -35,6 +42,7 @@ use crate::{
                 ConvStemMeta,
                 ConvStemPoolConfig,
                 GlobalPool2dConfig,
+                MaxBlurPoolConfig,
                 ResidualUnitConfig,
             },
         },
@@ -118,11 +126,44 @@ impl ConvAttentionKind {
     }
 }
 
+/// A unit's anti-aliased downsampling, as a policy names it (timm's
+/// `aa_layer`): where a unit strides 2, or enters a dilated stage, its mixer
+/// keeps stride 1 and this pool, after the mixer's activation, takes the
+/// stride.
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum ConvAaKind {
+    /// An average pool of the stride (timm's `nn.AvgPool2d`).
+    Avg,
+
+    /// A `3x3` binomial blur, then the stride (timm's `BlurPool2d`).
+    Blur,
+}
+
+impl ConvAaKind {
+    /// The pool at `stride`.
+    pub fn to_config(
+        self,
+        stride: usize,
+    ) -> AntiAliasConfig {
+        match self {
+            Self::Avg => AntiAliasConfig::avg(stride),
+            Self::Blur => AntiAliasConfig::blur(stride),
+        }
+    }
+}
+
 /// The stem's pool, as a policy names it.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum ConvStemPoolKind {
     /// A `3x3` max pool, stride 2, padding 1 (`ResNet`'s).
     Max,
+
+    /// A `2x2` average pool, stride 2 (an average-anti-aliased `ResNet`'s).
+    Avg,
+
+    /// A `3x3` max pool, stride 1, padding 1, then a `3x3` blur of stride 2
+    /// (a blur-anti-aliased `ResNet`'s).
+    MaxBlur,
 
     /// No pool.
     None,
@@ -149,6 +190,10 @@ pub struct ConvLayersConfig {
     /// `None`.
     #[config(default = "None")]
     pub attn: Option<ConvAttentionKind>,
+
+    /// Each striding unit's anti-aliased downsampling; none when `None`.
+    #[config(default = "None")]
+    pub aa: Option<ConvAaKind>,
 }
 
 impl Default for ConvLayersConfig {
@@ -238,12 +283,20 @@ impl ConvStemContractConfig {
                 conv
             })
             .collect();
+        let max = |stride: usize| {
+            MaxPool2dConfig::new([3, 3])
+                .with_strides([stride, stride])
+                .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
+        };
         let pool = match self.pool {
-            ConvStemPoolKind::Max => Some(ConvStemPoolConfig::Max(
-                MaxPool2dConfig::new([3, 3])
-                    .with_strides([2, 2])
-                    .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1)),
+            ConvStemPoolKind::Max => Some(ConvStemPoolConfig::Max(max(2))),
+            ConvStemPoolKind::Avg => Some(ConvStemPoolConfig::Avg(
+                AvgPool2dConfig::new([2, 2]).with_strides([2, 2]),
             )),
+            ConvStemPoolKind::MaxBlur => Some(ConvStemPoolConfig::MaxBlur(MaxBlurPoolConfig::new(
+                max(1),
+                BlurPool2dConfig::new(),
+            ))),
             ConvStemPoolKind::None => None,
         };
         Ok(ConvStemConfig { convs, pool })
@@ -299,10 +352,24 @@ impl ConvStageContractConfig {
         dilation: usize,
     ) -> BunsenResult<ResidualUnitConfig> {
         let (mid, width, k, groups) = (self.mid_width, self.width, self.kernel_size, self.groups);
+        // timm's `use_aa`: the pool takes the stride where a unit strides 2
+        // or enters a dilated stage; the mixer keeps stride 1.
+        let aa = layers
+            .aa
+            .filter(|_| stride == 2 || first_dilation != dilation)
+            .map(|kind| kind.to_config(stride));
+        let mixer_stride = if aa.is_some() { 1 } else { stride };
         let (convs, mixer) = match self.unit {
             ConvUnitKind::Basic => (
                 alloc::vec![
-                    layers.conv([in_channels, mid], k, stride, first_dilation, groups, true),
+                    layers.conv(
+                        [in_channels, mid],
+                        k,
+                        mixer_stride,
+                        first_dilation,
+                        groups,
+                        true
+                    ),
                     layers.conv([mid, width], k, 1, dilation, groups, false),
                 ],
                 0,
@@ -310,7 +377,7 @@ impl ConvStageContractConfig {
             ConvUnitKind::Bottleneck => (
                 alloc::vec![
                     layers.conv([in_channels, mid], 1, 1, 1, 1, true),
-                    layers.conv([mid, mid], k, stride, first_dilation, groups, true),
+                    layers.conv([mid, mid], k, mixer_stride, first_dilation, groups, true),
                     layers.conv([mid, width], 1, 1, 1, 1, false),
                 ],
                 1,
@@ -340,6 +407,7 @@ impl ConvStageContractConfig {
         Ok(ResidualUnitConfig {
             convs: convs.into_iter().map(Into::into).collect(),
             mixer,
+            aa,
             shortcut,
             attn: layers.attn.map(|kind| kind.to_config(width)),
             act: Some(layers.act.clone()),

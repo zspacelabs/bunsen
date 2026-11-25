@@ -34,7 +34,8 @@ use super::*;
 /// How far bunsen's float32 (on wgpu) may be from timm's float64, per
 /// value: `|bunsen - timm| <= ABS + REL * |timm|`. Measured on the rows
 /// (2026-11-24): at most 3.4e-5 on a logit (the group norm's
-/// `resnet50_gn`), 1e-5 on a feature.
+/// `resnet50_gn`), 2.6e-5 on a feature (the 101-layer
+/// `seresnextaa101d_32x8d` at 288 pixels).
 const ABS: f32 = 1e-4;
 /// See [`ABS`].
 const REL: f32 = 1e-4;
@@ -260,5 +261,23 @@ mod timm {
     #[serial_test::serial]
     fn ecaresnet50d_miil_in1k() {
         check_row("timm/ecaresnet50d.miil_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnetblur50_bt_in1k() {
+        check_row("timm/resnetblur50.bt_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnetaa50_a1h_in1k() {
+        check_row("timm/resnetaa50.a1h_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn seresnextaa101d_32x8d_sw_in12k_ft_in1k_288() {
+        check_row("timm/seresnextaa101d_32x8d.sw_in12k_ft_in1k_288");
     }
 }

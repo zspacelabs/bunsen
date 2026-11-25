@@ -407,6 +407,27 @@ crates:
         core: false
         dtypes: [f32]
         varies: ECA after each unit's last norm, on a deep stem with average-pool shortcuts
+      timm/resnetblur50.bt_in1k:
+        size: small
+        gb: 0.21
+        core: false
+        dtypes: [f32]
+        varies: blur anti-aliasing - the stem's stride-1 max pool and blur, a blur after each
+          striding mixer
+      timm/resnetaa50.a1h_in1k:
+        size: small
+        gb: 0.21
+        core: false
+        dtypes: [f32]
+        varies: average-pool anti-aliasing - the stem's 2x2 average pool, one after each striding
+          mixer
+      timm/seresnextaa101d_32x8d.sw_in12k_ft_in1k_288:
+        size: small
+        gb: 0.48
+        core: false
+        dtypes: [f32]
+        varies: the knobs together (grouped mixers, a deep stem, average-pool shortcuts,
+          squeeze-excite, average-pool anti-aliasing), at 288 pixels
       torchvision/resnet18:
         size: small
         gb: 0.15

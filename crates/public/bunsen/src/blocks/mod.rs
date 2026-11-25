@@ -121,6 +121,8 @@
 //!   `SubpixelUpsample1d` (a sub-pixel convolution), and `EncoderSubsampling`,
 //!   an encoder front end chosen by config.
 //! - [`images`]: vision blocks.
+//!   - [`images::anti_alias`]: anti-aliased downsampling, `BlurPool2d` and an
+//!     average pool, behind the `AntiAlias` seam.
 //!   - [`images::attention`]: channel attention, `SqueezeExcite` and `Eca`,
 //!     behind the `ChannelAttention` seam.
 //!   - [`images::drop`]: structured drop layers, `DropBlock2d` and `DropPath`,
