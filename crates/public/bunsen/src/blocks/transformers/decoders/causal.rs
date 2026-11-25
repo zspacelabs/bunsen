@@ -15,10 +15,7 @@ use burn::{
 
 use crate::{
     blocks::{
-        norm::{
-            BunsenNormalization,
-            BunsenNormalizationConfig,
-        },
+        norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::AttentionSides,
             conditioning::{
@@ -145,9 +142,11 @@ pub struct CausalDecoderBlockConfig {
     pub attn_norm: bool,
 
     /// Where each sublayer's `norm` is: before its branch, inside the
-    /// residual (`x + f(norm(x))`, every decoder's), or after the residual
-    /// sum (`norm(x + f(x))`, the original Transformer's encoder layer,
-    /// Sortformer v2's). A post-norm block's stack takes no routes.
+    /// residual (`x + f(norm(x))`, every decoder's); after the residual sum
+    /// (`norm(x + f(x))`, the original Transformer's encoder layer,
+    /// Sortformer v2's); or after the branch, inside the residual
+    /// (`x + norm(f(x))`, Swin V2's res-post-norm). A post-norm block's stack
+    /// takes no routes.
     #[config(default = "NormPlacement::Pre")]
     pub norm_placement: NormPlacement,
 
@@ -226,18 +225,25 @@ impl CausalDecoderBlockConfig {
             )
             .into());
         }
+        // The sandwich's output norm, where `post_norms` asks for one (a
+        // res-post-norm sublayer has its norm there already).
+        let sandwich = |c: ResidualSublayerConfig| match self.post_norms {
+            true => c.with_post(Some(self.norm.clone())),
+            false => c,
+        };
         Ok(CausalDecoderBlock {
-            attn: ResidualSublayerConfig::placed(
+            attn: sandwich(ResidualSublayerConfig::placed(
                 self.norm_placement,
                 self.attn_norm.then(|| self.norm.clone()),
-            )
-            .with_post(self.post_norms.then(|| self.norm.clone()))
+            ))
             .with_layer_scale(self.layer_scale)
             .init(self.attn.try_init(layer_index, device)?, n_embed, device),
-            mlp: ResidualSublayerConfig::placed(self.norm_placement, Some(self.norm.clone()))
-                .with_post(self.post_norms.then(|| self.norm.clone()))
-                .with_layer_scale(self.layer_scale)
-                .init(self.mlp.try_init(device)?, n_embed, device),
+            mlp: sandwich(ResidualSublayerConfig::placed(
+                self.norm_placement,
+                Some(self.norm.clone()),
+            ))
+            .with_layer_scale(self.layer_scale)
+            .init(self.mlp.try_init(device)?, n_embed, device),
             mlp_scale: self
                 .mlp_scale
                 .as_ref()
@@ -252,7 +258,7 @@ impl CausalDecoderBlockConfig {
 /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp.pre(x))`.
 ///
 /// What tells its users apart is config: the norm
-/// ([`BunsenNormalization`]),
+/// ([`BunsenNormalization`](crate::blocks::norm::BunsenNormalization)),
 /// the feed-forward ([`TransformerFeedForward`]: a `BunsenMlp` or a gated
 /// `SwiGLU`), and the attention's own options (grouped-query heads, QK-norm and
 /// where it sits). RMS norms, a `ReLU`² `BunsenMlp` and QK-norm after the
@@ -530,13 +536,26 @@ impl CausalDecoderBlock {
 impl CanonicalKeys for CausalDecoderBlock {
     fn canonical_rekey(&self) -> Rekey {
         // Each sublayer is a `ResidualSublayer`: its norm is its `pre`, or
-        // its `out` after the sum; its output norm its `post`, its module its
+        // its `out` after the sum, or its `post` on a res-post-norm block
+        // (which has neither); its output norm its `post`, its module its
         // `branch`, its layer scale its `scale`.
-        let norm = |sublayer: &Option<BunsenNormalization>| match sublayer {
-            Some(_) => "out.",
-            None => "pre.",
+        let norm = |out: bool, pre: bool, post: bool| match (out, pre, post) {
+            (true, ..) => "out.",
+            (false, false, true) => "post.",
+            _ => "pre.",
         };
-        let (attn_norm, mlp_norm) = (norm(&self.attn.out), norm(&self.mlp.out));
+        let (attn_norm, mlp_norm) = (
+            norm(
+                self.attn.out.is_some(),
+                self.attn.pre.is_some(),
+                self.attn.post.is_some(),
+            ),
+            norm(
+                self.mlp.out.is_some(),
+                self.mlp.pre.is_some(),
+                self.mlp.post.is_some(),
+            ),
+        );
         Rekey::keep_rest()
             .exact("attn_layer_scale", "attn.scale")
             .exact("mlp_layer_scale", "mlp.scale")

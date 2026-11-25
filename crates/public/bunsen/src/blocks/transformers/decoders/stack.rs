@@ -301,7 +301,7 @@ impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
             && let Some(i) = self
                 .layers
                 .iter()
-                .position(|l| l.norm_placement == NormPlacement::Post)
+                .position(|l| l.norm_placement != NormPlacement::Pre)
         {
             return Err(ConstraintError::new(
                 "DecoderStackStructureConfig",
