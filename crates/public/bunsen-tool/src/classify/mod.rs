@@ -3,7 +3,7 @@
 //!
 //! - [`ClassifyCommandGroup`]: `classify <run|list|fetch>`: image files to
 //!   their top classes, and the checkpoints.
-//! - [`ImageFamily`]: the image kits (`ResNet`, `ViT`), and which one a
+//! - [`ImageFamily`]: the image kits (`ResNet`, `ViT`, `DeiT`), and which one a
 //!   checkpoint name loads through.
 //! - [`load_image_model`]: a checkpoint by name, as an
 //!   [`ImageClassifier`](bunsen::kits::images::classification::driver::ImageClassifier)

@@ -78,6 +78,9 @@ pub const ROWS: &[&str] = &[
     "timm/vit_base_patch32_clip_224.laion400m_e32",
     "timm/vit_small_patch16_224.dino",
     "timm/vit_base_patch32_clip_224.openai",
+    "timm/deit_small_patch16_224.fb_in1k",
+    "timm/deit_base_distilled_patch16_224.fb_in1k",
+    "timm/deit3_small_patch16_224.fb_in1k",
 ];
 
 /// How many validation images a fixture covers: the first of the shard.
@@ -280,16 +283,32 @@ pub enum RowKit {
     ResNet,
     /// `kits::images::classification::vit`.
     ViT,
+    /// `kits::images::classification::deit`.
+    DeiT,
 }
 
 impl RowKit {
-    /// The kit whose factory names `row`: the vit kit's, else the resnet
-    /// kit's.
+    /// The kit whose factory names `row`: the vit kit's, the deit kit's,
+    /// else the resnet kit's.
     pub fn of(row: &str) -> Self {
-        use bunsen::kits::images::classification::vit::pretrained::default_vit_factory;
-        match default_vit_factory().expect("the vit factory").lookup(row) {
-            Ok(_) => Self::ViT,
-            Err(_) => Self::ResNet,
+        use bunsen::kits::images::classification::{
+            deit::pretrained::default_deit_factory,
+            vit::pretrained::default_vit_factory,
+        };
+        if default_vit_factory()
+            .expect("the vit factory")
+            .lookup(row)
+            .is_ok()
+        {
+            Self::ViT
+        } else if default_deit_factory()
+            .expect("the deit factory")
+            .lookup(row)
+            .is_ok()
+        {
+            Self::DeiT
+        } else {
+            Self::ResNet
         }
     }
 }
@@ -301,6 +320,7 @@ pub fn resolve_row(
     cache: &bunsen::data::resources::ResourceCache,
 ) -> bunsen::data::builds::BuildRef {
     use bunsen::kits::images::classification::{
+        deit::pretrained::default_deit_factory,
         resnet::pretrained::default_resnet_factory,
         vit::pretrained::default_vit_factory,
     };
@@ -311,6 +331,10 @@ pub fn resolve_row(
             .map(|d| d.model),
         RowKit::ViT => default_vit_factory()
             .expect("the vit factory")
+            .resolve(row, cache)
+            .map(|d| d.model),
+        RowKit::DeiT => default_deit_factory()
+            .expect("the deit factory")
             .resolve(row, cache)
             .map(|d| d.model),
     };
@@ -332,6 +356,7 @@ pub fn load_row(
     use std::sync::Arc;
 
     use bunsen::kits::images::classification::{
+        deit::pretrained::default_deit_factory,
         resnet::pretrained::default_resnet_factory,
         vit::pretrained::default_vit_factory,
     };
@@ -347,6 +372,14 @@ pub fn load_row(
         RowKit::ViT => {
             let construct = default_vit_factory()
                 .expect("the vit factory")
+                .load_construct(row, cache, device, policy)
+                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
+            let construct = Arc::unwrap_or_clone(construct);
+            (Box::new(construct.model), construct.card)
+        }
+        RowKit::DeiT => {
+            let construct = default_deit_factory()
+                .expect("the deit factory")
                 .load_construct(row, cache, device, policy)
                 .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
             let construct = Arc::unwrap_or_clone(construct);

@@ -1116,6 +1116,83 @@ run them.
 
 * timm/vit_large_patch14_clip_336.openai_ft_in12k_in1k: [1.22 GB]
   timm's `vit_large_patch14_clip_336`, its `openai_ft_in12k_in1k` weights.
+
+# contract: deit-classifier
+# A DeiT image classifier: a timm hub repo's checkpoint (safetensors, or an
+# older repo's PyTorch state dict) and `config.json`.
+# publisher: timm - pytorch-image-models (timm), Ross Wightman's.
+
+* timm/deit_tiny_patch16_224.fb_in1k: [23.6 MB]
+  timm's `deit_tiny_patch16_224`, its `fb_in1k` weights.
+
+* timm/deit_small_patch16_224.fb_in1k: [89.0 MB]
+  timm's `deit_small_patch16_224`, its `fb_in1k` weights.
+
+* timm/deit_base_patch16_224.fb_in1k: [347.0 MB]
+  timm's `deit_base_patch16_224`, its `fb_in1k` weights.
+
+* timm/deit_base_patch16_384.fb_in1k: [348.2 MB]
+  timm's `deit_base_patch16_384`, its `fb_in1k` weights.
+
+* timm/deit_tiny_distilled_patch16_224.fb_in1k: [24.4 MB]
+  timm's `deit_tiny_distilled_patch16_224`, its `fb_in1k` weights.
+
+* timm/deit_small_distilled_patch16_224.fb_in1k: [90.5 MB]
+  timm's `deit_small_distilled_patch16_224`, its `fb_in1k` weights.
+
+* timm/deit_base_distilled_patch16_224.fb_in1k: [350.1 MB]
+  timm's `deit_base_distilled_patch16_224`, its `fb_in1k` weights.
+
+* timm/deit_base_distilled_patch16_384.fb_in1k: [351.3 MB]
+  timm's `deit_base_distilled_patch16_384`, its `fb_in1k` weights.
+
+* timm/deit3_small_patch16_224.fb_in1k: [89.0 MB]
+  timm's `deit3_small_patch16_224`, its `fb_in1k` weights.
+
+* timm/deit3_small_patch16_224.fb_in22k_ft_in1k: [89.0 MB]
+  timm's `deit3_small_patch16_224`, its `fb_in22k_ft_in1k` weights.
+
+* timm/deit3_small_patch16_384.fb_in1k: [89.6 MB]
+  timm's `deit3_small_patch16_384`, its `fb_in1k` weights.
+
+* timm/deit3_small_patch16_384.fb_in22k_ft_in1k: [89.6 MB]
+  timm's `deit3_small_patch16_384`, its `fb_in22k_ft_in1k` weights.
+
+* timm/deit3_medium_patch16_224.fb_in1k: [156.2 MB]
+  timm's `deit3_medium_patch16_224`, its `fb_in1k` weights.
+
+* timm/deit3_medium_patch16_224.fb_in22k_ft_in1k: [156.2 MB]
+  timm's `deit3_medium_patch16_224`, its `fb_in22k_ft_in1k` weights.
+
+* timm/deit3_base_patch16_224.fb_in1k: [347.1 MB]
+  timm's `deit3_base_patch16_224`, its `fb_in1k` weights.
+
+* timm/deit3_base_patch16_224.fb_in22k_ft_in1k: [347.1 MB]
+  timm's `deit3_base_patch16_224`, its `fb_in22k_ft_in1k` weights.
+
+* timm/deit3_base_patch16_384.fb_in1k: [348.3 MB]
+  timm's `deit3_base_patch16_384`, its `fb_in1k` weights.
+
+* timm/deit3_base_patch16_384.fb_in22k_ft_in1k: [348.3 MB]
+  timm's `deit3_base_patch16_384`, its `fb_in22k_ft_in1k` weights.
+
+* timm/deit3_large_patch16_224.fb_in1k: [1.22 GB]
+  timm's `deit3_large_patch16_224`, its `fb_in1k` weights.
+
+* timm/deit3_large_patch16_224.fb_in22k_ft_in1k: [1.22 GB]
+  timm's `deit3_large_patch16_224`, its `fb_in22k_ft_in1k` weights.
+
+* timm/deit3_large_patch16_384.fb_in1k: [1.22 GB]
+  timm's `deit3_large_patch16_384`, its `fb_in1k` weights.
+
+* timm/deit3_large_patch16_384.fb_in22k_ft_in1k: [1.22 GB]
+  timm's `deit3_large_patch16_384`, its `fb_in22k_ft_in1k` weights.
+
+* timm/deit3_huge_patch14_224.fb_in1k: [2.53 GB]
+  timm's `deit3_huge_patch14_224`, its `fb_in1k` weights.
+
+* timm/deit3_huge_patch14_224.fb_in22k_ft_in1k: [2.53 GB]
+  timm's `deit3_huge_patch14_224`, its `fb_in22k_ft_in1k` weights.
 ```
 
 <!-- /card -->

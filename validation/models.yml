@@ -484,6 +484,25 @@ crates:
         dtypes: [f32]
         varies: OpenAI's CLIP image tower, in CLIP's own layout (a pytorch_model.bin with the text
           tower) - timm's conversion
+      timm/deit_small_patch16_224.fb_in1k:
+        size: small
+        gb: 0.2
+        core: false
+        dtypes: [f32]
+        varies: a plain DeiT - a ViT trained on ImageNet-1k alone
+      timm/deit_base_distilled_patch16_224.fb_in1k:
+        size: small
+        gb: 0.46
+        core: false
+        dtypes: [f32]
+        varies: a distilled DeiT - the distillation token and its classifier, averaged with the
+          class token's
+      timm/deit3_small_patch16_224.fb_in1k:
+        size: small
+        gb: 0.2
+        core: false
+        dtypes: [f32]
+        varies: DeiT III - the position embedding over the patches alone, layer scale
       torchvision/resnet18:
         size: small
         gb: 0.15

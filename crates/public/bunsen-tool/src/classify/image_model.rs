@@ -20,6 +20,10 @@ use bunsen::{
     errors::BunsenResult,
     kits::images::{
         classification::{
+            deit::{
+                DeiTContractConfig,
+                pretrained::default_deit_factory,
+            },
             driver::ImageClassifier,
             resnet::{
                 ResNetContractConfig,
@@ -47,17 +51,21 @@ pub enum ImageFamily {
     /// `kits::images::classification::vit`: the `ViT`s, and the CLIP image
     /// towers.
     ViT,
+
+    /// `kits::images::classification::deit`: `DeiT` and `DeiT` III.
+    DeiT,
 }
 
 impl ImageFamily {
     /// Every family, in the order `list` and the summary show them.
-    pub const ALL: [Self; 2] = [Self::ResNet, Self::ViT];
+    pub const ALL: [Self; 3] = [Self::ResNet, Self::ViT, Self::DeiT];
 
     /// The family's kit name.
     pub fn name(self) -> &'static str {
         match self {
             Self::ResNet => "resnet",
             Self::ViT => "vit",
+            Self::DeiT => "deit",
         }
     }
 
@@ -66,6 +74,7 @@ impl ImageFamily {
         match self {
             Self::ResNet => ResNetContractConfig::prefab_names(),
             Self::ViT => ViTContractConfig::prefab_names(),
+            Self::DeiT => DeiTContractConfig::prefab_names(),
         }
     }
 
@@ -104,6 +113,7 @@ impl ImageFamily {
         Ok(match self {
             Self::ResNet => provider(default_resnet_factory()?, name),
             Self::ViT => provider(default_vit_factory()?, name),
+            Self::DeiT => provider(default_deit_factory()?, name),
         })
     }
 
@@ -126,6 +136,7 @@ impl ImageFamily {
         match self {
             Self::ResNet => rows(default_resnet_factory()?),
             Self::ViT => rows(default_vit_factory()?),
+            Self::DeiT => rows(default_deit_factory()?),
         }
     }
 }
@@ -180,6 +191,15 @@ pub fn load_image_model(
                 card: construct.card,
             }
         }
+        ImageFamily::DeiT => {
+            let construct = Arc::unwrap_or_clone(
+                default_deit_factory()?.load_construct(name, cache, device, policy)?,
+            );
+            LoadedImageModel {
+                model: Box::new(construct.model),
+                card: construct.card,
+            }
+        }
     })
 }
 
@@ -204,6 +224,7 @@ pub fn fetch_image_model(
     match ImageFamily::of(name)? {
         ImageFamily::ResNet => fetch(default_resnet_factory()?, name, cache),
         ImageFamily::ViT => fetch(default_vit_factory()?, name, cache),
+        ImageFamily::DeiT => fetch(default_deit_factory()?, name, cache),
     }
 }
 
@@ -223,6 +244,11 @@ mod tests {
                 ImageFamily::ViT,
             ),
             ("hf:timm/vit_base_patch16_224.mine", ImageFamily::ViT),
+            (
+                "timm/deit_base_distilled_patch16_224.fb_in1k",
+                ImageFamily::DeiT,
+            ),
+            ("hf:timm/deit3_small_patch16_224.mine", ImageFamily::DeiT),
             ("hf:timm/resnet18.mine", ImageFamily::ResNet),
             ("hf:someone/unknown", ImageFamily::ResNet),
         ] {

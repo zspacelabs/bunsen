@@ -1,0 +1,40 @@
+# What the deit kit's loader reads: a DeiT's weights, and its geometry, which a state dict doesn't
+# carry: a timm hub repo's config.json, or stated.
+deit-classifier:
+  $kind: contract
+  $description: >-
+    A DeiT image classifier: a timm hub repo's checkpoint (safetensors, or an older
+    repo's PyTorch state dict) and `config.json`.
+  $resources:
+    checkpoint:
+      $format: [safetensors, pytorch fp32]
+      $description: "The state dict: a timm hub repo's `model.safetensors`, or an older repo's
+        `pytorch_model.bin`."
+    config:
+      $format: [json]
+      $optional: true
+      $description: "A timm hub repo's `config.json`: its architecture, classes, pool and eval
+        transform."
+    labels:
+      $format: [synsets]
+      $optional: true
+      $description: "The class labels: one `WordNet` synset per class, in class order."
+    label_names:
+      $format: [synset-lemmas]
+      $optional: true
+      $description: "Each synset's lemmas, its readable name."
+  $args:
+    geometry:
+      $type: geometry
+      $optional: true
+      $description: "The network's geometry; without it, `config.json`'s architecture."
+    eval_transform:
+      $type: $object
+      $optional: true
+      $description: >-
+        The eval transform its images go through: an `ImageEvalTransformConfig`, as it serializes.
+  geometry:
+    $kind: type
+    $description: >-
+      A `DeiTContractConfig`, as it serializes.
+    $type: $object

@@ -145,7 +145,12 @@ fn test_steps_compose() {
         tolerance,
     );
     assert_tensors_close(
-        &model.head.classify(model.pooled_features(images.clone())),
+        &model
+            .head
+            .fc
+            .as_ref()
+            .unwrap()
+            .forward(model.pooled_features(images.clone())),
         &model.forward(images),
         tolerance,
     );

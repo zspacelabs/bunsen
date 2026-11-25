@@ -23,9 +23,14 @@
 //!   `ViT` and the CLIP image towers), and 99 pretrained rows, timm's hub
 //!   repos, loaded by name through
 //!   [`default_vit_factory`](vit::pretrained::default_vit_factory).
+//! - [`deit`]: `DeiT` and `DeiT` III, `ViT`s built the same way, the distilled
+//!   ones with a distillation token and a second classifier. 16 prefabs, loaded
+//!   from timm's hub repos through
+//!   [`default_deit_factory`](deit::pretrained::default_deit_factory).
 //! - [`swin::v2`]: Swin Transformer V2. The model and its configs, with no
 //!   prefabs and no pretrained weights yet.
 
+pub mod deit;
 pub mod driver;
 pub mod resnet;
 pub mod swin;
