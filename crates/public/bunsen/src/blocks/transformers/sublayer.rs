@@ -33,9 +33,15 @@ use burn::{
 };
 
 use crate::{
-    blocks::norm::{
-        BunsenNormalization,
-        BunsenNormalizationConfig,
+    blocks::{
+        images::drop::drop_path::{
+            DropPath,
+            DropPathConfig,
+        },
+        norm::{
+            BunsenNormalization,
+            BunsenNormalizationConfig,
+        },
     },
     burner::module::ModuleInit,
 };
@@ -64,6 +70,12 @@ pub struct ResidualSublayerConfig {
     /// `LayerScale`), after `post`; initialized to ones. `false`, no scale.
     #[config(default = false)]
     pub layer_scale: bool,
+
+    /// The probability of dropping the residual for a whole sample in
+    /// training (stochastic depth, timm's `DropPath`), after the layer
+    /// scale; 0, none.
+    #[config(default = 0.0)]
+    pub drop_path: f64,
 }
 
 /// Where a residual sublayer normalizes: before its branch, or after its
@@ -127,6 +139,11 @@ impl ResidualSublayerConfig {
             scale: self
                 .layer_scale
                 .then(|| Param::from_tensor(Tensor::ones([width], device))),
+            drop_path: (self.drop_path > 0.0).then(|| {
+                DropPathConfig::new()
+                    .with_drop_prob(self.drop_path)
+                    .init(device)
+            }),
         }
     }
 }
@@ -164,6 +181,9 @@ pub struct ResidualSublayer<M: Module> {
 
     /// The residual's per-channel layer scale `γ`, `[width]`, if any.
     pub scale: Option<Param<Tensor<1>>>,
+
+    /// The residual's stochastic depth, if any: a no-op in eval.
+    pub drop_path: Option<DropPath>,
 }
 
 impl<M: Module> ResidualSublayer<M> {
@@ -186,19 +206,23 @@ impl<M: Module> ResidualSublayer<M> {
         Self::apply(&self.pre, x)
     }
 
-    /// `r` through `post`, then the layer scale, if any.
+    /// `r` through `post`, then the layer scale and the drop path, if any.
     fn finish<const D: usize>(
         &self,
         r: Tensor<D>,
     ) -> Tensor<D> {
         let r = Self::apply(&self.post, r);
-        match &self.scale {
+        let r = match &self.scale {
             Some(scale) => {
                 let width = scale.dims()[0];
                 let mut shape = [1; D];
                 shape[D - 1] = width;
                 r * scale.val().reshape(shape)
             }
+            None => r,
+        };
+        match &self.drop_path {
+            Some(drop) => drop.forward(r),
             None => r,
         }
     }
@@ -290,6 +314,25 @@ mod tests {
 
     fn rms() -> Option<BunsenNormalizationConfig> {
         Some(BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)))
+    }
+
+    /// A drop path is a training regularizer: in eval the residual update is
+    /// the one without it.
+    #[test]
+    fn test_drop_path_is_a_no_op_in_eval() {
+        let device = cpu_device();
+        let branch = LinearConfig::new(3, 3).init(&device);
+        let plain = ResidualSublayerConfig::pre_norm(rms()).init(branch.clone(), 3, &device);
+        let dropped = ResidualSublayerConfig::pre_norm(rms())
+            .with_drop_path(0.5)
+            .init(branch, 3, &device);
+        assert!(dropped.drop_path.is_some() && plain.drop_path.is_none());
+        let x = Tensor::<2>::from_floats([[1.0, -2.0, 0.5], [0.25, 3.0, -1.0]], &device);
+        assert_tensors_close(
+            &dropped.residual_update_with(x.clone(), |b, z| b.forward(z)),
+            &plain.residual_update_with(x, |b, z| b.forward(z)),
+            Tolerance::rel_abs(0.0, 0.0),
+        );
     }
 
     /// A sublayer over a `Linear`, every slot's norm with a gain of its own.
