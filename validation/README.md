@@ -195,6 +195,7 @@ A kit that loads timm's hub repos has its timm rows written, not hand-written:
 ```sh
 cargo catalog timm-rows --kit resnet    # the Hub's timm/<arch>.<tag> repos of the kit's prefabs
 cargo catalog update --kit resnet       # then build them
+cargo catalog timm-rows --kit vit       # the same for the vit kit, whose towers may be unlabelled
 ```
 
 `timm-rows` replaces the source's lines between its `BEGIN` / `END` markers

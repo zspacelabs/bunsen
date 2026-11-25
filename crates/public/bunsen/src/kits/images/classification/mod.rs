@@ -20,7 +20,8 @@
 //! - [`vit`]: the Vision Transformer, built as the generic vision encoder
 //!   ([`VisionEncoderModel`](crate::blocks::transformers::models::vision_encoder::VisionEncoderModel)).
 //!   25 prefabs (`vit_tiny_patch16_224` to `vit_huge_patch14_224`, the MIIL
-//!   `ViT` and the CLIP image towers), loaded from timm's hub repos through
+//!   `ViT` and the CLIP image towers), and 96 pretrained rows, timm's hub
+//!   repos, loaded by name through
 //!   [`default_vit_factory`](vit::pretrained::default_vit_factory).
 //! - [`swin::v2`]: Swin Transformer V2. The model and its configs, with no
 //!   prefabs and no pretrained weights yet.

@@ -441,6 +441,42 @@ crates:
         core: false
         dtypes: [f32]
         varies: an ImageNet-12k head (11821 classes) and its labels
+      timm/vit_base_patch16_224.augreg2_in21k_ft_in1k:
+        size: small
+        gb: 0.45
+        core: false
+        dtypes: [f32]
+        varies: ViT-B/16 - the class token's pool, AugReg's in21k pretraining fine-tuned on in1k
+      timm/vit_small_patch16_224.augreg_in21k:
+        size: small
+        gb: 0.23
+        core: false
+        dtypes: [f32]
+        varies: an ImageNet-21k head (21843 classes) and its labels
+      timm/vit_base_patch16_224_miil.in21k:
+        size: small
+        gb: 0.49
+        core: false
+        dtypes: [f32]
+        varies: MIIL's - no qkv bias, an ImageNet-21k head of 11221 classes and its labels
+      timm/vit_base_patch16_384.augreg_in21k_ft_in1k:
+        size: small
+        gb: 0.46
+        core: false
+        dtypes: [f32]
+        varies: at 384 pixels - a 24x24 patch grid
+      timm/vit_base_patch32_clip_224.laion400m_e32:
+        size: small
+        gb: 0.46
+        core: false
+        dtypes: [f32]
+        varies: a CLIP image tower - pre-norm, a 512-wide projection head, no labels
+      timm/vit_small_patch16_224.dino:
+        size: small
+        gb: 0.19
+        core: false
+        dtypes: [f32]
+        varies: DINO's headless tower - the pooled features are the output
       torchvision/resnet18:
         size: small
         gb: 0.15

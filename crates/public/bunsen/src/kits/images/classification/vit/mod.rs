@@ -15,8 +15,9 @@
 //! [`pretrained`] turns names into loaded models.
 //! [`ViTContractConfig`]'s prefabs name the 25 geometries, by timm's
 //! architecture names, and
-//! [`default_vit_factory`](pretrained::default_vit_factory) loads timm's hub
-//! repos (`hf:timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`).
+//! [`default_vit_factory`](pretrained::default_vit_factory) is the index of
+//! 96 timm hub repos (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), and
+//! loads any other of the prefabs' architectures as `hf:timm/<repo>`.
 //!
 //! # The model
 //!
