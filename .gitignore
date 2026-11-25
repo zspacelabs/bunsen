@@ -37,3 +37,7 @@ target
 
 # ryl's lint and format cache.
 .ryl_cache/
+
+# Python bytecode caches.
+__pycache__/
+*.pyc
