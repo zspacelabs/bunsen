@@ -498,6 +498,14 @@ impl CausalDecoderBlock {
                 );
                 net.forward(z, linear.map(|cache| cache.layer_mut(net.layer_index)))
             }
+            TokenMixer::Window(attn) => {
+                assert!(
+                    sides.value_embed.is_none() && sides.key_valid.is_none() && kv_cache.is_none(),
+                    "a window-attention block takes no side inputs and no cache"
+                );
+                let _ = (r_emb, linear);
+                attn.forward(z)
+            }
         }
     }
 

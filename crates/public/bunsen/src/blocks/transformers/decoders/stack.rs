@@ -1740,6 +1740,7 @@ mod tests {
             .map(|l| match &l.attn.branch {
                 TokenMixer::Attention(a) => (true, a.layer_index),
                 TokenMixer::GatedDeltaNet(n) => (false, n.layer_index),
+                TokenMixer::Window(w) => (false, w.layer_index),
             })
             .collect();
         assert_eq!(
