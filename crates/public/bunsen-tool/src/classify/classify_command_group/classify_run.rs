@@ -96,6 +96,13 @@ impl ClassifyRunCommand {
         let cache = self.cache.init()?;
         let device = self.device.open()?;
         let loaded = load_image_model(&self.model, &cache, &device, self.precision.load_policy())?;
+        if loaded.model.n_classes() == 0 {
+            return Err(bunsen::errors::BunsenError::unsupported(format!(
+                "{}: a headless image tower has no classes; `bunsen-tool embed` writes its \
+                 features",
+                self.model
+            )));
+        }
         let top = classify_files(
             loaded.model.as_ref(),
             &loaded.card,

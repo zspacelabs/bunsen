@@ -10,7 +10,7 @@ use bunsen_app::{
 };
 use log::LevelFilter;
 
-use crate::classify::image_factory;
+use crate::classify::fetch_image_model;
 
 /// Fetches checkpoints into the weights cache.
 #[derive(clap::Args, Debug)]
@@ -32,12 +32,9 @@ impl ClassifyFetchCommand {
         self.logging
             .init(LogPolicy::new(LevelFilter::Info, LevelFilter::Info))?;
         let cache = self.cache.init()?;
-        let factory = image_factory()?;
         for name in &self.names {
-            let model = factory.resolve(name, &cache)?;
-            let map = model.plan(&cache)?;
-            let loaded = cache.load(&map)?;
-            println!("{}:", model.id());
+            let (id, loaded) = fetch_image_model(name, &cache)?;
+            println!("{id}:");
             for (key, part) in loaded.iter() {
                 println!("  {key}: {}", part.path.display());
             }

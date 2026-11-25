@@ -194,7 +194,16 @@ pub fn kinds() -> BunsenResult<Vec<Kind>> {
         Kind {
             name: "classify",
             title: "Image Classification",
-            families: vec![Family::of("resnet", crate::classify::image_factory()?)],
+            families: vec![
+                Family::of(
+                    "resnet",
+                    bunsen::kits::images::classification::resnet::pretrained::default_resnet_factory()?,
+                ),
+                Family::of(
+                    "vit",
+                    bunsen::kits::images::classification::vit::pretrained::default_vit_factory()?,
+                ),
+            ],
         },
     ]);
     Ok(kinds)
