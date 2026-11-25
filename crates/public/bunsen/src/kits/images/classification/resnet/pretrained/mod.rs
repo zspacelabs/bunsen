@@ -20,6 +20,12 @@
 //! `torchvision/resnet50`, `timm/resnet18_a1`, or a bare `resnet50`, which
 //! the torchvision group answers first.
 //!
+//! A timm hub repo the catalog does not name loads as `hf:timm/<repo>`
+//! (`hf:timm/resnet50.a1_in1k`): its `model.safetensors`, and its
+//! `config.json`, whose architecture is the prefab of its name
+//! ([`resnet_contract_config`](super::interop::timm::resnet_contract_config))
+//! and whose `pretrained_cfg` is the card's eval transform.
+//!
 //! [`default_resnet_factory`] is the index, and [`ResNetConstructConfig`] its
 //! hook: it builds the model from the row's prefab, reads the checkpoint
 //! into it with [`load_resnet`](super::interop::torchvision::load_resnet),

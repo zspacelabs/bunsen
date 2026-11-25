@@ -44,10 +44,11 @@ use crate::{
 /// [`load_resnet`](crate::kits::images::classification::resnet::interop::torchvision::load_resnet),
 /// and reads the build's [`ImageModelCard`]: its eval transform and labels.
 ///
-/// A checkpoint does not describe its own geometry, so the config comes
-/// from the prefab the row names, or from
-/// [`with_config`](Self::with_config), which wins and is what a given
-/// path needs. To build a modified model, resolve the name, set the
+/// A `PyTorch` checkpoint does not describe its own geometry, so the config
+/// comes from [`with_config`](Self::with_config), which wins and is what a
+/// given path needs; else from the geometry the row states; else, for a timm
+/// hub repo, from its `config.json`'s architecture
+/// ([`resnet_contract_config`](crate::kits::images::classification::resnet::interop::timm::resnet_contract_config)). To build a modified model, resolve the name, set the
 /// config on the deferred model's `hook`, then load it;
 /// `examples/resnet_tiny` swaps the activation this way before the
 /// weights land.
@@ -113,8 +114,9 @@ impl ConstructInit for ResNetConstructConfig {
         Ok(Self::new())
     }
 
-    /// Initialises the config's model, reads the checkpoint into it, and
-    /// reads the build's card.
+    /// Initialises the config's model, reads the checkpoint into it (a
+    /// `PyTorch` state dict, or a timm safetensors file), and reads the
+    /// build's card.
     fn try_init(
         &self,
         model: &BuildRef,
@@ -122,11 +124,38 @@ impl ConstructInit for ResNetConstructConfig {
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<ImageModelConstruct<ResNet>>> {
-        let config = self.config_for(model)?;
+        use crate::{
+            data::{
+                builds::CONFIG,
+                resources::SAFETENSORS,
+            },
+            kits::images::{
+                classification::resnet::interop::{
+                    timm,
+                    torchvision,
+                },
+                support::interop::timm::timm_model_config_from_path,
+            },
+        };
+
+        let config = match (self.config_for(model), loaded.get(CONFIG)) {
+            (Ok(config), _) => config,
+            (Err(_), Some(timm_config)) => {
+                timm::resnet_contract_config(&timm_model_config_from_path(&timm_config.path)?)?
+            }
+            (Err(missing), None) => return Err(missing),
+        };
         let card = ImageModelCard::try_from_build(model, loaded)?;
-        let model = crate::kits::images::classification::resnet::interop::torchvision::load_resnet(
-            loaded, &config, device, load,
-        )?;
+        let safetensors = loaded
+            .map
+            .get(super::CHECKPOINT)
+            .and_then(|r| r.format.as_deref())
+            == Some(SAFETENSORS);
+        let model = if safetensors {
+            timm::load_resnet(loaded, &config, device, load)?
+        } else {
+            torchvision::load_resnet(loaded, &config, device, load)?
+        };
         Ok(Arc::new(ImageModelConstruct { model, card }))
     }
 }

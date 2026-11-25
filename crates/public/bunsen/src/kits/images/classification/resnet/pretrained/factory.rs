@@ -36,7 +36,7 @@ mod tests {
     fn test_the_defaults_register() {
         let factory = default_resnet_factory().unwrap();
         assert_eq!(factory.kit(), RESNET_KIT);
-        assert_eq!(factory.providers().len(), 1);
+        assert_eq!(factory.providers().len(), 2);
         assert_eq!(factory.ids().len(), 14);
         let (provider, row) = factory.lookup("resnet18_a1").unwrap();
         assert_eq!(provider, "catalog");

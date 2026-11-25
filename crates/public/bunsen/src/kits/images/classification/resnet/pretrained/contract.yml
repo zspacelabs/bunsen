@@ -1,12 +1,20 @@
-# What the resnet kit's loader reads: an ImageNet-1k ResNet state dict, and
-# the geometry it is laid out in, which a state dict doesn't carry.
+# What the resnet kit's loader reads: a ResNet's weights, and the geometry
+# they are laid out in, which a state dict doesn't carry: stated, or a timm
+# hub repo's config.json.
 resnet-classifier:
   $kind: contract
-  $description: "A ResNet image classifier: a PyTorch state dict, in the geometry its build states."
+  $description: >-
+    A ResNet image classifier: a PyTorch state dict in the geometry its build states, or a timm
+    hub repo's safetensors and `config.json`.
   $resources:
     checkpoint:
-      $format: [pytorch fp32]
-      $description: "The state dict, torchvision's or timm's."
+      $format: [pytorch fp32, safetensors]
+      $description: "The state dict: torchvision's or timm's `.pth`, or a timm hub repo's
+        safetensors."
+    config:
+      $format: [json]
+      $optional: true
+      $description: "A timm hub repo's `config.json`: its architecture, classes and eval transform."
     labels:
       $format: [synsets]
       $optional: true
@@ -16,7 +24,10 @@ resnet-classifier:
       $optional: true
       $description: "Each synset's lemmas, its readable name."
   $args:
-    geometry: { $type: geometry, $description: "The network's blocks and widths." }
+    geometry:
+      $type: geometry
+      $optional: true
+      $description: "The network's blocks and widths; without it, `config.json`'s architecture."
     eval_transform:
       $type: $object
       $optional: true

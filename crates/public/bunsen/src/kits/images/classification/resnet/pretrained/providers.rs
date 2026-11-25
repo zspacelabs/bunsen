@@ -5,7 +5,10 @@ use alloc::{
     vec,
 };
 
-use crate::data::builds::BuildProvider;
+use crate::data::builds::{
+    BuildProvider,
+    HfProvider,
+};
 
 /// The `ResNet` kit's name: its rows' `kit` tag.
 pub const RESNET_KIT: &str = "resnet";
@@ -26,11 +29,17 @@ pub const RESNET_CONTRACT: &str = include_str!("contract.yml");
 /// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const RESNET_CATALOG_CONTRACT: &str = "resnet-classifier";
 
-/// `ResNet`'s compiled-in providers, in search order: the catalog provider.
+/// `ResNet`'s compiled-in providers, in search order: the catalog provider,
+/// then `hf:org/repo`, a timm hub repo of a `ResNet` the kit builds
+/// (`hf:timm/resnet50.a1_in1k`): its `model.safetensors` and its
+/// `config.json`, whose architecture names the geometry.
 pub fn default_resnet_providers() -> Vec<Arc<dyn BuildProvider>> {
-    vec![Arc::new(
-        crate::data::catalog::BuiltinCatalog::expect_provider(RESNET_CATALOG_CONTRACT),
-    )]
+    vec![
+        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
+            RESNET_CATALOG_CONTRACT,
+        )),
+        Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
+    ]
 }
 
 #[cfg(test)]
@@ -148,22 +157,26 @@ mod tests {
     /// the resource keys the loader reads, of the kinds it reads them as.
     #[test]
     fn test_the_contract_is_the_loaders() {
-        use crate::kits::{
-            images::support::card::{
-                EVAL_TRANSFORM,
-                LABEL_NAMES,
-                LABELS,
+        use crate::{
+            data::builds::CONFIG,
+            kits::{
+                images::support::card::{
+                    EVAL_TRANSFORM,
+                    LABEL_NAMES,
+                    LABELS,
+                },
+                support::pretrained::catalog_contracts::testing::contract_lines,
             },
-            support::pretrained::catalog_contracts::testing::contract_lines,
         };
         assert_eq!(
             contract_lines(RESNET_CONTRACT),
             [
-                format!("resnet-classifier: {CHECKPOINT} [{PYTORCH_FP32}]"),
+                format!("resnet-classifier: {CHECKPOINT} [{PYTORCH_FP32}, safetensors]"),
+                format!("resnet-classifier: {CONFIG}? [json]"),
                 format!("resnet-classifier: {LABEL_NAMES}? [synset-lemmas]"),
                 format!("resnet-classifier: {LABELS}? [synsets]"),
                 format!("resnet-classifier: {EVAL_TRANSFORM}?: \"$object\""),
-                "resnet-classifier: geometry: \"geometry\"".to_string(),
+                "resnet-classifier: geometry?: \"geometry\"".to_string(),
             ]
         );
     }

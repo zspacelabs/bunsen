@@ -14,6 +14,8 @@
 //!   [`ImageModelCard`](card::ImageModelCard) (its eval transform and labels),
 //!   and the construct every image kit loads,
 //!   [`ImageModelConstruct`](card::ImageModelConstruct).
+//! - [`interop`]: the image kits' shared interop: a timm hub repo's
+//!   `config.json` and the eval transform it states.
 //! - [`labels`]: a classifier's class labels,
 //!   [`ImageLabelSet`](labels::ImageLabelSet) (`ImageNet`'s `WordNet` synsets
 //!   and their lemmas, as timm ships them), and the `ImageNet` subset a class
@@ -25,5 +27,6 @@ pub mod card;
 pub mod encoder;
 #[cfg(feature = "images")]
 pub mod eval;
+pub mod interop;
 pub mod labels;
 pub mod transform;

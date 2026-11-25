@@ -43,13 +43,21 @@ $contracts:
           - tokenizer_config.json
   resnet-classifier:
     $kind: contract
-    $description: "A ResNet image classifier: a PyTorch state dict, in the geometry its build
-      states."
+    $description: "A ResNet image classifier: a PyTorch state dict in the geometry its build states,
+      or a timm hub repo's safetensors and `config.json`."
     $resources:
       checkpoint:
-        $description: The state dict, torchvision's or timm's.
+        $description: "The state dict: torchvision's or timm's `.pth`, or a timm hub repo's
+          safetensors."
         $format:
           - pytorch fp32
+          - safetensors
+      config:
+        $description: "A timm hub repo's `config.json`: its architecture, classes and eval
+          transform."
+        $format:
+          - json
+        $optional: true
       label_names:
         $description: Each synset's lemmas, its readable name.
         $format:
@@ -67,8 +75,9 @@ $contracts:
         $type: $object
         $optional: true
       geometry:
-        $description: The network's blocks and widths.
+        $description: The network's blocks and widths; without it, `config.json`'s architecture.
         $type: geometry
+        $optional: true
     geometry:
       $kind: type
       $description: "A `ResNetContractConfig`, as it serializes: the loader verifies it against the
