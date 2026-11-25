@@ -13,7 +13,7 @@ use log::LevelFilter;
 use crate::{
     classify::{
         DEFAULT_IMAGE_MODEL,
-        image_factory,
+        ImageFamily,
     },
     support::{
         print_model_row,
@@ -45,11 +45,14 @@ impl ClassifyListCommand {
         println!("cache: {}", cache.cache_dir().display());
         println!();
         println!("# image checkpoints (the default: {DEFAULT_IMAGE_MODEL})");
-        let factory = image_factory()?;
-        print_providers(factory.providers());
-        for id in factory.ids() {
-            let (_, row) = factory.lookup(&id)?;
-            print_model_row(&cache, &id, &row, DEFAULT_IMAGE_MODEL, self.urls);
+        for family in ImageFamily::ALL {
+            println!();
+            println!("## {}", family.name());
+            let listed = family.rows()?;
+            print_providers(&listed.providers);
+            for (id, row) in &listed.rows {
+                print_model_row(&cache, id, row, DEFAULT_IMAGE_MODEL, self.urls);
+            }
         }
         Ok(())
     }

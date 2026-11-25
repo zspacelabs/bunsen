@@ -816,6 +816,311 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 
 * timm/resnetrs420.tf_in1k: [770.1 MB]
   timm's `resnetrs420`, its `tf_in1k` weights.
+
+# contract: vit-classifier
+# A ViT image encoder, or classifier: a timm hub repo's checkpoint
+# (safetensors, or an older repo's PyTorch state dict) and `config.json`.
+# publisher: timm - pytorch-image-models (timm), Ross Wightman's.
+
+* timm/vit_tiny_patch16_224.augreg_in21k: [39.9 MB]
+  timm's `vit_tiny_patch16_224`, its `augreg_in21k` weights.
+
+* timm/vit_tiny_patch16_224.augreg_in21k_ft_in1k: [23.6 MB]
+  timm's `vit_tiny_patch16_224`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_tiny_patch16_384.augreg_in21k_ft_in1k: [23.9 MB]
+  timm's `vit_tiny_patch16_384`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_small_patch32_224.augreg_in21k: [124.6 MB]
+  timm's `vit_small_patch32_224`, its `augreg_in21k` weights.
+
+* timm/vit_small_patch32_224.augreg_in21k_ft_in1k: [92.3 MB]
+  timm's `vit_small_patch32_224`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_small_patch32_384.augreg_in21k_ft_in1k: [92.4 MB]
+  timm's `vit_small_patch32_384`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_small_patch16_224.augreg_in1k: [89.0 MB]
+  timm's `vit_small_patch16_224`, its `augreg_in1k` weights.
+
+* timm/vit_small_patch16_224.augreg_in21k: [121.3 MB]
+  timm's `vit_small_patch16_224`, its `augreg_in21k` weights.
+
+* timm/vit_small_patch16_224.augreg_in21k_ft_in1k: [89.0 MB]
+  timm's `vit_small_patch16_224`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_small_patch16_224.dino: [86.7 MB]
+  timm's `vit_small_patch16_224`, its `dino` weights.
+
+* timm/vit_small_patch16_384.augreg_in1k: [89.6 MB]
+  timm's `vit_small_patch16_384`, its `augreg_in1k` weights.
+
+* timm/vit_small_patch16_384.augreg_in21k_ft_in1k: [89.6 MB]
+  timm's `vit_small_patch16_384`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_small_patch8_224.dino: [86.7 MB]
+  timm's `vit_small_patch8_224`, its `dino` weights.
+
+* timm/vit_base_patch32_224.augreg_in1k: [353.7 MB]
+  timm's `vit_base_patch32_224`, its `augreg_in1k` weights.
+
+* timm/vit_base_patch32_224.augreg_in21k: [418.0 MB]
+  timm's `vit_base_patch32_224`, its `augreg_in21k` weights.
+
+* timm/vit_base_patch32_224.augreg_in21k_ft_in1k: [353.7 MB]
+  timm's `vit_base_patch32_224`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_base_patch32_224.orig_in21k: [349.8 MB]
+  timm's `vit_base_patch32_224`, its `orig_in21k` weights.
+
+* timm/vit_base_patch32_224.sam_in1k: [353.7 MB]
+  timm's `vit_base_patch32_224`, its `sam_in1k` weights.
+
+* timm/vit_base_patch32_384.augreg_in1k: [354.0 MB]
+  timm's `vit_base_patch32_384`, its `augreg_in1k` weights.
+
+* timm/vit_base_patch32_384.augreg_in21k_ft_in1k: [354.0 MB]
+  timm's `vit_base_patch32_384`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_base_patch16_224.augreg2_in21k_ft_in1k: [347.0 MB]
+  timm's `vit_base_patch16_224`, its `augreg2_in21k_ft_in1k` weights.
+
+* timm/vit_base_patch16_224.augreg_in1k: [347.0 MB]
+  timm's `vit_base_patch16_224`, its `augreg_in1k` weights.
+
+* timm/vit_base_patch16_224.augreg_in21k: [411.4 MB]
+  timm's `vit_base_patch16_224`, its `augreg_in21k` weights.
+
+* timm/vit_base_patch16_224.augreg_in21k_ft_in1k: [347.0 MB]
+  timm's `vit_base_patch16_224`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_base_patch16_224.dino: [343.2 MB]
+  timm's `vit_base_patch16_224`, its `dino` weights.
+
+* timm/vit_base_patch16_224.mae: [343.2 MB]
+  timm's `vit_base_patch16_224`, its `mae` weights.
+
+* timm/vit_base_patch16_224.orig_in21k: [343.2 MB]
+  timm's `vit_base_patch16_224`, its `orig_in21k` weights.
+
+* timm/vit_base_patch16_224.orig_in21k_ft_in1k: [347.0 MB]
+  timm's `vit_base_patch16_224`, its `orig_in21k_ft_in1k` weights.
+
+* timm/vit_base_patch16_224.sam_in1k: [347.0 MB]
+  timm's `vit_base_patch16_224`, its `sam_in1k` weights.
+
+* timm/vit_base_patch16_384.augreg_in1k: [348.2 MB]
+  timm's `vit_base_patch16_384`, its `augreg_in1k` weights.
+
+* timm/vit_base_patch16_384.augreg_in21k_ft_in1k: [348.2 MB]
+  timm's `vit_base_patch16_384`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_base_patch16_384.orig_in21k_ft_in1k: [348.2 MB]
+  timm's `vit_base_patch16_384`, its `orig_in21k_ft_in1k` weights.
+
+* timm/vit_base_patch8_224.augreg2_in21k_ft_in1k: [347.1 MB]
+  timm's `vit_base_patch8_224`, its `augreg2_in21k_ft_in1k` weights.
+
+* timm/vit_base_patch8_224.augreg_in21k: [411.4 MB]
+  timm's `vit_base_patch8_224`, its `augreg_in21k` weights.
+
+* timm/vit_base_patch8_224.augreg_in21k_ft_in1k: [347.1 MB]
+  timm's `vit_base_patch8_224`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_base_patch8_224.dino: [343.2 MB]
+  timm's `vit_base_patch8_224`, its `dino` weights.
+
+* timm/vit_large_patch32_224.orig_in21k: [1.22 GB]
+  timm's `vit_large_patch32_224`, its `orig_in21k` weights.
+
+* timm/vit_large_patch32_384.orig_in21k_ft_in1k: [1.23 GB]
+  timm's `vit_large_patch32_384`, its `orig_in21k_ft_in1k` weights.
+
+* timm/vit_large_patch16_224.augreg_in21k: [1.30 GB]
+  timm's `vit_large_patch16_224`, its `augreg_in21k` weights.
+
+* timm/vit_large_patch16_224.augreg_in21k_ft_in1k: [1.22 GB]
+  timm's `vit_large_patch16_224`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_large_patch16_224.mae: [1.21 GB]
+  timm's `vit_large_patch16_224`, its `mae` weights.
+
+* timm/vit_large_patch16_224.orig_in21k: [1.21 GB]
+  timm's `vit_large_patch16_224`, its `orig_in21k` weights.
+
+* timm/vit_large_patch16_384.augreg_in21k_ft_in1k: [1.22 GB]
+  timm's `vit_large_patch16_384`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_huge_patch14_224.mae: [2.52 GB]
+  timm's `vit_huge_patch14_224`, its `mae` weights.
+
+* timm/vit_huge_patch14_224.orig_in21k: [2.52 GB]
+  timm's `vit_huge_patch14_224`, its `orig_in21k` weights.
+
+* timm/vit_base_patch16_224_miil.in21k: [378.5 MB]
+  timm's `vit_base_patch16_224_miil`, its `in21k` weights.
+
+* timm/vit_base_patch16_224_miil.in21k_ft_in1k: [346.9 MB]
+  timm's `vit_base_patch16_224_miil`, its `in21k_ft_in1k` weights.
+
+* timm/vit_base_patch32_clip_224.datacompxl: [351.4 MB]
+  timm's `vit_base_patch32_clip_224`, its `datacompxl` weights.
+
+* timm/vit_base_patch32_clip_224.laion2b: [351.4 MB]
+  timm's `vit_base_patch32_clip_224`, its `laion2b` weights.
+
+* timm/vit_base_patch32_clip_224.laion2b_ft_in12k_in1k: [353.7 MB]
+  timm's `vit_base_patch32_clip_224`, its `laion2b_ft_in12k_in1k` weights.
+
+* timm/vit_base_patch32_clip_224.laion2b_ft_in1k: [353.7 MB]
+  timm's `vit_base_patch32_clip_224`, its `laion2b_ft_in1k` weights.
+
+* timm/vit_base_patch32_clip_224.laion400m_e32: [351.4 MB]
+  timm's `vit_base_patch32_clip_224`, its `laion400m_e32` weights.
+
+* timm/vit_base_patch32_clip_224.metaclip_2pt5b: [351.4 MB]
+  timm's `vit_base_patch32_clip_224`, its `metaclip_2pt5b` weights.
+
+* timm/vit_base_patch32_clip_224.metaclip_400m: [351.4 MB]
+  timm's `vit_base_patch32_clip_224`, its `metaclip_400m` weights.
+
+* timm/vit_base_patch32_clip_224.openai: [605.2 MB]
+  timm's `vit_base_patch32_clip_224`, its `openai` weights.
+
+* timm/vit_base_patch32_clip_224.openai_ft_in1k: [353.7 MB]
+  timm's `vit_base_patch32_clip_224`, its `openai_ft_in1k` weights.
+
+* timm/vit_base_patch32_clip_384.laion2b_ft_in12k_in1k: [354.0 MB]
+  timm's `vit_base_patch32_clip_384`, its `laion2b_ft_in12k_in1k` weights.
+
+* timm/vit_base_patch32_clip_384.openai_ft_in12k_in1k: [354.0 MB]
+  timm's `vit_base_patch32_clip_384`, its `openai_ft_in12k_in1k` weights.
+
+* timm/vit_base_patch16_clip_224.datacompxl: [344.8 MB]
+  timm's `vit_base_patch16_clip_224`, its `datacompxl` weights.
+
+* timm/vit_base_patch16_clip_224.dfn2b: [344.8 MB]
+  timm's `vit_base_patch16_clip_224`, its `dfn2b` weights.
+
+* timm/vit_base_patch16_clip_224.laion2b: [344.8 MB]
+  timm's `vit_base_patch16_clip_224`, its `laion2b` weights.
+
+* timm/vit_base_patch16_clip_224.laion2b_ft_in12k: [380.4 MB]
+  timm's `vit_base_patch16_clip_224`, its `laion2b_ft_in12k` weights.
+
+* timm/vit_base_patch16_clip_224.laion2b_ft_in12k_in1k: [347.0 MB]
+  timm's `vit_base_patch16_clip_224`, its `laion2b_ft_in12k_in1k` weights.
+
+* timm/vit_base_patch16_clip_224.laion2b_ft_in1k: [347.0 MB]
+  timm's `vit_base_patch16_clip_224`, its `laion2b_ft_in1k` weights.
+
+* timm/vit_base_patch16_clip_224.laion400m_e32: [344.8 MB]
+  timm's `vit_base_patch16_clip_224`, its `laion400m_e32` weights.
+
+* timm/vit_base_patch16_clip_224.metaclip_2pt5b: [344.8 MB]
+  timm's `vit_base_patch16_clip_224`, its `metaclip_2pt5b` weights.
+
+* timm/vit_base_patch16_clip_224.metaclip_400m: [344.8 MB]
+  timm's `vit_base_patch16_clip_224`, its `metaclip_400m` weights.
+
+* timm/vit_base_patch16_clip_224.openai: [598.6 MB]
+  timm's `vit_base_patch16_clip_224`, its `openai` weights.
+
+* timm/vit_base_patch16_clip_224.openai_ft_in12k: [380.4 MB]
+  timm's `vit_base_patch16_clip_224`, its `openai_ft_in12k` weights.
+
+* timm/vit_base_patch16_clip_224.openai_ft_in12k_in1k: [347.0 MB]
+  timm's `vit_base_patch16_clip_224`, its `openai_ft_in12k_in1k` weights.
+
+* timm/vit_base_patch16_clip_224.openai_ft_in1k: [347.0 MB]
+  timm's `vit_base_patch16_clip_224`, its `openai_ft_in1k` weights.
+
+* timm/vit_base_patch16_clip_384.laion2b_ft_in12k_in1k: [348.2 MB]
+  timm's `vit_base_patch16_clip_384`, its `laion2b_ft_in12k_in1k` weights.
+
+* timm/vit_base_patch16_clip_384.laion2b_ft_in1k: [348.2 MB]
+  timm's `vit_base_patch16_clip_384`, its `laion2b_ft_in1k` weights.
+
+* timm/vit_base_patch16_clip_384.openai_ft_in12k_in1k: [348.2 MB]
+  timm's `vit_base_patch16_clip_384`, its `openai_ft_in12k_in1k` weights.
+
+* timm/vit_base_patch16_clip_384.openai_ft_in1k: [348.2 MB]
+  timm's `vit_base_patch16_clip_384`, its `openai_ft_in1k` weights.
+
+* timm/vit_base_patch16_plus_clip_240.laion400m_e32: [468.9 MB]
+  timm's `vit_base_patch16_plus_clip_240`, its `laion400m_e32` weights.
+
+* timm/vit_large_patch14_clip_224.apple_mclip2_dfndr2b: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `apple_mclip2_dfndr2b` weights.
+
+* timm/vit_large_patch14_clip_224.datacompxl: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `datacompxl` weights.
+
+* timm/vit_large_patch14_clip_224.dfn2b: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `dfn2b` weights.
+
+* timm/vit_large_patch14_clip_224.dfn2b_s39b: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `dfn2b_s39b` weights.
+
+* timm/vit_large_patch14_clip_224.laion2b: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `laion2b` weights.
+
+* timm/vit_large_patch14_clip_224.laion2b_ft_in12k: [1.26 GB]
+  timm's `vit_large_patch14_clip_224`, its `laion2b_ft_in12k` weights.
+
+* timm/vit_large_patch14_clip_224.laion2b_ft_in12k_in1k: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `laion2b_ft_in12k_in1k` weights.
+
+* timm/vit_large_patch14_clip_224.laion2b_ft_in1k: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `laion2b_ft_in1k` weights.
+
+* timm/vit_large_patch14_clip_224.laion400m_e32: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `laion400m_e32` weights.
+
+* timm/vit_large_patch14_clip_224.metaclip_2pt5b: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `metaclip_2pt5b` weights.
+
+* timm/vit_large_patch14_clip_224.metaclip_400m: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `metaclip_400m` weights.
+
+* timm/vit_large_patch14_clip_224.openai: [1.71 GB]
+  timm's `vit_large_patch14_clip_224`, its `openai` weights.
+
+* timm/vit_large_patch14_clip_224.openai_ft_in12k: [1.26 GB]
+  timm's `vit_large_patch14_clip_224`, its `openai_ft_in12k` weights.
+
+* timm/vit_large_patch14_clip_224.openai_ft_in12k_in1k: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `openai_ft_in12k_in1k` weights.
+
+* timm/vit_large_patch14_clip_224.openai_ft_in1k: [1.22 GB]
+  timm's `vit_large_patch14_clip_224`, its `openai_ft_in1k` weights.
+
+* timm/vit_large_patch14_clip_336.datacompxl_ft_augreg_inat21: [1.26 GB]
+  timm's `vit_large_patch14_clip_336`, its `datacompxl_ft_augreg_inat21`
+  weights.
+
+* timm/vit_large_patch14_clip_336.datacompxl_ft_inat21: [1.26 GB]
+  timm's `vit_large_patch14_clip_336`, its `datacompxl_ft_inat21` weights.
+
+* timm/vit_large_patch14_clip_336.laion2b_ft_augreg_inat21: [1.26 GB]
+  timm's `vit_large_patch14_clip_336`, its `laion2b_ft_augreg_inat21`
+  weights.
+
+* timm/vit_large_patch14_clip_336.laion2b_ft_in12k_in1k: [1.22 GB]
+  timm's `vit_large_patch14_clip_336`, its `laion2b_ft_in12k_in1k` weights.
+
+* timm/vit_large_patch14_clip_336.laion2b_ft_in12k_in1k_inat21: [1.26 GB]
+  timm's `vit_large_patch14_clip_336`, its `laion2b_ft_in12k_in1k_inat21`
+  weights.
+
+* timm/vit_large_patch14_clip_336.laion2b_ft_in1k: [1.22 GB]
+  timm's `vit_large_patch14_clip_336`, its `laion2b_ft_in1k` weights.
+
+* timm/vit_large_patch14_clip_336.openai: [1.22 GB]
+  timm's `vit_large_patch14_clip_336`, its `openai` weights.
+
+* timm/vit_large_patch14_clip_336.openai_ft_in12k_in1k: [1.22 GB]
+  timm's `vit_large_patch14_clip_336`, its `openai_ft_in12k_in1k` weights.
 ```
 
 <!-- /card -->
@@ -1027,12 +1332,14 @@ transform (timm's `pretrained_cfg`: its size, resize filter, crop and normalizat
 bunsen-tool classify run --model timm/resnet50.a1_in1k -k 3 cat.jpg dog.png
 ```
 
-`--model` takes a catalog name (`classify list` shows them: torchvision's and timm's hub repos) or a timm hub repo,
-`hf:timm/<repo>`; the default is `timm/resnet50.a1_in1k`. `--format json` prints JSON. `embed run` writes the images'
-pooled features (the model's pre-logits) as one safetensors file:
+`--model` takes a catalog name (`classify list` shows them, by family: the ResNets, torchvision's and timm's hub
+repos; the ViTs, timm's) or a timm hub repo, `hf:timm/<repo>`, of either family's architectures; the default is
+`timm/resnet50.a1_in1k`. `--format json` prints JSON. `embed run` writes the images' pooled features (the model's
+pre-logits) as one safetensors file; it also takes the headless towers, which `classify` refuses (DINO's, MAE's):
 
 ```sh
 bunsen-tool embed run -o features.safetensors cat.jpg dog.png
+bunsen-tool embed run --model timm/vit_small_patch16_224.dino -o dino.safetensors cat.jpg
 ```
 
 ## text: normalization on its own
