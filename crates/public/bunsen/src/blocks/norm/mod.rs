@@ -4,6 +4,7 @@
 //! normalization layers: the kinds bunsen's blocks use
 //! ([`Identity`](BunsenNormalization::Identity),
 //! [`Batch`](BunsenNormalization::Batch),
+//! [`Group`](BunsenNormalization::Group),
 //! [`Layer`](BunsenNormalization::Layer), [`Rms`](BunsenNormalization::Rms)),
 //! each burn's layer, behind one seam that bunsen owns. A block that takes a
 //! norm takes a [`BunsenNormalizationConfig`], so a norm's dtype handling, and
@@ -19,6 +20,9 @@
 //!   to the dtype it computes in, so a gain kept in f32 never meets a half
 //!   input in one op (burn-flex refuses that; on the cubecl backends it is
 //!   wrong: [`burner::dtypes`](crate::burner::dtypes)).
+//! - **[`Batch`](BunsenNormalization::Batch) and
+//!   [`Group`](BunsenNormalization::Group) are burn's forwards**, over a
+//!   `[batch, channels, ...]` input: the conv nets' norms.
 //! - **The output is the input's dtype**
 //!   ([`ResultDType`](crate::burner::module::ResultDType)).
 //!

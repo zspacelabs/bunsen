@@ -1,19 +1,20 @@
 """Generate the resnet kit's toy fixtures: tiny seeded timm `ResNet`s and their answers.
 
-Two toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
-narrow stage widths, `channels=(8, 16, 32, 64)`, on timm's fixed 64-wide 7x7 stem, 10
-classes (timm's forward runs exactly four stages):
+Three toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
+narrow stage widths (its `channels`), on timm's fixed 64-wide 7x7 stem, 10 classes (timm's
+forward runs exactly four stages):
 
 - `toy_basic`: `BasicBlock`s, each stage `(8, 16, 32, 64)` planes wide, the first after a
   downsample from the stem's 64;
-- `toy_bottleneck`: `Bottleneck`s, `(32, 64, 128, 256)` out (4x the planes), each with a
-  downsample.
+- `toy_bottleneck`: `Bottleneck`s of `(8, 16, 32, 64)` planes, `(32, 64, 128, 256)` out (4x
+  the planes), each with a downsample;
+- `toy_gn`: `Bottleneck`s of 32 planes in every stage, 128 out, with timm's `groupnorm`
+  (32 groups) for every norm, as `resnet50_gn` has.
 
-bunsen's `ResNetContractConfig` derives its stage widths from the stem's, so the toy test
-builds this geometry as a `ResNetStructureConfig`, block by block.
+The toy test builds each as bunsen's `ResNetContractConfig`, with the same `channels`.
 
-Each is built in float64 on the CPU with seeded weights: the batch norms' gains and shifts
-and their running statistics random, so a misplaced norm shows. A two-image
+Each is built in float64 on the CPU with seeded weights: the norms' gains and shifts and the
+batch norms' running statistics random, so a misplaced norm shows. A two-image
 `[2, 3, 32, 32]` batch runs through `forward_intermediates` (the stem's activation, then
 each stage), the pooled features and the logits. The fixture is the weights under timm's
 own state-dict names (what its hub safetensors hold) and `io.*`: `images`, `stage_0` to
@@ -48,27 +49,28 @@ from toy_fixture import (  # noqa: E402
 OUT = TESTDATA / "resnet"
 
 TOYS = {
-    "toy_basic": BasicBlock,
-    "toy_bottleneck": Bottleneck,
+    "toy_basic": dict(block=BasicBlock, channels=(8, 16, 32, 64)),
+    "toy_bottleneck": dict(block=Bottleneck, channels=(8, 16, 32, 64)),
+    "toy_gn": dict(block=Bottleneck, channels=(32, 32, 32, 32), norm_layer="groupnorm"),
 }
 
 
-def batch_norm_names(model: torch.nn.Module) -> set:
-    """The parameter names of the model's batch norms (`bn1`, `downsample.1`, ...)."""
+def norm_names(model: torch.nn.Module) -> set:
+    """The parameter names of the model's norms (`bn1`, `downsample.1`, ...)."""
     names = set()
     for prefix, module in model.named_modules():
-        if isinstance(module, torch.nn.BatchNorm2d):
+        if isinstance(module, (torch.nn.BatchNorm2d, torch.nn.GroupNorm)):
             names.update(f"{prefix}.{name}" for name, _ in module.named_parameters())
     return names
 
 
 def main() -> None:
-    for i, (name, block) in enumerate(TOYS.items()):
+    for i, (name, args) in enumerate(TOYS.items()):
         model = build(
-            lambda: ResNet(block=block, layers=(1, 1, 1, 1), channels=(8, 16, 32, 64), num_classes=10),
+            lambda: ResNet(layers=(1, 1, 1, 1), num_classes=10, **args),
             seed=1234 + i,
         )
-        norms = batch_norm_names(model)
+        norms = norm_names(model)
         init_weights(
             model,
             norm_bias=0.1,

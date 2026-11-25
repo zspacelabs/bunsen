@@ -38,38 +38,32 @@ cargo run --release -p resnet_finetune --features cuda
 
 ## List Available Models
 
-This will list all available pretrained models, by prefab, with each row's
+This lists the prefabs, each with the rows that state its geometry, by their
 `provider:ref` as `--pretrained` takes it (`torchvision/resnet50` and bare
-`resnet50` also resolve):
+`resnet50` also resolve). A timm row (`timm/resnet50.a1_in1k`) takes its
+geometry from its `config.json`, so it is not listed here:
 
 ```terminaloutput
 Available pretrained models:
 * "resnet18"
-ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: None, normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "catalog:torchvision/resnet18": TorchVision ResNet-18
-  - "catalog:timm/resnet18_a1": RSB Paper ResNet-18 a1
-  - "catalog:timm/resnet18_a2": RSB Paper ResNet-18 a2
-  - "catalog:timm/resnet18_a3": RSB Paper ResNet-18 a3
+ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: None, normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+  - "catalog:torchvision/resnet18": TorchVision ResNet-18.
 * "resnet26"
-ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "catalog:timm/resnet26": ResNet-26 pretrained on ImageNet
+ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
 * "resnet34"
-ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: None, normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "catalog:torchvision/resnet34": TorchVision ResNet-34
-  - "catalog:timm/resnet34_a1": RSB Paper ResNet-34 a1
-  - "catalog:timm/resnet34_a2": RSB Paper ResNet-34 a2
-  - "catalog:timm/resnet34_a3": RSB Paper ResNet-34 a3
-  - "catalog:timm/resnet34": ResNet-34 pretrained on ImageNet
+ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: None, normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+  - "catalog:torchvision/resnet34": TorchVision ResNet-34.
 * "resnet50"
-ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "catalog:torchvision/resnet50": TorchVision ResNet-50
+ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+  - "catalog:torchvision/resnet50": TorchVision ResNet-50.
+* "resnet50_gn"
+ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Group(GroupNormConfig { num_groups: 32, num_channels: 0, epsilon: 1e-5, affine: true }), activation: Relu }
 * "resnet101"
-ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "catalog:torchvision/resnet101": TorchVision ResNet-101
-  - "catalog:timm/resnet101_a1": ResNet-101 pretrained on ImageNet
+ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+  - "catalog:torchvision/resnet101": TorchVision ResNet-101.
 * "resnet152"
-ResNetContractConfig { layers: [3, 8, 36, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "catalog:torchvision/resnet152": TorchVision ResNet-152
+ResNetContractConfig { layers: [3, 8, 36, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+  - "catalog:torchvision/resnet152": TorchVision ResNet-152.
 ```
 
 ## Various Options to Rewrite Models

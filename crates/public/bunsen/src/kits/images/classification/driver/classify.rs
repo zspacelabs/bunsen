@@ -63,7 +63,8 @@ mod tests {
     fn test_classify_files() {
         let device = cpu_device();
         let model: ConvNetModel = ResNetContractConfig::new(vec![1], 3)
-            .with_stem_width(8)
+            .with_channels(vec![8])
+            .with_conv_stem_width(8)
             .init(&device);
         let card = ImageModelCard::new(ImageEvalTransformConfig::new().with_size([32, 32]))
             .with_labels(Some(ImageLabelSet::try_parse("n0\nn1\nn2", None).unwrap()));

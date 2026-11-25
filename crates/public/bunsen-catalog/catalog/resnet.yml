@@ -39,6 +39,13 @@ torchvision:
       geometry:
         activation: Relu
         bottleneck_policy: null
+        channels:
+          - 64
+          - 128
+          - 256
+          - 512
+        conv_stem_width: 64
+        in_channels: 3
         layers:
           - 2
           - 2
@@ -51,7 +58,6 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
-        stem_width: 64
     checkpoint:
       $kind: resource
       $file: resnet18-f37072fd.pth
@@ -93,6 +99,13 @@ torchvision:
       geometry:
         activation: Relu
         bottleneck_policy: null
+        channels:
+          - 64
+          - 128
+          - 256
+          - 512
+        conv_stem_width: 64
+        in_channels: 3
         layers:
           - 3
           - 4
@@ -105,7 +118,6 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
-        stem_width: 64
     checkpoint:
       $kind: resource
       $file: resnet34-b627a593.pth
@@ -148,6 +160,13 @@ torchvision:
         activation: Relu
         bottleneck_policy:
           pinch_factor: 4
+        channels:
+          - 64
+          - 128
+          - 256
+          - 512
+        conv_stem_width: 64
+        in_channels: 3
         layers:
           - 3
           - 4
@@ -160,7 +179,6 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
-        stem_width: 64
     checkpoint:
       $kind: resource
       $file: resnet50-0676ba61.pth
@@ -203,6 +221,13 @@ torchvision:
         activation: Relu
         bottleneck_policy:
           pinch_factor: 4
+        channels:
+          - 64
+          - 128
+          - 256
+          - 512
+        conv_stem_width: 64
+        in_channels: 3
         layers:
           - 3
           - 4
@@ -215,7 +240,6 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
-        stem_width: 64
     checkpoint:
       $kind: resource
       $file: resnet101-63fe2227.pth
@@ -258,6 +282,13 @@ torchvision:
         activation: Relu
         bottleneck_policy:
           pinch_factor: 4
+        channels:
+          - 64
+          - 128
+          - 256
+          - 512
+        conv_stem_width: 64
+        in_channels: 3
         layers:
           - 3
           - 8
@@ -270,7 +301,6 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
-        stem_width: 64
     checkpoint:
       $kind: resource
       $file: resnet152-394f9c45.pth
@@ -1273,6 +1303,39 @@ timm:
         - $hub:
             $repo: timm/resnet50.tv2_in1k
             $revision: 10eea9779fc8a753af919714889bd7f60fba412d
+  resnet50_gn.a1h_in1k:
+    $kind: build
+    $description: timm's `resnet50_gn`, its `a1h_in1k` weights.
+    $join:
+      - resnet
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnet50_gn.a1h_in1k
+    $contract: resnet-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 62e492d274e18fe5e15ee446973067022d15f7b36638d9b39bf8b9961bfb25ee
+      $size: 102242522
+      $sources:
+        - $hub:
+            $repo: timm/resnet50_gn.a1h_in1k
+            $revision: b5b1dcfc1a526af275ec440b8d697c66c90a98b1
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 6827e8e3b71ff00217becb6fc65cd214edb80b1f8e6292fdf239e75caedde780
+      $size: 724
+      $sources:
+        - $hub:
+            $repo: timm/resnet50_gn.a1h_in1k
+            $revision: b5b1dcfc1a526af275ec440b8d697c66c90a98b1
   resnet101.a1_in1k:
     $kind: build
     $description: timm's `resnet101`, its `a1_in1k` weights.

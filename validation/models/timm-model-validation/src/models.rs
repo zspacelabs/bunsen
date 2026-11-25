@@ -32,15 +32,16 @@ use burn::{
 use super::*;
 
 /// How far bunsen's float32 (on wgpu) may be from timm's float64, per
-/// value: `|bunsen - timm| <= ABS + REL * |timm|`. Measured on the six rows
-/// (2026-11-24): at most 2.3e-5 on a logit, 1e-5 on a feature.
+/// value: `|bunsen - timm| <= ABS + REL * |timm|`. Measured on the rows
+/// (2026-11-24): at most 3.4e-5 on a logit (the group norm's
+/// `resnet50_gn`), 1e-5 on a feature.
 const ABS: f32 = 1e-4;
 /// See [`ABS`].
 const REL: f32 = 1e-4;
 
 /// How far bunsen's own preprocessing may be from timm's input, on average
 /// over every value, in normalised units: `image`'s resize against `PIL`'s.
-/// Measured on the six rows (2026-11-24): 0.0028 to 0.0034.
+/// Measured on the rows (2026-11-24): 0.0028 to 0.0034.
 const PREPROCESS_MEAN_ABS: f32 = 0.01;
 
 /// The largest `|a - b|`, and whether every value is within the tolerance.
@@ -211,5 +212,11 @@ mod timm {
     #[serial_test::serial]
     fn resnet101_tv2_in1k() {
         check_row("timm/resnet101.tv2_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnet50_gn_a1h_in1k() {
+        check_row("timm/resnet50_gn.a1h_in1k");
     }
 }

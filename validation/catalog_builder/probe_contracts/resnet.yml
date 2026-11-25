@@ -20,6 +20,13 @@ torchvision:
       geometry:
         activation: Relu
         bottleneck_policy: null
+        channels:
+          - 64
+          - 128
+          - 256
+          - 512
+        conv_stem_width: 64
+        in_channels: 3
         layers:
           - 2
           - 2
@@ -32,7 +39,6 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
-        stem_width: 64
       eval_transform:
         channels: 3
         size: [224, 224]
@@ -65,6 +71,13 @@ torchvision:
       geometry:
         activation: Relu
         bottleneck_policy: null
+        channels:
+          - 64
+          - 128
+          - 256
+          - 512
+        conv_stem_width: 64
+        in_channels: 3
         layers:
           - 3
           - 4
@@ -77,7 +90,6 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
-        stem_width: 64
       eval_transform:
         channels: 3
         size: [224, 224]
@@ -111,6 +123,13 @@ torchvision:
         activation: Relu
         bottleneck_policy:
           pinch_factor: 4
+        channels:
+          - 64
+          - 128
+          - 256
+          - 512
+        conv_stem_width: 64
+        in_channels: 3
         layers:
           - 3
           - 4
@@ -123,7 +142,6 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
-        stem_width: 64
       eval_transform:
         channels: 3
         size: [224, 224]
@@ -157,6 +175,13 @@ torchvision:
         activation: Relu
         bottleneck_policy:
           pinch_factor: 4
+        channels:
+          - 64
+          - 128
+          - 256
+          - 512
+        conv_stem_width: 64
+        in_channels: 3
         layers:
           - 3
           - 4
@@ -169,7 +194,6 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
-        stem_width: 64
       eval_transform:
         channels: 3
         size: [224, 224]
@@ -203,6 +227,13 @@ torchvision:
         activation: Relu
         bottleneck_policy:
           pinch_factor: 4
+        channels:
+          - 64
+          - 128
+          - 256
+          - 512
+        conv_stem_width: 64
+        in_channels: 3
         layers:
           - 3
           - 8
@@ -215,7 +246,6 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
-        stem_width: 64
       eval_transform:
         channels: 3
         size: [224, 224]
@@ -947,6 +977,30 @@ timm:
     $hub:
       $repo: timm/resnet50.tv2_in1k
       $revision: 10eea9779fc8a753af919714889bd7f60fba412d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnet50_gn.a1h_in1k:
+    $kind: build
+    $description: "timm's `resnet50_gn`, its `a1h_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnet50_gn.a1h_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnet50_gn.a1h_in1k
+      $revision: b5b1dcfc1a526af275ec440b8d697c66c90a98b1
     $resources:
       checkpoint: checkpoint
       config: config

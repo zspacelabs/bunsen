@@ -486,6 +486,9 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 * timm/resnet50.tv2_in1k: [103.2 MB]
   timm's `resnet50`, its `tv2_in1k` weights.
 
+* timm/resnet50_gn.a1h_in1k: [103.0 MB]
+  timm's `resnet50_gn`, its `a1h_in1k` weights.
+
 * timm/resnet101.a1_in1k: [179.4 MB]
   - resnet101_a1
   timm's `resnet101`, its `a1_in1k` weights.
