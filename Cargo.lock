@@ -1194,6 +1194,7 @@ dependencies = [
  "bunsen-contracts-macros",
  "bunsen-fetch",
  "bunsen-test-audio",
+ "bunsen-test-images",
  "burn",
  "burn-backend",
  "burn-dispatch",
@@ -1341,6 +1342,13 @@ name = "bunsen-test-audio"
 version = "0.45.0"
 dependencies = [
  "bunsen-fetch",
+ "sha2 0.11.1",
+]
+
+[[package]]
+name = "bunsen-test-images"
+version = "0.45.0"
+dependencies = [
  "sha2 0.11.1",
 ]
 

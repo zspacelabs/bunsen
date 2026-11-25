@@ -1,0 +1,17 @@
+[package]
+name = "bunsen-test-images"
+description = "The open images the workspace's tests read: committed CC0 photos of ImageNet-1k classes, with their provenance. A leaf: it does not depend on bunsen."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+sha2 = { workspace = true }

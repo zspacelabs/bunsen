@@ -378,6 +378,8 @@ bunsen-fetch = { path = "../bunsen-fetch", features = ["testing"] }
 # The audio the tests read. Path only: an unpublished dev-dependency is
 # dropped from the published manifest.
 bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }
+# The open images the tests read. Path only, as the audio above.
+bunsen-test-images = { path = "../../dev/bunsen-test-images" }
 burn = { workspace = true, features = ["autodiff"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
