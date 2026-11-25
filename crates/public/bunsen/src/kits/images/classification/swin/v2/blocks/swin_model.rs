@@ -281,7 +281,11 @@ impl ToStructureConfig for SwinTransformerV2ContractConfig {
             self.d_input,
             self.d_embed,
         )
-        .with_enable_patch_norm(self.enable_patch_norm);
+        .with_norm(self.enable_patch_norm.then(|| {
+            crate::blocks::norm::BunsenNormalizationConfig::Layer(
+                crate::blocks::norm::BunsenLayerNormConfig::new(self.d_embed),
+            )
+        }));
 
         if self.layer_configs.is_empty() {
             return Err(ConstraintError::zero_or_empty(OWNER, "layer_configs").into());

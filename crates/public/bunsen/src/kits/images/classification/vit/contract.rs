@@ -40,6 +40,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ResultContext,
     },
 };
 
@@ -198,12 +199,11 @@ impl ToStructureConfig for ViTContractConfig {
     /// class-token pool with no class token, or zero layers.
     fn try_to_structure(&self) -> BunsenResult<VisionEncoderStructureConfig> {
         let (d, heads, p) = (self.embed_dim, self.num_heads, self.patch_size);
-        if p == 0 || !self.image_size.is_multiple_of(p) {
-            return Err(BunsenError::illegal(format!(
-                "ViTContractConfig: {} pixel images don't divide into {p} pixel patches",
-                self.image_size
-            )));
-        }
+        let patch_embed = PatchEmbedConfig::new([self.image_size; 2], p, self.in_channels, d)
+            .with_bias(!self.pre_norm);
+        patch_embed
+            .try_validate()
+            .context("ViTContractConfig's patches")?;
         if heads == 0 || d % heads != 0 {
             return Err(BunsenError::illegal(format!(
                 "ViTContractConfig: {heads} heads don't divide a width of {d}"
@@ -245,9 +245,7 @@ impl ToStructureConfig for ViTContractConfig {
         );
         stack.input_norm = self.pre_norm.then(|| self.norm());
         Ok(VisionEncoderStructureConfig::new(
-            PatchEmbedConfig::new([self.image_size; 2], p, self.in_channels, d)
-                .with_enable_patch_norm(false)
-                .with_bias(!self.pre_norm),
+            patch_embed,
             tokens.clone(),
             stack.try_to_structure()?,
             VisionHeadConfig::new(d, self.num_classes, tokens.n_prefix())
@@ -336,7 +334,7 @@ mod tests {
         };
         illegal(
             ViTContractConfig::new(18, 4, 8, 2, 2, 5),
-            "18 pixel images don't divide",
+            "18x18 images don't divide into 4x4 patches",
         );
         illegal(
             ViTContractConfig::new(16, 4, 8, 2, 3, 5),

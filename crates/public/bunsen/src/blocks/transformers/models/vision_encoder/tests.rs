@@ -86,7 +86,7 @@ fn tiny(
     )
     .to_structure();
     VisionEncoderStructureConfig::new(
-        PatchEmbedConfig::new([16, 16], 4, 3, d).with_enable_patch_norm(false),
+        PatchEmbedConfig::new([16, 16], 4, 3, d),
         tokens.clone(),
         stack,
         VisionHeadConfig::new(d, 5, tokens.n_prefix())

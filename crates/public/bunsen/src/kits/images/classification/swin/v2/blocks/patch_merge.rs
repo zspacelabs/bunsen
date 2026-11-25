@@ -292,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_patch_embed_meta() {
-        let config = PatchEmbedConfig::new([12, 8], 4, 3, 6).with_enable_patch_norm(false);
+        let config = PatchEmbedConfig::new([12, 8], 4, 3, 6);
 
         assert_eq!(config.input_resolution(), [12, 8]);
         assert_eq!(config.patch_size(), 4);
@@ -335,8 +335,7 @@ mod tests {
 
         // W/O Norm.
         {
-            let config = PatchEmbedConfig::new([h, w], patch_size, d_input, d_output)
-                .with_enable_patch_norm(false);
+            let config = PatchEmbedConfig::new([h, w], patch_size, d_input, d_output);
             let patch_embed = config.try_init(&device).ok_or_panic();
 
             let y = patch_embed.forward(x.clone());
@@ -352,7 +351,11 @@ mod tests {
 
         // With Norm.
         {
-            let config = PatchEmbedConfig::new([h, w], patch_size, d_input, d_output);
+            let config = PatchEmbedConfig::new([h, w], patch_size, d_input, d_output).with_norm(
+                Some(crate::blocks::norm::BunsenNormalizationConfig::Layer(
+                    crate::blocks::norm::BunsenLayerNormConfig::new(0),
+                )),
+            );
             let patch_embed = config.try_init(&device).ok_or_panic();
 
             let y = patch_embed.forward(x.clone());
