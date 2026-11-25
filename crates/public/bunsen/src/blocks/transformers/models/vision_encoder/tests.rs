@@ -137,7 +137,7 @@ fn test_steps_compose() {
     let tolerance = Tolerance::rel_abs(1e-5, 1e-5);
     let (_, states) = model
         .stack
-        .encoder_forward_layers(model.embed(images.clone()));
+        .encoder_forward_layers(model.embed(images.clone()), None);
     let tokens = model.feature_tokens(images.clone());
     assert_tensors_close(
         &model.grid_map(model.stack.norm.forward(states[1].clone())),
