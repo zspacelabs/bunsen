@@ -109,6 +109,9 @@ pub mod blocks;
 
 pub mod interop;
 
+#[cfg(all(test, feature = "store"))]
+mod toy_tests;
+
 pub use blocks::resnet_model::*;
 
 /// ResNet-18 block depths.
