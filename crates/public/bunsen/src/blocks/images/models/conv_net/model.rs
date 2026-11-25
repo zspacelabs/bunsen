@@ -14,15 +14,18 @@ use burn::{
 };
 
 use crate::{
-    blocks::images::models::conv_net::{
-        ConvChainMeta,
-        ConvHead,
-        ConvHeadConfig,
-        ConvStage,
-        ConvStageConfig,
-        ConvStageMeta,
-        ConvStem,
-        ConvStemConfig,
+    blocks::images::{
+        drop::rate_table::linear_drop_path_rate_schedule,
+        models::conv_net::{
+            ConvChainMeta,
+            ConvHead,
+            ConvHeadConfig,
+            ConvStage,
+            ConvStageConfig,
+            ConvStageMeta,
+            ConvStem,
+            ConvStemConfig,
+        },
     },
     burner::module::ModuleInit,
     errors::{
@@ -149,115 +152,6 @@ impl ConvNetStructureConfig {
         }
         Ok(())
     }
-
-    /// Applies timm's stochastic-depth schedule to every unit.
-    ///
-    /// Unit `i` of the net's `n` gets a drop-path probability of
-    /// `drop_path_rate * i / (n - 1)`, counting every unit of every stage:
-    /// 0 at the first, `drop_path_rate` at the last. This is the rule of
-    /// `make_blocks` in timm's `resnet.py`, and the one
-    /// [`ConvNetModel::with_stochastic_path_depth`] applies to a built model.
-    ///
-    /// # Panics
-    ///
-    /// If `drop_path_rate` is not a probability.
-    pub fn with_stochastic_depth_drop_path_rate(
-        self,
-        drop_path_rate: f64,
-    ) -> Self {
-        let drop_path_rate = expect_probability(drop_path_rate);
-        let n = self.stages.iter().map(|s| s.len()).sum::<usize>();
-        let mut i = 0;
-        let stages = self
-            .stages
-            .into_iter()
-            .map(|stage| {
-                stage.map_units(&mut |_, unit| {
-                    let rate = stochastic_depth_rate(drop_path_rate, i, n);
-                    i += 1;
-                    unit.with_drop_path_prob(rate)
-                })
-            })
-            .collect();
-        Self { stages, ..self }
-    }
-
-    /// Applies timm's `DropBlock` schedule to every unit of the last two
-    /// stages.
-    ///
-    /// Every unit of the second-to-last stage gets a [`DropBlockOptions`]
-    /// with `drop_prob`, a block size of 5 and a gamma scale of 0.25; every
-    /// unit of the last stage one with a block size of 3 and a gamma scale
-    /// of 1.0. The other stages get none, and a `drop_prob` of 0 clears every
-    /// unit. On a 4-stage net these are stages 3 and 4, the rule of
-    /// `drop_blocks` in timm's `resnet.py`, and the one
-    /// [`ConvNetModel::try_with_stochastic_drop_block`] applies to a built
-    /// model.
-    ///
-    /// timm picks stages 3 and 4 by position, so a net without them gets no
-    /// `DropBlock` there. This takes the last two stages instead, the same
-    /// stages on a 4-stage net, and rejects a nonzero `drop_prob` on a net
-    /// with fewer than 2 stages rather than ignore it.
-    ///
-    /// # Errors
-    ///
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `drop_prob` is
-    /// not a probability, or if it is above 0 and the net has fewer than 2
-    /// stages.
-    pub fn try_with_standard_drop_block_prob(
-        self,
-        drop_prob: f64,
-    ) -> BunsenResult<Self> {
-        let options = standard_drop_block_options(drop_prob, self.stages.len())?;
-        Ok(self.with_drop_block_options(options))
-    }
-
-    /// The panicking twin of
-    /// [`try_with_standard_drop_block_prob`](Self::try_with_standard_drop_block_prob).
-    ///
-    /// # Panics
-    ///
-    /// As its twin's errors.
-    pub fn with_standard_drop_block_prob(
-        self,
-        drop_prob: f64,
-    ) -> Self {
-        self.try_with_standard_drop_block_prob(drop_prob)
-            .ok_or_panic()
-    }
-
-    /// Sets each stage's drop block: `options` has one entry per stage.
-    ///
-    /// # Panics
-    ///
-    /// If `options` does not have one entry per stage.
-    pub fn with_drop_block_options(
-        self,
-        options: Vec<Option<DropBlockOptions>>,
-    ) -> Self {
-        assert_eq!(options.len(), self.stages.len(), "one option per stage");
-        let stages = self
-            .stages
-            .into_iter()
-            .zip(options)
-            .map(|(stage, options)| stage.with_drop_block(options))
-            .collect();
-        Self { stages, ..self }
-    }
-}
-
-/// The stochastic-depth linear decay rule of timm's `make_blocks`
-/// (`resnet.py`): unit `i` of a net of `n` gets `drop_path_rate * i / (n -
-/// 1)`. A net of one unit gets 0, where timm divides by zero.
-fn stochastic_depth_rate(
-    drop_path_rate: f64,
-    i: usize,
-    n: usize,
-) -> f64 {
-    if n < 2 {
-        return 0.0;
-    }
-    drop_path_rate * (i as f64) / ((n - 1) as f64)
 }
 
 /// The `DropBlock` schedule of timm's `drop_blocks` (`resnet.py`), one entry
@@ -446,9 +340,14 @@ impl ConvNetModel {
         }
     }
 
-    /// Applies timm's stochastic-depth schedule to every unit: the rule
-    /// [`ConvNetStructureConfig::with_stochastic_depth_drop_path_rate`]
-    /// applies to a structure.
+    /// Applies timm's stochastic-depth schedule to every unit.
+    ///
+    /// Unit `i` of the net's `n` gets a drop-path probability of
+    /// `drop_path_rate * i / (n - 1)`, counting every unit of every stage:
+    /// 0 at the first, `drop_path_rate` at the last (and 0 for a net of one
+    /// unit, where timm divides by zero). This is the rule of `make_blocks` in
+    /// timm's `resnet.py`, the linear ramp
+    /// [`linear_drop_path_rate_schedule`] gives.
     ///
     /// # Panics
     ///
@@ -459,15 +358,13 @@ impl ConvNetModel {
     ) -> Self {
         let drop_path_rate = expect_probability(drop_path_rate);
         let n = self.stages.iter().map(|s| s.len()).sum::<usize>();
-        let mut i = 0;
+        let mut rates = linear_drop_path_rate_schedule(drop_path_rate, n).into_iter();
         self.map_stages(|stages| {
             stages
                 .into_iter()
                 .map(|stage| {
                     stage.map_units(&mut |_, unit| {
-                        let rate = stochastic_depth_rate(drop_path_rate, i, n);
-                        i += 1;
-                        unit.with_drop_path_prob(rate)
+                        unit.with_drop_path_prob(rates.next().expect("a rate per unit"))
                     })
                 })
                 .collect()
@@ -475,10 +372,19 @@ impl ConvNetModel {
     }
 
     /// Applies timm's `DropBlock` schedule to every unit of the last two
-    /// stages: the rule
-    /// [`ConvNetStructureConfig::try_with_standard_drop_block_prob`] applies
-    /// to a structure, which also says why a net with fewer than 2 stages is
-    /// an error.
+    /// stages.
+    ///
+    /// Every unit of the second-to-last stage gets a [`DropBlockOptions`]
+    /// with `drop_prob`, a block size of 5 and a gamma scale of 0.25; every
+    /// unit of the last stage one with a block size of 3 and a gamma scale
+    /// of 1.0. The other stages get none, and a `drop_prob` of 0 clears every
+    /// unit. On a 4-stage net these are stages 3 and 4, the rule of
+    /// `drop_blocks` in timm's `resnet.py`.
+    ///
+    /// timm picks stages 3 and 4 by position, so a net without them gets no
+    /// `DropBlock` there. This takes the last two stages instead, the same
+    /// stages on a 4-stage net, and rejects a nonzero `drop_prob` on a net
+    /// with fewer than 2 stages rather than ignore it.
     ///
     /// # Errors
     ///

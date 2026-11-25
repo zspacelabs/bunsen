@@ -99,33 +99,6 @@ impl ConvStageConfig {
         )?;
         Ok(())
     }
-
-    /// Applies `f` to each unit, with its index in the stage.
-    pub fn map_units<F>(
-        self,
-        f: &mut F,
-    ) -> Self
-    where
-        F: FnMut(usize, ResidualUnitConfig) -> ResidualUnitConfig,
-    {
-        Self {
-            units: self
-                .units
-                .into_iter()
-                .enumerate()
-                .map(|(idx, unit)| f(idx, unit))
-                .collect(),
-        }
-    }
-
-    /// Sets every unit's drop block, as [`ConvStage::with_drop_block`] does
-    /// to a built stage.
-    pub fn with_drop_block(
-        self,
-        options: Option<DropBlockOptions>,
-    ) -> Self {
-        self.map_units(&mut |_, unit| unit.with_drop_block(options.clone()))
-    }
 }
 
 impl ModuleInit<ConvStage> for ConvStageConfig {
