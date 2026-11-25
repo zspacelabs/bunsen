@@ -56,14 +56,13 @@
 //!
 //! Each slot is an enum config and an enum module, a kind a module of its
 //! own ([`blocks`' rule](crate::blocks#design-rules)); a kind not built yet is
-//! a variant whose lowering is
-//! [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), as
-//! [`ConvShortcutKind::AvgConv`] is:
+//! added as a variant whose lowering is
+//! [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported):
 //!
 //! - the unit kind: [`ConvUnitKind`] (basic, bottleneck);
 //! - a path's conv: [`ResidualConvConfig`] (a conv block);
 //! - the shortcut: [`ConvShortcutKind`] / [`ConvShortcutConfig`] (a conv and a
-//!   norm);
+//!   norm; an average pool, then a conv and a norm);
 //! - the stem's pool: [`ConvStemPoolKind`] / [`ConvStemPoolConfig`] (max,
 //!   none);
 //! - the head's pool: [`GlobalPool2dConfig`] (average).

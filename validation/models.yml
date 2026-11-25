@@ -377,6 +377,24 @@ crates:
         core: false
         dtypes: [f32]
         varies: mixers twice a resnet50's width (base width 128)
+      timm/resnet50d.a1_in1k:
+        size: small
+        gb: 0.21
+        core: false
+        dtypes: [f32]
+        varies: a deep stem (32, 32, 64) and average-pool shortcuts
+      timm/resnet26t.ra2_in1k:
+        size: small
+        gb: 0.17
+        core: false
+        dtypes: [f32]
+        varies: a tiered stem (24, 32, 64) and average-pool shortcuts, at 256 pixels
+      timm/resnet50s.gluon_in1k:
+        size: small
+        gb: 0.21
+        core: false
+        dtypes: [f32]
+        varies: a 64-wide deep stem (64, 64, 128) with conv shortcuts
       torchvision/resnet18:
         size: small
         gb: 0.15

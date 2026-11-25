@@ -1,6 +1,6 @@
 """Generate the resnet kit's toy fixtures: tiny seeded timm `ResNet`s and their answers.
 
-Four toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
+Seven toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
 narrow stage widths (its `channels`), on timm's fixed 64-wide 7x7 stem, 10 classes (timm's
 forward runs exactly four stages):
 
@@ -11,7 +11,16 @@ forward runs exactly four stages):
 - `toy_gn`: `Bottleneck`s of 32 planes in every stage, 128 out, with timm's `groupnorm`
   (32 groups) for every norm, as `resnet50_gn` has;
 - `toy_resnext`: `Bottleneck`s of `(8, 16, 32, 64)` planes whose mixers are 4 groups of
-  `base_width=16` per 64 planes (`(8, 16, 32, 64)` wide), as a `resnext50_32x4d`'s are.
+  `base_width=16` per 64 planes (`(8, 16, 32, 64)` wide), as a `resnext50_32x4d`'s are;
+- `toy_deep`: `BasicBlock`s on a deep stem (`stem_width=16`: 16, 16, 32) with `avg_down`
+  shortcuts, as a `resnet18d`'s;
+- `toy_tiered`: `Bottleneck`s on a tiered stem (`stem_width=16`: 12, 16, 32) with
+  `avg_down`, as a `resnet26t`'s;
+- `toy_dilated`: `toy_tiered`'s geometry at `output_stride=8`: its last two stages dilate,
+  and their `avg_down` pools are timm's `AvgPool2dSame`.
+
+The stem toys run on 36x36 images, so the stages see odd sizes (9, 5, 3) and the shortcuts'
+ceil-mode pools a partial window; the others on 32x32.
 
 The toy test builds each as bunsen's `ResNetContractConfig`, with the same `channels`.
 
@@ -55,7 +64,22 @@ TOYS = {
     "toy_bottleneck": dict(block=Bottleneck, channels=(8, 16, 32, 64)),
     "toy_gn": dict(block=Bottleneck, channels=(32, 32, 32, 32), norm_layer="groupnorm"),
     "toy_resnext": dict(block=Bottleneck, channels=(8, 16, 32, 64), cardinality=4, base_width=16),
+    "toy_deep": dict(
+        block=BasicBlock, channels=(8, 16, 32, 64), stem_type="deep", stem_width=16,
+        avg_down=True,
+    ),
+    "toy_tiered": dict(
+        block=Bottleneck, channels=(8, 16, 32, 64), stem_type="deep_tiered", stem_width=16,
+        avg_down=True,
+    ),
+    "toy_dilated": dict(
+        block=Bottleneck, channels=(8, 16, 32, 64), stem_type="deep_tiered", stem_width=16,
+        avg_down=True, output_stride=8,
+    ),
 }
+
+# The image side of each toy: odd stage sizes for the stem toys.
+SIZES = {"toy_deep": 36, "toy_tiered": 36, "toy_dilated": 36}
 
 
 def norm_names(model: torch.nn.Module) -> set:
@@ -81,7 +105,8 @@ def main() -> None:
         )
         init_running_stats(model)
         torch.manual_seed(99 + i)
-        images = torch.randn(2, 3, 32, 32, dtype=torch.float64)
+        side = SIZES.get(name, 32)
+        images = torch.randn(2, 3, side, side, dtype=torch.float64)
         with torch.no_grad():
             stages = model.forward_intermediates(images, intermediates_only=True)
             pooled = model.forward_head(model.forward_features(images), pre_logits=True)

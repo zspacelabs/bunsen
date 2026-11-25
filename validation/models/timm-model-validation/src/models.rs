@@ -231,4 +231,22 @@ mod timm {
     fn wide_resnet50_2_racm_in1k() {
         check_row("timm/wide_resnet50_2.racm_in1k");
     }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnet50d_a1_in1k() {
+        check_row("timm/resnet50d.a1_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnet26t_ra2_in1k() {
+        check_row("timm/resnet26t.ra2_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnet50s_gluon_in1k() {
+        check_row("timm/resnet50s.gluon_in1k");
+    }
 }
