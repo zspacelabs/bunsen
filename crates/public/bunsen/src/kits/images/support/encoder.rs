@@ -89,7 +89,7 @@ impl ImageEncoder for ConvNetModel {
     /// The head's pooled width: the last stage's channels, twice them for a
     /// `catavgmax` pool.
     fn d_features(&self) -> usize {
-        self.head.pooled_features()
+        self.head.d_features
     }
 
     fn forward_features(

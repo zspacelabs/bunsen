@@ -3,12 +3,9 @@
 use burn::config::Config;
 
 use crate::{
-    blocks::{
-        images::patching::prefix_tokens::PrefixTokensMeta,
-        transformers::models::vision_encoder::{
-            TokenPoolConfig,
-            VisionEncoderStructureConfig,
-        },
+    blocks::transformers::models::vision_encoder::{
+        TokenPoolConfig,
+        VisionEncoderStructureConfig,
     },
     burner::module::ToStructureConfig,
     errors::{
@@ -63,8 +60,8 @@ impl ToStructureConfig for DeiTContractConfig {
             ));
         }
         structure.tokens.dist_token = true;
-        structure.head.n_prefix = structure.tokens.n_prefix();
-        structure.head.pool = TokenPoolConfig::Distilled;
+        structure.pool = TokenPoolConfig::Distilled;
+        structure.head.distilled = true;
         Ok(structure)
     }
 }
@@ -99,7 +96,8 @@ mod tests {
         let distilled = DeiTContractConfig::new(tiny()).with_distilled(true);
         let structure = distilled.to_structure();
         assert_eq!(structure.n_prefix(), 2);
-        assert_eq!(structure.head.pool, TokenPoolConfig::Distilled);
+        assert_eq!(structure.pool, TokenPoolConfig::Distilled);
+        assert!(structure.head.distilled);
         let model: VisionEncoderModel = distilled.init(&device);
         assert!(model.tokens.dist_token.is_some());
         assert!(model.head.fc_dist.is_some());

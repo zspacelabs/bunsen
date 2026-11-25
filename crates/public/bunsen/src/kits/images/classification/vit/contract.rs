@@ -7,11 +7,11 @@ use burn::config::Config;
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        images::patching::{
-            patch_embed::PatchEmbedConfig,
-            prefix_tokens::{
-                PrefixTokensConfig,
-                PrefixTokensMeta,
+        images::{
+            models::classifier_head::ClassifierHeadConfig,
+            patching::{
+                patch_embed::PatchEmbedConfig,
+                prefix_tokens::PrefixTokensConfig,
             },
         },
         mlp::BunsenMlpConfig,
@@ -32,7 +32,6 @@ use crate::{
             models::vision_encoder::{
                 TokenPoolConfig,
                 VisionEncoderStructureConfig,
-                VisionHeadConfig,
             },
         },
     },
@@ -246,13 +245,13 @@ impl ToStructureConfig for ViTContractConfig {
         stack.input_norm = self.pre_norm.then(|| self.norm());
         Ok(VisionEncoderStructureConfig::new(
             patch_embed,
-            tokens.clone(),
+            tokens,
             stack.try_to_structure()?,
-            VisionHeadConfig::new(d, self.num_classes, tokens.n_prefix())
-                .with_pool(self.global_pool)
+            ClassifierHeadConfig::new(d, self.num_classes)
                 .with_fc_norm(fc_norm.then(|| self.norm()))
                 .with_drop_rate(self.drop_rate),
-        ))
+        )
+        .with_pool(self.global_pool))
     }
 }
 
@@ -260,11 +259,14 @@ impl ToStructureConfig for ViTContractConfig {
 mod tests {
     use super::*;
     use crate::{
-        blocks::transformers::{
-            decoders::stack::DecoderStackMeta,
-            models::vision_encoder::{
-                VisionEncoderMeta,
-                VisionEncoderModel,
+        blocks::{
+            images::patching::prefix_tokens::PrefixTokensMeta,
+            transformers::{
+                decoders::stack::DecoderStackMeta,
+                models::vision_encoder::{
+                    VisionEncoderMeta,
+                    VisionEncoderModel,
+                },
             },
         },
         burner::module::ModuleInit,

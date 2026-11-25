@@ -16,15 +16,21 @@ use burn::{
 use crate::{
     blocks::images::{
         drop::rate_table::linear_drop_path_rate_schedule,
-        models::conv_net::{
-            ConvChainMeta,
-            ConvHead,
-            ConvHeadConfig,
-            ConvStage,
-            ConvStageConfig,
-            ConvStageMeta,
-            ConvStem,
-            ConvStemConfig,
+        models::{
+            classifier_head::{
+                ClassifierHead,
+                ClassifierHeadConfig,
+            },
+            conv_net::{
+                ConvChainMeta,
+                ConvStage,
+                ConvStageConfig,
+                ConvStageMeta,
+                ConvStem,
+                ConvStemConfig,
+                GlobalPool2d,
+                GlobalPool2dConfig,
+            },
         },
     },
     burner::module::ModuleInit,
@@ -59,8 +65,8 @@ pub trait ConvNetMeta {
     fn num_classes(&self) -> usize;
 }
 
-/// [`ConvNetModel`]'s structure: the stem, every stage's resolved units, and
-/// the head.
+/// [`ConvNetModel`]'s structure: the stem, every stage's resolved units, the
+/// global pool and the head.
 ///
 /// The structure of the conv net's [Stacked
 /// config](crate::burner::module::ModuleInit#stacked-config):
@@ -77,8 +83,12 @@ pub struct ConvNetStructureConfig {
     /// The stages, in order.
     pub stages: Vec<ConvStageConfig>,
 
-    /// The classifier head.
-    pub head: ConvHeadConfig,
+    /// The global pool over the last stage's map.
+    #[config(default = "GlobalPool2dConfig::Avg")]
+    pub pool: GlobalPool2dConfig,
+
+    /// The classifier head, over the pooled features.
+    pub head: ClassifierHeadConfig,
 }
 
 impl ConvNetMeta for ConvNetStructureConfig {
@@ -91,7 +101,7 @@ impl ConvNetMeta for ConvNetStructureConfig {
     }
 
     fn d_features(&self) -> usize {
-        self.head.d_features
+        self.stages.last().map_or(0, ConvChainMeta::out_channels)
     }
 
     fn num_classes(&self) -> usize {
@@ -102,7 +112,7 @@ impl ConvNetMeta for ConvNetStructureConfig {
 impl ConvNetStructureConfig {
     /// Checks the tree: a valid stem, stages that are not empty, each valid,
     /// the stem chaining into the first stage, each stage into the next, and
-    /// the last into the head.
+    /// the pooled features into a head that is not distilled.
     ///
     /// # Errors
     ///
@@ -131,8 +141,8 @@ impl ConvNetStructureConfig {
                     .map(|(idx, s)| (idx, s.in_channels(), s.out_channels())),
             ),
         )?;
-        let channels = self.stages[self.stages.len() - 1].out_channels();
-        if self.head.d_features != channels {
+        let pooled = self.pool.pooled_features(self.d_features());
+        if self.head.d_features != pooled {
             return Err(ConstraintError::new(
                 OWNER,
                 "head",
@@ -142,13 +152,16 @@ impl ConvNetStructureConfig {
                         format!("{}", self.head.d_features),
                     ),
                     op: "==",
-                    rhs: (
-                        "the last stage's out_channels".into(),
-                        format!("{channels}"),
-                    ),
+                    rhs: ("the pooled features".into(), format!("{pooled}")),
                 },
             )
             .into());
+        }
+        if self.head.distilled {
+            return Err(BunsenError::illegal(
+                "ConvNetStructureConfig: a conv net's head reads one pooled vector, not a \
+                 distillation token",
+            ));
         }
         Ok(())
     }
@@ -207,13 +220,15 @@ impl ModuleInit<ConvNetModel> for ConvNetStructureConfig {
                 .iter()
                 .map(|s| s.try_init(device))
                 .collect::<BunsenResult<_>>()?,
+            pool: self.pool.try_init(device)?,
             head: self.head.try_init(device)?,
         })
     }
 }
 
 /// The generic conv net: a [`ConvStem`], [`ConvStage`]s of
-/// [`ResidualUnit`](super::ResidualUnit)s, and a [`ConvHead`].
+/// [`ResidualUnit`](super::ResidualUnit)s, a [`GlobalPool2d`] and a
+/// [`ClassifierHead`].
 ///
 /// Every conv-net family is this type, built from its policy:
 /// `ResNetContractConfig::init` returns one. [`forward`](Self::forward) maps
@@ -231,8 +246,11 @@ pub struct ConvNetModel {
     /// The stages, in order.
     pub stages: Vec<ConvStage>,
 
-    /// The classifier head.
-    pub head: ConvHead,
+    /// The global pool over the last stage's map.
+    pub pool: GlobalPool2d,
+
+    /// The classifier head, over the pooled features.
+    pub head: ClassifierHead,
 }
 
 impl ConvNetMeta for ConvNetModel {
@@ -245,7 +263,7 @@ impl ConvNetMeta for ConvNetModel {
     }
 
     fn d_features(&self) -> usize {
-        self.head.d_features()
+        self.stages.last().map_or(0, ConvChainMeta::out_channels)
     }
 
     fn num_classes(&self) -> usize {
@@ -262,12 +280,13 @@ impl ConvNetModel {
     ///
     /// # Returns
     ///
-    /// `[batch, num_classes]`.
+    /// `[batch, num_classes]`; for a headless model, its pooled features.
     pub fn forward(
         &self,
         images: Tensor<4>,
     ) -> Tensor<2> {
-        self.head.forward(self.feature_map(images))
+        self.head
+            .forward(self.pool.forward(self.feature_map(images)))
     }
 
     /// The last stage's map: the stem, then every stage.
@@ -288,7 +307,8 @@ impl ConvNetModel {
         self.stages.iter().fold(x, |x, stage| stage.forward(x))
     }
 
-    /// The pooled features, the head's input.
+    /// The pooled features, the classifier's input: the pool, then the head's
+    /// norm, if any.
     ///
     /// # Arguments
     ///
@@ -302,7 +322,8 @@ impl ConvNetModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<2> {
-        self.head.pool(self.feature_map(images))
+        self.head
+            .pre_logits(self.pool.forward(self.feature_map(images)))
     }
 
     /// The feature maps by stage, timm's `feature_info`: the stem's convs
@@ -329,13 +350,15 @@ impl ConvNetModel {
         maps
     }
 
-    /// The model with its head re-initialized for `num_classes` classes.
+    /// The model with its head re-initialized for `num_classes` classes (0:
+    /// headless).
     pub fn with_classes(
         self,
         num_classes: usize,
     ) -> Self {
+        let device = self.stem.convs[0].conv.weight.device();
         Self {
-            head: self.head.with_classes(num_classes),
+            head: self.head.with_classes(num_classes, &device),
             ..self
         }
     }

@@ -32,17 +32,19 @@ use crate::{
                 EcaConfig,
                 SqueezeExciteConfig,
             },
-            models::conv_net::{
-                ConvChainMeta,
-                ConvHeadConfig,
-                ConvNetStructureConfig,
-                ConvShortcutConfig,
-                ConvStageConfig,
-                ConvStemConfig,
-                ConvStemPoolConfig,
-                GlobalPool2dConfig,
-                MaxBlurPoolConfig,
-                ResidualUnitConfig,
+            models::{
+                classifier_head::ClassifierHeadConfig,
+                conv_net::{
+                    ConvChainMeta,
+                    ConvNetStructureConfig,
+                    ConvShortcutConfig,
+                    ConvStageConfig,
+                    ConvStemConfig,
+                    ConvStemPoolConfig,
+                    GlobalPool2dConfig,
+                    MaxBlurPoolConfig,
+                    ResidualUnitConfig,
+                },
             },
         },
         norm::BunsenNormalizationConfig,
@@ -521,9 +523,12 @@ impl ToStructureConfig for ConvNetContractConfig {
         Ok(ConvNetStructureConfig {
             stem,
             stages,
-            head: ConvHeadConfig::new(channels, self.num_classes)
-                .with_pool(self.global_pool)
-                .with_drop_rate(self.drop_rate),
+            pool: self.global_pool,
+            head: ClassifierHeadConfig::new(
+                self.global_pool.pooled_features(channels),
+                self.num_classes,
+            )
+            .with_drop_rate(self.drop_rate),
         })
     }
 }

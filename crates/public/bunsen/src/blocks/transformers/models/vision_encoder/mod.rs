@@ -2,9 +2,12 @@
 //!
 //! [`VisionEncoderModel`]: a [`PatchEmbed`](crate::blocks::images::patching::patch_embed::PatchEmbed),
 //! [`PrefixTokens`](crate::blocks::images::patching::prefix_tokens::PrefixTokens)
-//! (the class and register tokens, and the learnt position embedding), a
-//! bidirectional [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack),
-//! and a [`VisionHead`]. It is the one model type of the `ViT` families,
+//! (the class, distillation and register tokens, and the learnt position
+//! embedding), a bidirectional
+//! [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack),
+//! a [`TokenPool`], and the image models'
+//! [`ClassifierHead`](crate::blocks::images::models::classifier_head::ClassifierHead).
+//! It is the one model type of the `ViT` families,
 //! timm's `VisionTransformer`: a `ViT` is a `VisionEncoderModel`, built from
 //! its family's policy.
 //!
@@ -18,9 +21,11 @@
 //! 3. the transformer's input norm (timm's `norm_pre`, CLIP's), its pre-norm
 //!    layers (attention over every token, then an MLP; layer scale on each),
 //!    and its final norm;
-//! 4. the head's pool (the class token, or a reduction of the patch tokens),
-//!    its norm (timm's `fc_norm`, which replaces the final norm), and the
-//!    classifier, none on a headless model.
+//! 4. the pool (the class token, a reduction of the patch tokens, or the mean
+//!    of the class and distillation tokens), the head's norm (timm's `fc_norm`,
+//!    which replaces the final norm), and the classifier, none on a headless
+//!    model; a distilled head classifies its two tokens apart and averages the
+//!    logits.
 //!
 //! ## Parameter paths
 //!
@@ -30,15 +35,15 @@
 //! | part | path |
 //! |---|---|
 //! | the patch embedding's conv | `patch_embed.projection` |
-//! | the class and register tokens, the position embedding | `tokens.cls_token`, `tokens.reg_token`, `tokens.pos_embed` |
+//! | the prefix tokens, the position embedding | `tokens.cls_token`, `tokens.dist_token`, `tokens.reg_token`, `tokens.pos_embed` |
 //! | the transformer | `stack.*`, [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)'s |
-//! | the head's norm and classifier | `head.fc_norm`, `head.fc` |
+//! | the head's norm and classifiers | `head.fc_norm`, `head.fc`, `head.fc_dist` |
 
-mod head;
 mod model;
+mod pool;
 
-pub use head::*;
 pub use model::*;
+pub use pool::*;
 
 #[cfg(test)]
 mod tests;

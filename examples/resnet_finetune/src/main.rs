@@ -319,7 +319,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
 
     let model: ConvNetModel = resnet_config.clone().try_init(&device)?;
 
-    let old_float_type = model.head.fc.weight.dtype();
+    let old_float_type = model.stem.convs[0].conv.weight.dtype();
 
     // The activation rewrite is this example's own surgery: the deferred
     // model's hook builds from this config rather than the prefab's, and
