@@ -27,7 +27,8 @@
 //!    checking that the tree chains.
 //!
 //! [`ConvNetMeta`] answers the same questions of the structure and the
-//! model, as [`ConvStemMeta`], [`ConvStageMeta`] and [`ResidualUnitMeta`] do
+//! model, as [`ConvChainMeta`] (every link: the stem, a stage, a unit and its
+//! parts) and [`ConvStageMeta`] do
 //! of their parts.
 //!
 //! ## The residual unit

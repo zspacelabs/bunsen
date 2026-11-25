@@ -1,9 +1,6 @@
 //! The stem: the convs before the first stage, and a pool.
 
-use alloc::{
-    format,
-    vec::Vec,
-};
+use alloc::vec::Vec;
 
 use burn::{
     config::Config,
@@ -25,31 +22,21 @@ use crate::{
             ConvBlock2dConfig,
             ConvBlock2dMeta,
         },
-        images::anti_alias::{
-            BlurPool2d,
-            BlurPool2dConfig,
-            BlurPool2dMeta,
+        images::{
+            anti_alias::{
+                BlurPool2d,
+                BlurPool2dConfig,
+                BlurPool2dMeta,
+            },
+            models::conv_net::ConvChainMeta,
         },
     },
     burner::module::ModuleInit,
     errors::{
         BunsenResult,
         ConstraintError,
-        Rule,
     },
 };
-
-/// The view shared by [`ConvStemConfig`] and [`ConvStem`].
-pub trait ConvStemMeta {
-    /// The image channels the stem takes.
-    fn in_channels(&self) -> usize;
-
-    /// The channels it puts out, the first stage's input.
-    fn out_channels(&self) -> usize;
-
-    /// Its stride, the convs' and the pool's: 4 for `ResNet`'s.
-    fn stride(&self) -> usize;
-}
 
 /// The stem's pool: the config of a [`ConvStemPool`].
 ///
@@ -179,7 +166,7 @@ impl ConvStemPool {
 /// tiered stems; a conv whose kernel is its stride, with no norm, a
 /// patchify stem.
 ///
-/// Implements [`ConvStemMeta`].
+/// Implements [`ConvChainMeta`].
 #[derive(Config, Debug)]
 pub struct ConvStemConfig {
     /// The convs, in order; each one's output is the next one's input.
@@ -190,7 +177,7 @@ pub struct ConvStemConfig {
     pub pool: Option<ConvStemPoolConfig>,
 }
 
-impl ConvStemMeta for ConvStemConfig {
+impl ConvChainMeta for ConvStemConfig {
     fn in_channels(&self) -> usize {
         self.convs[0].in_channels()
     }
@@ -220,35 +207,25 @@ impl ConvStemConfig {
         if self.convs.is_empty() {
             return Err(ConstraintError::zero_or_empty("ConvStemConfig", "convs").into());
         }
-        for idx in 1..self.convs.len() {
-            let (prev, curr) = (&self.convs[idx - 1], &self.convs[idx]);
-            if prev.out_channels() != curr.in_channels() {
-                return Err(ConstraintError::new(
-                    "ConvStemConfig",
-                    "convs",
-                    Rule::Chain {
-                        index: idx,
-                        out: format!("{} channels", prev.out_channels()),
-                        r#in: format!("{} channels", curr.in_channels()),
-                    },
-                )
-                .into());
-            }
-        }
+        let convs = || {
+            self.convs
+                .iter()
+                .enumerate()
+                .map(|(idx, c)| (idx, c.in_channels(), c.out_channels()))
+        };
+        ConstraintError::check_chain("ConvStemConfig", "convs", convs())?;
         if let Some(ConvStemPoolConfig::Conv(pool)) = &self.pool {
-            let last = &self.convs[self.convs.len() - 1];
-            if pool.in_channels() != last.out_channels() {
-                return Err(ConstraintError::new(
-                    "ConvStemConfig",
-                    "pool",
-                    Rule::Chain {
-                        index: self.convs.len(),
-                        out: format!("{} channels", last.out_channels()),
-                        r#in: format!("{} channels", pool.in_channels()),
-                    },
-                )
-                .into());
-            }
+            // The last conv is the pool's source; a break names the pool's
+            // place after the convs.
+            ConstraintError::check_chain(
+                "ConvStemConfig",
+                "pool",
+                convs().next_back().into_iter().chain(core::iter::once((
+                    self.convs.len(),
+                    pool.in_channels(),
+                    pool.out_channels(),
+                ))),
+            )?;
         }
         Ok(())
     }
@@ -282,7 +259,7 @@ impl ModuleInit<ConvStem> for ConvStemConfig {
 
 /// A conv net's stem: convs, then a pool. Built by [`ConvStemConfig`].
 ///
-/// Implements [`ConvStemMeta`].
+/// Implements [`ConvChainMeta`].
 #[derive(Module, Debug)]
 pub struct ConvStem {
     /// The convs, in order.
@@ -292,7 +269,7 @@ pub struct ConvStem {
     pub pool: Option<ConvStemPool>,
 }
 
-impl ConvStemMeta for ConvStem {
+impl ConvChainMeta for ConvStem {
     fn in_channels(&self) -> usize {
         self.convs[0].in_channels()
     }

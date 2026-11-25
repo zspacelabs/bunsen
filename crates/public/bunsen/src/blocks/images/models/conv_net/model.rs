@@ -15,6 +15,7 @@ use burn::{
 
 use crate::{
     blocks::images::models::conv_net::{
+        ConvChainMeta,
         ConvHead,
         ConvHeadConfig,
         ConvStage,
@@ -22,8 +23,6 @@ use crate::{
         ConvStageMeta,
         ConvStem,
         ConvStemConfig,
-        ConvStemMeta,
-        ResidualUnitMeta,
     },
     burner::module::ModuleInit,
     errors::{
@@ -113,25 +112,23 @@ impl ConvNetStructureConfig {
         if self.stages.is_empty() {
             return Err(ConstraintError::zero_or_empty(OWNER, "stages").into());
         }
-        let mut channels = self.stem.out_channels();
         for (idx, stage) in self.stages.iter().enumerate() {
             stage
                 .try_validate()
                 .with_context(|| format!("conv net stage {idx} (stages[{idx}])"))?;
-            if stage.in_channels() != channels {
-                return Err(ConstraintError::new(
-                    OWNER,
-                    "stages",
-                    Rule::Chain {
-                        index: idx,
-                        out: format!("{channels} channels"),
-                        r#in: format!("{} channels", stage.in_channels()),
-                    },
-                )
-                .into());
-            }
-            channels = stage.out_channels();
         }
+        // The stem is the chain's source; a break names the stage.
+        ConstraintError::check_chain(
+            OWNER,
+            "stages",
+            core::iter::once((0, self.stem.in_channels(), self.stem.out_channels())).chain(
+                self.stages
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, s)| (idx, s.in_channels(), s.out_channels())),
+            ),
+        )?;
+        let channels = self.stages[self.stages.len() - 1].out_channels();
         if self.head.d_features != channels {
             return Err(ConstraintError::new(
                 OWNER,

@@ -32,7 +32,6 @@ use crate::{
         BunsenResult,
         ConstraintError,
         ResultContext,
-        Rule,
     },
 };
 
@@ -116,22 +115,14 @@ pub trait ConvSeq2dMeta {
             return Err(ConstraintError::zero_or_empty("ConvSeq2d", "blocks").into());
         }
 
-        for (idx, pair) in metas.windows(2).enumerate() {
-            let prev = pair[0];
-            let next = pair[1];
-            if prev.out_channels() != next.in_channels() {
-                return Err(ConstraintError::new(
-                    "ConvSeq2d",
-                    "blocks",
-                    Rule::Chain {
-                        index: idx + 1,
-                        out: format!("{} channels", prev.out_channels()),
-                        r#in: format!("{} channels", next.in_channels()),
-                    },
-                )
-                .into());
-            }
-        }
+        ConstraintError::check_chain(
+            "ConvSeq2d",
+            "blocks",
+            metas
+                .iter()
+                .enumerate()
+                .map(|(idx, m)| (idx, m.in_channels(), m.out_channels())),
+        )?;
 
         Ok(())
     }
@@ -509,6 +500,7 @@ mod tests {
     use crate::{
         errors::{
             BunsenErrorKind,
+            Rule,
             testing::{
                 ErrorMatcher,
                 predicate,

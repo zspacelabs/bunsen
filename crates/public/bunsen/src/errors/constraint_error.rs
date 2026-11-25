@@ -179,6 +179,41 @@ impl ConstraintError {
         Self::new(owner, field, Rule::ZeroOrEmpty)
     }
 
+    /// Checks that `items` chain by channels: each item takes what the one
+    /// before it puts out. Each item is `(index, in_channels, out_channels)`,
+    /// `index` the one a break reports (the later item's; the first item's
+    /// is never reported, so a chain may start with its source).
+    ///
+    /// # Errors
+    ///
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) at the first
+    /// break, with a [`Rule::Chain`] on `owner.field` as its cause.
+    pub fn check_chain(
+        owner: &'static str,
+        field: impl Into<Cow<'static, str>>,
+        items: impl IntoIterator<Item = (usize, usize, usize)>,
+    ) -> crate::errors::BunsenResult<()> {
+        let mut prev: Option<usize> = None;
+        for (index, in_channels, out_channels) in items {
+            if let Some(out) = prev
+                && out != in_channels
+            {
+                return Err(Self::new(
+                    owner,
+                    field,
+                    Rule::Chain {
+                        index,
+                        out: alloc::format!("{out} channels"),
+                        r#in: alloc::format!("{in_channels} channels"),
+                    },
+                )
+                .into());
+            }
+            prev = Some(out_channels);
+        }
+        Ok(())
+    }
+
     /// `owner.field` breaks a rule described in words.
     pub fn custom(
         owner: &'static str,
@@ -214,6 +249,35 @@ impl From<ConstraintError> for BunsenError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A chain breaks at the first item that doesn't take what the one
+    /// before puts out, reported by that item's index.
+    #[test]
+    fn test_check_chain() {
+        assert!(
+            ConstraintError::check_chain("Net", "stages", [(0, 3, 8), (0, 8, 16), (1, 16, 4)])
+                .is_ok()
+        );
+        assert!(ConstraintError::check_chain("Net", "stages", []).is_ok());
+        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Illegal)
+            .cause(crate::errors::testing::predicate(
+                "the break at 1",
+                |e: &ConstraintError| {
+                    e.field == "stages"
+                        && e.rule
+                            == Rule::Chain {
+                                index: 1,
+                                out: "16 channels".into(),
+                                r#in: "12 channels".into(),
+                            }
+                },
+            ))
+            .assert_err(&ConstraintError::check_chain(
+                "Net",
+                "stages",
+                [(9, 3, 8), (0, 8, 16), (1, 12, 4)],
+            ));
+    }
 
     #[test]
     fn test_display() {

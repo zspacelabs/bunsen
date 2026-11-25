@@ -34,12 +34,12 @@ use crate::{
             },
             models::conv_net::{
                 AvgConvShortcutConfig,
+                ConvChainMeta,
                 ConvHeadConfig,
                 ConvNetStructureConfig,
                 ConvShortcutConfig,
                 ConvStageConfig,
                 ConvStemConfig,
-                ConvStemMeta,
                 ConvStemPoolConfig,
                 GlobalPool2dConfig,
                 MaxBlurPoolConfig,

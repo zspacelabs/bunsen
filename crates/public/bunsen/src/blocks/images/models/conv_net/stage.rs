@@ -14,23 +14,22 @@ use burn::{
 
 use crate::{
     blocks::images::models::conv_net::{
+        ConvChainMeta,
         ResidualUnit,
         ResidualUnitConfig,
-        ResidualUnitMeta,
     },
     burner::module::ModuleInit,
     errors::{
         BunsenResult,
         ConstraintError,
         ResultContext,
-        Rule,
     },
     ops::drop::DropBlockOptions,
 };
 
 /// [`ConvStageConfig`]'s and [`ConvStage`]'s shared view, beside
-/// [`ResidualUnitMeta`]'s: how many units.
-pub trait ConvStageMeta: ResidualUnitMeta {
+/// [`ConvChainMeta`]'s: how many units.
+pub trait ConvStageMeta: ConvChainMeta {
     /// The number of units.
     fn len(&self) -> usize;
 
@@ -55,7 +54,7 @@ impl From<Vec<ResidualUnitConfig>> for ConvStageConfig {
     }
 }
 
-impl ResidualUnitMeta for ConvStageConfig {
+impl ConvChainMeta for ConvStageConfig {
     fn in_channels(&self) -> usize {
         self.units[0].in_channels()
     }
@@ -89,22 +88,15 @@ impl ConvStageConfig {
         for (idx, unit) in self.units.iter().enumerate() {
             unit.try_validate()
                 .with_context(|| format!("unit {idx} (units[{idx}])"))?;
-            if idx > 0 {
-                let prev = &self.units[idx - 1];
-                if prev.out_channels() != unit.in_channels() {
-                    return Err(ConstraintError::new(
-                        "ConvStageConfig",
-                        "units",
-                        Rule::Chain {
-                            index: idx,
-                            out: format!("{} channels", prev.out_channels()),
-                            r#in: format!("{} channels", unit.in_channels()),
-                        },
-                    )
-                    .into());
-                }
-            }
         }
+        ConstraintError::check_chain(
+            "ConvStageConfig",
+            "units",
+            self.units
+                .iter()
+                .enumerate()
+                .map(|(idx, u)| (idx, u.in_channels(), u.out_channels())),
+        )?;
         Ok(())
     }
 
@@ -167,7 +159,7 @@ pub struct ConvStage {
     pub units: Vec<ResidualUnit>,
 }
 
-impl ResidualUnitMeta for ConvStage {
+impl ConvChainMeta for ConvStage {
     fn in_channels(&self) -> usize {
         self.units[0].in_channels()
     }

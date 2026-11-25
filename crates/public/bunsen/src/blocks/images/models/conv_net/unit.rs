@@ -69,9 +69,10 @@ use crate::{
     },
 };
 
-/// The view shared by a residual unit's parts and their configs: what goes
+/// The view shared by every link of a conv net's chain and its config (the
+/// stem, a stage, a residual unit, a unit's convs and shortcut): what goes
 /// in, what comes out, and how far it strides.
-pub trait ResidualUnitMeta {
+pub trait ConvChainMeta {
     /// The input channels.
     fn in_channels(&self) -> usize;
 
@@ -100,7 +101,7 @@ impl From<ConvBlock2dConfig> for ResidualConvConfig {
     }
 }
 
-impl ResidualUnitMeta for ResidualConvConfig {
+impl ConvChainMeta for ResidualConvConfig {
     fn in_channels(&self) -> usize {
         match self {
             Self::Block(config) => config.in_channels(),
@@ -141,7 +142,7 @@ pub enum ResidualConv {
     Block(ConvBlock2d),
 }
 
-impl ResidualUnitMeta for ResidualConv {
+impl ConvChainMeta for ResidualConv {
     fn in_channels(&self) -> usize {
         match self {
             Self::Block(block) => block.in_channels(),
@@ -219,7 +220,7 @@ pub enum ConvShortcutConfig {
     AvgConv(AvgConvShortcutConfig),
 }
 
-impl ResidualUnitMeta for ConvShortcutConfig {
+impl ConvChainMeta for ConvShortcutConfig {
     fn in_channels(&self) -> usize {
         match self {
             Self::Conv(config) => config.in_channels(),
@@ -343,7 +344,7 @@ pub struct AvgConvShortcut {
     pub act: Option<BunsenActivation>,
 }
 
-impl ResidualUnitMeta for AvgConvShortcut {
+impl ConvChainMeta for AvgConvShortcut {
     fn in_channels(&self) -> usize {
         self.conv.weight.dims()[1] * self.conv.groups
     }
@@ -400,7 +401,7 @@ pub enum ConvShortcut {
     AvgConv(AvgConvShortcut),
 }
 
-impl ResidualUnitMeta for ConvShortcut {
+impl ConvChainMeta for ConvShortcut {
     fn in_channels(&self) -> usize {
         match self {
             Self::Conv(block) => block.in_channels(),
@@ -452,7 +453,7 @@ impl ConvShortcut {
 /// whose first is the mixer, a bottleneck a `1x1`, a `3x3` mixer and a `1x1`.
 /// The last conv carries no activation: the unit's `act` follows the add.
 ///
-/// Implements [`ResidualUnitMeta`].
+/// Implements [`ConvChainMeta`].
 #[derive(Config, Debug)]
 pub struct ResidualUnitConfig {
     /// The residual path, in order; each conv's output is the next one's
@@ -492,7 +493,7 @@ pub struct ResidualUnitConfig {
     pub drop_path_prob: f64,
 }
 
-impl ResidualUnitMeta for ResidualUnitConfig {
+impl ConvChainMeta for ResidualUnitConfig {
     fn in_channels(&self) -> usize {
         self.convs[0].in_channels()
     }
@@ -521,21 +522,14 @@ impl ResidualUnitConfig {
         if self.convs.is_empty() {
             return Err(ConstraintError::zero_or_empty(OWNER, "convs").into());
         }
-        for idx in 1..self.convs.len() {
-            let (prev, curr) = (&self.convs[idx - 1], &self.convs[idx]);
-            if prev.out_channels() != curr.in_channels() {
-                return Err(ConstraintError::new(
-                    OWNER,
-                    "convs",
-                    Rule::Chain {
-                        index: idx,
-                        out: format!("{} channels", prev.out_channels()),
-                        r#in: format!("{} channels", curr.in_channels()),
-                    },
-                )
-                .into());
-            }
-        }
+        ConstraintError::check_chain(
+            OWNER,
+            "convs",
+            self.convs
+                .iter()
+                .enumerate()
+                .map(|(idx, c)| (idx, c.in_channels(), c.out_channels())),
+        )?;
         if self.mixer >= self.convs.len() {
             return Err(ConstraintError::new(
                 OWNER,
@@ -658,7 +652,7 @@ fn drop_path_layer(
 /// when there is one. The shortcut is the
 /// identity when there is none. Built by [`ResidualUnitConfig`].
 ///
-/// Implements [`ResidualUnitMeta`].
+/// Implements [`ConvChainMeta`].
 #[derive(Module, Debug)]
 pub struct ResidualUnit {
     /// The residual path.
@@ -686,7 +680,7 @@ pub struct ResidualUnit {
     pub drop_path: Option<DropPath>,
 }
 
-impl ResidualUnitMeta for ResidualUnit {
+impl ConvChainMeta for ResidualUnit {
     fn in_channels(&self) -> usize {
         self.convs[0].in_channels()
     }
