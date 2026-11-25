@@ -525,6 +525,96 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 
 * timm/resnet152.tv2_in1k: [242.2 MB]
   timm's `resnet152`, its `tv2_in1k` weights.
+
+* timm/resnext50_32x4d.a1_in1k: [101.2 MB]
+  timm's `resnext50_32x4d`, its `a1_in1k` weights.
+
+* timm/resnext50_32x4d.a1h_in1k: [101.2 MB]
+  timm's `resnext50_32x4d`, its `a1h_in1k` weights.
+
+* timm/resnext50_32x4d.a2_in1k: [101.2 MB]
+  timm's `resnext50_32x4d`, its `a2_in1k` weights.
+
+* timm/resnext50_32x4d.a3_in1k: [101.2 MB]
+  timm's `resnext50_32x4d`, its `a3_in1k` weights.
+
+* timm/resnext50_32x4d.fb_ssl_yfcc100m_ft_in1k: [101.2 MB]
+  timm's `resnext50_32x4d`, its `fb_ssl_yfcc100m_ft_in1k` weights.
+
+* timm/resnext50_32x4d.fb_swsl_ig1b_ft_in1k: [101.2 MB]
+  timm's `resnext50_32x4d`, its `fb_swsl_ig1b_ft_in1k` weights.
+
+* timm/resnext50_32x4d.gluon_in1k: [101.2 MB]
+  timm's `resnext50_32x4d`, its `gluon_in1k` weights.
+
+* timm/resnext50_32x4d.ra_in1k: [101.2 MB]
+  timm's `resnext50_32x4d`, its `ra_in1k` weights.
+
+* timm/resnext50_32x4d.tv2_in1k: [101.2 MB]
+  timm's `resnext50_32x4d`, its `tv2_in1k` weights.
+
+* timm/resnext50_32x4d.tv_in1k: [101.2 MB]
+  timm's `resnext50_32x4d`, its `tv_in1k` weights.
+
+* timm/resnext101_32x4d.fb_ssl_yfcc100m_ft_in1k: [178.1 MB]
+  timm's `resnext101_32x4d`, its `fb_ssl_yfcc100m_ft_in1k` weights.
+
+* timm/resnext101_32x4d.fb_swsl_ig1b_ft_in1k: [178.1 MB]
+  timm's `resnext101_32x4d`, its `fb_swsl_ig1b_ft_in1k` weights.
+
+* timm/resnext101_32x4d.gluon_in1k: [178.1 MB]
+  timm's `resnext101_32x4d`, its `gluon_in1k` weights.
+
+* timm/resnext101_32x8d.fb_ssl_yfcc100m_ft_in1k: [356.8 MB]
+  timm's `resnext101_32x8d`, its `fb_ssl_yfcc100m_ft_in1k` weights.
+
+* timm/resnext101_32x8d.fb_swsl_ig1b_ft_in1k: [356.8 MB]
+  timm's `resnext101_32x8d`, its `fb_swsl_ig1b_ft_in1k` weights.
+
+* timm/resnext101_32x8d.fb_wsl_ig1b_ft_in1k: [356.8 MB]
+  timm's `resnext101_32x8d`, its `fb_wsl_ig1b_ft_in1k` weights.
+
+* timm/resnext101_32x8d.tv2_in1k: [356.8 MB]
+  timm's `resnext101_32x8d`, its `tv2_in1k` weights.
+
+* timm/resnext101_32x8d.tv_in1k: [356.8 MB]
+  timm's `resnext101_32x8d`, its `tv_in1k` weights.
+
+* timm/resnext101_32x16d.fb_ssl_yfcc100m_ft_in1k: [778.2 MB]
+  timm's `resnext101_32x16d`, its `fb_ssl_yfcc100m_ft_in1k` weights.
+
+* timm/resnext101_32x16d.fb_swsl_ig1b_ft_in1k: [778.2 MB]
+  timm's `resnext101_32x16d`, its `fb_swsl_ig1b_ft_in1k` weights.
+
+* timm/resnext101_32x16d.fb_wsl_ig1b_ft_in1k: [778.2 MB]
+  timm's `resnext101_32x16d`, its `fb_wsl_ig1b_ft_in1k` weights.
+
+* timm/resnext101_32x32d.fb_wsl_ig1b_ft_in1k: [1.88 GB]
+  timm's `resnext101_32x32d`, its `fb_wsl_ig1b_ft_in1k` weights.
+
+* timm/resnext101_64x4d.c1_in1k: [335.4 MB]
+  timm's `resnext101_64x4d`, its `c1_in1k` weights.
+
+* timm/resnext101_64x4d.gluon_in1k: [335.4 MB]
+  timm's `resnext101_64x4d`, its `gluon_in1k` weights.
+
+* timm/resnext101_64x4d.tv_in1k: [335.4 MB]
+  timm's `resnext101_64x4d`, its `tv_in1k` weights.
+
+* timm/wide_resnet50_2.racm_in1k: [276.6 MB]
+  timm's `wide_resnet50_2`, its `racm_in1k` weights.
+
+* timm/wide_resnet50_2.tv2_in1k: [276.6 MB]
+  timm's `wide_resnet50_2`, its `tv2_in1k` weights.
+
+* timm/wide_resnet50_2.tv_in1k: [276.6 MB]
+  timm's `wide_resnet50_2`, its `tv_in1k` weights.
+
+* timm/wide_resnet101_2.tv2_in1k: [508.9 MB]
+  timm's `wide_resnet101_2`, its `tv2_in1k` weights.
+
+* timm/wide_resnet101_2.tv_in1k: [508.9 MB]
+  timm's `wide_resnet101_2`, its `tv_in1k` weights.
 ```
 
 <!-- /card -->

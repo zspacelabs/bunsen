@@ -49,21 +49,37 @@ Available pretrained models:
 ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: None, normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
   - "catalog:torchvision/resnet18": TorchVision ResNet-18.
 * "resnet26"
-ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 1, base_width: 64 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
 * "resnet34"
 ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: None, normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
   - "catalog:torchvision/resnet34": TorchVision ResNet-34.
 * "resnet50"
-ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 1, base_width: 64 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
   - "catalog:torchvision/resnet50": TorchVision ResNet-50.
 * "resnet50_gn"
-ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Group(GroupNormConfig { num_groups: 32, num_channels: 0, epsilon: 1e-5, affine: true }), activation: Relu }
+ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 1, base_width: 64 }), normalization: Group(GroupNormConfig { num_groups: 32, num_channels: 0, epsilon: 1e-5, affine: true }), activation: Relu }
 * "resnet101"
-ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 1, base_width: 64 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
   - "catalog:torchvision/resnet101": TorchVision ResNet-101.
 * "resnet152"
-ResNetContractConfig { layers: [3, 8, 36, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+ResNetContractConfig { layers: [3, 8, 36, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 1, base_width: 64 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
   - "catalog:torchvision/resnet152": TorchVision ResNet-152.
+* "resnext50_32x4d"
+ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 32, base_width: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+* "resnext101_32x4d"
+ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 32, base_width: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+* "resnext101_32x8d"
+ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 32, base_width: 8 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+* "resnext101_32x16d"
+ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 32, base_width: 16 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+* "resnext101_32x32d"
+ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 32, base_width: 32 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+* "resnext101_64x4d"
+ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 64, base_width: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+* "wide_resnet50_2"
+ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 1, base_width: 128 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
+* "wide_resnet101_2"
+ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, in_channels: 3, channels: [64, 128, 256, 512], conv_stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4, cardinality: 1, base_width: 128 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
 ```
 
 ## Various Options to Rewrite Models

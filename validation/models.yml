@@ -365,6 +365,18 @@ crates:
         core: false
         dtypes: [f32]
         varies: timm's group norm (32 groups) in every norm, the stem's included
+      timm/resnext50_32x4d.a1h_in1k:
+        size: small
+        gb: 0.21
+        core: false
+        dtypes: [f32]
+        varies: grouped mixers, 32 groups of 4 per 64 planes (cardinality)
+      timm/wide_resnet50_2.racm_in1k:
+        size: small
+        gb: 0.38
+        core: false
+        dtypes: [f32]
+        varies: mixers twice a resnet50's width (base width 128)
       torchvision/resnet18:
         size: small
         gb: 0.15

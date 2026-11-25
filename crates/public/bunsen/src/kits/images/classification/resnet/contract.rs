@@ -45,13 +45,36 @@ pub const RESNET152_BLOCKS: [usize; 4] = [3, 8, 36, 3];
 /// mixer's channels.
 pub const BOTTLENECK_BLOCK_DEFAULT_PINCH_FACTOR: usize = 4;
 
-/// A `ResNet`'s bottleneck policy: its units are bottlenecks, whose output
-/// is `pinch_factor` times their mixer's channels.
+/// A `ResNet`'s bottleneck policy: its units are bottlenecks, which put out
+/// `pinch_factor` times their stage's planes, around a grouped mixer.
+///
+/// The mixer is `planes * base_width / 64` channels (rounded down) per group,
+/// in `cardinality` groups, as timm's: a `resnet50` is 1 group of 64 per 64
+/// planes, a `resnext50_32x4d` 32 groups of 4, a `wide_resnet50_2` 1 of 128.
 #[derive(Config, Debug)]
 pub struct BottleneckPolicyConfig {
-    /// The output channels over the mixer's.
+    /// The output channels over the stage's planes (timm's expansion).
     #[config(default = "BOTTLENECK_BLOCK_DEFAULT_PINCH_FACTOR")]
     pub pinch_factor: usize,
+
+    /// The mixer's groups (timm's `cardinality`).
+    #[config(default = "1")]
+    pub cardinality: usize,
+
+    /// The mixer's channels per group, per 64 planes (timm's `base_width`).
+    #[config(default = "64")]
+    pub base_width: usize,
+}
+
+impl BottleneckPolicyConfig {
+    /// The mixer's width of a stage of `planes` planes:
+    /// `floor(planes * base_width / 64) * cardinality`.
+    pub fn mixer_width(
+        &self,
+        planes: usize,
+    ) -> usize {
+        planes * self.base_width / 64 * self.cardinality
+    }
 }
 
 impl Default for BottleneckPolicyConfig {
@@ -127,9 +150,11 @@ impl ResNetContractConfig {
     /// entry of `layers`, the first at stride 1 and each later one at stride
     /// 2.
     ///
-    /// Each stage's mixers are its `channels` wide. A basic unit puts out its
-    /// mixer's width; a bottleneck `pinch_factor` times it, so a `resnet50`'s
-    /// stages put out 256, 512, 1024 and 2048 channels.
+    /// Each stage's units are its `channels` planes. A basic unit is that
+    /// wide throughout; a bottleneck puts out `pinch_factor` times it, so a
+    /// `resnet50`'s stages put out 256, 512, 1024 and 2048 channels, around
+    /// its policy's grouped mixer
+    /// ([`mixer_width`](BottleneckPolicyConfig::mixer_width)).
     ///
     /// # Errors
     ///
@@ -143,22 +168,25 @@ impl ResNetContractConfig {
                 self.layers.len()
             )));
         }
-        let expansion = self
-            .bottleneck_policy
-            .as_ref()
-            .map_or(1, |policy| policy.pinch_factor);
-        let unit = match self.bottleneck_policy {
-            Some(_) => ConvUnitKind::Bottleneck,
-            None => ConvUnitKind::Basic,
-        };
         let stages = self
             .layers
             .iter()
             .zip(&self.channels)
             .enumerate()
-            .map(|(idx, (&depth, &mid))| {
-                ConvStageContractConfig::new(depth, unit, mid * expansion, mid)
-                    .with_stride(if idx == 0 { 1 } else { 2 })
+            .map(|(idx, (&depth, &planes))| {
+                let stage = match &self.bottleneck_policy {
+                    Some(policy) => ConvStageContractConfig::new(
+                        depth,
+                        ConvUnitKind::Bottleneck,
+                        planes * policy.pinch_factor,
+                        policy.mixer_width(planes),
+                    )
+                    .with_groups(policy.cardinality),
+                    None => {
+                        ConvStageContractConfig::new(depth, ConvUnitKind::Basic, planes, planes)
+                    }
+                };
+                stage.with_stride(if idx == 0 { 1 } else { 2 })
             })
             .collect();
         Ok(ConvNetContractConfig::new(
@@ -245,6 +273,49 @@ mod tests {
         assert_eq!(structure.num_classes(), 1000);
         let strides: Vec<usize> = structure.stages.iter().map(|s| s.stride()).collect();
         assert_eq!(strides, [1, 2, 2, 2]);
+    }
+
+    /// The grouped and widened prefabs' mixers are timm's
+    /// `floor(planes * base_width / 64) * cardinality`, in `cardinality`
+    /// groups; their outputs are a `resnet50`'s.
+    #[test]
+    fn test_grouped_prefabs_lower_to_timms_widths() {
+        let stages = |name: &str| -> Vec<(usize, usize, usize)> {
+            ResNetContractConfig::expect_prefab(name)
+                .to_conv_net()
+                .stages
+                .iter()
+                .map(|s| (s.mid_width, s.width, s.groups))
+                .collect()
+        };
+        assert_eq!(
+            stages("resnext50_32x4d"),
+            [
+                (128, 256, 32),
+                (256, 512, 32),
+                (512, 1024, 32),
+                (1024, 2048, 32)
+            ]
+        );
+        assert_eq!(
+            stages("resnext101_64x4d"),
+            [
+                (256, 256, 64),
+                (512, 512, 64),
+                (1024, 1024, 64),
+                (2048, 2048, 64)
+            ]
+        );
+        assert_eq!(
+            stages("wide_resnet50_2"),
+            [
+                (128, 256, 1),
+                (256, 512, 1),
+                (512, 1024, 1),
+                (1024, 2048, 1)
+            ]
+        );
+        assert_eq!(stages("resnet50")[0], (64, 256, 1));
     }
 
     /// The policy builds the same model through its structure as through

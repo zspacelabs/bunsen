@@ -10,9 +10,10 @@
 //!
 //! - [`resnet`]: the `ResNet` family, built as the generic conv net
 //!   ([`ConvNetModel`](crate::blocks::images::models::conv_net::ConvNetModel)).
-//!   Seven prefabs, `resnet18` to `resnet152` and `resnet50_gn`, and 48
-//!   pretrained rows, torchvision's and `timm`'s hub repos, loaded by name
-//!   through [`default_resnet_factory`](resnet::pretrained::default_resnet_factory).
+//!   Fifteen prefabs (`resnet18` to `resnet152`, `resnet50_gn`, the `ResNeXt`s
+//!   and the wide `ResNet`s), and 78 pretrained rows, torchvision's and
+//!   `timm`'s hub repos, loaded by name through
+//!   [`default_resnet_factory`](resnet::pretrained::default_resnet_factory).
 //!   Its [compatibility](resnet#compatibility) section lists what of `timm`'s
 //!   `ResNet` is missing.
 //! - [`swin::v2`]: Swin Transformer V2. The model and its configs, with no
