@@ -3244,6 +3244,54 @@ timm:
       $kind: resource
       $file: config.json
       $format: json
+  resnetaa50d.d_in12k:
+    $kind: build
+    $description: "timm's `resnetaa50d`, its `d_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnetaa50d.d_in12k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnetaa50d.d_in12k
+      $revision: 1879d4e9cca4208d175f4b8edaa779f64a439e4a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnetaa50d.sw_in12k:
+    $kind: build
+    $description: "timm's `resnetaa50d`, its `sw_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnetaa50d.sw_in12k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnetaa50d.sw_in12k
+      $revision: b9fbc6e532931882197a1f81ea405fd99b65a5ad
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
   resnetaa50d.sw_in12k_ft_in1k:
     $kind: build
     $description: "timm's `resnetaa50d`, its `sw_in12k_ft_in1k` weights."
@@ -3259,6 +3307,30 @@ timm:
       checkpoint: checkpoint
       config: config
       labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnetaa101d.sw_in12k:
+    $kind: build
+    $description: "timm's `resnetaa101d`, its `sw_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnetaa101d.sw_in12k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnetaa101d.sw_in12k
+      $revision: a7604a5fb5081b036aa6b75f79a75c02d993ec6c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
       label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource
@@ -3316,6 +3388,30 @@ timm:
       $kind: resource
       $file: config.json
       $format: json
+  seresnextaa101d_32x8d.sw_in12k:
+    $kind: build
+    $description: "timm's `seresnextaa101d_32x8d`, its `sw_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnextaa101d_32x8d.sw_in12k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnextaa101d_32x8d.sw_in12k
+      $revision: 2f20a6bab37d39096c4dfa31aad0f2a14c50913e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
   seresnextaa101d_32x8d.sw_in12k_ft_in1k:
     $kind: build
     $description: "timm's `seresnextaa101d_32x8d`, its `sw_in12k_ft_in1k` weights."
@@ -3355,6 +3451,30 @@ timm:
       checkpoint: checkpoint
       config: config
       labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnextaa201d_32x8d.sw_in12k:
+    $kind: build
+    $description: "timm's `seresnextaa201d_32x8d`, its `sw_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnextaa201d_32x8d.sw_in12k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnextaa201d_32x8d.sw_in12k
+      $revision: 376664e0f3ce24a55b7a0099264c0194c601c484
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
       label_names: /imagenet/lemmas
     checkpoint:
       $kind: resource

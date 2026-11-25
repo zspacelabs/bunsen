@@ -435,6 +435,12 @@ crates:
         dtypes: [f32]
         varies: ResNet-RS - the stem's strided conv pool, squeeze-excite of a quarter of the
           channels, at 160 pixels
+      timm/resnetaa50d.sw_in12k:
+        size: small
+        gb: 0.3
+        core: false
+        dtypes: [f32]
+        varies: an ImageNet-12k head (11821 classes) and its labels
       torchvision/resnet18:
         size: small
         gb: 0.15

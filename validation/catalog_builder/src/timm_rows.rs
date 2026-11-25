@@ -10,8 +10,10 @@
 //!
 //! - every repo the Hub lists for each of the kit's architectures, in prefab
 //!   order, then by tag;
-//! - one that has a `model.safetensors` and a `config.json` of the kit's class
-//!   count, so the labels the rows bind are the head's;
+//! - one that has a `model.safetensors` and a `config.json` whose head has an
+//!   `ImageNet` label set's class count ([`LABEL_SETS`]), so the labels the row
+//!   binds are the head's; or, for a kit that loads them, any other head (none,
+//!   or a projection), with no labels;
 //! - except a `tv_in1k` repo whose architecture has a `torchvision/` row of its
 //!   name: that row holds the same weights.
 //!
@@ -63,6 +65,28 @@ const TIMM_ORG: &str = "timm";
 /// The tag of torchvision's own weights, as timm republishes them.
 const TORCHVISION_TAG: &str = "tv_in1k";
 
+/// The `ImageNet` label sets the catalog holds, by their class count: the
+/// subsets of timm's `infer_imagenet_subset`
+/// ([`imagenet_subset_for`](bunsen::kits::images::support::labels::imagenet_subset_for)),
+/// each the `synsets-` resource of its name.
+pub const LABEL_SETS: &[(u64, &str)] = &[
+    (1000, "/imagenet/synsets-1k"),
+    (11221, "/imagenet/synsets-21k-miil"),
+    (11821, "/imagenet/synsets-12k"),
+    (21843, "/imagenet/synsets-21k-goog"),
+];
+
+/// The readable names of every label set's synsets.
+const LABEL_NAMES: &str = "/imagenet/lemmas";
+
+/// The label set of a head of `classes` classes, if the catalog holds one.
+fn labels_for(classes: u64) -> Option<&'static str> {
+    LABEL_SETS
+        .iter()
+        .find(|(n, _)| *n == classes)
+        .map(|(_, labels)| *labels)
+}
+
 /// A kit whose timm rows are generated.
 #[derive(Clone, Debug)]
 pub struct TimmKit {
@@ -78,14 +102,9 @@ pub struct TimmKit {
     /// The architectures it builds, by timm's names: its prefabs'.
     pub architectures: Vec<&'static str>,
 
-    /// The head's classes a row must have.
-    pub classes: u64,
-
-    /// The labels every row binds, and their readable names.
-    pub labels: &'static str,
-
-    /// See [`labels`](Self::labels).
-    pub label_names: &'static str,
+    /// Whether a row may have a head no label set fits: none (a headless
+    /// tower), or a projection (CLIP's). Such a row binds no labels.
+    pub unlabelled: bool,
 }
 
 impl TimmKit {
@@ -102,9 +121,7 @@ pub fn timm_kits() -> Vec<TimmKit> {
         contract: "resnet-classifier",
         join: &["resnet"],
         architectures: ResNetContractConfig::prefab_names(),
-        classes: 1000,
-        labels: "/imagenet/synsets-1k",
-        label_names: "/imagenet/lemmas",
+        unlabelled: false,
     }]
 }
 
@@ -122,6 +139,9 @@ pub struct TimmRow {
 
     /// Its card's license.
     pub license: String,
+
+    /// The label set it binds ([`LABEL_SETS`]), if its head has one.
+    pub labels: Option<String>,
 }
 
 impl TimmRow {
@@ -138,6 +158,9 @@ impl TimmRow {
     ) -> String {
         let name = self.name();
         let join: String = kit.join.iter().map(|j| format!("      - {j}\n")).collect();
+        let labels = self.labels.as_ref().map_or(String::new(), |labels| {
+            format!("      labels: {labels}\n      label_names: {LABEL_NAMES}\n")
+        });
         format!(
             "  {name}:
     $kind: build
@@ -152,9 +175,7 @@ impl TimmRow {
     $resources:
       checkpoint: checkpoint
       config: config
-      labels: {labels}
-      label_names: {label_names}
-    checkpoint:
+{labels}    checkpoint:
       $kind: resource
       $file: model.safetensors
       $format: safetensors
@@ -168,8 +189,6 @@ impl TimmRow {
             license = self.license,
             contract = kit.contract,
             revision = self.revision,
-            labels = kit.labels,
-            label_names = kit.label_names,
         )
     }
 }
@@ -281,6 +300,14 @@ fn existing_rows(source: &OrderedNode) -> Result<BTreeMap<String, TimmRow>, Stri
                 license: string_field(build, "$license")
                     .map_err(|e| format!("timm/{name}: {e}"))?
                     .to_string(),
+                labels: match get(build, "$resources") {
+                    Some(resources) if get(resources, "labels").is_some() => Some(
+                        string_field(resources, "labels")
+                            .map_err(|e| format!("timm/{name}: {e}"))?
+                            .to_string(),
+                    ),
+                    _ => None,
+                },
             },
         );
     }
@@ -314,12 +341,13 @@ fn new_row(
     let classes = config
         .get("num_classes")
         .and_then(serde_json::Value::as_u64);
-    if classes != Some(kit.classes) {
+    let Some(classes) = classes else {
+        return Ok(Err("its `config.json` states no `num_classes`".into()));
+    };
+    let labels = labels_for(classes);
+    if labels.is_none() && !kit.unlabelled {
         return Ok(Err(format!(
-            "{} classes; the rows bind {}'s {} labels",
-            classes.map_or("no".to_string(), |c| c.to_string()),
-            kit.labels,
-            kit.classes
+            "{classes} classes: no ImageNet label set of the catalog's has that many"
         )));
     }
     Ok(Ok(TimmRow {
@@ -327,6 +355,7 @@ fn new_row(
         tag: tag.to_string(),
         revision: info.sha,
         license,
+        labels: labels.map(str::to_string),
     }))
 }
 
@@ -460,12 +489,14 @@ timm:
             tag: "a1_in1k".into(),
             revision: "r18a1".into(),
             license: "apache-2.0".into(),
+            labels: Some("/imagenet/synsets-1k".into()),
         }
     }
 
     /// The Hub: `resnet18`'s `a1_in1k` and `tv_in1k`, `resnet18d`'s (a
     /// search hit of another architecture), and `resnet50`'s `a1_in1k` and
-    /// headless `bamboo` and its license-less `x`.
+    /// headless `bamboo`, its license-less `x`, its 12k-class `in12k` and its
+    /// 512-wide `proj`.
     fn hub() -> FakeRemote {
         let mut remote = FakeRemote::default();
         let mut listing = |arch: &str, ids: &[&str]| {
@@ -489,6 +520,8 @@ timm:
                 "timm/resnet50.x",
                 "timm/resnet50.bamboo",
                 "timm/resnet50.a1_in1k",
+                "timm/resnet50.in12k",
+                "timm/resnet50.proj",
             ],
         );
         let mut model = |name: &str, sha: &str, license: Option<&str>, classes: u64| {
@@ -512,6 +545,8 @@ timm:
         model("resnet50.a1_in1k", "r50a1", Some("apache-2.0"), 1000);
         model("resnet50.bamboo", "bamboo", Some("apache-2.0"), 0);
         model("resnet50.x", "x", None, 1000);
+        model("resnet50.in12k", "in12k", Some("apache-2.0"), 11821);
+        model("resnet50.proj", "proj", Some("mit"), 512);
         remote
     }
 
@@ -525,9 +560,17 @@ timm:
             tag: "a1_in1k".into(),
             revision: "r50a1".into(),
             license: "apache-2.0".into(),
+            labels: Some("/imagenet/synsets-1k".into()),
         };
-        // The existing row keeps its pin; the new one is pinned from the Hub.
-        assert_eq!(generated.rows, [a1(), r50.clone()]);
+        let in12k = TimmRow {
+            tag: "in12k".into(),
+            revision: "in12k".into(),
+            labels: Some("/imagenet/synsets-12k".into()),
+            ..r50.clone()
+        };
+        // The existing row keeps its pin; the new ones are pinned from the
+        // Hub, each binding its head's labels.
+        assert_eq!(generated.rows, [a1(), r50.clone(), in12k.clone()]);
         assert_eq!(
             generated
                 .skipped
@@ -541,18 +584,71 @@ timm:
                 ),
                 (
                     "timm/resnet50.bamboo",
-                    "0 classes; the rows bind /imagenet/synsets-1k's 1000 labels"
+                    "0 classes: no ImageNet label set of the catalog's has that many"
+                ),
+                (
+                    "timm/resnet50.proj",
+                    "512 classes: no ImageNet label set of the catalog's has that many"
                 ),
                 ("timm/resnet50.x", "its card states no license"),
             ]
         );
         assert_eq!(
             generated.text,
-            source(&format!("{}{}", a1().render(&kit), r50.render(&kit)))
+            source(&format!(
+                "{}{}{}",
+                a1().render(&kit),
+                r50.render(&kit),
+                in12k.render(&kit)
+            ))
         );
-        // The written source reads, its alias after the rows.
+        // The written source reads back, its labels and its alias after the
+        // rows.
         let written = OrderedNode::from_yaml(&generated.text).unwrap();
-        assert_eq!(existing_rows(&written).unwrap().len(), 2);
+        let rows = existing_rows(&written).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows["resnet50.in12k"], in12k);
+    }
+
+    /// A kit that loads unlabelled heads writes them as rows with no labels.
+    #[test]
+    fn test_an_unlabelled_kit_writes_every_head() {
+        let remote = hub();
+        let kit = TimmKit {
+            unlabelled: true,
+            ..kit()
+        };
+        let generated = generate(&remote, &kit, &source(""), false).unwrap();
+        let unlabelled: Vec<_> = generated
+            .rows
+            .iter()
+            .filter(|r| r.labels.is_none())
+            .map(TimmRow::name)
+            .collect();
+        assert_eq!(unlabelled, ["resnet50.bamboo", "resnet50.proj"]);
+        let proj = generated.rows.iter().find(|r| r.tag == "proj").unwrap();
+        let rendered = proj.render(&kit);
+        assert!(!rendered.contains("labels"), "{rendered}");
+        let written = OrderedNode::from_yaml(&generated.text).unwrap();
+        assert_eq!(existing_rows(&written).unwrap()["resnet50.proj"], *proj);
+    }
+
+    /// Each label set is the subset bunsen infers from its class count, by
+    /// the subset's name.
+    #[test]
+    fn test_label_sets_are_the_inferred_subsets() {
+        use bunsen::kits::images::support::labels::imagenet_subset_for;
+        for &(classes, labels) in LABEL_SETS {
+            let subset = imagenet_subset_for(classes as usize).unwrap();
+            assert_eq!(
+                labels,
+                format!(
+                    "/imagenet/synsets-{}",
+                    subset.strip_prefix("imagenet-").unwrap()
+                ),
+                "{classes}"
+            );
+        }
     }
 
     #[test]

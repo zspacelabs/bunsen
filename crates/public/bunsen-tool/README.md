@@ -763,8 +763,17 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 * timm/resnetaa50.a1h_in1k: [103.2 MB]
   timm's `resnetaa50`, its `a1h_in1k` weights.
 
+* timm/resnetaa50d.d_in12k: [192.1 MB]
+  timm's `resnetaa50d`, its `d_in12k` weights.
+
+* timm/resnetaa50d.sw_in12k: [192.1 MB]
+  timm's `resnetaa50d`, its `sw_in12k` weights.
+
 * timm/resnetaa50d.sw_in12k_ft_in1k: [103.3 MB]
   timm's `resnetaa50d`, its `sw_in12k_ft_in1k` weights.
+
+* timm/resnetaa101d.sw_in12k: [268.3 MB]
+  timm's `resnetaa101d`, its `sw_in12k` weights.
 
 * timm/resnetaa101d.sw_in12k_ft_in1k: [179.5 MB]
   timm's `resnetaa101d`, its `sw_in12k_ft_in1k` weights.
@@ -772,11 +781,17 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 * timm/seresnextaa101d_32x8d.ah_in1k: [376.0 MB]
   timm's `seresnextaa101d_32x8d`, its `ah_in1k` weights.
 
+* timm/seresnextaa101d_32x8d.sw_in12k: [464.8 MB]
+  timm's `seresnextaa101d_32x8d`, its `sw_in12k` weights.
+
 * timm/seresnextaa101d_32x8d.sw_in12k_ft_in1k: [376.0 MB]
   timm's `seresnextaa101d_32x8d`, its `sw_in12k_ft_in1k` weights.
 
 * timm/seresnextaa101d_32x8d.sw_in12k_ft_in1k_288: [376.0 MB]
   timm's `seresnextaa101d_32x8d`, its `sw_in12k_ft_in1k_288` weights.
+
+* timm/seresnextaa201d_32x8d.sw_in12k: [688.7 MB]
+  timm's `seresnextaa201d_32x8d`, its `sw_in12k` weights.
 
 * timm/seresnextaa201d_32x8d.sw_in12k_ft_in1k_384: [599.9 MB]
   timm's `seresnextaa201d_32x8d`, its `sw_in12k_ft_in1k_384` weights.

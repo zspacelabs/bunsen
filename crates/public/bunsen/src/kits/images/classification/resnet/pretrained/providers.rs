@@ -50,8 +50,8 @@ mod tests {
         kits::images::classification::resnet::ResNetContractConfig,
     };
 
-    /// Every row binds `ImageNet`-1k's labels. A torchvision row states the
-    /// geometry of a prefab and is one pinned `.pth` under torchvision's
+    /// Every row binds its head's `ImageNet` labels. A torchvision row states
+    /// the geometry of a prefab and is one pinned `.pth` under torchvision's
     /// base, the digest's first eight hex digits the tag in its name. A timm
     /// row is a timm hub repo of a prefab's architecture, pinned: its
     /// safetensors and its `config.json`, which give the geometry.
@@ -74,11 +74,14 @@ mod tests {
             let name = &row.name;
             let map = &row.resource_set();
             map.validate().unwrap();
-            assert_eq!(
-                map.get(LABELS).unwrap().name,
-                "imagenet/synsets-1k",
-                "{name}"
-            );
+            let labels = &map.get(LABELS).unwrap().name;
+            // An `ImageNet`-12k pretraining is tagged `in12k`; its 1k
+            // fine-tunes `in12k_ft_in1k`.
+            if name.to_string().ends_with("in12k") {
+                assert_eq!(labels, "imagenet/synsets-12k", "{name}");
+            } else {
+                assert_eq!(labels, "imagenet/synsets-1k", "{name}");
+            }
             assert_eq!(
                 map.get(LABEL_NAMES).unwrap().name,
                 "imagenet/lemmas",
@@ -135,7 +138,7 @@ mod tests {
                 other => panic!("{name}: a row in {other}"),
             }
         }
-        assert_eq!(counts, (5, 135));
+        assert_eq!(counts, (5, 140));
         assert_eq!(ResNetContractConfig::PREFABS.len(), 76);
     }
 
@@ -146,7 +149,7 @@ mod tests {
     fn test_the_factory_lists_its_refs() {
         let factory = super::super::default_resnet_factory().unwrap();
         let ids = factory.ids();
-        assert_eq!(ids.len(), 140);
+        assert_eq!(ids.len(), 145);
         assert_eq!(ids[0], "catalog:torchvision/resnet18");
         assert_eq!(ids[5], "catalog:timm/resnet18.a1_in1k");
 

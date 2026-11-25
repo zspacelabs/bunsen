@@ -97,6 +97,28 @@ impl ImageModelCard {
         };
         Ok(Self { transform, labels })
     }
+
+    /// The card, checked against a head of `n_classes` classes: its labels,
+    /// when it has some, name each class.
+    ///
+    /// See the [errors convention](crate::errors#convention-try_x-and-x).
+    ///
+    /// # Errors
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// for labels of another count (a build binding the wrong `ImageNet`
+    /// subset).
+    pub fn try_for_classes(
+        self,
+        n_classes: usize,
+    ) -> crate::errors::BunsenResult<Self> {
+        match &self.labels {
+            Some(labels) if labels.len() != n_classes => Err(crate::errors::BunsenError::new(
+                crate::errors::BunsenErrorKind::InvalidResource,
+                format!("{} labels for a head of {n_classes} classes", labels.len()),
+            )),
+            _ => Ok(self),
+        }
+    }
 }
 
 /// A pretrained image model as a factory loads it: the model and its
@@ -136,6 +158,20 @@ mod tests {
             testing::ErrorMatcher,
         },
     };
+
+    /// Labels must name the head's classes; a card without labels fits any
+    /// head.
+    #[test]
+    fn test_try_for_classes() {
+        let card = ImageModelCard::new(ImageEvalTransformConfig::new());
+        assert!(card.clone().try_for_classes(7).is_ok());
+        let labelled =
+            card.with_labels(Some(ImageLabelSet::try_parse("n01\nn02\n", None).unwrap()));
+        assert!(labelled.clone().try_for_classes(2).is_ok());
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("2 labels for a head of 1000 classes")
+            .assert_err(&labelled.try_for_classes(1000));
+    }
 
     /// A loaded set of the given parts, by key.
     fn loaded(parts: &[(&str, &Path)]) -> LoadedResourceSet {

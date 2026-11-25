@@ -33,8 +33,9 @@ use super::*;
 
 /// How far bunsen's float32 (on wgpu) may be from timm's float64, per
 /// value: `|bunsen - timm| <= ABS + REL * |timm|`. Measured on the rows
-/// (2026-11-24): at most 3.4e-5 on a logit (the group norm's
-/// `resnet50_gn`), 2.6e-5 on a feature (the 101-layer
+/// (2026-11-25): at most 3.4e-5 on an `ImageNet`-1k logit (the group norm's
+/// `resnet50_gn`) and 2.7e-4 on an `ImageNet`-12k one, whose logits are
+/// larger (`resnetaa50d.sw_in12k`); 2.6e-5 on a feature (the 101-layer
 /// `seresnextaa101d_32x8d` at 288 pixels).
 const ABS: f32 = 1e-4;
 /// See [`ABS`].
@@ -130,12 +131,16 @@ fn check_row(row: &str) {
     );
     let ours = top1(&logits, fixture.classes);
     assert_eq!(ours, top1(&fixture.logits, fixture.classes), "{row}: top-1");
-    let correct = ours
-        .iter()
-        .zip(&fixture.labels)
-        .filter(|(a, b)| a == b)
-        .count();
-    println!("{row}: {correct}/{IMAGES} top-1 correct against the labels");
+    // The shard's labels are `ImageNet`-1k classes: another head's top-1
+    // agrees with timm's, but isn't scored against them.
+    if fixture.classes == 1000 {
+        let correct = ours
+            .iter()
+            .zip(&fixture.labels)
+            .filter(|(a, b)| a == b)
+            .count();
+        println!("{row}: {correct}/{IMAGES} top-1 correct against the labels");
+    }
 
     // bunsen's own preprocessing of the same images, against timm's input.
     let samples = try_read_webdataset(
@@ -285,5 +290,11 @@ mod timm {
     #[serial_test::serial]
     fn resnetrs50_tf_in1k() {
         check_row("timm/resnetrs50.tf_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnetaa50d_sw_in12k() {
+        check_row("timm/resnetaa50d.sw_in12k");
     }
 }

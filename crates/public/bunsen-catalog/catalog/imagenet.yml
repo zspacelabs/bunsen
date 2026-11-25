@@ -14,6 +14,33 @@ imagenet:
     $sources:
       - $base_url: >-
           https://raw.githubusercontent.com/huggingface/pytorch-image-models/b4f423c19f778672f875e0948f296322c775f24b/timm/data/_info
+  synsets-12k:
+    $kind: resource
+    $file: imagenet12k_synsets.txt
+    $format: synsets
+    $sha256: f6483e79f18a9b670d43d915ddba40bbcaf82cfc4e92a07bd44057b9d44935f3
+    $size: 118210
+    $sources:
+      - $base_url: >-
+          https://raw.githubusercontent.com/huggingface/pytorch-image-models/b4f423c19f778672f875e0948f296322c775f24b/timm/data/_info
+  synsets-21k-goog:
+    $kind: resource
+    $file: imagenet21k_goog_synsets.txt
+    $format: synsets
+    $sha256: 66362bdedf36d933382edca5493fc562dcc17128ce36403c9e730a75f48cb2f2
+    $size: 218430
+    $sources:
+      - $base_url: >-
+          https://raw.githubusercontent.com/huggingface/pytorch-image-models/b4f423c19f778672f875e0948f296322c775f24b/timm/data/_info
+  synsets-21k-miil:
+    $kind: resource
+    $file: imagenet21k_miil_synsets.txt
+    $format: synsets
+    $sha256: cd76d977daaa2f13a4a91fca0f53713f2f29675308d4ce0f0ee0e5b07a3164c6
+    $size: 112210
+    $sources:
+      - $base_url: >-
+          https://raw.githubusercontent.com/huggingface/pytorch-image-models/b4f423c19f778672f875e0948f296322c775f24b/timm/data/_info
   lemmas:
     $kind: resource
     $file: imagenet_synset_to_lemma.txt

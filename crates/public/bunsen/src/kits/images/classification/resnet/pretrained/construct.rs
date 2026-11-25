@@ -21,6 +21,7 @@ use crate::{
         BunsenError,
         BunsenResult,
         ConstraintError,
+        ResultContext,
         Rule,
     },
     kits::images::{
@@ -145,7 +146,9 @@ impl ConstructInit for ResNetConstructConfig {
             }
             (Err(missing), None) => return Err(missing),
         };
-        let card = ImageModelCard::try_from_build(model, loaded)?;
+        let card = ImageModelCard::try_from_build(model, loaded)?
+            .try_for_classes(config.num_classes)
+            .with_context(|| format!("{}'s labels", model.id()))?;
         let safetensors = loaded
             .map
             .get(super::CHECKPOINT)
