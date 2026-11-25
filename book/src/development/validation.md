@@ -81,6 +81,14 @@ records where each clip came from and under what licence; a fixture that is a
 model's output on a clip stays in the `testdata/` of that model's validation
 crate.
 
+Images come in two tiers. Basic tests read open images, CC0 photos collected
+in `bunsen-test-images`. The image validation reads `ImageNet`'s own
+validation images, which may not be redistributed: they are pulled at run
+time from a gated Hub mirror with the user's token, and only the reference's
+outputs on them, and a digest of its preprocessed input, are committed. The
+preprocessed inputs stay in the local cache, so a fresh checkout runs the
+fixture plan and script before those checks (`timm-model-validation`'s docs).
+
 Data is pinned the way models are: `cargo catalog` reads a dataset's listing
 at a pinned revision and lists the digests a [shard set](../systems/data/datasets.md)
 verifies against.
