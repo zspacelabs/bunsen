@@ -17,9 +17,15 @@
 //!   [`default_resnet_factory`](resnet::pretrained::default_resnet_factory).
 //!   Its [compatibility](resnet#compatibility) section lists what of `timm`'s
 //!   `ResNet` is missing.
+//! - [`vit`]: the Vision Transformer, built as the generic vision encoder
+//!   ([`VisionEncoderModel`](crate::blocks::transformers::models::vision_encoder::VisionEncoderModel)).
+//!   25 prefabs (`vit_tiny_patch16_224` to `vit_huge_patch14_224`, the MIIL
+//!   `ViT` and the CLIP image towers), loaded from timm's hub repos through
+//!   [`default_vit_factory`](vit::pretrained::default_vit_factory).
 //! - [`swin::v2`]: Swin Transformer V2. The model and its configs, with no
 //!   prefabs and no pretrained weights yet.
 
 pub mod driver;
 pub mod resnet;
 pub mod swin;
+pub mod vit;

@@ -41,9 +41,15 @@ pub struct KitCatalogContract {
 /// a fixed order.
 pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
     use crate::kits::{
-        images::classification::resnet::pretrained::{
-            RESNET_CONTRACT,
-            RESNET_KIT,
+        images::classification::{
+            resnet::pretrained::{
+                RESNET_CONTRACT,
+                RESNET_KIT,
+            },
+            vit::pretrained::{
+                VIT_CONTRACT,
+                VIT_KIT,
+            },
         },
         language::{
             decision::laya::pretrained::{
@@ -88,6 +94,7 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
         ),
         contract(LAYA_KIT, LAYA_CONTRACT),
         contract(RESNET_KIT, RESNET_CONTRACT),
+        contract(VIT_KIT, VIT_CONTRACT),
         contract(GEMMA_KIT, GEMMA_CONTRACT),
         contract(NANOCHAT_KIT, NANOCHAT_CONTRACT),
         contract(QWEN3_KIT, QWEN3_CONTRACT),
