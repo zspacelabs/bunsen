@@ -6,9 +6,15 @@ use core::fmt::Debug;
 
 use burn::Tensor;
 
-use crate::blocks::images::models::conv_net::{
-    ConvNetMeta,
-    ConvNetModel,
+use crate::blocks::{
+    images::models::conv_net::{
+        ConvNetMeta,
+        ConvNetModel,
+    },
+    transformers::models::vision_encoder::{
+        VisionEncoderMeta,
+        VisionEncoderModel,
+    },
 };
 
 /// An image encoder's unpooled output: a conv net's feature map, or a
@@ -105,5 +111,45 @@ impl ImageEncoder for ConvNetModel {
         images: Tensor<4>,
     ) -> Vec<Tensor<4>> {
         self.stage_maps(images)
+    }
+}
+
+/// The generic vision encoder as an image encoder: its unpooled features are
+/// the transformer's output tokens, and its stages are its layers, each
+/// output's patch tokens as a map (timm's `forward_intermediates` for a
+/// `ViT`).
+impl ImageEncoder for VisionEncoderModel {
+    fn input_channels(&self) -> usize {
+        self.in_channels()
+    }
+
+    /// The token width: every pool reduces to one token.
+    fn d_features(&self) -> usize {
+        self.d_model()
+    }
+
+    fn forward_features(
+        &self,
+        images: Tensor<4>,
+    ) -> ImageFeatures {
+        ImageFeatures::Tokens {
+            tokens: self.feature_tokens(images),
+            prefix: self.n_prefix(),
+            grid: self.grid(),
+        }
+    }
+
+    fn forward_pooled(
+        &self,
+        images: Tensor<4>,
+    ) -> Tensor<2> {
+        self.pooled_features(images)
+    }
+
+    fn forward_intermediates(
+        &self,
+        images: Tensor<4>,
+    ) -> Vec<Tensor<4>> {
+        self.layer_maps(images)
     }
 }
