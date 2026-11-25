@@ -155,7 +155,24 @@ impl From<FetchFailure> for BunsenError {
         match lookup {
             Some(problem) => {
                 let url = failure.url().to_string();
-                BunsenError::lookup(LookupError::url(url, problem).with_source(failure))
+                let refused =
+                    matches!(problem, LookupProblem::Unauthorized | LookupProblem::Denied)
+                        && bunsen_fetch::is_hub_url(&url);
+                let error =
+                    BunsenError::lookup(LookupError::url(url, problem).with_source(failure));
+                if !refused {
+                    error
+                } else if bunsen_fetch::hub_token().is_some() {
+                    error.context(
+                        "the Hub refused the token: a gated repo needs its terms accepted on its \
+                         page, by the token's account",
+                    )
+                } else {
+                    error.context(
+                        "no Hub token (`HF_TOKEN`, or `hf auth login`): a gated repo needs one, \
+                         its terms accepted on its page",
+                    )
+                }
             }
             None => BunsenError::from_cause(kind, failure),
         }
@@ -355,6 +372,20 @@ mod tests {
                 }))
                 .has_cause::<FetchFailure>()
                 .assert(&status(code));
+        }
+
+        // A Hub refusal says what a gated repo needs, token or not; another
+        // host's says nothing of the Hub.
+        for code in [401, 403] {
+            let hub = BunsenError::from(FetchFailure::Status {
+                url: "https://huggingface.co/datasets/o/r/resolve/main/f".to_string(),
+                status: code,
+                retry_after: None,
+            });
+            ErrorMatcher::kind(Lookup)
+                .frame_contains("a gated repo")
+                .assert(&hub);
+            assert!(!format!("{:#}", status(code)).contains("gated"), "{code}");
         }
 
         let short = BunsenError::from(FetchFailure::ShortTransfer {

@@ -8,7 +8,10 @@
 //!
 //! - `fetch_file` / `fetch_verified` (feature `fetch`): a URL streamed to disk,
 //!   hashed as it lands ([`HashingReader`]), renamed into place only once it
-//!   checks out, and reported to [`TransferObserver`]s.
+//!   checks out, and reported to [`TransferObserver`]s. A request to the
+//!   Hugging Face Hub carries the user's token ([`hub_authorization`]:
+//!   `HF_TOKEN`, else `huggingface_hub`'s token file), so gated repos load; the
+//!   token goes to the Hub alone.
 //! - [`sha256_of`]: a file's digest.
 //! - [`link_or_copy`], [`place_file`] and [`replace_with_link`]: putting a
 //!   verified file where it belongs.
@@ -27,6 +30,7 @@
 
 mod digest;
 mod files;
+mod hub;
 mod layout;
 mod transfer;
 
@@ -41,5 +45,6 @@ pub use digest::*;
 #[cfg(feature = "fetch")]
 pub use fetch::*;
 pub use files::*;
+pub use hub::*;
 pub use layout::*;
 pub use transfer::*;
