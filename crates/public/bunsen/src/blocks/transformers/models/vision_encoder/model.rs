@@ -367,7 +367,7 @@ impl VisionEncoderModel {
         &self,
         images: Tensor<4>,
     ) -> Vec<Tensor<4>> {
-        let (_, states) = self.stack.encoder_forward_layers(self.embed(images));
+        let (_, states) = self.stack.encoder_forward_layers(self.embed(images), None);
         states
             .into_iter()
             .map(|tokens| self.grid_map(tokens))

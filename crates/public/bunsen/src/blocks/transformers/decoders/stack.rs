@@ -911,17 +911,17 @@ impl DecoderStack {
         )
     }
 
-    /// The stack as an encoder over an unpadded input
-    /// ([`encoder_forward`](Self::encoder_forward)), keeping each layer's
-    /// output on the way: what a vision transformer's
+    /// The stack as an encoder ([`encoder_forward`](Self::encoder_forward)),
+    /// keeping each layer's output on the way: what a vision transformer's
     /// `forward_intermediates` taps.
     ///
     /// # Arguments
-    /// * `x` - `[batch, seq, d_model]`.
+    /// * `x` - `[batch, time, d_model]`.
+    /// * `lengths` - each item's frames; `None`, no padding.
     ///
     /// # Returns
-    /// The `[batch, seq, d_model]` output, normalized; and each layer's
-    /// `[batch, seq, d_model]` output, before the final norm.
+    /// The `[batch, time, d_model]` output, normalized; and each layer's
+    /// `[batch, time, d_model]` output, before the final norm.
     ///
     /// # Panics
     /// If the stack has attention-residual routes, whose layers write a bank
@@ -929,29 +929,28 @@ impl DecoderStack {
     pub fn encoder_forward_layers(
         &self,
         x: Tensor<3>,
+        lengths: Option<&[usize]>,
     ) -> (Tensor<3>, Vec<Tensor<3>>) {
         assert!(
             self.routes.is_none(),
             "a stack with attention-residual routes has no per-layer stream"
         );
-        let seq = x.dims()[1];
-        let r_emb = self.rotary(seq, &x.device());
-        let mut x = match &self.input_norm {
-            Some(norm) => norm.forward(x),
-            None => x,
-        };
+        let time = x.dims()[1];
+        let device = x.device();
+        let key_valid = lengths.map(|lengths| length_mask(lengths, time, &device));
         let mut states = Vec::with_capacity(self.layers.len());
-        for (i, layer) in self.layers.iter().enumerate() {
-            x = layer.forward_with_caches(
-                x,
-                r_emb.for_layer(i),
-                &mut None,
-                None,
-                DecoderSideInputs::default(),
-            );
-            states.push(x.clone());
-        }
-        (self.norm.forward(x), states)
+        let y = self.forward_tapped(
+            x,
+            &self.rotary(time, &device),
+            None,
+            None,
+            DecoderStackSides {
+                key_valid,
+                ..Default::default()
+            },
+            Some(&mut states),
+        );
+        (y, states)
     }
 
     /// [`forward_hidden`](Self::forward_hidden), with `sides`: a condition
@@ -981,9 +980,26 @@ impl DecoderStack {
         &self,
         x: Tensor<3>,
         r_emb: &RotarySet,
+        kv_cache: Option<&mut KVCache>,
+        linear: Option<&mut DeltaNetCache>,
+        sides: DecoderStackSides,
+    ) -> Tensor<3> {
+        self.forward_tapped(x, r_emb, kv_cache, linear, sides, None)
+    }
+
+    /// [`forward_with_caches`](Self::forward_with_caches), pushing each
+    /// layer's output (before the final norm) onto `tap` when one is given.
+    ///
+    /// # Panics
+    /// If a tap is given to a stack with attention-residual routes.
+    fn forward_tapped(
+        &self,
+        x: Tensor<3>,
+        r_emb: &RotarySet,
         mut kv_cache: Option<&mut KVCache>,
         mut linear: Option<&mut DeltaNetCache>,
         sides: DecoderStackSides,
+        mut tap: Option<&mut Vec<Tensor<3>>>,
     ) -> Tensor<3> {
         if self.routes.is_some() {
             assert!(
@@ -994,6 +1010,7 @@ impl DecoderStack {
                     && sides.key_valid.is_none(),
                 "a stack with attention-residual routes takes no side inputs"
             );
+            assert!(tap.is_none(), "a stack with routes has no per-layer stream");
             return self.forward_bank(x, r_emb, kv_cache, linear).0;
         }
         let [batch, seq] = crate::contracts::unpack_shape_contract!(
@@ -1038,6 +1055,9 @@ impl DecoderStack {
             );
             if mix.backout.as_ref().is_some_and(|(at, _)| *at == i) {
                 backed_out = Some(x.clone());
+            }
+            if let Some(tap) = tap.as_deref_mut() {
+                tap.push(x.clone());
             }
         }
         if let (Some((_, lambda)), Some(mid)) = (&mix.backout, backed_out) {
@@ -1304,11 +1324,15 @@ mod tests {
         config.input_norm = Some(norm);
         let stack: DecoderStack = config.init(&device);
         let x: Tensor<3> = seeded_tensor(3, [2, 5, 16], Distribution::Default, &device);
-        let (y, states) = stack.encoder_forward_layers(x.clone());
+        let (y, states) = stack.encoder_forward_layers(x.clone(), None);
         assert_eq!(states.len(), 3);
         let tolerance = Tolerance::rel_abs(1e-5, 1e-5);
-        assert_tensors_close(&y, &stack.encoder_forward(x, None), tolerance);
+        assert_tensors_close(&y, &stack.encoder_forward(x.clone(), None), tolerance);
         assert_tensors_close(&stack.norm.forward(states[2].clone()), &y, tolerance);
+        // Padded items: the same masking as `encoder_forward`'s.
+        let lengths = [5, 3];
+        let (y, _) = stack.encoder_forward_layers(x.clone(), Some(&lengths));
+        assert_tensors_close(&y, &stack.encoder_forward(x, Some(&lengths)), tolerance);
     }
 
     /// Routes read each sublayer's update alone, which a post-norm layer
