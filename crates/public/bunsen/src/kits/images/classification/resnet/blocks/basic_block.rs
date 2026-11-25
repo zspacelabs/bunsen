@@ -356,8 +356,8 @@ impl BasicBlock {
     ///
     /// # Arguments
     ///
-    /// - `input`: `[batch, in_planes, in_height=out_height*stride,
-    ///   in_width=out_width*stride]`.
+    /// - `input`: `[batch, in_planes, in_height, in_width]`; each side of the
+    ///   output is `ceil(in / stride)`, as torch's.
     ///
     /// # Returns
     ///
@@ -370,17 +370,19 @@ impl BasicBlock {
         #[cfg(debug_assertions)]
         use crate::contracts::*;
 
+        // A stride-`s` stage maps `n` to `ceil(n / s)`, as torch does: odd
+        // sizes (a 176 input's 11x11 stage) are fine.
         #[cfg(debug_assertions)]
-        let [batch, out_height, out_width] = unpack_shape_contract!(
-            [
-                "batch",
-                "in_planes",
-                "in_height" = "out_height" * "stride",
-                "in_width" = "out_width" * "stride"
-            ],
+        let [batch, in_height, in_width] = unpack_shape_contract!(
+            ["batch", "in_planes", "in_height", "in_width"],
             &input.dims(),
-            &["batch", "out_height", "out_width"],
-            &[("in_planes", self.in_planes()), ("stride", self.stride())],
+            &["batch", "in_height", "in_width"],
+            &[("in_planes", self.in_planes())],
+        );
+        #[cfg(debug_assertions)]
+        let (out_height, out_width) = (
+            in_height.div_ceil(self.stride()),
+            in_width.div_ceil(self.stride()),
         );
 
         let identity = match &self.downsample {

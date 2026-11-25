@@ -879,6 +879,22 @@ mod tests {
             .assert_eq(&model.forward(images).to_data(), true);
     }
 
+    /// A stride-2 stage takes an odd size, `ceil(n / 2)` as torch's: a
+    /// 40-pixel input's stages are 10, 5 and 3 wide.
+    #[test]
+    fn test_odd_stage_sizes() {
+        let device = cpu_device();
+        let model: ResNet = ResNetContractConfig::new(vec![1, 1, 1], 7)
+            .with_stem_width(8)
+            .init(&device);
+        let stages: Vec<_> = model
+            .forward_intermediates(Tensor::<4>::zeros([1, 3, 40, 40], &device))
+            .iter()
+            .map(|x| x.dims()[2])
+            .collect();
+        assert_eq!(stages, [20, 10, 5, 3]);
+    }
+
     /// A structure with no stages is an error from `try_init`, not a panic:
     /// the head has no stage to take its width from.
     #[test]
