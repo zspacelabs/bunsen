@@ -428,6 +428,13 @@ crates:
         dtypes: [f32]
         varies: the knobs together (grouped mixers, a deep stem, average-pool shortcuts,
           squeeze-excite, average-pool anti-aliasing), at 288 pixels
+      timm/resnetrs50.tf_in1k:
+        size: small
+        gb: 0.25
+        core: false
+        dtypes: [f32]
+        varies: ResNet-RS - the stem's strided conv pool, squeeze-excite of a quarter of the
+          channels, at 160 pixels
       torchvision/resnet18:
         size: small
         gb: 0.15

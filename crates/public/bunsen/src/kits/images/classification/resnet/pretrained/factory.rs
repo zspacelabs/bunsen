@@ -38,7 +38,7 @@ mod tests {
         let factory = default_resnet_factory().unwrap();
         assert_eq!(factory.kit(), RESNET_KIT);
         assert_eq!(factory.providers().len(), 2);
-        assert_eq!(factory.ids().len(), 133);
+        assert_eq!(factory.ids().len(), 140);
         let (provider, row) = factory.lookup("resnet18_a1").unwrap();
         assert_eq!(provider, "catalog");
         // A legacy name is an alias of the hub repo with its weights.

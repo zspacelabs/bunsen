@@ -780,6 +780,27 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 
 * timm/seresnextaa201d_32x8d.sw_in12k_ft_in1k_384: [599.9 MB]
   timm's `seresnextaa201d_32x8d`, its `sw_in12k_ft_in1k_384` weights.
+
+* timm/resnetrs50.tf_in1k: [143.8 MB]
+  timm's `resnetrs50`, its `tf_in1k` weights.
+
+* timm/resnetrs101.tf_in1k: [255.7 MB]
+  timm's `resnetrs101`, its `tf_in1k` weights.
+
+* timm/resnetrs152.tf_in1k: [348.0 MB]
+  timm's `resnetrs152`, its `tf_in1k` weights.
+
+* timm/resnetrs200.tf_in1k: [374.4 MB]
+  timm's `resnetrs200`, its `tf_in1k` weights.
+
+* timm/resnetrs270.tf_in1k: [521.4 MB]
+  timm's `resnetrs270`, its `tf_in1k` weights.
+
+* timm/resnetrs350.tf_in1k: [658.1 MB]
+  timm's `resnetrs350`, its `tf_in1k` weights.
+
+* timm/resnetrs420.tf_in1k: [770.1 MB]
+  timm's `resnetrs420`, its `tf_in1k` weights.
 ```
 
 <!-- /card -->

@@ -1,6 +1,6 @@
 """Generate the resnet kit's toy fixtures: tiny seeded timm `ResNet`s and their answers.
 
-Twelve toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
+Thirteen toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
 narrow stage widths (its `channels`), on timm's fixed 64-wide 7x7 stem, 10 classes (timm's
 forward runs exactly four stages):
 
@@ -26,9 +26,11 @@ forward runs exactly four stages):
 - `toy_aa`: `Bottleneck`s on a deep stem with `avg_down`, anti-aliased by `nn.AvgPool2d` (the
   stem's pool a `2x2` average), as a `resnetaa50d`'s;
 - `toy_blur_dilated`: `Bottleneck`s anti-aliased by `BlurPool2d` at `output_stride=16`: the
-  last stage's first unit blurs at stride 1 where it would have strided.
+  last stage's first unit blurs at stride 1 where it would have strided;
+- `toy_rs`: a `ResNet-RS`'s knobs: `Bottleneck`s on a deep stem whose max pool is a strided
+  conv (`replace_stem_pool`), `avg_down`, and squeeze-excite of a quarter of the channels.
 
-The stem and blur toys run on 36x36 images, so the stages see odd sizes (9, 5, 3) and the shortcuts'
+The stem, blur and RS toys run on 36x36 images, so the stages see odd sizes (9, 5, 3) and the shortcuts'
 ceil-mode pools a partial window; the others on 32x32. (`toy_aa` can't be odd: timm's own
 `AvgPool2d(2)` floors an odd side that its `avg_down` shortcut's ceil-mode pool rounds up.)
 
@@ -54,8 +56,10 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+from functools import partial  # noqa: E402
+
 import torch  # noqa: E402
-from timm.layers import BlurPool2d  # noqa: E402
+from timm.layers import BlurPool2d, get_attn  # noqa: E402
 from timm.models.resnet import BasicBlock, Bottleneck, ResNet  # noqa: E402
 
 from toy_fixture import (  # noqa: E402
@@ -100,12 +104,19 @@ TOYS = {
     "toy_blur_dilated": dict(
         block=Bottleneck, channels=(8, 16, 32, 64), aa_layer=BlurPool2d, output_stride=16,
     ),
+    "toy_rs": dict(
+        block=Bottleneck, channels=(8, 16, 32, 64), stem_type="deep", stem_width=16,
+        replace_stem_pool=True, avg_down=True,
+        block_args=dict(attn_layer=partial(get_attn("se"), rd_ratio=0.25)),
+    ),
 }
 
 # The image side of each toy: odd stage sizes for the stem toys.
 SIZES = {
     name: 36
-    for name in ("toy_deep", "toy_tiered", "toy_dilated", "toy_blur", "toy_blur_dilated")
+    for name in (
+        "toy_deep", "toy_tiered", "toy_dilated", "toy_blur", "toy_blur_dilated", "toy_rs",
+    )
 }
 
 

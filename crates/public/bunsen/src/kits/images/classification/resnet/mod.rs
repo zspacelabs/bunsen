@@ -10,14 +10,14 @@
 //! `resnet18` to `resnet152`, `resnet50_gn`, the C, D, S and T variants
 //! (`resnet50d`, …), the `ResNeXt`s (`resnext50_32x4d`, …), the wide `ResNet`s
 //! (`wide_resnet50_2`, …), the squeeze-excite and ECA nets (`seresnet50`,
-//! `ecaresnet50d`, …), and the anti-aliased nets (`resnetaa50d`,
-//! `resnetblur50`, …).
+//! `ecaresnet50d`, …), the anti-aliased nets (`resnetaa50d`,
+//! `resnetblur50`, …), and the `ResNet-RS`s (`resnetrs50`, …).
 //!
 //! [`pretrained`] turns names into loaded models.
-//! [`ResNetContractConfig`]'s prefabs name the 69 geometries, by timm's
+//! [`ResNetContractConfig`]'s prefabs name the 76 geometries, by timm's
 //! architecture names, and
 //! [`default_resnet_factory`](pretrained::default_resnet_factory) is the
-//! index of 133 torchvision and `timm` checkpoints: `torchvision/resnet50`,
+//! index of 140 torchvision and `timm` checkpoints: `torchvision/resnet50`,
 //! `timm/resnet50.a1_in1k`, or a bare `resnet50`.
 //!
 //! # Example
@@ -69,10 +69,11 @@
 //! [`ConvNetModel`](crate::blocks::images::models::conv_net::ConvNetModel):
 //! the kit has no model type of its own. [`ResNetContractConfig`] is the
 //! policy in `ResNet`'s terms, its knobs timm's by their meaning (the stage
-//! depths and widths, the classes, the input's channels, the stem's kind and
-//! width, the shortcut's, the channel attention, the anti-aliasing, the output
-//! stride, the bottleneck policy with its cardinality and base width, the norm,
-//! a group norm included, and the activation), and lowers to the generic one
+//! depths and widths, the classes, the input's channels, the stem's kind,
+//! width and pool, the shortcut's kind, the channel attention, the
+//! anti-aliasing, the output stride, the bottleneck policy with its
+//! cardinality and base width, the norm, a group norm included, and the
+//! activation), and lowers to the generic one
 //! ([`try_to_conv_net`](ResNetContractConfig::try_to_conv_net)); `init`
 //! builds the model through it. A geometry the policy cannot express is built
 //! from the generic policy or structure directly.
@@ -87,7 +88,6 @@
 //! for parity with the `timm` library's. The equivalence matrix is a large
 //! amount of work and is not complete. Missing today:
 //!
-//! * `ResNet-RS`'s conv stem pool (`resnetrs50`, …)
 //! * head pools other than the average (`max`, `avgmax`, `catavgmax`)
 //! * per-stage unit kinds (`test_resnet`)
 //! * `senet154`'s halved first convs and `3x3` shortcuts

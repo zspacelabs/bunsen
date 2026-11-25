@@ -165,6 +165,10 @@ pub enum ConvStemPoolKind {
     /// (a blur-anti-aliased `ResNet`'s).
     MaxBlur,
 
+    /// A `3x3` conv of stride 2 that keeps the channels, its norm and its
+    /// activation (`ResNet-RS`'s, timm's `replace_stem_pool`).
+    Conv,
+
     /// No pool.
     None,
 }
@@ -296,6 +300,14 @@ impl ConvStemContractConfig {
             ConvStemPoolKind::MaxBlur => Some(ConvStemPoolConfig::MaxBlur(MaxBlurPoolConfig::new(
                 max(1),
                 BlurPool2dConfig::new(),
+            ))),
+            ConvStemPoolKind::Conv => Some(ConvStemPoolConfig::Conv(layers.conv(
+                [channels, channels],
+                3,
+                2,
+                1,
+                1,
+                true,
             ))),
             ConvStemPoolKind::None => None,
         };

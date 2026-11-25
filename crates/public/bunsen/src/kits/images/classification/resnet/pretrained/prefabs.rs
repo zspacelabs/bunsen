@@ -420,6 +420,50 @@ impl ResNetContractConfig {
             .with_anti_alias(Some(ConvAaKind::Avg))
     }
 
+    /// A `ResNet-RS` of `layers`: bottlenecks on a deep stem of width 32
+    /// whose max pool is a strided conv, average-pool shortcuts, and
+    /// squeeze-excite of a quarter of the channels.
+    fn resnet_rs(layers: Vec<usize>) -> Self {
+        Self::deep(layers, true, ResNetStemKind::Deep, 32, true)
+            .with_replace_stem_pool(true)
+            .with_attention(Some(ConvAttentionKind::Se { rd_ratio: 0.25 }))
+    }
+
+    /// The `resnetrs50` prefab: ResNet-RS 50 [3, 4, 6, 3] Bottleneck.
+    pub fn resnetrs50() -> Self {
+        Self::resnet_rs(vec![3, 4, 6, 3])
+    }
+
+    /// The `resnetrs101` prefab: ResNet-RS 101 [3, 4, 23, 3] Bottleneck.
+    pub fn resnetrs101() -> Self {
+        Self::resnet_rs(vec![3, 4, 23, 3])
+    }
+
+    /// The `resnetrs152` prefab: ResNet-RS 152 [3, 8, 36, 3] Bottleneck.
+    pub fn resnetrs152() -> Self {
+        Self::resnet_rs(vec![3, 8, 36, 3])
+    }
+
+    /// The `resnetrs200` prefab: ResNet-RS 200 [3, 24, 36, 3] Bottleneck.
+    pub fn resnetrs200() -> Self {
+        Self::resnet_rs(vec![3, 24, 36, 3])
+    }
+
+    /// The `resnetrs270` prefab: ResNet-RS 270 [4, 29, 53, 4] Bottleneck.
+    pub fn resnetrs270() -> Self {
+        Self::resnet_rs(vec![4, 29, 53, 4])
+    }
+
+    /// The `resnetrs350` prefab: ResNet-RS 350 [4, 36, 72, 4] Bottleneck.
+    pub fn resnetrs350() -> Self {
+        Self::resnet_rs(vec![4, 36, 72, 4])
+    }
+
+    /// The `resnetrs420` prefab: ResNet-RS 420 [4, 44, 87, 4] Bottleneck.
+    pub fn resnetrs420() -> Self {
+        Self::resnet_rs(vec![4, 44, 87, 4])
+    }
+
     /// A bottleneck `ResNet` of `layers` whose mixers are `cardinality`
     /// groups of `base_width` channels per 64 planes.
     fn grouped(
@@ -482,14 +526,15 @@ impl ResNetContractConfig {
     }
 }
 
-/// The `ResNet` geometries by name, timm's architecture names: 69
+/// The `ResNet` geometries by name, timm's architecture names: 76
 /// [`ResNetContractConfig`]s, each with 1000 classes: `resnet18` to
 /// `resnet152` and `resnet50_gn`; the deep- and tiered-stem C, D, S and T
 /// variants (`resnet50d`, `resnet10t`, …, `resnext50d_32x4d`); the
 /// `ResNeXt`s, `resnext50_32x4d` to `resnext101_64x4d`; the wide
 /// `wide_resnet50_2` and `wide_resnet101_2`; the squeeze-excite and ECA
 /// nets (`seresnet50`, `ecaresnet50d`, …); and the anti-aliased nets
-/// (`resnetaa50d`, `resnetblur50`, `seresnextaa101d_32x8d`, …).
+/// (`resnetaa50d`, `resnetblur50`, `seresnextaa101d_32x8d`, …); and the
+/// `ResNet-RS`s, `resnetrs50` to `resnetrs420`.
 ///
 /// A prefab has no weights. The catalog rows state the geometry of the
 /// prefab they instantiate, and
@@ -565,6 +610,13 @@ impl Prefabs for ResNetContractConfig {
         ("seresnetaa50d", Self::seresnetaa50d),
         ("seresnextaa101d_32x8d", Self::seresnextaa101d_32x8d),
         ("seresnextaa201d_32x8d", Self::seresnextaa201d_32x8d),
+        ("resnetrs50", Self::resnetrs50),
+        ("resnetrs101", Self::resnetrs101),
+        ("resnetrs152", Self::resnetrs152),
+        ("resnetrs200", Self::resnetrs200),
+        ("resnetrs270", Self::resnetrs270),
+        ("resnetrs350", Self::resnetrs350),
+        ("resnetrs420", Self::resnetrs420),
     ];
     const PREFAB_TABLE: &'static str = "resnet";
 }

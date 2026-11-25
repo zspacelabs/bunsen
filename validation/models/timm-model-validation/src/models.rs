@@ -280,4 +280,10 @@ mod timm {
     fn seresnextaa101d_32x8d_sw_in12k_ft_in1k_288() {
         check_row("timm/seresnextaa101d_32x8d.sw_in12k_ft_in1k_288");
     }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnetrs50_tf_in1k() {
+        check_row("timm/resnetrs50.tf_in1k");
+    }
 }
