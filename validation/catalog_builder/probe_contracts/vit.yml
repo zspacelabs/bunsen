@@ -1267,6 +1267,28 @@ timm:
       $kind: resource
       $file: config.json
       $format: json
+  vit_base_patch32_clip_224.openai:
+    $kind: build
+    $description: "timm's `vit_base_patch32_clip_224`, its `openai` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch32_clip_224.openai
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch32_clip_224.openai
+      $revision: a6f597a30f7b82c51704746581f9a4e41421e878
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: pytorch_model.bin
+      $format: pytorch fp32
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
   vit_base_patch32_clip_224.openai_ft_in1k:
     $kind: build
     $description: "timm's `vit_base_patch32_clip_224`, its `openai_ft_in1k` weights."
@@ -1539,6 +1561,28 @@ timm:
       $kind: resource
       $file: model.safetensors
       $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_clip_224.openai:
+    $kind: build
+    $description: "timm's `vit_base_patch16_clip_224`, its `openai` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_clip_224.openai
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_clip_224.openai
+      $revision: 977e3dd0ec55ab8da155f2fbeb6b5f54948b6e3d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: pytorch_model.bin
+      $format: pytorch fp32
     config:
       $kind: resource
       $file: config.json
@@ -1977,6 +2021,28 @@ timm:
       $kind: resource
       $file: model.safetensors
       $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch14_clip_224.openai:
+    $kind: build
+    $description: "timm's `vit_large_patch14_clip_224`, its `openai` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch14_clip_224.openai
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch14_clip_224.openai
+      $revision: 18d0535469bb561bf468d76c1d73aa35156c922b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: pytorch_model.bin
+      $format: pytorch fp32
     config:
       $kind: resource
       $file: config.json

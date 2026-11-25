@@ -10,10 +10,12 @@
 //!
 //! - every repo the Hub lists for each of the kit's architectures, in prefab
 //!   order, then by tag;
-//! - one that has a `model.safetensors` and a `config.json` whose head has an
-//!   `ImageNet` label set's class count ([`LABEL_SETS`]), so the labels the row
-//!   binds are the head's; or, for a kit that loads them, any other head (none,
-//!   or a projection), with no labels;
+//! - one that has a checkpoint in timm's layout ([`CHECKPOINTS`]: a
+//!   `model.safetensors`, else an older repo's `pytorch_model.bin`) and a
+//!   `config.json` whose head has an `ImageNet` label set's class count
+//!   ([`LABEL_SETS`]), so the labels the row binds are the head's; or, for a
+//!   kit that loads them, any other head (none, or a projection), with no
+//!   labels;
 //! - except a `tv_in1k` repo whose architecture has a `torchvision/` row of its
 //!   name: that row holds the same weights.
 //!
@@ -77,6 +79,13 @@ pub const LABEL_SETS: &[(u64, &str)] = &[
     (11221, "/imagenet/synsets-21k-miil"),
     (11821, "/imagenet/synsets-12k"),
     (21843, "/imagenet/synsets-21k-goog"),
+];
+
+/// The files a repo's timm checkpoint can be, in order of preference, each
+/// with its catalog format: a repo that has the first is a row of it.
+pub const CHECKPOINTS: &[(&str, &str)] = &[
+    ("model.safetensors", "safetensors"),
+    ("pytorch_model.bin", "pytorch fp32"),
 ];
 
 /// The readable names of every label set's synsets.
@@ -154,6 +163,9 @@ pub struct TimmRow {
 
     /// The label set it binds ([`LABEL_SETS`]), if its head has one.
     pub labels: Option<String>,
+
+    /// Its checkpoint's file ([`CHECKPOINTS`]).
+    pub checkpoint: String,
 }
 
 impl TimmRow {
@@ -170,6 +182,10 @@ impl TimmRow {
     ) -> String {
         let name = self.name();
         let join: String = kit.join.iter().map(|j| format!("      - {j}\n")).collect();
+        let format = CHECKPOINTS
+            .iter()
+            .find(|(file, _)| *file == self.checkpoint)
+            .map_or("safetensors", |(_, format)| format);
         let labels = self.labels.as_ref().map_or(String::new(), |labels| {
             format!("      labels: {labels}\n      label_names: {LABEL_NAMES}\n")
         });
@@ -189,8 +205,8 @@ impl TimmRow {
       config: config
 {labels}    checkpoint:
       $kind: resource
-      $file: model.safetensors
-      $format: safetensors
+      $file: {checkpoint}
+      $format: {format}
     config:
       $kind: resource
       $file: config.json
@@ -201,6 +217,7 @@ impl TimmRow {
             license = self.license,
             contract = kit.contract,
             revision = self.revision,
+            checkpoint = self.checkpoint,
         )
     }
 }
@@ -312,6 +329,12 @@ fn existing_rows(source: &OrderedNode) -> Result<BTreeMap<String, TimmRow>, Stri
                 license: string_field(build, "$license")
                     .map_err(|e| format!("timm/{name}: {e}"))?
                     .to_string(),
+                checkpoint: match get(build, "checkpoint") {
+                    Some(checkpoint) => string_field(checkpoint, "$file")
+                        .map_err(|e| format!("timm/{name}: {e}"))?
+                        .to_string(),
+                    None => CHECKPOINTS[0].0.to_string(),
+                },
                 labels: match get(build, "$resources") {
                     Some(resources) if get(resources, "labels").is_some() => Some(
                         string_field(resources, "labels")
@@ -338,10 +361,19 @@ fn new_row(
     let url = format!("{HUB_ORIGIN}/api/models/{repo}");
     let info: ModelInfo = serde_json::from_slice(&remote.get(&url)?)
         .map_err(|e| format!("{url}: not a model's info: {e}"))?;
-    for file in ["model.safetensors", "config.json"] {
-        if !info.siblings.iter().any(|s| s.rfilename == file) {
-            return Ok(Err(format!("no `{file}`")));
-        }
+    let has = |file: &str| info.siblings.iter().any(|s| s.rfilename == file);
+    let Some(&(checkpoint, _)) = CHECKPOINTS.iter().find(|(file, _)| has(file)) else {
+        return Ok(Err(format!(
+            "no timm checkpoint (`{}`)",
+            CHECKPOINTS
+                .iter()
+                .map(|(file, _)| *file)
+                .collect::<Vec<_>>()
+                .join("`, `")
+        )));
+    };
+    if !has("config.json") {
+        return Ok(Err("no `config.json`".into()));
     }
     let Some(license) = info.card_data.and_then(|c| c.license) else {
         return Ok(Err("its card states no license".into()));
@@ -368,6 +400,7 @@ fn new_row(
         revision: info.sha,
         license,
         labels: labels.map(str::to_string),
+        checkpoint: checkpoint.to_string(),
     }))
 }
 
@@ -502,6 +535,7 @@ timm:
             revision: "r18a1".into(),
             license: "apache-2.0".into(),
             labels: Some("/imagenet/synsets-1k".into()),
+            checkpoint: "model.safetensors".into(),
         }
     }
 
@@ -534,31 +568,51 @@ timm:
                 "timm/resnet50.a1_in1k",
                 "timm/resnet50.in12k",
                 "timm/resnet50.proj",
+                "timm/resnet50.open",
             ],
         );
+        let mut model_of =
+            |name: &str, sha: &str, license: Option<&str>, classes: u64, files: &[&str]| {
+                let info = serde_json::json!({
+                    "sha": sha,
+                    "cardData": {"license": license},
+                    "siblings": files.iter().map(|f| serde_json::json!({"rfilename": f}))
+                        .collect::<Vec<_>>(),
+                });
+                remote.bodies.insert(
+                    format!("{HUB_ORIGIN}/api/models/timm/{name}"),
+                    serde_json::to_vec(&info).unwrap(),
+                );
+                remote.bodies.insert(
+                    HubRepo::new(format!("timm/{name}"), sha).file_url("config.json"),
+                    serde_json::to_vec(&serde_json::json!({"num_classes": classes})).unwrap(),
+                );
+            };
+        let safetensors = ["config.json", "model.safetensors"];
         let mut model = |name: &str, sha: &str, license: Option<&str>, classes: u64| {
-            let files = ["config.json", "model.safetensors"];
-            let info = serde_json::json!({
-                "sha": sha,
-                "cardData": {"license": license},
-                "siblings": files.iter().map(|f| serde_json::json!({"rfilename": f}))
-                    .collect::<Vec<_>>(),
-            });
-            remote.bodies.insert(
-                format!("{HUB_ORIGIN}/api/models/timm/{name}"),
-                serde_json::to_vec(&info).unwrap(),
-            );
-            remote.bodies.insert(
-                HubRepo::new(format!("timm/{name}"), sha).file_url("config.json"),
-                serde_json::to_vec(&serde_json::json!({"num_classes": classes})).unwrap(),
-            );
+            model_of(name, sha, license, classes, &safetensors)
         };
         model("resnet18.a1_in1k", "r18a1-new", Some("apache-2.0"), 1000);
         model("resnet50.a1_in1k", "r50a1", Some("apache-2.0"), 1000);
         model("resnet50.bamboo", "bamboo", Some("apache-2.0"), 0);
         model("resnet50.x", "x", None, 1000);
         model("resnet50.in12k", "in12k", Some("apache-2.0"), 11821);
-        model("resnet50.proj", "proj", Some("mit"), 512);
+        // An older repo's timm checkpoint is a `pytorch_model.bin`; one of
+        // another library's files alone is not timm's.
+        model_of(
+            "resnet50.proj",
+            "proj",
+            Some("mit"),
+            512,
+            &["config.json", "pytorch_model.bin"],
+        );
+        model_of(
+            "resnet50.open",
+            "open",
+            Some("mit"),
+            512,
+            &["open_clip_model.safetensors"],
+        );
         remote
     }
 
@@ -573,6 +627,7 @@ timm:
             revision: "r50a1".into(),
             license: "apache-2.0".into(),
             labels: Some("/imagenet/synsets-1k".into()),
+            checkpoint: "model.safetensors".into(),
         };
         let in12k = TimmRow {
             tag: "in12k".into(),
@@ -597,6 +652,10 @@ timm:
                 (
                     "timm/resnet50.bamboo",
                     "0 classes: no ImageNet label set of the catalog's has that many"
+                ),
+                (
+                    "timm/resnet50.open",
+                    "no timm checkpoint (`model.safetensors`, `pytorch_model.bin`)"
                 ),
                 (
                     "timm/resnet50.proj",
@@ -639,8 +698,10 @@ timm:
             .collect();
         assert_eq!(unlabelled, ["resnet50.bamboo", "resnet50.proj"]);
         let proj = generated.rows.iter().find(|r| r.tag == "proj").unwrap();
+        assert_eq!(proj.checkpoint, "pytorch_model.bin");
         let rendered = proj.render(&kit);
         assert!(!rendered.contains("labels"), "{rendered}");
+        assert!(rendered.contains("$format: pytorch fp32"), "{rendered}");
         let written = OrderedNode::from_yaml(&generated.text).unwrap();
         assert_eq!(existing_rows(&written).unwrap()["resnet50.proj"], *proj);
     }

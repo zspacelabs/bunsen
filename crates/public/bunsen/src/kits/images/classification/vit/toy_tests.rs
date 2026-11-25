@@ -1,13 +1,15 @@
 //! The toy models against timm's own `VisionTransformer`.
 //!
-//! `testdata/vit/` holds nine tiny seeded timm `VisionTransformer`s and their
+//! `testdata/vit/` holds ten tiny seeded timm `VisionTransformer`s and their
 //! answers, computed in float64 (`tools/gen_vit_toy_fixtures.py`), each on
 //! 16x16 images in 4x4 patches, 16 wide, two layers of two heads: timm's
 //! defaults (the class token's pool); the patch tokens' mean and their
 //! `avgmax`, with the norm after the pool; CLIP's pre-norm, with `GELU` and
 //! with `QuickGELU`; register tokens with the position embedding over the
-//! patches alone and layer scale; no class token; no `qkv` bias; and no
-//! classifier. Each is the [`ViTContractConfig`] of the same knobs. The
+//! patches alone and layer scale; no class token; no `qkv` bias; no
+//! classifier; and CLIP's pre-norm with a projection head, its weights in
+//! `OpenAI` CLIP's own layout. Each is the [`ViTContractConfig`] of the same
+//! knobs. The
 //! weights, under timm's names, load through [`load_vit_tensors`]; each
 //! layer's map, the output tokens, the pooled features and the logits are
 //! checked against timm's.
@@ -173,4 +175,51 @@ fn test_headless_toy_is_timms() {
     let mut policy = toy_policy();
     policy.num_classes = 0;
     check_toy("toy_headless", policy);
+}
+
+/// `OpenAI` CLIP's own layout (`visual.*`, a text tower beside it, a
+/// projection head of no bias): the text tower dropped, the tower loaded as
+/// timm converts it.
+#[test]
+fn test_openai_toy_is_timms() {
+    let mut policy = toy_policy().with_clip();
+    policy.num_classes = 8;
+    check_openai_toy("toy_openai", policy);
+}
+
+/// [`check_toy`], for a toy whose weights are in `OpenAI`'s layout: only the
+/// text tower's tensors are left over.
+fn check_openai_toy(
+    name: &str,
+    policy: ViTContractConfig,
+) {
+    let device = cpu_device();
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("testdata/vit")
+        .join(format!("{name}.safetensors"));
+    let mut fixture = ToyFixture::load(path, &device);
+    let mut model: VisionEncoderModel = policy.clone().init(&device);
+    let applied = load_vit_tensors(&mut model, fixture.take_weights()).expect("load the toy");
+    assert_eq!(
+        applied.unused,
+        ["text_projection", "transformer.resblocks.0.ln_1.weight"],
+        "{name}: the text tower is all that's left"
+    );
+    let images: Tensor<4> = fixture.io("images");
+    for (k, layer) in model
+        .forward_intermediates(images.clone())
+        .into_iter()
+        .enumerate()
+    {
+        assert_io_close(
+            &format!("{name} layer_{k}"),
+            layer,
+            fixture.io(&format!("layer_{k}")),
+        );
+    }
+    assert_io_close(
+        &format!("{name} logits"),
+        model.forward_logits(images),
+        fixture.io("logits"),
+    );
 }

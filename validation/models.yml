@@ -477,6 +477,13 @@ crates:
         core: false
         dtypes: [f32]
         varies: DINO's headless tower - the pooled features are the output
+      timm/vit_base_patch32_clip_224.openai:
+        size: small
+        gb: 0.71
+        core: false
+        dtypes: [f32]
+        varies: OpenAI's CLIP image tower, in CLIP's own layout (a pytorch_model.bin with the text
+          tower) - timm's conversion
       torchvision/resnet18:
         size: small
         gb: 0.15

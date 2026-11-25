@@ -15,7 +15,11 @@ Nine toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on
   (`no_embed_class`), and layer scale (`init_values`), as DeiT III and the register ViTs;
 - `toy_gap`: no class token, the mean pool (`class_token=False`, `global_pool='avg'`);
 - `toy_miil`: no `qkv` bias (`qkv_bias=False`), as `vit_base_patch16_224_miil`;
-- `toy_headless`: no classifier (`num_classes=0`): the output is the pooled features.
+- `toy_headless`: no classifier (`num_classes=0`): the output is the pooled features;
+- `toy_openai`: `toy_clip` with an 8-wide projection head of no bias, its weights written in
+  `OpenAI` CLIP's own layout (`visual.*`, with a stand-in for the text tower), as the `openai`
+  repos' `pytorch_model.bin`s hold them. timm's `_convert_openai_clip` maps them back onto the
+  model's state dict exactly, which the generator checks.
 
 The toy test builds each as bunsen's `ViTContractConfig`.
 
@@ -23,7 +27,7 @@ Each is built in float64 on the CPU with seeded weights: the norms' gains and sh
 a misplaced norm shows. A two-image `[2, 3, 16, 16]` batch runs through
 `forward_intermediates` (each layer's patch tokens as a map), the pooled features and the
 logits. The fixture is the weights under timm's own state-dict names (what its hub safetensors
-hold) and `io.*`: `images`, `layer_0`, `layer_1`, `features` (`forward_features`), `pooled`,
+hold; `toy_openai`'s in `OpenAI`'s) and `io.*`: `images`, `layer_0`, `layer_1`, `features` (`forward_features`), `pooled`,
 `logits`.
 
 Run from the repository root:
@@ -43,7 +47,10 @@ from functools import partial  # noqa: E402
 
 import torch  # noqa: E402
 from timm.layers import QuickGELU  # noqa: E402
-from timm.models.vision_transformer import VisionTransformer  # noqa: E402
+from timm.models.vision_transformer import (  # noqa: E402
+    VisionTransformer,
+    _convert_openai_clip,
+)
 
 from toy_fixture import (  # noqa: E402
     TESTDATA,
@@ -69,7 +76,51 @@ TOYS = {
     "toy_gap": dict(class_token=False, global_pool="avg"),
     "toy_miil": dict(qkv_bias=False),
     "toy_headless": dict(num_classes=0),
+    "toy_openai": dict(CLIP, num_classes=8),
 }
+
+# The toys whose weights are written in `OpenAI` CLIP's layout.
+OPENAI = {"toy_openai"}
+
+
+def openai_clip(state: dict) -> dict:
+    """A timm CLIP tower's state dict in `OpenAI`'s layout: what timm's `_convert_openai_clip`
+    reads. The head is `visual.proj`, `[d, classes]`, its bias dropped (timm's is zero); the
+    class token and the position embedding lose their unit axes; two text-tower tensors stand in
+    for the rest of the model."""
+    swaps = [
+        ("patch_embed.proj", "conv1"),
+        ("blocks.", "transformer.resblocks."),
+        ("norm_pre", "ln_pre"),
+        ("norm1", "ln_1"),
+        ("norm2", "ln_2"),
+        ("attn.qkv.", "attn.in_proj_"),
+        ("attn.proj", "attn.out_proj"),
+        ("mlp.fc1", "mlp.c_fc"),
+        ("mlp.fc2", "mlp.c_proj"),
+    ]
+    out = {}
+    for k, v in state.items():
+        if k == "head.bias":
+            assert not v.any(), "the head's bias is zero"
+            continue
+        if k == "head.weight":
+            out["visual.proj"] = v.t().contiguous()
+            continue
+        if k == "cls_token":
+            out["visual.class_embedding"] = v.reshape(-1)
+            continue
+        if k == "pos_embed":
+            out["visual.positional_embedding"] = v[0]
+            continue
+        if k.startswith("norm."):
+            k = "ln_post." + k[len("norm."):]
+        for a, b in swaps:
+            k = k.replace(a, b)
+        out["visual." + k] = v
+    out["text_projection"] = torch.zeros(4, 8, dtype=torch.float64)
+    out["transformer.resblocks.0.ln_1.weight"] = torch.ones(4, dtype=torch.float64)
+    return out
 
 
 def main() -> None:
@@ -82,6 +133,9 @@ def main() -> None:
             seed=4321 + i,
         )
         init_weights(model, norm_bias=0.1)
+        if name in OPENAI:
+            with torch.no_grad():
+                model.head.bias.zero_()
         torch.manual_seed(77 + i)
         images = torch.randn(2, 3, 16, 16, dtype=torch.float64)
         with torch.no_grad():
@@ -92,7 +146,15 @@ def main() -> None:
         assert len(layers) == 2, len(layers)
         io = {"images": images, "features": features, "pooled": pooled, "logits": logits}
         io.update({f"layer_{k}": x for k, x in enumerate(layers)})
-        write(OUT / f"{name}.safetensors", weights(model), io_tensors(io))
+        state = weights(model)
+        if name in OPENAI:
+            openai = openai_clip(model.state_dict())
+            back = _convert_openai_clip(openai, model)
+            assert back.keys() == model.state_dict().keys(), set(back) ^ set(model.state_dict())
+            for k, v in model.state_dict().items():
+                assert torch.equal(back[k].to(v.dtype), v), k
+            state = {k: v.float().contiguous() for k, v in openai.items()}
+        write(OUT / f"{name}.safetensors", state, io_tensors(io))
         print(name, {k: tuple(v.shape) for k, v in io.items()})
 
 

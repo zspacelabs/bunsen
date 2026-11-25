@@ -322,4 +322,10 @@ mod timm {
     fn vit_small_patch16_224_dino() {
         check_row("timm/vit_small_patch16_224.dino");
     }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_base_patch32_clip_224_openai() {
+        check_row("timm/vit_base_patch32_clip_224.openai");
+    }
 }

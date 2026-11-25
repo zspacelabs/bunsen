@@ -3,11 +3,13 @@
 vit-classifier:
   $kind: contract
   $description: >-
-    A ViT image encoder, or classifier: a timm hub repo's safetensors and `config.json`.
+    A ViT image encoder, or classifier: a timm hub repo's checkpoint (safetensors, or an older
+    repo's PyTorch state dict) and `config.json`.
   $resources:
     checkpoint:
-      $format: [safetensors]
-      $description: "The state dict: a timm hub repo's `model.safetensors`."
+      $format: [safetensors, pytorch fp32]
+      $description: "The state dict: a timm hub repo's `model.safetensors`, or an older repo's
+        `pytorch_model.bin`."
     config:
       $format: [json]
       $optional: true

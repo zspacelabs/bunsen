@@ -77,6 +77,7 @@ pub const ROWS: &[&str] = &[
     "timm/vit_base_patch16_384.augreg_in21k_ft_in1k",
     "timm/vit_base_patch32_clip_224.laion400m_e32",
     "timm/vit_small_patch16_224.dino",
+    "timm/vit_base_patch32_clip_224.openai",
 ];
 
 /// How many validation images a fixture covers: the first of the shard.

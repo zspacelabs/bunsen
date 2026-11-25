@@ -10,7 +10,8 @@ crop_pct, crop mode, mean and std) makes the preprocessed `[images, 3, h, w]` fl
 written to the plan's `inputs` path, in the cache: local, never committed, as it is pixels.
 
 For each row, timm's own model of the row's architecture and class count (its `config.json`'s;
-1000 for a torchvision row), its checkpoint loaded strictly, runs in
+1000 for a torchvision row), its checkpoint loaded strictly through the architecture's own
+checkpoint filter (which converts `OpenAI` CLIP's layout), runs in
 float64 on the CPU on that batch. The row's fixture (committed) is the logits and the pre-logits
 features as float32, with, in the safetensors metadata, the row, the input key and the SHA-256 of
 the input batch's float32 bytes, the sample keys, their classes, and the versions below.
@@ -27,6 +28,7 @@ safetensors 0.8.0.
 """
 
 import hashlib
+import importlib
 import io
 import json
 import pathlib
@@ -101,7 +103,12 @@ def main(plan_path: str) -> None:
         model = timm.create_model(
             row["architecture"], pretrained=False, num_classes=row["classes"]
         )
-        timm.models.load_checkpoint(model, row["checkpoint"], strict=True)
+        # The architecture's own checkpoint filter, as timm's pretrained load runs it: it
+        # converts a checkpoint in another layout (OpenAI CLIP's), and leaves timm's own as it
+        # is. A module with none (resnet.py) loads the state dict as it is.
+        module = importlib.import_module(type(model).__module__)
+        filter_fn = getattr(module, "checkpoint_filter_fn", None)
+        timm.models.load_checkpoint(model, row["checkpoint"], strict=True, filter_fn=filter_fn)
         model = model.to(torch.float64).eval()
         with torch.no_grad():
             x = batch.to(torch.float64)
