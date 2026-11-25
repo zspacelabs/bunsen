@@ -1,0 +1,456 @@
+# The swin-v1 kit's builds: a probe-contract source of the built-in catalog. The timm hub rows are
+# written by `cargo catalog timm-rows --kit swin-v1`.
+$description: "The Swin (V1) checkpoints bunsen knows by name: timm's hub repos."
+timm:
+  $kind: namespace
+  $merge: update
+  # BEGIN `cargo catalog timm-rows`: generated, don't edit by hand.
+  swin_tiny_patch4_window7_224.ms_in1k:
+    $kind: build
+    $description: "timm's `swin_tiny_patch4_window7_224`, its `ms_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_tiny_patch4_window7_224.ms_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_tiny_patch4_window7_224.ms_in1k
+      $revision: 4cc3a7275b50b53a7bec45f32c236ebe64227cff
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_tiny_patch4_window7_224.ms_in22k:
+    $kind: build
+    $description: "timm's `swin_tiny_patch4_window7_224`, its `ms_in22k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_tiny_patch4_window7_224.ms_in22k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_tiny_patch4_window7_224.ms_in22k
+      $revision: dec7a5f0eb3872d02bf7aa22bf1af2025cc0d114
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_tiny_patch4_window7_224.ms_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `swin_tiny_patch4_window7_224`, its `ms_in22k_ft_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_tiny_patch4_window7_224.ms_in22k_ft_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_tiny_patch4_window7_224.ms_in22k_ft_in1k
+      $revision: d80a6aa3419a7f825d780d7dfe7fbf78f4a65039
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_small_patch4_window7_224.ms_in1k:
+    $kind: build
+    $description: "timm's `swin_small_patch4_window7_224`, its `ms_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_small_patch4_window7_224.ms_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_small_patch4_window7_224.ms_in1k
+      $revision: b59828b00f6fac85d99c8eac48094b605b6e7ec3
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_small_patch4_window7_224.ms_in22k:
+    $kind: build
+    $description: "timm's `swin_small_patch4_window7_224`, its `ms_in22k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_small_patch4_window7_224.ms_in22k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_small_patch4_window7_224.ms_in22k
+      $revision: b2b85c9401d59641936f2a0638830dcca109eef7
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_small_patch4_window7_224.ms_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `swin_small_patch4_window7_224`, its `ms_in22k_ft_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_small_patch4_window7_224.ms_in22k_ft_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_small_patch4_window7_224.ms_in22k_ft_in1k
+      $revision: 221ee757828e4772df860bd42ef476de78dd5fc6
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_base_patch4_window7_224.ms_in1k:
+    $kind: build
+    $description: "timm's `swin_base_patch4_window7_224`, its `ms_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_base_patch4_window7_224.ms_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_base_patch4_window7_224.ms_in1k
+      $revision: 160443c7878650977f11a3a89d4ed685b001a304
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_base_patch4_window7_224.ms_in22k:
+    $kind: build
+    $description: "timm's `swin_base_patch4_window7_224`, its `ms_in22k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_base_patch4_window7_224.ms_in22k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_base_patch4_window7_224.ms_in22k
+      $revision: b77597e7151d49074fc83d4330b652f4bf6db880
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_base_patch4_window7_224.ms_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `swin_base_patch4_window7_224`, its `ms_in22k_ft_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_base_patch4_window7_224.ms_in22k_ft_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_base_patch4_window7_224.ms_in22k_ft_in1k
+      $revision: a6a1eb2321b4f556fa0fa243fb777d47679f13c9
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_base_patch4_window12_384.ms_in1k:
+    $kind: build
+    $description: "timm's `swin_base_patch4_window12_384`, its `ms_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_base_patch4_window12_384.ms_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_base_patch4_window12_384.ms_in1k
+      $revision: 48e69cca1a488f0f3c9d0c4589470331c1ea568c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_base_patch4_window12_384.ms_in22k:
+    $kind: build
+    $description: "timm's `swin_base_patch4_window12_384`, its `ms_in22k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_base_patch4_window12_384.ms_in22k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_base_patch4_window12_384.ms_in22k
+      $revision: 551a55d0c34e46c45d5e1ff5b3a25a52836ce66c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_base_patch4_window12_384.ms_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `swin_base_patch4_window12_384`, its `ms_in22k_ft_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_base_patch4_window12_384.ms_in22k_ft_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_base_patch4_window12_384.ms_in22k_ft_in1k
+      $revision: 006b1859d333de1eaf2c2c5e332a8d530df6cb8a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_large_patch4_window7_224.ms_in22k:
+    $kind: build
+    $description: "timm's `swin_large_patch4_window7_224`, its `ms_in22k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_large_patch4_window7_224.ms_in22k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_large_patch4_window7_224.ms_in22k
+      $revision: d65f512e7e5d8d2c4f39daa3c36fc9b2dca26213
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_large_patch4_window7_224.ms_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `swin_large_patch4_window7_224`, its `ms_in22k_ft_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_large_patch4_window7_224.ms_in22k_ft_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_large_patch4_window7_224.ms_in22k_ft_in1k
+      $revision: e05e58ff5362edd212120dffaff3206a633c5534
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_large_patch4_window12_384.ms_in22k:
+    $kind: build
+    $description: "timm's `swin_large_patch4_window12_384`, its `ms_in22k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_large_patch4_window12_384.ms_in22k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_large_patch4_window12_384.ms_in22k
+      $revision: 85815ad8bb9be50fac75aff4bf2ac25ffe171a73
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_large_patch4_window12_384.ms_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `swin_large_patch4_window12_384`, its `ms_in22k_ft_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_large_patch4_window12_384.ms_in22k_ft_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_large_patch4_window12_384.ms_in22k_ft_in1k
+      $revision: dfc8b0017a96aa64652f7009ea275c26f21b2a68
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_s3_tiny_224.ms_in1k:
+    $kind: build
+    $description: "timm's `swin_s3_tiny_224`, its `ms_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_s3_tiny_224.ms_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_s3_tiny_224.ms_in1k
+      $revision: 4404157f17b487733d0881776a13243b29c05cea
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_s3_small_224.ms_in1k:
+    $kind: build
+    $description: "timm's `swin_s3_small_224`, its `ms_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_s3_small_224.ms_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_s3_small_224.ms_in1k
+      $revision: e94201381601aa8044c5e1956cfa59b679f7f152
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  swin_s3_base_224.ms_in1k:
+    $kind: build
+    $description: "timm's `swin_s3_base_224`, its `ms_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/swin_s3_base_224.ms_in1k
+    $contract: swin-v1-classifier
+    $join:
+      - swin-v1
+    $hub:
+      $repo: timm/swin_s3_base_224.ms_in1k
+      $revision: ca2d2d933a7c2cfb03f669efe9408f33f5a3cda6
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      # END `cargo catalog timm-rows`.
+swin-v1:
+  $kind: namespace
+  $facet: family
+  $description: Swin Transformer and Swin-S3 ImageNet classifiers.

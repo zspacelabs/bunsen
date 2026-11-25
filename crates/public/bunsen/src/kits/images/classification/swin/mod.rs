@@ -12,9 +12,11 @@
 //! [`WindowAttention`](crate::blocks::transformers::attention::window::WindowAttention)
 //! mixers; a kit is its policy, its prefabs and timm's checkpoints.
 //!
+//! - [`v1`]: the Swin Transformer, and the Swin-S3 geometries.
 //! - [`v2`]: Swin Transformer V2.
 
 pub mod interop;
+pub mod v1;
 pub mod v2;
 
 mod common;
