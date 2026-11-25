@@ -521,6 +521,81 @@ run them.
 * timm/resnet152.tv2_in1k: [242.2 MB]
   timm's `resnet152`, its `tv2_in1k` weights.
 
+* timm/resnet10t.c3_in1k: [22.5 MB]
+  timm's `resnet10t`, its `c3_in1k` weights.
+
+* timm/resnet14t.c3_in1k: [41.2 MB]
+  timm's `resnet14t`, its `c3_in1k` weights.
+
+* timm/resnet18d.ra2_in1k: [47.6 MB]
+  timm's `resnet18d`, its `ra2_in1k` weights.
+
+* timm/resnet18d.ra4_e3600_r224_in1k: [47.6 MB]
+  timm's `resnet18d`, its `ra4_e3600_r224_in1k` weights.
+
+* timm/resnet26d.bt_in1k: [65.0 MB]
+  timm's `resnet26d`, its `bt_in1k` weights.
+
+* timm/resnet26t.ra2_in1k: [64.9 MB]
+  timm's `resnet26t`, its `ra2_in1k` weights.
+
+* timm/resnet34d.ra2_in1k: [88.1 MB]
+  timm's `resnet34d`, its `ra2_in1k` weights.
+
+* timm/resnet50c.gluon_in1k: [103.3 MB]
+  timm's `resnet50c`, its `gluon_in1k` weights.
+
+* timm/resnet50d.a1_in1k: [103.3 MB]
+  timm's `resnet50d`, its `a1_in1k` weights.
+
+* timm/resnet50d.a2_in1k: [103.3 MB]
+  timm's `resnet50d`, its `a2_in1k` weights.
+
+* timm/resnet50d.a3_in1k: [103.3 MB]
+  timm's `resnet50d`, its `a3_in1k` weights.
+
+* timm/resnet50d.gluon_in1k: [103.3 MB]
+  timm's `resnet50d`, its `gluon_in1k` weights.
+
+* timm/resnet50d.ra2_in1k: [103.3 MB]
+  timm's `resnet50d`, its `ra2_in1k` weights.
+
+* timm/resnet50d.ra4_e3600_r224_in1k: [103.3 MB]
+  timm's `resnet50d`, its `ra4_e3600_r224_in1k` weights.
+
+* timm/resnet50s.gluon_in1k: [103.7 MB]
+  timm's `resnet50s`, its `gluon_in1k` weights.
+
+* timm/resnet101c.gluon_in1k: [179.5 MB]
+  timm's `resnet101c`, its `gluon_in1k` weights.
+
+* timm/resnet101d.gluon_in1k: [179.5 MB]
+  timm's `resnet101d`, its `gluon_in1k` weights.
+
+* timm/resnet101d.ra2_in1k: [179.5 MB]
+  timm's `resnet101d`, its `ra2_in1k` weights.
+
+* timm/resnet101s.gluon_in1k: [179.9 MB]
+  timm's `resnet101s`, its `gluon_in1k` weights.
+
+* timm/resnet152c.gluon_in1k: [242.3 MB]
+  timm's `resnet152c`, its `gluon_in1k` weights.
+
+* timm/resnet152d.gluon_in1k: [242.3 MB]
+  timm's `resnet152d`, its `gluon_in1k` weights.
+
+* timm/resnet152d.ra2_in1k: [242.3 MB]
+  timm's `resnet152d`, its `ra2_in1k` weights.
+
+* timm/resnet152s.gluon_in1k: [242.7 MB]
+  timm's `resnet152s`, its `gluon_in1k` weights.
+
+* timm/resnet200d.ra2_in1k: [260.3 MB]
+  timm's `resnet200d`, its `ra2_in1k` weights.
+
+* timm/resnext50d_32x4d.bt_in1k: [101.2 MB]
+  timm's `resnext50d_32x4d`, its `bt_in1k` weights.
+
 * timm/resnext50_32x4d.a1_in1k: [101.2 MB]
   timm's `resnext50_32x4d`, its `a1_in1k` weights.
 

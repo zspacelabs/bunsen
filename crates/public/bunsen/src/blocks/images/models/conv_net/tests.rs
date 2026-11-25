@@ -258,15 +258,48 @@ fn test_a_stem_without_a_pool() {
     assert_eq!(map.dims(), [1, 8, 16, 16]);
 }
 
-/// A kind not built yet is refused when lowered, naming the stage.
+/// The average-pool shortcut is timm's `downsample_avg`: no pool where the
+/// unit only widens, a `2x2` ceil-mode pool of its stride where it strides,
+/// and a bottom-right padded `2x2` pool of stride 1 where a dilated stage
+/// would have strided. Its conv is a `1x1` at stride 1; odd sizes halve up.
 #[test]
-fn test_unbuilt_kinds_are_unsupported() {
-    let mut policy = resnet_like(&[1, 1], 8, ConvUnitKind::Basic);
+fn test_avg_conv_shortcuts_are_timms() {
+    let mut policy = resnet_like(&[1, 1, 1], 8, ConvUnitKind::Bottleneck).with_output_stride(8);
     policy.layers.shortcut = ConvShortcutKind::AvgConv;
-    ErrorMatcher::kind(BunsenErrorKind::Unsupported)
-        .message_contains("AvgConv")
-        .frame_contains("conv net stage 1")
-        .assert_err(&policy.try_to_structure());
+    let structure = policy.to_structure();
+    let pools: Vec<_> = structure
+        .stages
+        .iter()
+        .map(|stage| {
+            let Some(ConvShortcutConfig::AvgConv(shortcut)) = &stage.units[0].shortcut else {
+                panic!("an avg-conv shortcut");
+            };
+            assert_eq!(shortcut.block.stride(), [1, 1]);
+            shortcut.pool.as_ref().map(|p| {
+                (
+                    p.strides[0],
+                    p.ceil_mode,
+                    p.count_include_pad,
+                    format!("{:?}", p.padding),
+                )
+            })
+        })
+        .collect();
+    assert_eq!(
+        pools,
+        [
+            None,
+            Some((2, true, false, "Valid".into())),
+            Some((1, false, true, "Explicit(0, 0, 1, 1)".into())),
+        ]
+    );
+
+    let device = cpu_device();
+    let model: ConvNetModel = structure.init(&device);
+    let maps = model.stage_maps(Tensor::<4>::ones([1, 3, 36, 36], &device));
+    let sizes: Vec<_> = maps.iter().map(|m| m.dims()[2]).collect();
+    // The stem's 18, its pool's 9; stage 1 halves 9 up to 5; stage 2 dilates.
+    assert_eq!(sizes, [18, 9, 5, 5]);
 }
 
 /// A malformed tree is an error from `try_init`, not a panic: no stages, an

@@ -17,6 +17,7 @@ use crate::{
             ConvLayersConfig,
             ConvNetContractConfig,
             ConvNetStructureConfig,
+            ConvShortcutKind,
             ConvStageContractConfig,
             ConvStemContractConfig,
             ConvUnitKind,
@@ -83,6 +84,21 @@ impl Default for BottleneckPolicyConfig {
     }
 }
 
+/// A `ResNet`'s stem: its convs, before the max pool (timm's `stem_type`).
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum ResNetStemKind {
+    /// One `7x7` conv, `conv_stem_width` wide (timm's `''`, torchvision's).
+    Single,
+
+    /// Three `3x3` convs, `stem_width`, `stem_width` and twice it wide
+    /// (timm's `'deep'`: the C, D, E and S variants).
+    Deep,
+
+    /// Three `3x3` convs, `3 * (stem_width / 4)`, `stem_width` and twice it
+    /// wide (timm's `'deep_tiered'`: the T variants).
+    Tiered,
+}
+
 /// `ResNet`'s policy: the stage depths and widths, the classes, the input's
 /// channels, the stem's width, the output stride, the bottleneck policy, the
 /// norm and the activation.
@@ -114,9 +130,24 @@ pub struct ResNetContractConfig {
     #[config(default = "vec![64, 128, 256, 512]")]
     pub channels: Vec<usize>,
 
-    /// The `7x7` stem's width: 64 in every timm and torchvision `ResNet`.
+    /// The stem's kind.
+    #[config(default = "ResNetStemKind::Single")]
+    pub stem_type: ResNetStemKind,
+
+    /// A deep or tiered stem's width (timm's `stem_width`): its output is
+    /// twice it.
+    #[config(default = "64")]
+    pub stem_width: usize,
+
+    /// A single-conv stem's width: 64 in every timm and torchvision `ResNet`.
     #[config(default = "64")]
     pub conv_stem_width: usize,
+
+    /// Average-pool shortcuts (timm's `avg_down`, the D, E and T variants): a
+    /// `2x2` average pool of the unit's stride, then a `1x1` conv; else a
+    /// strided `1x1` conv.
+    #[config(default = "false")]
+    pub avg_down: bool,
 
     /// The net's stride at its last stage: 32, or 16 or 8 for a dilated net.
     #[config(default = "32")]
@@ -145,10 +176,10 @@ impl ResNetContractConfig {
         self.with_bottleneck_policy(enable.then(BottleneckPolicyConfig::default))
     }
 
-    /// The generic conv net's policy of this `ResNet`: a `conv_stem_width`
-    /// wide `7x7` stem (stride 2) and its `3x3` max pool; then a stage per
-    /// entry of `layers`, the first at stride 1 and each later one at stride
-    /// 2.
+    /// The generic conv net's policy of this `ResNet`: its stem
+    /// ([`ResNetStemKind`]; its first conv strides 2) and a `3x3` max pool;
+    /// then a stage per entry of `layers`, the first at stride 1 and each
+    /// later one at stride 2.
     ///
     /// Each stage's units are its `channels` planes. A basic unit is that
     /// wide throughout; a bottleneck puts out `pinch_factor` times it, so a
@@ -189,18 +220,30 @@ impl ResNetContractConfig {
                 stage.with_stride(if idx == 0 { 1 } else { 2 })
             })
             .collect();
-        Ok(ConvNetContractConfig::new(
-            ConvStemContractConfig::new(vec![self.conv_stem_width]),
-            stages,
-            self.num_classes,
-        )
-        .with_in_channels(self.in_channels)
-        .with_output_stride(self.output_stride)
-        .with_layers(
-            ConvLayersConfig::new()
-                .with_norm(self.normalization.clone())
-                .with_act(self.activation.clone()),
-        ))
+        let w = self.stem_width;
+        let stem = match self.stem_type {
+            ResNetStemKind::Single => ConvStemContractConfig::new(vec![self.conv_stem_width]),
+            ResNetStemKind::Deep => {
+                ConvStemContractConfig::new(vec![w, w, 2 * w]).with_kernel_size(3)
+            }
+            ResNetStemKind::Tiered => {
+                ConvStemContractConfig::new(vec![3 * (w / 4), w, 2 * w]).with_kernel_size(3)
+            }
+        };
+        let shortcut = if self.avg_down {
+            ConvShortcutKind::AvgConv
+        } else {
+            ConvShortcutKind::Conv
+        };
+        Ok(ConvNetContractConfig::new(stem, stages, self.num_classes)
+            .with_in_channels(self.in_channels)
+            .with_output_stride(self.output_stride)
+            .with_layers(
+                ConvLayersConfig::new()
+                    .with_norm(self.normalization.clone())
+                    .with_act(self.activation.clone())
+                    .with_shortcut(shortcut),
+            ))
     }
 
     /// [`try_to_conv_net`](Self::try_to_conv_net), for a policy known to be

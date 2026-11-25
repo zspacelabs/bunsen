@@ -1,11 +1,13 @@
 //! The toy models against timm's own `ResNet`.
 //!
-//! `testdata/resnet/` holds four tiny seeded timm `ResNet`s and their
+//! `testdata/resnet/` holds seven tiny seeded timm `ResNet`s and their
 //! answers, computed in float64 (`tools/gen_resnet_toy_fixtures.py`, timm's
-//! `timm.models.resnet.ResNet`): four stages of one block on its 64-wide 7x7
-//! stem, one of basic blocks and one of bottlenecks at timm's `channels=(8,
-//! 16, 32, 64)`, one of bottlenecks at 32 planes with timm's group norm, and
-//! one of grouped bottlenecks (`ResNeXt`'s).
+//! `timm.models.resnet.ResNet`), each four stages of one block: on its
+//! 64-wide 7x7 stem, one of basic blocks and one of bottlenecks at timm's
+//! `channels=(8, 16, 32, 64)`, one of bottlenecks at 32 planes with timm's
+//! group norm, and one of grouped bottlenecks (`ResNeXt`'s); then, on odd
+//! stage sizes, a deep stem and a tiered one with average-pool shortcuts, and
+//! the tiered one dilated past stride 8.
 //! Each is the [`ResNetContractConfig`] of the same knobs. The weights, under
 //! timm's names, load through [`load_resnet_tensors`]; each stage output, the
 //! pooled features and the logits are checked against timm's.
@@ -20,6 +22,7 @@ use burn::{
 use super::{
     BottleneckPolicyConfig,
     ResNetContractConfig,
+    ResNetStemKind,
     interop::torchvision::load_resnet_tensors,
 };
 use crate::{
@@ -132,4 +135,37 @@ fn test_resnext_toy_is_timms() {
                 .with_base_width(16),
         )),
     );
+}
+
+/// A deep stem (16, 16, 32) and average-pool shortcuts, on odd sizes.
+#[test]
+fn test_deep_stem_toy_is_timms() {
+    check_toy(
+        "toy_deep",
+        toy_policy(false, [8, 16, 32, 64])
+            .with_stem_type(ResNetStemKind::Deep)
+            .with_stem_width(16)
+            .with_avg_down(true),
+    );
+}
+
+/// A tiered stem (12, 16, 32) and average-pool shortcuts, on odd sizes.
+#[test]
+fn test_tiered_stem_toy_is_timms() {
+    check_toy("toy_tiered", tiered());
+}
+
+/// The tiered toy at output stride 8: the dilated stages' shortcuts pool
+/// at stride 1 over a padded input (timm's `AvgPool2dSame`).
+#[test]
+fn test_dilated_toy_is_timms() {
+    check_toy("toy_dilated", tiered().with_output_stride(8));
+}
+
+/// The tiered toys' policy.
+fn tiered() -> ResNetContractConfig {
+    toy_policy(true, [8, 16, 32, 64])
+        .with_stem_type(ResNetStemKind::Tiered)
+        .with_stem_width(16)
+        .with_avg_down(true)
 }

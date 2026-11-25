@@ -8,6 +8,14 @@ use alloc::{
 use burn::{
     config::Config,
     module::Module,
+    nn::{
+        PaddingConfig2d,
+        conv::Conv2d,
+        pool::{
+            AvgPool2d,
+            AvgPool2dConfig,
+        },
+    },
     prelude::Tensor,
     tensor::Device,
 };
@@ -33,6 +41,7 @@ use crate::{
                 DropPathConfig,
             },
         },
+        norm::BunsenNormalization,
     },
     burner::module::ModuleInit,
     errors::{
@@ -187,31 +196,37 @@ impl ResidualConv {
 /// A [`ResidualUnit`]'s shortcut, when its output differs from its input in
 /// channels or size: the config of a [`ConvShortcut`].
 ///
-/// A seam: each kind is a module of its own. Built today: a strided `1x1`
-/// conv and a norm (torchvision's `downsample`). The average-pool-then-conv
-/// shortcut of the `ResNet-D` variants is a further kind.
+/// A seam: each kind is a module of its own. Built: a strided `1x1` conv and
+/// a norm (torchvision's `downsample`), and an average pool before a `1x1`
+/// conv and a norm (timm's `avg_down`, the `ResNet-D` variants).
 #[derive(Config, Debug)]
 pub enum ConvShortcutConfig {
     /// A conv and a norm, with no activation.
     Conv(ConvBlock2dConfig),
+
+    /// An average pool, then a conv and a norm.
+    AvgConv(AvgConvShortcutConfig),
 }
 
 impl ResidualUnitMeta for ConvShortcutConfig {
     fn in_channels(&self) -> usize {
         match self {
             Self::Conv(config) => config.in_channels(),
+            Self::AvgConv(config) => config.block.in_channels(),
         }
     }
 
     fn out_channels(&self) -> usize {
         match self {
             Self::Conv(config) => config.out_channels(),
+            Self::AvgConv(config) => config.block.out_channels(),
         }
     }
 
     fn stride(&self) -> usize {
         match self {
             Self::Conv(config) => config.stride()[0],
+            Self::AvgConv(config) => config.stride(),
         }
     }
 }
@@ -223,36 +238,176 @@ impl ModuleInit<ConvShortcut> for ConvShortcutConfig {
     ) -> BunsenResult<ConvShortcut> {
         Ok(match self {
             Self::Conv(config) => ConvShortcut::Conv(config.try_init(device)?),
+            Self::AvgConv(config) => ConvShortcut::AvgConv(config.try_init(device)?),
         })
+    }
+}
+
+/// The config of an [`AvgConvShortcut`]: an average pool, then a conv block
+/// at stride 1.
+#[derive(Config, Debug)]
+pub struct AvgConvShortcutConfig {
+    /// The pool before the conv; none when the unit neither strides nor
+    /// dilates.
+    pub pool: Option<AvgPool2dConfig>,
+
+    /// The conv (stride 1), its norm and its activation.
+    pub block: ConvBlock2dConfig,
+}
+
+impl AvgConvShortcutConfig {
+    /// timm's `downsample_avg` before `block`, for a unit of `stride` and
+    /// `dilation`:
+    ///
+    /// - at a stride, a `2x2` pool of that stride, in ceil mode, the padding
+    ///   not counted (`AvgPool2d(2, stride, ceil_mode=True,
+    ///   count_include_pad=False)`);
+    /// - at stride 1, dilated, a `2x2` pool of stride 1 over the input padded
+    ///   by one zero row and column at the bottom and right, the zeros counted
+    ///   (timm's `AvgPool2dSame`);
+    /// - at stride 1, undilated, no pool.
+    pub fn timm(
+        block: ConvBlock2dConfig,
+        stride: usize,
+        dilation: usize,
+    ) -> Self {
+        let pool = if stride != 1 {
+            Some(
+                AvgPool2dConfig::new([2, 2])
+                    .with_strides([stride, stride])
+                    .with_ceil_mode(true)
+                    .with_count_include_pad(false),
+            )
+        } else if dilation != 1 {
+            Some(
+                AvgPool2dConfig::new([2, 2])
+                    .with_strides([1, 1])
+                    .with_padding(PaddingConfig2d::Explicit(0, 0, 1, 1))
+                    .with_count_include_pad(true),
+            )
+        } else {
+            None
+        };
+        Self { pool, block }
+    }
+
+    /// The pool's stride, times the conv's.
+    fn stride(&self) -> usize {
+        self.pool.as_ref().map_or(1, |p| p.strides[0]) * self.block.stride()[0]
+    }
+}
+
+impl ModuleInit<AvgConvShortcut> for AvgConvShortcutConfig {
+    fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<AvgConvShortcut> {
+        let ConvBlock2d { conv, norm, act } = self.block.try_init(device)?;
+        Ok(AvgConvShortcut {
+            pool: self.pool.as_ref().map(AvgPool2dConfig::init),
+            conv,
+            norm,
+            act,
+        })
+    }
+}
+
+/// An average pool, then a conv block: timm's `avg_down` shortcut.
+///
+/// Its conv and norm are a conv block's, under the same names:
+/// `shortcut.conv.weight` and `shortcut.norm.*`, as a
+/// [`Conv`](ConvShortcut::Conv) shortcut's.
+#[derive(Module, Debug)]
+pub struct AvgConvShortcut {
+    /// The pool; none when the unit neither strides nor dilates.
+    pub pool: Option<AvgPool2d>,
+
+    /// The `1x1` conv.
+    pub conv: Conv2d,
+
+    /// The norm after the conv.
+    pub norm: Option<BunsenNormalization>,
+
+    /// The activation after the norm.
+    pub act: Option<BunsenActivation>,
+}
+
+impl ResidualUnitMeta for AvgConvShortcut {
+    fn in_channels(&self) -> usize {
+        self.conv.weight.dims()[1] * self.conv.groups
+    }
+
+    fn out_channels(&self) -> usize {
+        self.conv.weight.dims()[0]
+    }
+
+    fn stride(&self) -> usize {
+        self.pool.as_ref().map_or(1, |p| p.stride[0]) * self.conv.stride[0]
+    }
+}
+
+impl AvgConvShortcut {
+    /// Applies the shortcut: the pool, the conv, the norm, the activation.
+    ///
+    /// # Arguments
+    ///
+    /// - `input`: `[batch, in_channels, in_height, in_width]`.
+    ///
+    /// # Returns
+    ///
+    /// `[batch, out_channels, out_height, out_width]`.
+    pub fn forward(
+        &self,
+        input: Tensor<4>,
+    ) -> Tensor<4> {
+        let x = match &self.pool {
+            Some(pool) => pool.forward(input),
+            None => input,
+        };
+        let x = self.conv.forward(x);
+        let x = match &self.norm {
+            Some(norm) => norm.forward(x),
+            None => x,
+        };
+        match &self.act {
+            Some(act) => act.forward(x),
+            None => x,
+        }
     }
 }
 
 /// A [`ResidualUnit`]'s shortcut; built by [`ConvShortcutConfig`].
 ///
 /// The variant is not part of a parameter's path: a conv shortcut's weight is
-/// `shortcut.conv.weight`.
+/// `shortcut.conv.weight`, whichever kind it is.
 #[derive(Module, Debug)]
 pub enum ConvShortcut {
     /// A conv and a norm, with no activation.
     Conv(ConvBlock2d),
+
+    /// An average pool, then a conv and a norm.
+    AvgConv(AvgConvShortcut),
 }
 
 impl ResidualUnitMeta for ConvShortcut {
     fn in_channels(&self) -> usize {
         match self {
             Self::Conv(block) => block.in_channels(),
+            Self::AvgConv(shortcut) => shortcut.in_channels(),
         }
     }
 
     fn out_channels(&self) -> usize {
         match self {
             Self::Conv(block) => block.out_channels(),
+            Self::AvgConv(shortcut) => shortcut.out_channels(),
         }
     }
 
     fn stride(&self) -> usize {
         match self {
             Self::Conv(block) => block.stride()[0],
+            Self::AvgConv(shortcut) => shortcut.stride(),
         }
     }
 }
@@ -273,6 +428,7 @@ impl ConvShortcut {
     ) -> Tensor<4> {
         match self {
             Self::Conv(block) => block.forward(input),
+            Self::AvgConv(shortcut) => shortcut.forward(input),
         }
     }
 }

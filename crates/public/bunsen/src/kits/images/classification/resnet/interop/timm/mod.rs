@@ -33,9 +33,8 @@ pub use weights::*;
 ///
 /// # Errors
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for an
-/// architecture the kit has no prefab of (a deep-stem `resnet50d`, a
-/// `resnext50_32x4d`, …), a headless model (0 classes), or a pool other than
-/// `avg`.
+/// architecture the kit has no prefab of (`resnest50d`, …), a headless model
+/// (0 classes), or a pool other than `avg`.
 pub fn resnet_contract_config(
     config: &TimmModelConfigMirror
 ) -> BunsenResult<ResNetContractConfig> {
@@ -108,8 +107,8 @@ mod tests {
     fn test_unbuilt_architectures_are_unsupported() {
         let unsupported = || ErrorMatcher::kind(BunsenErrorKind::Unsupported);
         unsupported()
-            .message_contains("timm's resnet50d")
-            .assert_err(&resnet_contract_config(&config("resnet50d", 1000)));
+            .message_contains("timm's resnest50d")
+            .assert_err(&resnet_contract_config(&config("resnest50d", 1000)));
         unsupported()
             .message_contains("headless")
             .assert_err(&resnet_contract_config(&config("resnet50", 0)));

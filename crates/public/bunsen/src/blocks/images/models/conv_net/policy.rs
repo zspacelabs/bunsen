@@ -20,6 +20,7 @@ use crate::{
         activation::BunsenActivationConfig,
         conv::ConvBlock2dConfig,
         images::models::conv_net::{
+            AvgConvShortcutConfig,
             ConvHeadConfig,
             ConvNetStructureConfig,
             ConvShortcutConfig,
@@ -34,7 +35,6 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
         ConstraintError,
         ResultContext,
@@ -70,8 +70,7 @@ pub enum ConvShortcutKind {
     Conv,
 
     /// An average pool, then a `1x1` conv and a norm (timm's `avg_down`, the
-    /// `ResNet-D` variants). Not built yet: lowering it is
-    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
+    /// `ResNet-D` variants): [`AvgConvShortcutConfig::timm`].
     AvgConv,
 }
 
@@ -279,9 +278,11 @@ impl ConvStageContractConfig {
                     false,
                 )),
                 ConvShortcutKind::AvgConv => {
-                    return Err(BunsenError::unsupported(
-                        "the conv net's AvgConv shortcut (timm's avg_down) is not built yet",
-                    ));
+                    ConvShortcutConfig::AvgConv(AvgConvShortcutConfig::timm(
+                        layers.conv([in_channels, width], 1, 1, 1, 1, false),
+                        stride,
+                        dilation,
+                    ))
                 }
             })
         } else {
