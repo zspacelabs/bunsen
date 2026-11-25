@@ -4,6 +4,10 @@
 //! [`timm`](https://github.com/huggingface/pytorch-image-models)'s and
 //! torchvision's.
 //!
+//! The task's model-generic part is [`driver`]: the
+//! [`ImageClassifier`](driver::ImageClassifier) seam every classifier
+//! implements, and the top classes of its logits. The kits:
+//!
 //! - [`resnet`]: the `ResNet` family. Six prefabs, `resnet18` to `resnet152`,
 //!   and 14 pretrained rows, torchvision's and `timm`'s, loaded by name through
 //!   [`default_resnet_factory`](resnet::pretrained::default_resnet_factory).
@@ -12,5 +16,6 @@
 //! - [`swin::v2`]: Swin Transformer V2. The model and its configs, with no
 //!   prefabs and no pretrained weights yet.
 
+pub mod driver;
 pub mod resnet;
 pub mod swin;

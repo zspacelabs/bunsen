@@ -1,0 +1,146 @@
+//! The classifier seam, and the top classes of its logits.
+
+use alloc::{
+    string::String,
+    vec::Vec,
+};
+
+use burn::{
+    Tensor,
+    tensor::activation::softmax,
+};
+
+use crate::kits::images::support::{
+    encoder::ImageEncoder,
+    labels::ImageLabelSet,
+};
+
+/// An image classifier: an [`ImageEncoder`] with a head that scores each
+/// class.
+///
+/// Object-safe, as [`ImageEncoder`] is.
+pub trait ImageClassifier: ImageEncoder {
+    /// The number of classes the head scores.
+    fn n_classes(&self) -> usize;
+
+    /// The `[batch, n_classes]` logits of a normalised
+    /// `[batch, channels, height, width]` batch.
+    fn forward_logits(
+        &self,
+        images: Tensor<4>,
+    ) -> Tensor<2>;
+}
+
+/// One of a row's top classes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassPrediction {
+    /// The class's index in the head.
+    pub index: usize,
+
+    /// The softmax probability of the class.
+    pub probability: f32,
+
+    /// The class's synset id, when the model has labels.
+    pub synset: Option<String>,
+
+    /// The class's readable name, when the model has labels: its lemmas, or
+    /// its synset id where the labels have no lemmas.
+    pub name: Option<String>,
+}
+
+/// The `k` most probable classes of each row of `[batch, n_classes]` logits,
+/// most probable first, named by `labels` where it has them.
+///
+/// `k` is clamped to the class count.
+///
+/// # Panics
+/// When `labels` does not have the logits' class count.
+pub fn top_k(
+    logits: Tensor<2>,
+    k: usize,
+    labels: Option<&ImageLabelSet>,
+) -> Vec<Vec<ClassPrediction>> {
+    let [batch, n_classes] = crate::contracts::unpack_shape_contract!(
+        ["batch", "n_classes"],
+        &logits,
+        &["batch", "n_classes"],
+    );
+    if let Some(labels) = labels {
+        assert_eq!(
+            labels.len(),
+            n_classes,
+            "top_k: {} labels for {n_classes} classes",
+            labels.len()
+        );
+    }
+    let k = k.min(n_classes);
+    if k == 0 {
+        return (0..batch).map(|_| Vec::new()).collect();
+    }
+    let probabilities = softmax(logits.cast(burn::tensor::DType::F32), 1);
+    let (values, indices) = probabilities.topk_with_indices(k, 1);
+    let values = values
+        .into_data()
+        .convert::<f32>()
+        .try_into_vec::<f32>()
+        .unwrap();
+    let indices = indices
+        .into_data()
+        .convert::<i64>()
+        .try_into_vec::<i64>()
+        .unwrap();
+    (0..batch)
+        .map(|row| {
+            (0..k)
+                .map(|j| {
+                    let index = indices[row * k + j] as usize;
+                    ClassPrediction {
+                        index,
+                        probability: values[row * k + j],
+                        synset: labels.map(|l| l.synset(index).into()),
+                        name: labels.map(|l| l.name(index).into()),
+                    }
+                })
+                .collect()
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::support::testing::cpu_device;
+
+    /// The top classes, most probable first, with their softmax
+    /// probabilities and their labels.
+    #[test]
+    fn test_top_k_orders_and_names() {
+        let device = cpu_device();
+        let logits = Tensor::<2>::from_floats([[0.0, 2.0, 1.0], [3.0, 0.0, 0.0]], &device);
+        let labels =
+            ImageLabelSet::try_parse("n0\nn1\nn2", Some("n0\tzero\nn1\tone\nn2\ttwo")).unwrap();
+        let top = top_k(logits, 2, Some(&labels));
+
+        let softmax = |xs: [f32; 3]| {
+            let total: f32 = xs.iter().map(|x| x.exp()).sum();
+            xs.map(|x| x.exp() / total)
+        };
+        let (p0, p1) = (softmax([0.0, 2.0, 1.0]), softmax([3.0, 0.0, 0.0]));
+        assert_eq!(top[0].iter().map(|p| p.index).collect::<Vec<_>>(), [1, 2]);
+        assert_eq!(top[1][0].index, 0);
+        assert_eq!(top[0][0].name.as_deref(), Some("one"));
+        assert_eq!(top[0][1].synset.as_deref(), Some("n2"));
+        assert!((top[0][0].probability - p0[1]).abs() < 1e-6);
+        assert!((top[1][0].probability - p1[0]).abs() < 1e-6);
+    }
+
+    /// `k` past the class count is the class count; no labels, no names.
+    #[test]
+    fn test_top_k_clamps_k() {
+        let device = cpu_device();
+        let logits = Tensor::<2>::from_floats([[1.0, 0.0]], &device);
+        let top = top_k(logits, 5, None);
+        assert_eq!(top[0].len(), 2);
+        assert_eq!(top[0][0].name, None);
+    }
+}

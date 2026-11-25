@@ -41,13 +41,19 @@ mod tests {
         kits::images::classification::resnet::ResNetContractConfig,
     };
 
-    /// Every row states the geometry of a prefab the map has and is one
-    /// pinned checkpoint under its namespace, fetched from that namespace's
-    /// base; the digest's first eight hex digits are the tag in the file's
-    /// name.
+    /// Every row states the geometry of a prefab the map has, binds
+    /// `ImageNet`-1k's labels, and is one pinned checkpoint under its
+    /// namespace, fetched from that namespace's base; the digest's first
+    /// eight hex digits are the tag in the file's name.
     #[test]
     fn test_every_row_states_a_prefab_and_one_checkpoint() {
-        use crate::data::builds::GEOMETRY;
+        use crate::{
+            data::builds::GEOMETRY,
+            kits::images::support::card::{
+                LABEL_NAMES,
+                LABELS,
+            },
+        };
         let factory = super::super::default_resnet_factory().unwrap();
         let rows = factory.list();
         for (_, row) in &rows {
@@ -67,7 +73,12 @@ mod tests {
             );
             let map = &row.resource_set();
             map.validate().unwrap();
-            assert_eq!(map.keys(), [CHECKPOINT], "{name}");
+            assert_eq!(map.keys(), [CHECKPOINT, LABEL_NAMES, LABELS], "{name}");
+            assert_eq!(
+                map.get(LABELS).unwrap().name,
+                "imagenet/synsets-1k",
+                "{name}"
+            );
             let checkpoint = map.get(CHECKPOINT).unwrap();
             let namespace = name.segments()[0].as_str();
             assert!(["torchvision", "timm"].contains(&namespace), "{name}");
@@ -137,11 +148,21 @@ mod tests {
     /// the resource keys the loader reads, of the kinds it reads them as.
     #[test]
     fn test_the_contract_is_the_loaders() {
-        use crate::kits::support::pretrained::catalog_contracts::testing::contract_lines;
+        use crate::kits::{
+            images::support::card::{
+                EVAL_TRANSFORM,
+                LABEL_NAMES,
+                LABELS,
+            },
+            support::pretrained::catalog_contracts::testing::contract_lines,
+        };
         assert_eq!(
             contract_lines(RESNET_CONTRACT),
             [
                 format!("resnet-classifier: {CHECKPOINT} [{PYTORCH_FP32}]"),
+                format!("resnet-classifier: {LABEL_NAMES}? [synset-lemmas]"),
+                format!("resnet-classifier: {LABELS}? [synsets]"),
+                format!("resnet-classifier: {EVAL_TRANSFORM}?: \"$object\""),
                 "resnet-classifier: geometry: \"geometry\"".to_string(),
             ]
         );

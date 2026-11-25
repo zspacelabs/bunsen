@@ -47,14 +47,23 @@ use crate::{
         ResultContext,
         WithOkOrPanic,
     },
-    kits::images::classification::resnet::blocks::{
-        BottleneckPolicyConfig,
-        LayerBlock,
-        LayerBlockContractConfig,
-        LayerBlockMeta,
-        LayerBlockStructureConfig,
-        ResidualBlock,
-        ResidualBlockStructureConfig,
+    kits::images::{
+        classification::{
+            driver::ImageClassifier,
+            resnet::blocks::{
+                BottleneckPolicyConfig,
+                LayerBlock,
+                LayerBlockContractConfig,
+                LayerBlockMeta,
+                LayerBlockStructureConfig,
+                ResidualBlock,
+                ResidualBlockStructureConfig,
+            },
+        },
+        support::encoder::{
+            ImageEncoder,
+            ImageFeatures,
+        },
     },
     ops::{
         conv::CONV_INTO_RELU_INITIALIZER,
@@ -522,26 +531,34 @@ impl ResNet {
         }
     }
 
-    /// Forward pass.
+    /// Forward pass: `[batch, channels, height, width]` images to
+    /// `[batch, num_classes]` logits.
     pub fn forward(
         &self,
         input: Tensor<4>,
     ) -> Tensor<2> {
-        // Prep block
-        let x = self.input_cb.forward(input);
-        let x = self.input_pool.forward(x);
+        self.output_fc.forward(self.pooled(input))
+    }
 
-        // Residual blocks
-        let mut x = x;
-        for layer in self.layers.iter() {
-            x = layer.forward(x);
-        }
+    /// The last stage's `[batch, head_planes, h/32, w/32]` map (at the
+    /// default output stride): the stem, its pool, every stage.
+    fn feature_map(
+        &self,
+        input: Tensor<4>,
+    ) -> Tensor<4> {
+        let x = self.input_pool.forward(self.input_cb.forward(input));
+        self.layers.iter().fold(x, |x, layer| layer.forward(x))
+    }
 
-        // Head
-        let x = self.output_pool.forward(x);
-        // Reshape [B, C, 1, 1] -> [B, C]
-        let x = x.flatten(1, 3);
-        self.output_fc.forward(x)
+    /// The `[batch, head_planes]` pooled features: the head's input.
+    fn pooled(
+        &self,
+        input: Tensor<4>,
+    ) -> Tensor<2> {
+        // [B, C, 1, 1] -> [B, C]
+        self.output_pool
+            .forward(self.feature_map(input))
+            .flatten(1, 3)
     }
 
     /// Re-initializes the last layer with the specified number of output
@@ -679,6 +696,61 @@ impl ResNet {
     }
 }
 
+/// `ResNet` as an image encoder: its unpooled features are the last stage's
+/// map; its stages are timm's `feature_info` for a `ResNet`, the stem's
+/// activation (stride 2) and then each stage.
+impl ImageEncoder for ResNet {
+    fn input_channels(&self) -> usize {
+        self.input_cb.conv.weight.dims()[1]
+    }
+
+    fn d_features(&self) -> usize {
+        self.head_planes()
+    }
+
+    fn forward_features(
+        &self,
+        images: Tensor<4>,
+    ) -> ImageFeatures {
+        ImageFeatures::Spatial(self.feature_map(images))
+    }
+
+    fn forward_pooled(
+        &self,
+        images: Tensor<4>,
+    ) -> Tensor<2> {
+        self.pooled(images)
+    }
+
+    fn forward_intermediates(
+        &self,
+        images: Tensor<4>,
+    ) -> Vec<Tensor<4>> {
+        let stem = self.input_cb.forward(images);
+        let mut stages = vec![stem.clone()];
+        let mut x = self.input_pool.forward(stem);
+        for layer in &self.layers {
+            x = layer.forward(x);
+            stages.push(x.clone());
+        }
+        stages
+    }
+}
+
+/// `ResNet` as an image classifier: [`ResNet::forward`]'s logits.
+impl ImageClassifier for ResNet {
+    fn n_classes(&self) -> usize {
+        self.num_classes()
+    }
+
+    fn forward_logits(
+        &self,
+        images: Tensor<4>,
+    ) -> Tensor<2> {
+        self.forward(images)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
@@ -720,7 +792,7 @@ mod tests {
             &device,
             crate::data::formats::LoadPolicy::load_as_stored(),
         )?;
-        let _model: &ResNet = &loaded.handle;
+        let _model: &ResNet = &loaded.handle.model;
         Ok(())
     }
 
@@ -811,6 +883,38 @@ mod tests {
 
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&direct, &structure);
+    }
+
+    /// The seam: stage outputs at timm's strides (the stem at 2, the stages
+    /// at 4 and 8 for two stages), pooled features of the head's width, the
+    /// head's classes, all through a `dyn ImageClassifier`.
+    #[test]
+    fn test_the_image_classifier_seam() {
+        let device = cpu_device();
+        let model: ResNet = ResNetContractConfig::new(vec![1, 1], 7)
+            .with_stem_width(8)
+            .init(&device);
+        let classifier: &dyn ImageClassifier = &model;
+        let images = Tensor::<4>::zeros([2, 3, 32, 32], &device);
+
+        assert_eq!(classifier.input_channels(), 3);
+        assert_eq!(classifier.n_classes(), 7);
+        assert_eq!(classifier.d_features(), model.head_planes());
+        let stages: Vec<_> = classifier
+            .forward_intermediates(images.clone())
+            .iter()
+            .map(|x| x.dims())
+            .collect();
+        assert_eq!(stages, [[2, 8, 16, 16], [2, 8, 8, 8], [2, 16, 4, 4]]);
+        let ImageFeatures::Spatial(features) = classifier.forward_features(images.clone()) else {
+            panic!("a conv net's features are spatial");
+        };
+        assert_eq!(features.dims(), [2, 16, 4, 4]);
+        assert_eq!(classifier.forward_pooled(images.clone()).dims(), [2, 16]);
+        classifier
+            .forward_logits(images.clone())
+            .to_data()
+            .assert_eq(&model.forward(images).to_data(), true);
     }
 
     /// A structure with no stages is an error from `try_init`, not a panic:

@@ -248,7 +248,9 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
                 bunsen::data::formats::LoadPolicy::performance(),
             )?;
 
-            Arc::unwrap_or_clone(loaded.handle).map(&mut DTypeMapper::new(old_float_type))
+            Arc::unwrap_or_clone(loaded.handle)
+                .model
+                .map(&mut DTypeMapper::new(old_float_type))
         }
         None => resnet,
     }

@@ -49,6 +49,7 @@
 //! )?;
 //!
 //! let model: ResNet = Arc::unwrap_or_clone(loaded.handle)
+//!     .model
 //!     // re-head the model to 10 classes:
 //!     .with_classes(10)
 //!     // Enable (drop_block_prob) stochastic block drops for training:
