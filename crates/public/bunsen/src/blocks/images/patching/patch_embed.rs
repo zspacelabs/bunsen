@@ -86,6 +86,12 @@ pub struct PatchEmbedConfig {
     /// Enable patch normalization.
     #[config(default = true)]
     enable_patch_norm: bool,
+
+    /// Whether the projection has a bias. timm's `PatchEmbed` has one,
+    /// except under a pre-norm `ViT` (CLIP's), which normalises the tokens
+    /// before the first block.
+    #[config(default = true)]
+    bias: bool,
 }
 
 impl PatchEmbedMeta for PatchEmbedConfig {
@@ -129,6 +135,7 @@ impl ModuleInit<PatchEmbed> for PatchEmbedConfig {
             patch_size: self.patch_size,
             projection: Conv2dConfig::new([self.d_input, self.d_output], stride)
                 .with_stride(stride)
+                .with_bias(self.bias)
                 .init(device),
             norm: match self.enable_patch_norm {
                 true => Some(LayerNormConfig::new(self.d_output()).init(device)),
@@ -140,7 +147,10 @@ impl ModuleInit<PatchEmbed> for PatchEmbedConfig {
     }
 }
 
-/// SWIN-Transformer v2 `PatchEmbed` module.
+/// A patch embedding: a strided `patch_size` conv that cuts an image into
+/// square patches and projects each to a token, then flattens the grid to a
+/// row-major sequence, and optionally normalises each token: timm's
+/// `PatchEmbed` (a `ViT`'s stem, and a Swin's, with the norm).
 ///
 /// Built by [`PatchEmbedConfig`].
 #[derive(Module, Debug)]
@@ -267,6 +277,7 @@ mod tests {
             d_input: 3,
             d_output: 768,
             enable_patch_norm: true,
+            bias: true,
         };
 
         assert_eq!(config.input_resolution(), [224, 224]);
@@ -306,6 +317,7 @@ mod tests {
             d_input: 3,
             d_output: 768,
             enable_patch_norm: true,
+            bias: true,
         };
         let device = cpu_device();
         let _d: PatchEmbed = config.try_init(&device).ok_or_panic();
@@ -319,6 +331,7 @@ mod tests {
             d_input: 3,
             d_output: 768,
             enable_patch_norm: true,
+            bias: true,
         };
         let device = cpu_device();
         let patch_embed = config.try_init(&device).ok_or_panic();
@@ -332,6 +345,18 @@ mod tests {
         assert_eq!(output.dims(), [1, 196, 768]);
     }
 
+    /// A pre-norm `ViT`'s patch embedding has no conv bias.
+    #[test]
+    fn test_patch_embed_without_bias() {
+        let device = cpu_device();
+        let with: PatchEmbed = PatchEmbedConfig::new([32, 32], 16, 3, 8).init(&device);
+        assert!(with.projection.bias.is_some());
+        let without: PatchEmbed = PatchEmbedConfig::new([32, 32], 16, 3, 8)
+            .with_bias(false)
+            .init(&device);
+        assert!(without.projection.bias.is_none());
+    }
+
     #[test]
     fn test_patch_embed_without_norm() {
         let config = PatchEmbedConfig {
@@ -340,6 +365,7 @@ mod tests {
             d_input: 3,
             d_output: 768,
             enable_patch_norm: false,
+            bias: true,
         };
         let device = cpu_device();
         let patch_embed = config.try_init(&device).ok_or_panic();

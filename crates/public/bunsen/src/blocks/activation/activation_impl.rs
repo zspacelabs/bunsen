@@ -42,6 +42,7 @@ use burn::{
 use super::{
     PowActivation,
     PowActivationConfig,
+    QuickGelu,
     SnakeActivation,
     SnakeActivationConfig,
 };
@@ -121,6 +122,9 @@ pub enum BunsenActivationConfig {
     /// `x^p`, for the exponent `p`.
     Pow(f64),
 
+    /// `x · sigmoid(1.702 x)`, CLIP's approximation of `GELU`: [`QuickGelu`].
+    QuickGelu,
+
     /// Snake or `SnakeBeta`, per channel on axis 1: [`SnakeActivation`].
     Snake(SnakeActivationConfig),
 
@@ -158,6 +162,7 @@ impl ModuleInit<BunsenActivation> for BunsenActivationConfig {
             Self::Pow(exponent) => {
                 BunsenActivation::Pow(PowActivationConfig::new(*exponent).try_init(device)?)
             }
+            Self::QuickGelu => BunsenActivation::QuickGelu(QuickGelu::new()),
             Self::Snake(config) => BunsenActivation::Snake(config.try_init(device)?),
             Self::Chain(kinds) => BunsenActivation::Chain(
                 kinds
@@ -233,6 +238,9 @@ pub enum BunsenActivation {
     /// `x^p`: [`PowActivation`].
     Pow(PowActivation),
 
+    /// `x · sigmoid(1.702 x)`: [`QuickGelu`].
+    QuickGelu(QuickGelu),
+
     /// Snake or `SnakeBeta`: [`SnakeActivation`].
     Snake(SnakeActivation),
 
@@ -267,6 +275,7 @@ impl BunsenActivation {
             Self::Shrink(layer) => layer.forward(input),
             Self::Silu(layer) => layer.forward(input),
             Self::Pow(op) => op.forward(input),
+            Self::QuickGelu(layer) => layer.forward(input),
             Self::Snake(layer) => layer.forward(input),
             Self::Chain(layers) => layers.iter().fold(input, |x, layer| layer.forward(x)),
         }
@@ -328,6 +337,10 @@ mod tests {
                 [-0.2384058, -0.1887703, 0.0, 0.7310586, 2.857722],
             ),
             (BunsenActivationConfig::Pow(2.0), [4.0, 0.25, 0.0, 1.0, 9.0]),
+            (
+                BunsenActivationConfig::QuickGelu,
+                [-0.06434138, -0.1496116, 0.0, 0.8457958, 2.981929],
+            ),
             (
                 BunsenActivationConfig::Chain(vec![
                     BunsenActivationConfig::Relu,

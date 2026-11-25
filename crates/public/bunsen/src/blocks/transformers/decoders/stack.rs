@@ -911,6 +911,49 @@ impl DecoderStack {
         )
     }
 
+    /// The stack as an encoder over an unpadded input
+    /// ([`encoder_forward`](Self::encoder_forward)), keeping each layer's
+    /// output on the way: what a vision transformer's
+    /// `forward_intermediates` taps.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, seq, d_model]`.
+    ///
+    /// # Returns
+    /// The `[batch, seq, d_model]` output, normalized; and each layer's
+    /// `[batch, seq, d_model]` output, before the final norm.
+    ///
+    /// # Panics
+    /// If the stack has attention-residual routes, whose layers write a bank
+    /// rather than a stream ([`forward_bank`](Self::forward_bank)).
+    pub fn encoder_forward_layers(
+        &self,
+        x: Tensor<3>,
+    ) -> (Tensor<3>, Vec<Tensor<3>>) {
+        assert!(
+            self.routes.is_none(),
+            "a stack with attention-residual routes has no per-layer stream"
+        );
+        let seq = x.dims()[1];
+        let r_emb = self.rotary(seq, &x.device());
+        let mut x = match &self.input_norm {
+            Some(norm) => norm.forward(x),
+            None => x,
+        };
+        let mut states = Vec::with_capacity(self.layers.len());
+        for (i, layer) in self.layers.iter().enumerate() {
+            x = layer.forward_with_caches(
+                x,
+                r_emb.for_layer(i),
+                &mut None,
+                None,
+                DecoderSideInputs::default(),
+            );
+            states.push(x.clone());
+        }
+        (self.norm.forward(x), states)
+    }
+
     /// [`forward_hidden`](Self::forward_hidden), with `sides`: a condition
     /// and value embeddings for the layers that take them, and a residual
     /// mix around the layers.
@@ -1234,6 +1277,38 @@ mod tests {
                 Tolerance::rel_abs(1e-4, 1e-4),
             );
         }
+    }
+
+    /// An encoder's per-layer outputs are its stream: the last one, normed,
+    /// is [`encoder_forward`](DecoderStack::encoder_forward)'s output.
+    #[test]
+    #[serial]
+    fn test_encoder_forward_layers() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let norm =
+            BunsenNormalizationConfig::Layer(crate::blocks::norm::BunsenLayerNormConfig::new(16));
+        let mut config = UniformStackConfig::new(
+            3,
+            CausalDecoderBlockConfig::new(
+                CausalSelfAttentionConfig::new(4, 4, 16)
+                    .with_norm(None)
+                    .with_mask(AttentionMask::Bidirectional)
+                    .into(),
+                BunsenGatedMlpConfig::new(16, 32).into(),
+            )
+            .with_norm(norm.clone()),
+            norm.clone(),
+            RotaryEmbeddingConfig::unrotated(4),
+        );
+        config.input_norm = Some(norm);
+        let stack: DecoderStack = config.init(&device);
+        let x: Tensor<3> = seeded_tensor(3, [2, 5, 16], Distribution::Default, &device);
+        let (y, states) = stack.encoder_forward_layers(x.clone());
+        assert_eq!(states.len(), 3);
+        let tolerance = Tolerance::rel_abs(1e-5, 1e-5);
+        assert_tensors_close(&y, &stack.encoder_forward(x, None), tolerance);
+        assert_tensors_close(&stack.norm.forward(states[2].clone()), &y, tolerance);
     }
 
     /// Routes read each sublayer's update alone, which a post-norm layer
