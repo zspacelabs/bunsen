@@ -55,12 +55,16 @@ pub trait ConvStemMeta {
 ///
 /// A seam: each kind is a module of its own. Built: a max pool (`ResNet`'s
 /// `3x3`, stride 2), and the anti-aliased nets' (timm's `aa_layer`): an
-/// average pool, or a max pool of stride 1 and a blur of the stride.
-/// `ResNet-RS`'s conv pool is a further kind.
+/// average pool, or a max pool of stride 1 and a blur of the stride; and
+/// `ResNet-RS`'s strided conv block.
 #[derive(Config, Debug)]
 pub enum ConvStemPoolConfig {
     /// A max pool.
     Max(MaxPool2dConfig),
+
+    /// A strided conv, its norm and its activation (timm's
+    /// `replace_stem_pool`).
+    Conv(ConvBlock2dConfig),
 
     /// An average pool.
     Avg(AvgPool2dConfig),
@@ -74,6 +78,7 @@ impl ConvStemPoolConfig {
     pub fn stride(&self) -> usize {
         match self {
             Self::Max(config) => config.strides[0],
+            Self::Conv(config) => config.stride()[0],
             Self::Avg(config) => config.strides[0],
             Self::MaxBlur(config) => config.max.strides[0] * config.blur.stride(),
         }
@@ -83,10 +88,14 @@ impl ConvStemPoolConfig {
     ///
     /// # Errors
     ///
-    /// As [`BlurPool2dConfig::try_init`].
-    pub fn try_init(&self) -> BunsenResult<ConvStemPool> {
+    /// As [`BlurPool2dConfig::try_init`] and the conv block's `try_init`.
+    pub fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<ConvStemPool> {
         Ok(match self {
             Self::Max(config) => ConvStemPool::Max(config.init()),
+            Self::Conv(config) => ConvStemPool::Conv(config.try_init(device)?),
             Self::Avg(config) => ConvStemPool::Avg(config.init()),
             Self::MaxBlur(config) => ConvStemPool::MaxBlur(MaxBlurPool {
                 max: config.max.init(),
@@ -117,12 +126,17 @@ pub struct MaxBlurPool {
     pub blur: BlurPool2d,
 }
 
-/// The stem's pool; built by [`ConvStemPoolConfig`]. No kind has
-/// parameters.
+/// The stem's pool; built by [`ConvStemPoolConfig`]. Only the conv kind has
+/// parameters: `stem.pool.conv` and `stem.pool.norm`.
+// A burn module enum holds its kinds by value, as the other seams do.
+#[allow(clippy::large_enum_variant)]
 #[derive(Module, Debug)]
 pub enum ConvStemPool {
     /// A max pool.
     Max(MaxPool2d),
+
+    /// A strided conv, its norm and its activation.
+    Conv(ConvBlock2d),
 
     /// An average pool.
     Avg(AvgPool2d),
@@ -136,6 +150,7 @@ impl ConvStemPool {
     pub fn stride(&self) -> usize {
         match self {
             Self::Max(pool) => pool.stride[0],
+            Self::Conv(block) => block.stride()[0],
             Self::Avg(pool) => pool.stride[0],
             Self::MaxBlur(pool) => pool.max.stride[0] * pool.blur.stride(),
         }
@@ -149,6 +164,7 @@ impl ConvStemPool {
     ) -> Tensor<4> {
         match self {
             Self::Max(pool) => pool.forward(input),
+            Self::Conv(block) => block.forward(input),
             Self::Avg(pool) => pool.forward(input),
             Self::MaxBlur(pool) => pool.blur.forward(pool.max.forward(input)),
         }
@@ -178,7 +194,10 @@ impl ConvStemMeta for ConvStemConfig {
     }
 
     fn out_channels(&self) -> usize {
-        self.convs[self.convs.len() - 1].out_channels()
+        match &self.pool {
+            Some(ConvStemPoolConfig::Conv(block)) => block.out_channels(),
+            _ => self.convs[self.convs.len() - 1].out_channels(),
+        }
     }
 
     fn stride(&self) -> usize {
@@ -188,7 +207,8 @@ impl ConvStemMeta for ConvStemConfig {
 }
 
 impl ConvStemConfig {
-    /// Checks the stem's shape: convs that are not empty and chain.
+    /// Checks the stem's shape: convs that are not empty and chain, into a
+    /// conv pool's input.
     ///
     /// # Errors
     ///
@@ -208,6 +228,21 @@ impl ConvStemConfig {
                         index: idx,
                         out: format!("{} channels", prev.out_channels()),
                         r#in: format!("{} channels", curr.in_channels()),
+                    },
+                )
+                .into());
+            }
+        }
+        if let Some(ConvStemPoolConfig::Conv(pool)) = &self.pool {
+            let last = &self.convs[self.convs.len() - 1];
+            if pool.in_channels() != last.out_channels() {
+                return Err(ConstraintError::new(
+                    "ConvStemConfig",
+                    "pool",
+                    Rule::Chain {
+                        index: self.convs.len(),
+                        out: format!("{} channels", last.out_channels()),
+                        r#in: format!("{} channels", pool.in_channels()),
                     },
                 )
                 .into());
@@ -237,7 +272,7 @@ impl ModuleInit<ConvStem> for ConvStemConfig {
             pool: self
                 .pool
                 .as_ref()
-                .map(ConvStemPoolConfig::try_init)
+                .map(|pool| pool.try_init(device))
                 .transpose()?,
         })
     }
@@ -261,7 +296,10 @@ impl ConvStemMeta for ConvStem {
     }
 
     fn out_channels(&self) -> usize {
-        self.convs[self.convs.len() - 1].out_channels()
+        match &self.pool {
+            Some(ConvStemPool::Conv(block)) => block.out_channels(),
+            _ => self.convs[self.convs.len() - 1].out_channels(),
+        }
     }
 
     fn stride(&self) -> usize {

@@ -79,6 +79,7 @@ impl ResNetStateLayout {
 /// |---|---|
 /// | `conv1`, `bn1` | `stem.convs.0.conv`, `stem.convs.0.norm` |
 /// | a deep stem's `conv1.{3k}`, `conv1.{3k+1}`, the last's `bn1` | `stem.convs.{k}.conv`, `stem.convs.{k}.norm` |
+/// | `ResNet-RS`'s conv pool, `maxpool.0`, `maxpool.1` | `stem.pool.conv`, `stem.pool.norm` |
 /// | `layer1` … `layer4` | `stages.0` … `stages.3`, each block `j` as `units.j` |
 /// | a block's `conv{k}`, `bn{k}` | its `convs.{k-1}.conv`, `convs.{k-1}.norm` |
 /// | a block's `downsample.0`, `downsample.1` | its `shortcut.conv`, `shortcut.norm` |
@@ -133,6 +134,8 @@ pub fn resnet_rekey(layout: ResNetStateLayout) -> Rekey {
     }
     rekey
         .rename("bn1.", format!("stem.convs.{last}.norm."))
+        .rename("maxpool.0.", "stem.pool.conv.")
+        .rename("maxpool.1.", "stem.pool.norm.")
         .rename("fc.", "head.fc.")
         .mount_indexed_with(
             "layer",
@@ -201,6 +204,8 @@ mod tests {
             ),
             ("conv1.6.weight", Some("stem.convs.2.conv.weight")),
             ("bn1.weight", Some("stem.convs.2.norm.weight")),
+            ("maxpool.0.weight", Some("stem.pool.conv.weight")),
+            ("maxpool.1.running_var", Some("stem.pool.norm.running_var")),
             (
                 "layer2.0.downsample.1.weight",
                 Some("stages.1.units.0.shortcut.conv.weight"),

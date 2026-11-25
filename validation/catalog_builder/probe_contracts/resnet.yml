@@ -42,6 +42,7 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
+        replace_stem_pool: false
         stem_type: Single
         stem_width: 64
       eval_transform:
@@ -98,6 +99,7 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
+        replace_stem_pool: false
         stem_type: Single
         stem_width: 64
       eval_transform:
@@ -157,6 +159,7 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
+        replace_stem_pool: false
         stem_type: Single
         stem_width: 64
       eval_transform:
@@ -216,6 +219,7 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
+        replace_stem_pool: false
         stem_type: Single
         stem_width: 64
       eval_transform:
@@ -275,6 +279,7 @@ torchvision:
             num_features: 0
         num_classes: 1000
         output_stride: 32
+        replace_stem_pool: false
         stem_type: Single
         stem_width: 64
       eval_transform:
@@ -3360,6 +3365,174 @@ timm:
     $hub:
       $repo: timm/seresnextaa201d_32x8d.sw_in12k_ft_in1k_384
       $revision: 0caab200d18c73533ddf243f37ab495a25929a00
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnetrs50.tf_in1k:
+    $kind: build
+    $description: "timm's `resnetrs50`, its `tf_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnetrs50.tf_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnetrs50.tf_in1k
+      $revision: 1b66548e7ab48b61705c11b3df4968da59048b93
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnetrs101.tf_in1k:
+    $kind: build
+    $description: "timm's `resnetrs101`, its `tf_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnetrs101.tf_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnetrs101.tf_in1k
+      $revision: d1a8d390d7e4592806412cbb21c173a32a0e90f3
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnetrs152.tf_in1k:
+    $kind: build
+    $description: "timm's `resnetrs152`, its `tf_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnetrs152.tf_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnetrs152.tf_in1k
+      $revision: 7407e1efa10f0e7dc2cbed26b43d851cb9bc6dde
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnetrs200.tf_in1k:
+    $kind: build
+    $description: "timm's `resnetrs200`, its `tf_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnetrs200.tf_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnetrs200.tf_in1k
+      $revision: 97ab648651cbf3a4593b5e9bb5f0247be2494573
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnetrs270.tf_in1k:
+    $kind: build
+    $description: "timm's `resnetrs270`, its `tf_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnetrs270.tf_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnetrs270.tf_in1k
+      $revision: 08bd657bdde3ee65932ea71c05fb3153d9336716
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnetrs350.tf_in1k:
+    $kind: build
+    $description: "timm's `resnetrs350`, its `tf_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnetrs350.tf_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnetrs350.tf_in1k
+      $revision: 173e8a6452b99d49e819ec9df33023c71abef75f
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnetrs420.tf_in1k:
+    $kind: build
+    $description: "timm's `resnetrs420`, its `tf_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnetrs420.tf_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/resnetrs420.tf_in1k
+      $revision: c6f57fb3af4d3247f72a8b9110f939ffb638b5c0
     $resources:
       checkpoint: checkpoint
       config: config

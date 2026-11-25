@@ -166,6 +166,11 @@ pub struct ResNetContractConfig {
     #[config(default = "None")]
     pub anti_alias: Option<ConvAaKind>,
 
+    /// The stem's max pool replaced by a `3x3` conv of stride 2, its norm and
+    /// its activation (timm's `replace_stem_pool`, `ResNet-RS`'s).
+    #[config(default = "false")]
+    pub replace_stem_pool: bool,
+
     /// The net's stride at its last stage: 32, or 16 or 8 for a dilated net.
     #[config(default = "32")]
     pub output_stride: usize,
@@ -208,7 +213,9 @@ impl ResNetContractConfig {
     /// # Errors
     ///
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when `channels`
-    /// doesn't give one width per stage.
+    /// doesn't give one width per stage;
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
+    /// replaced stem pool with anti-aliasing.
     pub fn try_to_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         if self.channels.len() != self.layers.len() {
             return Err(BunsenError::illegal(format!(
@@ -248,10 +255,17 @@ impl ResNetContractConfig {
                 ConvStemContractConfig::new(vec![3 * (w / 4), w, 2 * w]).with_kernel_size(3)
             }
         };
-        let stem = stem.with_pool(match self.anti_alias {
-            None => ConvStemPoolKind::Max,
-            Some(ConvAaKind::Avg) => ConvStemPoolKind::Avg,
-            Some(ConvAaKind::Blur) => ConvStemPoolKind::MaxBlur,
+        let stem = stem.with_pool(match (self.replace_stem_pool, self.anti_alias) {
+            (true, None) => ConvStemPoolKind::Conv,
+            (true, Some(_)) => {
+                return Err(BunsenError::unsupported(
+                    "ResNetContractConfig: an anti-aliased conv stem pool (timm's \
+                     replace_stem_pool with an aa_layer) is not built",
+                ));
+            }
+            (false, None) => ConvStemPoolKind::Max,
+            (false, Some(ConvAaKind::Avg)) => ConvStemPoolKind::Avg,
+            (false, Some(ConvAaKind::Blur)) => ConvStemPoolKind::MaxBlur,
         });
         let shortcut = if self.avg_down {
             ConvShortcutKind::AvgConv

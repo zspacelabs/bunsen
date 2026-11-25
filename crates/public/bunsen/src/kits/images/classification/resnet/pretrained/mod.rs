@@ -8,20 +8,21 @@
 //!
 //! The geometries are
 //! [`ResNetContractConfig`](crate::kits::images::classification::resnet::ResNetContractConfig)'
-//! s prefabs: 69
+//! s prefabs: 76
 //! [`ResNetContractConfig`](super::ResNetContractConfig)s by timm's
 //! architecture names (`resnet18` to `resnet152`, `resnet50_gn`, the deep-
 //! and tiered-stem C, D, S and T variants, the `ResNeXt`s, the wide
-//! `ResNet`s, the squeeze-excite and ECA nets, and the anti-aliased nets),
+//! `ResNet`s, the squeeze-excite and ECA nets, the anti-aliased nets, and the
+//! `ResNet-RS`s),
 //! each with 1000 classes.
-//! The checkpoints are 133 rows, the
+//! The checkpoints are 140 rows, the
 //! built-in catalog's builds of [`RESNET_CATALOG_CONTRACT`], in two namespaces,
 //! each row binding `ImageNet`-1k's labels:
 //!
 //! - `torchvision`: the reference `ImageNet` weights, five rows. Each states
 //!   the prefab geometry it instantiates and its eval transform, and is one
 //!   `.pth` file under torchvision's base URL, pinned to its digest.
-//! - `timm`: 128 timm hub repos of the prefabs' architectures
+//! - `timm`: 135 timm hub repos of the prefabs' architectures
 //!   (`timm/resnet50.a1_in1k`), written by the catalog builder's `timm-rows`:
 //!   the `ResNet` Strikes Back recipes, timm's own, torchvision's (v1 for the
 //!   architectures with no `torchvision` row, and v2), Gluon's, and Facebook's
