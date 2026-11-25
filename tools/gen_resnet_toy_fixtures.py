@@ -1,6 +1,6 @@
 """Generate the resnet kit's toy fixtures: tiny seeded timm `ResNet`s and their answers.
 
-Three toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
+Four toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
 narrow stage widths (its `channels`), on timm's fixed 64-wide 7x7 stem, 10 classes (timm's
 forward runs exactly four stages):
 
@@ -9,7 +9,9 @@ forward runs exactly four stages):
 - `toy_bottleneck`: `Bottleneck`s of `(8, 16, 32, 64)` planes, `(32, 64, 128, 256)` out (4x
   the planes), each with a downsample;
 - `toy_gn`: `Bottleneck`s of 32 planes in every stage, 128 out, with timm's `groupnorm`
-  (32 groups) for every norm, as `resnet50_gn` has.
+  (32 groups) for every norm, as `resnet50_gn` has;
+- `toy_resnext`: `Bottleneck`s of `(8, 16, 32, 64)` planes whose mixers are 4 groups of
+  `base_width=16` per 64 planes (`(8, 16, 32, 64)` wide), as a `resnext50_32x4d`'s are.
 
 The toy test builds each as bunsen's `ResNetContractConfig`, with the same `channels`.
 
@@ -52,6 +54,7 @@ TOYS = {
     "toy_basic": dict(block=BasicBlock, channels=(8, 16, 32, 64)),
     "toy_bottleneck": dict(block=Bottleneck, channels=(8, 16, 32, 64)),
     "toy_gn": dict(block=Bottleneck, channels=(32, 32, 32, 32), norm_layer="groupnorm"),
+    "toy_resnext": dict(block=Bottleneck, channels=(8, 16, 32, 64), cardinality=4, base_width=16),
 }
 
 

@@ -135,8 +135,8 @@ mod tests {
                 other => panic!("{name}: a row in {other}"),
             }
         }
-        assert_eq!(counts, (5, 43));
-        assert_eq!(ResNetContractConfig::PREFABS.len(), 7);
+        assert_eq!(counts, (5, 73));
+        assert_eq!(ResNetContractConfig::PREFABS.len(), 15);
     }
 
     /// The factory answers full names and shorter spellings, torchvision's
@@ -146,7 +146,7 @@ mod tests {
     fn test_the_factory_lists_its_refs() {
         let factory = super::super::default_resnet_factory().unwrap();
         let ids = factory.ids();
-        assert_eq!(ids.len(), 48);
+        assert_eq!(ids.len(), 78);
         assert_eq!(ids[0], "catalog:torchvision/resnet18");
         assert_eq!(ids[5], "catalog:timm/resnet18.a1_in1k");
 

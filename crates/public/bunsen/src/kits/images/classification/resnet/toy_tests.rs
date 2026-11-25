@@ -1,10 +1,11 @@
 //! The toy models against timm's own `ResNet`.
 //!
-//! `testdata/resnet/` holds three tiny seeded timm `ResNet`s and their
+//! `testdata/resnet/` holds four tiny seeded timm `ResNet`s and their
 //! answers, computed in float64 (`tools/gen_resnet_toy_fixtures.py`, timm's
 //! `timm.models.resnet.ResNet`): four stages of one block on its 64-wide 7x7
 //! stem, one of basic blocks and one of bottlenecks at timm's `channels=(8,
-//! 16, 32, 64)`, and one of bottlenecks at 32 planes with timm's group norm.
+//! 16, 32, 64)`, one of bottlenecks at 32 planes with timm's group norm, and
+//! one of grouped bottlenecks (`ResNeXt`'s).
 //! Each is the [`ResNetContractConfig`] of the same knobs. The weights, under
 //! timm's names, load through [`load_resnet_tensors`]; each stage output, the
 //! pooled features and the logits are checked against timm's.
@@ -17,6 +18,7 @@ use burn::{
 };
 
 use super::{
+    BottleneckPolicyConfig,
     ResNetContractConfig,
     interop::torchvision::load_resnet_tensors,
 };
@@ -116,5 +118,18 @@ fn test_group_norm_toy_is_timms() {
     check_toy(
         "toy_gn",
         toy_policy(true, [32; 4]).with_normalization(GroupNormConfig::new(32, 0).into()),
+    );
+}
+
+/// Grouped mixers: 4 groups of `base_width` 16 per 64 planes.
+#[test]
+fn test_resnext_toy_is_timms() {
+    check_toy(
+        "toy_resnext",
+        toy_policy(true, [8, 16, 32, 64]).with_bottleneck_policy(Some(
+            BottleneckPolicyConfig::new()
+                .with_cardinality(4)
+                .with_base_width(16),
+        )),
     );
 }
