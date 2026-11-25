@@ -23,8 +23,10 @@ use bunsen_tool::{
 };
 use bunsen_tool::{
     chat::ChatCommandGroup,
+    classify::ClassifyCommandGroup,
     decide::DecideCommandGroup,
     devices::DevicesCommand,
+    embed::EmbedCommandGroup,
     summary::SummaryCommand,
     support::did_you_mean,
     text::TextCommandGroup,
@@ -43,7 +45,9 @@ use clap::{
 /// Qwen3-TTS;
 /// `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or
 /// nanochat checkpoint; `bunsen-tool decide` answers typed questions about a
-/// context with a Laya decision model; `bunsen-tool text` normalizes text on
+/// context with a Laya decision model; `bunsen-tool classify` and
+/// `bunsen-tool embed` classify images and compute their features with a timm
+/// or torchvision checkpoint; `bunsen-tool text` normalizes text on
 /// its own; `bunsen-tool cache` manages the weights
 /// cache every command loads through; `bunsen-tool summary` lists the builds
 /// it runs, in brief; `bunsen-tool devices` lists the backends
@@ -84,6 +88,19 @@ enum Command {
     /// (`decide run`), one result per question out; and the checkpoints
     /// (`decide list`, `decide fetch`).
     Decide(DecideCommandGroup),
+
+    /// Image classification with a timm or torchvision checkpoint.
+    ///
+    /// Image files to their top classes, each through the checkpoint's own
+    /// eval transform (`classify run`); and the checkpoints (`classify list`,
+    /// `classify fetch`).
+    Classify(ClassifyCommandGroup),
+
+    /// Image features with a timm or torchvision checkpoint.
+    ///
+    /// Image files to their pooled features, written as safetensors (`embed
+    /// run`).
+    Embed(EmbedCommandGroup),
 
     /// Text normalization on its own: what TTS speaks and WER compares.
     ///
@@ -170,6 +187,8 @@ fn run(
         Command::Tts(cmd) => cmd.run(leaf(matches)),
         Command::Chat(cmd) => cmd.run(leaf(matches)),
         Command::Decide(cmd) => cmd.run(leaf(matches)),
+        Command::Classify(cmd) => cmd.run(),
+        Command::Embed(cmd) => cmd.run(),
         Command::Text(cmd) => cmd.run(),
         Command::Cache(cmd) => cmd.run(),
         Command::Catalog(cmd) => cmd.run(
@@ -213,6 +232,40 @@ mod tests {
         ] {
             Args::try_parse_from(argv).unwrap_or_else(|e| panic!("{argv:?}: {e}"));
         }
+    }
+
+    /// `classify`'s and `embed`'s commands parse.
+    #[test]
+    fn test_classify_and_embed_parse() {
+        for argv in [
+            &[
+                "bunsen-tool",
+                "classify",
+                "run",
+                "--model",
+                "torchvision/resnet50",
+                "-k",
+                "3",
+                "--format",
+                "json",
+                "cat.jpg",
+                "dog.png",
+            ][..],
+            &["bunsen-tool", "classify", "run", "cat.jpg"],
+            &["bunsen-tool", "classify", "list", "--urls"],
+            &["bunsen-tool", "classify", "fetch", "timm/resnet50.a1_in1k"],
+            &[
+                "bunsen-tool",
+                "embed",
+                "run",
+                "-o",
+                "f.safetensors",
+                "cat.jpg",
+            ],
+        ] {
+            Args::try_parse_from(argv).unwrap_or_else(|e| panic!("{argv:?}: {e}"));
+        }
+        assert!(Args::try_parse_from(["bunsen-tool", "classify", "run"]).is_err());
     }
 
     /// `tts`'s commands parse.

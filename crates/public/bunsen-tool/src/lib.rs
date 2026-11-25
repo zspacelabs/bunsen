@@ -4,6 +4,8 @@
 //! (speech to text, and who spoke when), `bunsen-tool chat` (chat with a
 //! Qwen3, Qwen3.5, Gemma or nanochat checkpoint), `bunsen-tool decide`
 //! (typed questions about a context, answered by a Laya decision model),
+//! `bunsen-tool classify` and `bunsen-tool embed` (image classification and
+//! image features with a timm or torchvision checkpoint),
 //! `bunsen-tool text` (text normalization on its own), `bunsen-tool cache`
 //! (the weights cache), `bunsen-tool summary` and `bunsen-tool devices`. Its
 //! README is the binary's guide.
@@ -21,6 +23,8 @@
 //! - [`chat`]: the chat driver; [`chat::ChatCommandGroup`].
 //! - [`decide`]: Laya decisions on typed questions;
 //!   [`decide::DecideCommandGroup`].
+//! - [`classify`]: image classification; [`classify::ClassifyCommandGroup`].
+//! - [`embed`]: image features; [`embed::EmbedCommandGroup`].
 //! - [`text`]: text normalization on its own; [`text::TextCommandGroup`].
 //! - [`summary`] and [`devices`]: the builds this binary runs, in brief, by
 //!   command, contract and publisher; the backends and their devices.
@@ -29,8 +33,10 @@
 #[cfg(feature = "speech")]
 pub mod asr;
 pub mod chat;
+pub mod classify;
 pub mod decide;
 pub mod devices;
+pub mod embed;
 pub mod summary;
 pub mod support;
 pub mod text;

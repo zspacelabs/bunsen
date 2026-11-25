@@ -938,6 +938,7 @@ dependencies = [
  "log",
  "minijinja",
  "minijinja-contrib",
+ "safetensors 0.8.0",
  "serde",
  "serde-saphyr",
  "serde_json",
