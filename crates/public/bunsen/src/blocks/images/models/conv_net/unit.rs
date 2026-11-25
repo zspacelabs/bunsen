@@ -31,14 +31,21 @@ use crate::{
             ConvBlock2dConfig,
             ConvBlock2dMeta,
         },
-        images::drop::{
-            drop_block::{
-                DropBlock2d,
-                DropBlock2dConfig,
+        images::{
+            attention::{
+                ChannelAttention,
+                ChannelAttentionConfig,
+                SqueezeExciteMeta,
             },
-            drop_path::{
-                DropPath,
-                DropPathConfig,
+            drop::{
+                drop_block::{
+                    DropBlock2d,
+                    DropBlock2dConfig,
+                },
+                drop_path::{
+                    DropPath,
+                    DropPathConfig,
+                },
             },
         },
         norm::BunsenNormalization,
@@ -457,6 +464,11 @@ pub struct ResidualUnitConfig {
     #[config(default = "None")]
     pub shortcut: Option<ConvShortcutConfig>,
 
+    /// The channel attention over the path's output, before the add (timm's
+    /// `se` slot: squeeze-excite, ECA).
+    #[config(default = "None")]
+    pub attn: Option<ChannelAttentionConfig>,
+
     /// The activation after the add.
     #[config(default = "Some(BunsenActivationConfig::Relu)")]
     pub act: Option<BunsenActivationConfig>,
@@ -562,6 +574,20 @@ impl ResidualUnitConfig {
             }
             None => {}
         }
+        if let Some(ChannelAttentionConfig::Se(se)) = &self.attn
+            && se.channels() != out_channels
+        {
+            return Err(ConstraintError::new(
+                OWNER,
+                "attn",
+                Rule::Relation {
+                    lhs: ("attn channels".into(), format!("{}", se.channels())),
+                    op: "==",
+                    rhs: ("path out_channels".into(), format!("{out_channels}")),
+                },
+            )
+            .into());
+        }
         try_probability(self.drop_path_prob).context("drop_path_prob")?;
         Ok(())
     }
@@ -590,6 +616,7 @@ impl ModuleInit<ResidualUnit> for ResidualUnitConfig {
                 .as_ref()
                 .map(|s| s.try_init(device))
                 .transpose()?,
+            attn: self.attn.as_ref().map(|a| a.try_init(device)).transpose()?,
             act: self.act.as_ref().map(|a| a.init(device)),
             drop_block: self
                 .drop_block
@@ -614,8 +641,9 @@ fn drop_path_layer(
 
 /// A residual unit: a conv path added to a shortcut, then an activation.
 ///
-/// `act(shortcut(x) + drop_path(path(x)))`, where the path runs `convs` in
-/// order and a drop block follows the mixer's norm. The shortcut is the
+/// `act(shortcut(x) + drop_path(attn(path(x))))`, where the path runs
+/// `convs` in order and a drop block follows the mixer's norm, and `attn` is
+/// the channel attention, when there is one. The shortcut is the
 /// identity when there is none. Built by [`ResidualUnitConfig`].
 ///
 /// Implements [`ResidualUnitMeta`].
@@ -629,6 +657,9 @@ pub struct ResidualUnit {
 
     /// The shortcut; the identity when none.
     pub shortcut: Option<ConvShortcut>,
+
+    /// The channel attention over the path's output.
+    pub attn: Option<ChannelAttention>,
 
     /// The activation after the add.
     pub act: Option<BunsenActivation>,
@@ -693,6 +724,9 @@ impl ResidualUnit {
                 }
                 _ => conv.forward(x),
             };
+        }
+        if let Some(attn) = &self.attn {
+            x = attn.forward(x);
         }
         if let Some(drop_path) = &self.drop_path {
             x = drop_path.forward(x);

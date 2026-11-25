@@ -249,4 +249,16 @@ mod timm {
     fn resnet50s_gluon_in1k() {
         check_row("timm/resnet50s.gluon_in1k");
     }
+
+    #[test]
+    #[serial_test::serial]
+    fn seresnet50_a1_in1k() {
+        check_row("timm/seresnet50.a1_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn ecaresnet50d_miil_in1k() {
+        check_row("timm/ecaresnet50d.miil_in1k");
+    }
 }

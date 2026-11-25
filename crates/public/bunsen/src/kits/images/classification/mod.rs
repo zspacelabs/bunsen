@@ -10,9 +10,10 @@
 //!
 //! - [`resnet`]: the `ResNet` family, built as the generic conv net
 //!   ([`ConvNetModel`](crate::blocks::images::models::conv_net::ConvNetModel)).
-//!   33 prefabs (`resnet18` to `resnet152`, `resnet50_gn`, the C, D, S and T
-//!   variants, the `ResNeXt`s and the wide `ResNet`s), and 103 pretrained rows,
-//!   torchvision's and `timm`'s hub repos, loaded by name through
+//!   58 prefabs (`resnet18` to `resnet152`, `resnet50_gn`, the C, D, S and T
+//!   variants, the `ResNeXt`s, the wide `ResNet`s, and the squeeze-excite and
+//!   ECA nets), and 125 pretrained rows, torchvision's and `timm`'s hub repos,
+//!   loaded by name through
 //!   [`default_resnet_factory`](resnet::pretrained::default_resnet_factory).
 //!   Its [compatibility](resnet#compatibility) section lists what of `timm`'s
 //!   `ResNet` is missing.

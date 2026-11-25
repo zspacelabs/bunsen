@@ -14,6 +14,7 @@ use crate::{
     blocks::{
         activation::BunsenActivationConfig,
         images::models::conv_net::{
+            ConvAttentionKind,
             ConvLayersConfig,
             ConvNetContractConfig,
             ConvNetStructureConfig,
@@ -149,6 +150,12 @@ pub struct ResNetContractConfig {
     #[config(default = "false")]
     pub avg_down: bool,
 
+    /// Each unit's channel attention, after its last norm (timm's
+    /// `block_args.attn_layer`): `'se'` is
+    /// [`ConvAttentionKind::SE`], `'eca'` [`ConvAttentionKind::Eca`].
+    #[config(default = "None")]
+    pub attention: Option<ConvAttentionKind>,
+
     /// The net's stride at its last stage: 32, or 16 or 8 for a dilated net.
     #[config(default = "32")]
     pub output_stride: usize,
@@ -242,7 +249,8 @@ impl ResNetContractConfig {
                 ConvLayersConfig::new()
                     .with_norm(self.normalization.clone())
                     .with_act(self.activation.clone())
-                    .with_shortcut(shortcut),
+                    .with_shortcut(shortcut)
+                    .with_attn(self.attention),
             ))
     }
 

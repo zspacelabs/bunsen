@@ -8,6 +8,7 @@ use alloc::{
 use burn::nn::GroupNormConfig;
 
 use crate::{
+    blocks::images::models::conv_net::ConvAttentionKind,
     data::pretrained::{
         PrefabTable,
         Prefabs,
@@ -183,6 +184,173 @@ impl ResNetContractConfig {
             .with_avg_down(true)
     }
 
+    /// The `ecaresnet26t` prefab: ECA-ResNet-26-T: `resnet26t` with ECA.
+    pub fn ecaresnet26t() -> Self {
+        Self::resnet26t().with_attention(Some(ConvAttentionKind::Eca))
+    }
+
+    /// The `ecaresnet50d` prefab: ECA-ResNet-50-D: `resnet50d` with ECA.
+    pub fn ecaresnet50d() -> Self {
+        Self::resnet50d().with_attention(Some(ConvAttentionKind::Eca))
+    }
+
+    /// The `ecaresnet50t` prefab: ECA-ResNet-50-T: `resnet50t` with ECA.
+    pub fn ecaresnet50t() -> Self {
+        Self::resnet50t().with_attention(Some(ConvAttentionKind::Eca))
+    }
+
+    /// The `ecaresnet200d` prefab: ECA-ResNet-200-D: `resnet200d` with ECA.
+    pub fn ecaresnet200d() -> Self {
+        Self::resnet200d().with_attention(Some(ConvAttentionKind::Eca))
+    }
+
+    /// The `ecaresnetlight` prefab: ECA-ResNet-Light [1, 1, 11, 3] Bottleneck,
+    /// average-pool shortcuts, ECA.
+    pub fn ecaresnetlight() -> Self {
+        ResNetContractConfig::new(vec![1, 1, 11, 3], 1000)
+            .with_bottleneck(true)
+            .with_avg_down(true)
+            .with_attention(Some(ConvAttentionKind::Eca))
+    }
+
+    /// The `ecaresnet101d` prefab: ECA-ResNet-101-D: `resnet101d` with ECA.
+    pub fn ecaresnet101d() -> Self {
+        Self::resnet101d().with_attention(Some(ConvAttentionKind::Eca))
+    }
+
+    /// The `ecaresnet269d` prefab: ECA-ResNet-269-D [3, 30, 48, 8] Bottleneck,
+    /// deep stem of width 32, average-pool shortcuts, ECA.
+    pub fn ecaresnet269d() -> Self {
+        Self::deep(vec![3, 30, 48, 8], true, ResNetStemKind::Deep, 32, true)
+            .with_attention(Some(ConvAttentionKind::Eca))
+    }
+
+    /// The `ecaresnext26t_32x4d` prefab: ECA-ResNeXt-26-T [2, 2, 2, 2], 32
+    /// groups of 4, tiered stem of width 32, average-pool shortcuts, ECA.
+    pub fn ecaresnext26t_32x4d() -> Self {
+        Self::grouped(vec![2, 2, 2, 2], 32, 4)
+            .with_stem_type(ResNetStemKind::Tiered)
+            .with_stem_width(32)
+            .with_avg_down(true)
+            .with_attention(Some(ConvAttentionKind::Eca))
+    }
+
+    /// The `ecaresnext50t_32x4d` prefab: ECA-ResNeXt-50-T [3, 4, 6, 3], 32
+    /// groups of 4, tiered stem of width 32, average-pool shortcuts, ECA.
+    pub fn ecaresnext50t_32x4d() -> Self {
+        Self::grouped(vec![3, 4, 6, 3], 32, 4)
+            .with_stem_type(ResNetStemKind::Tiered)
+            .with_stem_width(32)
+            .with_avg_down(true)
+            .with_attention(Some(ConvAttentionKind::Eca))
+    }
+
+    /// The `seresnet18` prefab: SE-ResNet-18: `resnet18` with squeeze-excite.
+    pub fn seresnet18() -> Self {
+        Self::resnet18().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnet34` prefab: SE-ResNet-34: `resnet34` with squeeze-excite.
+    pub fn seresnet34() -> Self {
+        Self::resnet34().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnet50` prefab: SE-ResNet-50: `resnet50` with squeeze-excite.
+    pub fn seresnet50() -> Self {
+        Self::resnet50().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnet50t` prefab: SE-ResNet-50-T: `resnet50t` with
+    /// squeeze-excite.
+    pub fn seresnet50t() -> Self {
+        Self::resnet50t().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnet101` prefab: SE-ResNet-101: `resnet101` with
+    /// squeeze-excite.
+    pub fn seresnet101() -> Self {
+        Self::resnet101().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnet152` prefab: SE-ResNet-152: `resnet152` with
+    /// squeeze-excite.
+    pub fn seresnet152() -> Self {
+        Self::resnet152().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnet152d` prefab: SE-ResNet-152-D: `resnet152d` with
+    /// squeeze-excite.
+    pub fn seresnet152d() -> Self {
+        Self::resnet152d().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnet200d` prefab: SE-ResNet-200-D: `resnet200d` with
+    /// squeeze-excite.
+    pub fn seresnet200d() -> Self {
+        Self::resnet200d().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnet269d` prefab: SE-ResNet-269-D [3, 30, 48, 8] Bottleneck,
+    /// deep stem of width 32, average-pool shortcuts, squeeze-excite.
+    pub fn seresnet269d() -> Self {
+        Self::deep(vec![3, 30, 48, 8], true, ResNetStemKind::Deep, 32, true)
+            .with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnext26d_32x4d` prefab: SE-ResNeXt-26-D [2, 2, 2, 2], 32 groups
+    /// of 4, deep stem of width 32, average-pool shortcuts, squeeze-excite.
+    pub fn seresnext26d_32x4d() -> Self {
+        Self::grouped(vec![2, 2, 2, 2], 32, 4)
+            .with_stem_type(ResNetStemKind::Deep)
+            .with_stem_width(32)
+            .with_avg_down(true)
+            .with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnext26t_32x4d` prefab: SE-ResNeXt-26-T [2, 2, 2, 2], 32 groups
+    /// of 4, tiered stem of width 32, average-pool shortcuts, squeeze-excite.
+    pub fn seresnext26t_32x4d() -> Self {
+        Self::grouped(vec![2, 2, 2, 2], 32, 4)
+            .with_stem_type(ResNetStemKind::Tiered)
+            .with_stem_width(32)
+            .with_avg_down(true)
+            .with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnext50_32x4d` prefab: SE-ResNeXt-50: `resnext50_32x4d` with
+    /// squeeze-excite.
+    pub fn seresnext50_32x4d() -> Self {
+        Self::resnext50_32x4d().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnext101_32x4d` prefab: SE-ResNeXt-101: `resnext101_32x4d` with
+    /// squeeze-excite.
+    pub fn seresnext101_32x4d() -> Self {
+        Self::resnext101_32x4d().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnext101_32x8d` prefab: SE-ResNeXt-101: `resnext101_32x8d` with
+    /// squeeze-excite.
+    pub fn seresnext101_32x8d() -> Self {
+        Self::resnext101_32x8d().with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnext101d_32x8d` prefab: SE-ResNeXt-101-D: `resnext101_32x8d`
+    /// on a deep stem of width 32, average-pool shortcuts, squeeze-excite.
+    pub fn seresnext101d_32x8d() -> Self {
+        Self::resnext101_32x8d()
+            .with_stem_type(ResNetStemKind::Deep)
+            .with_stem_width(32)
+            .with_avg_down(true)
+            .with_attention(Some(ConvAttentionKind::SE))
+    }
+
+    /// The `seresnext101_64x4d` prefab: SE-ResNeXt-101: `resnext101_64x4d` with
+    /// squeeze-excite.
+    pub fn seresnext101_64x4d() -> Self {
+        Self::resnext101_64x4d().with_attention(Some(ConvAttentionKind::SE))
+    }
+
     /// A bottleneck `ResNet` of `layers` whose mixers are `cardinality`
     /// groups of `base_width` channels per 64 planes.
     fn grouped(
@@ -245,12 +413,13 @@ impl ResNetContractConfig {
     }
 }
 
-/// The `ResNet` geometries by name, timm's architecture names: 33
+/// The `ResNet` geometries by name, timm's architecture names: 58
 /// [`ResNetContractConfig`]s, each with 1000 classes: `resnet18` to
 /// `resnet152` and `resnet50_gn`; the deep- and tiered-stem C, D, S and T
 /// variants (`resnet50d`, `resnet10t`, …, `resnext50d_32x4d`); the
-/// `ResNeXt`s, `resnext50_32x4d` to `resnext101_64x4d`; and the wide
-/// `wide_resnet50_2` and `wide_resnet101_2`.
+/// `ResNeXt`s, `resnext50_32x4d` to `resnext101_64x4d`; the wide
+/// `wide_resnet50_2` and `wide_resnet101_2`; and the squeeze-excite and ECA
+/// nets (`seresnet50`, `ecaresnet50d`, …).
 ///
 /// A prefab has no weights. The catalog rows state the geometry of the
 /// prefab they instantiate, and
@@ -290,6 +459,31 @@ impl Prefabs for ResNetContractConfig {
         ("resnext101_64x4d", Self::resnext101_64x4d),
         ("wide_resnet50_2", Self::wide_resnet50_2),
         ("wide_resnet101_2", Self::wide_resnet101_2),
+        ("ecaresnet26t", Self::ecaresnet26t),
+        ("ecaresnet50d", Self::ecaresnet50d),
+        ("ecaresnet50t", Self::ecaresnet50t),
+        ("ecaresnet200d", Self::ecaresnet200d),
+        ("ecaresnetlight", Self::ecaresnetlight),
+        ("ecaresnet101d", Self::ecaresnet101d),
+        ("ecaresnet269d", Self::ecaresnet269d),
+        ("ecaresnext26t_32x4d", Self::ecaresnext26t_32x4d),
+        ("ecaresnext50t_32x4d", Self::ecaresnext50t_32x4d),
+        ("seresnet18", Self::seresnet18),
+        ("seresnet34", Self::seresnet34),
+        ("seresnet50", Self::seresnet50),
+        ("seresnet50t", Self::seresnet50t),
+        ("seresnet101", Self::seresnet101),
+        ("seresnet152", Self::seresnet152),
+        ("seresnet152d", Self::seresnet152d),
+        ("seresnet200d", Self::seresnet200d),
+        ("seresnet269d", Self::seresnet269d),
+        ("seresnext26d_32x4d", Self::seresnext26d_32x4d),
+        ("seresnext26t_32x4d", Self::seresnext26t_32x4d),
+        ("seresnext50_32x4d", Self::seresnext50_32x4d),
+        ("seresnext101_32x4d", Self::seresnext101_32x4d),
+        ("seresnext101_32x8d", Self::seresnext101_32x8d),
+        ("seresnext101d_32x8d", Self::seresnext101d_32x8d),
+        ("seresnext101_64x4d", Self::seresnext101_64x4d),
     ];
     const PREFAB_TABLE: &'static str = "resnet";
 }
