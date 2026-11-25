@@ -72,8 +72,8 @@
 //! depths and widths, the classes, the input's channels, the stem's kind,
 //! width and pool, the shortcut's kind, the channel attention, the
 //! anti-aliasing, the output stride, the bottleneck policy with its
-//! cardinality and base width, the norm, a group norm included, and the
-//! activation), and lowers to the generic one
+//! cardinality and base width, the norm, a group norm included, the
+//! activation, and the head's pool and dropout), and lowers to the generic one
 //! ([`try_to_conv_net`](ResNetContractConfig::try_to_conv_net)); `init`
 //! builds the model through it. A geometry the policy cannot express is built
 //! from the generic policy or structure directly.
@@ -88,7 +88,6 @@
 //! for parity with the `timm` library's. The equivalence matrix is a large
 //! amount of work and is not complete. Missing today:
 //!
-//! * head pools other than the average (`max`, `avgmax`, `catavgmax`)
 //! * per-stage unit kinds (`test_resnet`)
 //! * `senet154`'s halved first convs and `3x3` shortcuts
 //! * the pruned ECA nets' per-conv widths (`ecaresnet50d_pruned`)

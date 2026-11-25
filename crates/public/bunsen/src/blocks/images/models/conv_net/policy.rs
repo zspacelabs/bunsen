@@ -472,6 +472,11 @@ pub struct ConvNetContractConfig {
     /// The head's global pool.
     #[config(default = "GlobalPool2dConfig::Avg")]
     pub global_pool: GlobalPool2dConfig,
+
+    /// The dropout before the classifier (timm's `drop_rate`; training
+    /// only).
+    #[config(default = "0.0")]
+    pub drop_rate: f64,
 }
 
 impl ToStructureConfig for ConvNetContractConfig {
@@ -520,7 +525,8 @@ impl ToStructureConfig for ConvNetContractConfig {
             stem,
             stages,
             head: ConvHeadConfig::new(channels, self.num_classes)
-                .with_pool(self.global_pool.clone()),
+                .with_pool(self.global_pool)
+                .with_drop_rate(self.drop_rate),
         })
     }
 }

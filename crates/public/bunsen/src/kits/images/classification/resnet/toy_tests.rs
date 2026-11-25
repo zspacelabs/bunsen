@@ -1,6 +1,6 @@
 //! The toy models against timm's own `ResNet`.
 //!
-//! `testdata/resnet/` holds thirteen tiny seeded timm `ResNet`s and their
+//! `testdata/resnet/` holds fifteen tiny seeded timm `ResNet`s and their
 //! answers, computed in float64 (`tools/gen_resnet_toy_fixtures.py`, timm's
 //! `timm.models.resnet.ResNet`), each four stages of one block: on its
 //! 64-wide 7x7 stem, one of basic blocks and one of bottlenecks at timm's
@@ -9,8 +9,9 @@
 //! stage sizes, a deep stem and a tiered one with average-pool shortcuts, and
 //! the tiered one dilated past stride 8; bottlenecks with timm's
 //! squeeze-excite and with its ECA; and timm's anti-aliasing, a blur (also
-//! dilated past stride 16) and an average pool; and a `ResNet-RS`'s conv
-//! stem pool with its quarter squeeze-excite.
+//! dilated past stride 16) and an average pool; a `ResNet-RS`'s conv stem
+//! pool with its quarter squeeze-excite; and the `catavgmax` and `avgmax`
+//! heads.
 //! Each is the [`ResNetContractConfig`] of the same knobs. The weights, under
 //! timm's names, load through [`load_resnet_tensors`]; each stage output, the
 //! pooled features and the logits are checked against timm's.
@@ -33,6 +34,7 @@ use crate::{
         ConvAaKind,
         ConvAttentionKind,
         ConvNetModel,
+        GlobalPool2dConfig,
     },
     burner::module::ModuleInit,
     kits::images::{
@@ -244,5 +246,28 @@ fn test_rs_toy_is_timms() {
             .with_replace_stem_pool(true)
             .with_avg_down(true)
             .with_attention(Some(ConvAttentionKind::Se { rd_ratio: 0.25 })),
+    );
+}
+
+/// timm's `catavgmax` head: the means and the maxes, concatenated, into a
+/// classifier twice as wide; the head's dropout is a no-op in eval.
+#[test]
+fn test_catavgmax_toy_is_timms() {
+    let policy = toy_policy(true, [8, 16, 32, 64])
+        .with_global_pool(GlobalPool2dConfig::CatAvgMax)
+        .with_drop_rate(0.25);
+    let device = cpu_device();
+    let (model, _) = load_toy("toy_catavgmax", policy.clone(), &device);
+    assert_eq!(model.head.pooled_features(), 512);
+    assert_eq!(ImageEncoder::d_features(&model), 512);
+    check_toy("toy_catavgmax", policy);
+}
+
+/// timm's `avgmax` head: the mean of the means and the maxes.
+#[test]
+fn test_avgmax_toy_is_timms() {
+    check_toy(
+        "toy_avgmax",
+        toy_policy(false, [8, 16, 32, 64]).with_global_pool(GlobalPool2dConfig::AvgMax),
     );
 }

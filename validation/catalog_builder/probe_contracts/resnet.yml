@@ -29,6 +29,8 @@ torchvision:
           - 256
           - 512
         conv_stem_width: 64
+        drop_rate: 0.0
+        global_pool: Avg
         in_channels: 3
         layers:
           - 2
@@ -86,6 +88,8 @@ torchvision:
           - 256
           - 512
         conv_stem_width: 64
+        drop_rate: 0.0
+        global_pool: Avg
         in_channels: 3
         layers:
           - 3
@@ -146,6 +150,8 @@ torchvision:
           - 256
           - 512
         conv_stem_width: 64
+        drop_rate: 0.0
+        global_pool: Avg
         in_channels: 3
         layers:
           - 3
@@ -206,6 +212,8 @@ torchvision:
           - 256
           - 512
         conv_stem_width: 64
+        drop_rate: 0.0
+        global_pool: Avg
         in_channels: 3
         layers:
           - 3
@@ -266,6 +274,8 @@ torchvision:
           - 256
           - 512
         conv_stem_width: 64
+        drop_rate: 0.0
+        global_pool: Avg
         in_channels: 3
         layers:
           - 3
