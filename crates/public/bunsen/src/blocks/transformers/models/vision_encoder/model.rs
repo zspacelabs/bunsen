@@ -16,21 +16,27 @@ use burn::{
 };
 
 use super::{
-    VisionHead,
-    VisionHeadConfig,
+    TokenPool,
+    TokenPoolConfig,
 };
 use crate::{
     blocks::{
-        images::patching::{
-            patch_embed::{
-                PatchEmbed,
-                PatchEmbedConfig,
-                PatchEmbedMeta,
+        images::{
+            models::classifier_head::{
+                ClassifierHead,
+                ClassifierHeadConfig,
             },
-            prefix_tokens::{
-                PrefixTokens,
-                PrefixTokensConfig,
-                PrefixTokensMeta,
+            patching::{
+                patch_embed::{
+                    PatchEmbed,
+                    PatchEmbedConfig,
+                    PatchEmbedMeta,
+                },
+                prefix_tokens::{
+                    PrefixTokens,
+                    PrefixTokensConfig,
+                    PrefixTokensMeta,
+                },
             },
         },
         transformers::decoders::stack::{
@@ -80,7 +86,8 @@ pub trait VisionEncoderMeta {
 }
 
 /// [`VisionEncoderModel`]'s structure: the patch embedding, the prefix
-/// tokens and position embedding, the transformer, and the head.
+/// tokens and position embedding, the transformer, the token pool and the
+/// head.
 ///
 /// A family's policy (`ViTContractConfig`) lowers to it. `try_init` checks
 /// that the parts agree: one width, the tokens over the patch grid, a class
@@ -101,8 +108,13 @@ pub struct VisionEncoderStructureConfig {
     /// (`Identity` when the head normalises after its pool).
     pub stack: DecoderStackStructureConfig,
 
-    /// The head.
-    pub head: VisionHeadConfig,
+    /// The pool over the output tokens.
+    #[config(default = "TokenPoolConfig::Token")]
+    pub pool: TokenPoolConfig,
+
+    /// The head, over the pooled features: distilled for a
+    /// [`Distilled`](TokenPoolConfig::Distilled) pool.
+    pub head: ClassifierHeadConfig,
 }
 
 impl VisionEncoderMeta for VisionEncoderStructureConfig {
@@ -149,7 +161,8 @@ impl VisionEncoderStructureConfig {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when the patch
     /// embedding, the tokens, the transformer and the head are not one
     /// width; when the tokens' patches are not the patch grid's; when the
-    /// head's prefix is not the tokens'; when the stack has
+    /// pool reads more prefix tokens than there are, or the head is distilled
+    /// and the pool not (or the other way); when the stack has
     /// attention-residual routes; or when the images don't divide into
     /// patches.
     pub fn try_validate(&self) -> BunsenResult<()> {
@@ -157,7 +170,7 @@ impl VisionEncoderStructureConfig {
         let widths = [
             ("the patch embedding", self.patch_embed.d_output()),
             ("the prefix tokens", self.tokens.d_model),
-            ("the head", self.head.d_model),
+            ("the head", self.head.d_features),
         ];
         for (part, width) in widths {
             if width != d {
@@ -174,11 +187,13 @@ impl VisionEncoderStructureConfig {
                 self.patch_embed.num_patches()
             )));
         }
-        if self.head.n_prefix != self.tokens.n_prefix() {
+        TokenPool::try_new(self.pool, self.tokens.n_prefix())?;
+        if self.head.distilled != (self.pool == TokenPoolConfig::Distilled) {
             return Err(BunsenError::illegal(format!(
-                "the head skips {} prefix tokens; there are {}",
-                self.head.n_prefix,
-                self.tokens.n_prefix()
+                "a {:?} pool with a head that is {}distilled: a distilled head reads the \
+                 distilled pool's two tokens",
+                self.pool,
+                if self.head.distilled { "" } else { "not " }
             )));
         }
         if self.stack.routes.is_some() {
@@ -206,6 +221,7 @@ impl ModuleInit<VisionEncoderModel> for VisionEncoderStructureConfig {
             patch_embed: self.patch_embed.try_init(device)?,
             tokens: self.tokens.try_init(device).context("the prefix tokens")?,
             stack: self.stack.try_init(device).context("the transformer")?,
+            pool: TokenPool::try_new(self.pool, self.tokens.n_prefix())?,
             head: self.head.try_init(device).context("the head")?,
         })
     }
@@ -213,7 +229,7 @@ impl ModuleInit<VisionEncoderModel> for VisionEncoderStructureConfig {
 
 /// The generic vision encoder: a [`PatchEmbed`], [`PrefixTokens`] with the
 /// learnt position embedding, a [`DecoderStack`] of bidirectional layers,
-/// and a [`VisionHead`]: timm's `VisionTransformer`.
+/// a [`TokenPool`] and a [`ClassifierHead`]: timm's `VisionTransformer`.
 ///
 /// Every `ViT` family is this type, built from its policy.
 /// [`forward`](Self::forward) maps `[batch, in_channels, height, width]`
@@ -237,8 +253,11 @@ pub struct VisionEncoderModel {
     /// The transformer and its norms.
     pub stack: DecoderStack,
 
-    /// The head.
-    pub head: VisionHead,
+    /// The pool over the output tokens.
+    pub pool: TokenPool,
+
+    /// The head, over the pooled features.
+    pub head: ClassifierHead,
 }
 
 impl VisionEncoderMeta for VisionEncoderModel {
@@ -298,7 +317,25 @@ impl VisionEncoderModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<2> {
-        self.head.forward(self.feature_tokens(images))
+        self.logits(self.feature_tokens(images))
+    }
+
+    /// The head's logits of the output tokens: the pool, then the head; for a
+    /// distilled head, its two classifiers over the class and distillation
+    /// tokens.
+    ///
+    /// # Arguments
+    ///
+    /// - `tokens`: `[batch, n_prefix + patches, d_model]`.
+    pub fn logits(
+        &self,
+        tokens: Tensor<3>,
+    ) -> Tensor<2> {
+        if self.head.is_distilled() {
+            let token = |i: usize| tokens.clone().slice(s![.., i..i + 1]).squeeze_dim::<2>(1);
+            return self.head.forward_distilled(token(0), token(1));
+        }
+        self.head.forward(self.pool.forward(tokens))
     }
 
     /// The tokens into the transformer: the patches embedded, the prefix
@@ -350,7 +387,8 @@ impl VisionEncoderModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<2> {
-        self.head.pool(self.feature_tokens(images))
+        self.head
+            .pre_logits(self.pool.forward(self.feature_tokens(images)))
     }
 
     /// Each layer's output as a map over the patch grid, its prefix tokens

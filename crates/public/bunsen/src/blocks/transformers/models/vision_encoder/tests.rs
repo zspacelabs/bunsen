@@ -10,11 +10,11 @@ use super::*;
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        images::patching::{
-            patch_embed::PatchEmbedConfig,
-            prefix_tokens::{
-                PrefixTokensConfig,
-                PrefixTokensMeta,
+        images::{
+            models::classifier_head::ClassifierHeadConfig,
+            patching::{
+                patch_embed::PatchEmbedConfig,
+                prefix_tokens::PrefixTokensConfig,
             },
         },
         mlp::BunsenMlpConfig,
@@ -87,12 +87,11 @@ fn tiny(
     .to_structure();
     VisionEncoderStructureConfig::new(
         PatchEmbedConfig::new([16, 16], 4, 3, d),
-        tokens.clone(),
+        tokens,
         stack,
-        VisionHeadConfig::new(d, 5, tokens.n_prefix())
-            .with_pool(pool)
-            .with_fc_norm(fc_norm.then(|| norm(d))),
+        ClassifierHeadConfig::new(d, 5).with_fc_norm(fc_norm.then(|| norm(d))),
     )
+    .with_pool(pool)
 }
 
 /// The steps' shapes, and the meta of the config and the model agree.
@@ -193,8 +192,11 @@ fn test_disagreeing_parts_are_illegal() {
     config.tokens.n_patches = 9;
     illegal(config, "cover 9 patches; the grid has 16");
     let mut config = tiny(TokenPoolConfig::Token, 0);
-    config.head.n_prefix = 2;
-    illegal(config, "the head skips 2 prefix tokens; there are 1");
+    config.pool = TokenPoolConfig::Distilled;
+    illegal(config, "reads 2 prefix tokens: there are 1");
+    let mut config = tiny(TokenPoolConfig::Token, 0);
+    config.head.distilled = true;
+    illegal(config, "a Token pool with a head that is distilled");
     let mut config = tiny(TokenPoolConfig::Token, 0);
     config.patch_embed = PatchEmbedConfig::new([18, 16], 4, 3, 8);
     illegal(config, "18x16 images don't divide into 4x4 patches");

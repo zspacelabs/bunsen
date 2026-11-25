@@ -236,7 +236,7 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
 
     let resnet: ConvNetModel = match &args.resnet_pretrained {
         Some(pretrained) => {
-            let old_float_type = resnet.head.fc.weight.dtype();
+            let old_float_type = resnet.stem.convs[0].conv.weight.dtype();
 
             // The activation swap is this example's own surgery: the
             // deferred model's hook builds from this config rather than

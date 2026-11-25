@@ -1,7 +1,9 @@
 //! # The generic conv net
 //!
-//! [`ConvNetModel`]: a [`ConvStem`], [`ConvStage`]s of [`ResidualUnit`]s,
-//! and a [`ConvHead`]. It is the one model type of the residual conv-net
+//! [`ConvNetModel`]: a [`ConvStem`], [`ConvStage`]s of [`ResidualUnit`]s, a
+//! [`GlobalPool2d`], and the image models'
+//! [`ClassifierHead`](crate::blocks::images::models::classifier_head::ClassifierHead).
+//! It is the one model type of the residual conv-net
 //! families: a `ResNet` is a `ConvNetModel`, built from
 //! `ResNetContractConfig`. The idea is timm's `byobnet` (a model is a stem,
 //! stage specs and a head, with the layer choices stated once), in bunsen's
@@ -21,7 +23,7 @@
 //!    resolves every unit, once: strides past the output stride become
 //!    dilation, each unit kind becomes its conv path. The result is a
 //!    [`ConvNetStructureConfig`]: the stem's convs, every unit's
-//!    [`ResidualUnitConfig`], the head.
+//!    [`ResidualUnitConfig`], the pool and the head.
 //! 3. `init` builds the [`ConvNetModel`], from the structure or the policy
 //!    (through the blanket [`ModuleInit`](crate::burner::module::ModuleInit)),
 //!    checking that the tree chains.
@@ -72,18 +74,19 @@
 //!   (squeeze-excite, ECA);
 //! - the stem's pool: [`ConvStemPoolKind`] / [`ConvStemPoolConfig`] (max,
 //!   none);
-//! - the head's pool: [`GlobalPool2dConfig`] (average).
+//! - the global pool: [`GlobalPool2dConfig`] (average, max, their mean, their
+//!   concatenation).
 
-mod head;
 mod model;
 mod policy;
+mod pool;
 mod stage;
 mod stem;
 mod unit;
 
-pub use head::*;
 pub use model::*;
 pub use policy::*;
+pub use pool::*;
 pub use stage::*;
 pub use stem::*;
 pub use unit::*;

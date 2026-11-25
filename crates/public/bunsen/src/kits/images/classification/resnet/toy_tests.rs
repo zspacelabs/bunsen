@@ -258,7 +258,7 @@ fn test_catavgmax_toy_is_timms() {
         .with_drop_rate(0.25);
     let device = cpu_device();
     let (model, _) = load_toy("toy_catavgmax", policy.clone(), &device);
-    assert_eq!(model.head.pooled_features(), 512);
+    assert_eq!(model.head.d_features, 512);
     assert_eq!(ImageEncoder::d_features(&model), 512);
     check_toy("toy_catavgmax", policy);
 }
