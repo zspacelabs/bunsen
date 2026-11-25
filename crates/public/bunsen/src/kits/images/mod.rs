@@ -13,6 +13,9 @@
 //! - [`classification`]: image classifiers, the `ResNet` family and Swin
 //!   Transformer V2.
 //!
+//! What the kits share sits in [`support`]: the eval transform that turns a
+//! resized image into a model's input.
+//!
 //! Both families are Stacked configs: a policy config, what the model
 //! means, lowers to a structure config, the unrolled tree, which builds
 //! the module
@@ -27,3 +30,4 @@
 //! `examples/swin_tiny` train them.
 
 pub mod classification;
+pub mod support;
