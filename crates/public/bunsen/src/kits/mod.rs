@@ -14,7 +14,7 @@
 //! | Kit | What it is |
 //! |---|---|
 //! | [`language::decision::laya`] | Laya, an open decision model: a `ModernBERT` encoder and a head that answers typed questions with calibrated probabilities over their options. |
-//! | [`images::classification::resnet`] | `ResNet` image classifiers, with 103 torchvision and `timm` checkpoints by name. |
+//! | [`images::classification::resnet`] | `ResNet` image classifiers, with 125 torchvision and `timm` checkpoints by name. |
 //! | [`images::classification::swin::v2`] | Swin Transformer V2 image classifiers: configs and model, no pretrained weights. |
 //! | [`language::generation::nanochat`] | karpathy's nanochat GPT, upstream's 2025 and 2026 models: a pretrained index of community checkpoints (`nanochat-students/rl-d20` by default), upstream's own checkpoint files loaded as they are, cached decoding, and the corpus it trains on. |
 //! | [`language::generation::qwen3_5`] | The dense Qwen3.5 decoder, a hybrid of gated `DeltaNet` and gated full-attention layers: a pretrained index of its 0.8B to 27B checkpoints' text models (`qwen/qwen3.5-0.8b` by default), and cached decoding through a KV cache and the linear layers' states. |

@@ -19,17 +19,24 @@ use crate::{
     blocks::{
         activation::BunsenActivationConfig,
         conv::ConvBlock2dConfig,
-        images::models::conv_net::{
-            AvgConvShortcutConfig,
-            ConvHeadConfig,
-            ConvNetStructureConfig,
-            ConvShortcutConfig,
-            ConvStageConfig,
-            ConvStemConfig,
-            ConvStemMeta,
-            ConvStemPoolConfig,
-            GlobalPool2dConfig,
-            ResidualUnitConfig,
+        images::{
+            attention::{
+                ChannelAttentionConfig,
+                EcaConfig,
+                SqueezeExciteConfig,
+            },
+            models::conv_net::{
+                AvgConvShortcutConfig,
+                ConvHeadConfig,
+                ConvNetStructureConfig,
+                ConvShortcutConfig,
+                ConvStageConfig,
+                ConvStemConfig,
+                ConvStemMeta,
+                ConvStemPoolConfig,
+                GlobalPool2dConfig,
+                ResidualUnitConfig,
+            },
         },
         norm::BunsenNormalizationConfig,
     },
@@ -74,6 +81,43 @@ pub enum ConvShortcutKind {
     AvgConv,
 }
 
+/// A residual unit's channel attention, as a policy names it: sized from the
+/// unit's output channels when lowered.
+#[derive(Config, Debug, Copy, PartialEq)]
+pub enum ConvAttentionKind {
+    /// Squeeze-and-excitation, its reduction `rd_ratio` of the channels in 8s
+    /// ([`SqueezeExciteConfig::timm`]): timm's `'se'` is 1/16, `ResNet-RS`'s
+    /// 1/4.
+    Se {
+        /// The reduction's share of the channels.
+        rd_ratio: f64,
+    },
+
+    /// Efficient channel attention, its kernel from the channels
+    /// ([`EcaConfig::timm`]): timm's `'eca'`.
+    Eca,
+}
+
+impl ConvAttentionKind {
+    /// timm's `'se'`: a reduction of 1/16.
+    pub const SE: Self = Self::Se {
+        rd_ratio: 1.0 / 16.0,
+    };
+
+    /// The attention over `channels`.
+    pub fn to_config(
+        self,
+        channels: usize,
+    ) -> ChannelAttentionConfig {
+        match self {
+            Self::Se { rd_ratio } => {
+                ChannelAttentionConfig::Se(SqueezeExciteConfig::timm(channels, rd_ratio))
+            }
+            Self::Eca => ChannelAttentionConfig::Eca(EcaConfig::timm(channels)),
+        }
+    }
+}
+
 /// The stem's pool, as a policy names it.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum ConvStemPoolKind {
@@ -100,6 +144,11 @@ pub struct ConvLayersConfig {
     /// The shortcut of a unit that changes the channels or strides.
     #[config(default = "ConvShortcutKind::Conv")]
     pub shortcut: ConvShortcutKind,
+
+    /// Each unit's channel attention, over its path's output; none when
+    /// `None`.
+    #[config(default = "None")]
+    pub attn: Option<ConvAttentionKind>,
 }
 
 impl Default for ConvLayersConfig {
@@ -292,6 +341,7 @@ impl ConvStageContractConfig {
             convs: convs.into_iter().map(Into::into).collect(),
             mixer,
             shortcut,
+            attn: layers.attn.map(|kind| kind.to_config(width)),
             act: Some(layers.act.clone()),
             drop_block: None,
             drop_path_prob: 0.0,

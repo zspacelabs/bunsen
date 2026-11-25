@@ -121,6 +121,8 @@
 //!   `SubpixelUpsample1d` (a sub-pixel convolution), and `EncoderSubsampling`,
 //!   an encoder front end chosen by config.
 //! - [`images`]: vision blocks.
+//!   - [`images::attention`]: channel attention, `SqueezeExcite` and `Eca`,
+//!     behind the `ChannelAttention` seam.
 //!   - [`images::drop`]: structured drop layers, `DropBlock2d` and `DropPath`,
 //!     and the drop-path rate tables.
 //!   - [`images::patching`]: `PatchEmbed`, the Swin Transformer V2 patch

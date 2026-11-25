@@ -395,6 +395,18 @@ crates:
         core: false
         dtypes: [f32]
         varies: a 64-wide deep stem (64, 64, 128) with conv shortcuts
+      timm/seresnet50.a1_in1k:
+        size: small
+        gb: 0.22
+        core: false
+        dtypes: [f32]
+        varies: squeeze-excite after each unit's last norm (reductions of 1/16)
+      timm/ecaresnet50d.miil_in1k:
+        size: small
+        gb: 0.21
+        core: false
+        dtypes: [f32]
+        varies: ECA after each unit's last norm, on a deep stem with average-pool shortcuts
       torchvision/resnet18:
         size: small
         gb: 0.15

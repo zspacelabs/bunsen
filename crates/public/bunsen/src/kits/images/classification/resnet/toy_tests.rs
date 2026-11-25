@@ -1,13 +1,14 @@
 //! The toy models against timm's own `ResNet`.
 //!
-//! `testdata/resnet/` holds seven tiny seeded timm `ResNet`s and their
+//! `testdata/resnet/` holds nine tiny seeded timm `ResNet`s and their
 //! answers, computed in float64 (`tools/gen_resnet_toy_fixtures.py`, timm's
 //! `timm.models.resnet.ResNet`), each four stages of one block: on its
 //! 64-wide 7x7 stem, one of basic blocks and one of bottlenecks at timm's
 //! `channels=(8, 16, 32, 64)`, one of bottlenecks at 32 planes with timm's
 //! group norm, and one of grouped bottlenecks (`ResNeXt`'s); then, on odd
 //! stage sizes, a deep stem and a tiered one with average-pool shortcuts, and
-//! the tiered one dilated past stride 8.
+//! the tiered one dilated past stride 8; and bottlenecks with timm's
+//! squeeze-excite and with its ECA.
 //! Each is the [`ResNetContractConfig`] of the same knobs. The weights, under
 //! timm's names, load through [`load_resnet_tensors`]; each stage output, the
 //! pooled features and the logits are checked against timm's.
@@ -26,7 +27,10 @@ use super::{
     interop::torchvision::load_resnet_tensors,
 };
 use crate::{
-    blocks::images::models::conv_net::ConvNetModel,
+    blocks::images::models::conv_net::{
+        ConvAttentionKind,
+        ConvNetModel,
+    },
     burner::module::ModuleInit,
     kits::images::{
         classification::driver::ImageClassifier,
@@ -168,4 +172,22 @@ fn tiered() -> ResNetContractConfig {
         .with_stem_type(ResNetStemKind::Tiered)
         .with_stem_width(16)
         .with_avg_down(true)
+}
+
+/// timm's `'se'` after each unit's last norm.
+#[test]
+fn test_se_toy_is_timms() {
+    check_toy(
+        "toy_se",
+        toy_policy(true, [8, 16, 32, 64]).with_attention(Some(ConvAttentionKind::SE)),
+    );
+}
+
+/// timm's `'eca'` after each unit's last norm.
+#[test]
+fn test_eca_toy_is_timms() {
+    check_toy(
+        "toy_eca",
+        toy_policy(true, [8, 16, 32, 64]).with_attention(Some(ConvAttentionKind::Eca)),
+    );
 }

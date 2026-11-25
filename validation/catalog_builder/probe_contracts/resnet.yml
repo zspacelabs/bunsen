@@ -19,6 +19,7 @@ torchvision:
     $args:
       geometry:
         activation: Relu
+        attention: null
         avg_down: false
         bottleneck_policy: null
         channels:
@@ -73,6 +74,7 @@ torchvision:
     $args:
       geometry:
         activation: Relu
+        attention: null
         avg_down: false
         bottleneck_policy: null
         channels:
@@ -127,6 +129,7 @@ torchvision:
     $args:
       geometry:
         activation: Relu
+        attention: null
         avg_down: false
         bottleneck_policy:
           base_width: 64
@@ -184,6 +187,7 @@ torchvision:
     $args:
       geometry:
         activation: Relu
+        attention: null
         avg_down: false
         bottleneck_policy:
           base_width: 64
@@ -241,6 +245,7 @@ torchvision:
     $args:
       geometry:
         activation: Relu
+        attention: null
         avg_down: false
         bottleneck_policy:
           base_width: 64
@@ -2630,6 +2635,534 @@ timm:
     $hub:
       $repo: timm/wide_resnet101_2.tv_in1k
       $revision: bc795a74ee598c070c08c538e99c6be1244d1cf0
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  ecaresnet26t.ra2_in1k:
+    $kind: build
+    $description: "timm's `ecaresnet26t`, its `ra2_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/ecaresnet26t.ra2_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/ecaresnet26t.ra2_in1k
+      $revision: ab90506b283999a8fe6f795c3150e32c7688d791
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  ecaresnet50d.miil_in1k:
+    $kind: build
+    $description: "timm's `ecaresnet50d`, its `miil_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/ecaresnet50d.miil_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/ecaresnet50d.miil_in1k
+      $revision: 4efee002ab0e2c26b7a360115f079e96af5f26ab
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  ecaresnet50t.a1_in1k:
+    $kind: build
+    $description: "timm's `ecaresnet50t`, its `a1_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/ecaresnet50t.a1_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/ecaresnet50t.a1_in1k
+      $revision: 018a583ee04990d47ef911b79a2f6f5e1296be57
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  ecaresnet50t.a2_in1k:
+    $kind: build
+    $description: "timm's `ecaresnet50t`, its `a2_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/ecaresnet50t.a2_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/ecaresnet50t.a2_in1k
+      $revision: 423ada53ae64522930bfdfee125570a6ac718db8
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  ecaresnet50t.a3_in1k:
+    $kind: build
+    $description: "timm's `ecaresnet50t`, its `a3_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/ecaresnet50t.a3_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/ecaresnet50t.a3_in1k
+      $revision: 2adbaff5de7ba241400b9e55aad77fbd09c2c3ca
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  ecaresnet50t.ra2_in1k:
+    $kind: build
+    $description: "timm's `ecaresnet50t`, its `ra2_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/ecaresnet50t.ra2_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/ecaresnet50t.ra2_in1k
+      $revision: 6875a28e2b3790b9b9552d228103444c81d9a837
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  ecaresnetlight.miil_in1k:
+    $kind: build
+    $description: "timm's `ecaresnetlight`, its `miil_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/ecaresnetlight.miil_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/ecaresnetlight.miil_in1k
+      $revision: 94c94fb99d32543d71a46834779c17dfa0d13f02
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  ecaresnet101d.miil_in1k:
+    $kind: build
+    $description: "timm's `ecaresnet101d`, its `miil_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/ecaresnet101d.miil_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/ecaresnet101d.miil_in1k
+      $revision: 3276922432d0827568f3cdeba65877f6a823edd8
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  ecaresnet269d.ra2_in1k:
+    $kind: build
+    $description: "timm's `ecaresnet269d`, its `ra2_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/ecaresnet269d.ra2_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/ecaresnet269d.ra2_in1k
+      $revision: 669138fafd572b4e75e4f8bf896ea04e35fd4365
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnet50.a1_in1k:
+    $kind: build
+    $description: "timm's `seresnet50`, its `a1_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnet50.a1_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnet50.a1_in1k
+      $revision: 23f3482ee9acc4f51a2668a7cdf255fbd9420417
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnet50.a2_in1k:
+    $kind: build
+    $description: "timm's `seresnet50`, its `a2_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnet50.a2_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnet50.a2_in1k
+      $revision: 4cb9eed48ee840f525bb27706323a2181934b16f
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnet50.a3_in1k:
+    $kind: build
+    $description: "timm's `seresnet50`, its `a3_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnet50.a3_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnet50.a3_in1k
+      $revision: 2f8f89ee003a38daa98e8b4981af7dc75c98c4b5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnet50.ra2_in1k:
+    $kind: build
+    $description: "timm's `seresnet50`, its `ra2_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnet50.ra2_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnet50.ra2_in1k
+      $revision: 8118272381463a53463a4f6e34af166bffc83555
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnet152d.ra2_in1k:
+    $kind: build
+    $description: "timm's `seresnet152d`, its `ra2_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnet152d.ra2_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnet152d.ra2_in1k
+      $revision: 21b10468a7b8f5d8d5cce9e507bf039da5018f8c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnext26d_32x4d.bt_in1k:
+    $kind: build
+    $description: "timm's `seresnext26d_32x4d`, its `bt_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnext26d_32x4d.bt_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnext26d_32x4d.bt_in1k
+      $revision: 1214c4b9e7470f613b1ffb1f3c0243ce2736b925
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnext26t_32x4d.bt_in1k:
+    $kind: build
+    $description: "timm's `seresnext26t_32x4d`, its `bt_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnext26t_32x4d.bt_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnext26t_32x4d.bt_in1k
+      $revision: ef0f8cf34c7e34291d01a562d4aca427c6017880
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnext50_32x4d.gluon_in1k:
+    $kind: build
+    $description: "timm's `seresnext50_32x4d`, its `gluon_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnext50_32x4d.gluon_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnext50_32x4d.gluon_in1k
+      $revision: cb41d23a8af1094da524975aec8385ad9432c48d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnext50_32x4d.racm_in1k:
+    $kind: build
+    $description: "timm's `seresnext50_32x4d`, its `racm_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnext50_32x4d.racm_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnext50_32x4d.racm_in1k
+      $revision: bd177a1b5fae627fa96737365dc89f840a9bfa8c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnext101_32x4d.gluon_in1k:
+    $kind: build
+    $description: "timm's `seresnext101_32x4d`, its `gluon_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnext101_32x4d.gluon_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnext101_32x4d.gluon_in1k
+      $revision: 6418daeeeda128efbaef21093351a731fb9149dd
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnext101_32x8d.ah_in1k:
+    $kind: build
+    $description: "timm's `seresnext101_32x8d`, its `ah_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnext101_32x8d.ah_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnext101_32x8d.ah_in1k
+      $revision: 5d5e51a01e4a4f848db9e6d67910f0d72cbbfb42
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnext101d_32x8d.ah_in1k:
+    $kind: build
+    $description: "timm's `seresnext101d_32x8d`, its `ah_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnext101d_32x8d.ah_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnext101d_32x8d.ah_in1k
+      $revision: f3a2b0118f124c8c603191326c17f5198b06319a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  seresnext101_64x4d.gluon_in1k:
+    $kind: build
+    $description: "timm's `seresnext101_64x4d`, its `gluon_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/seresnext101_64x4d.gluon_in1k
+    $contract: resnet-classifier
+    $join:
+      - resnet
+    $hub:
+      $repo: timm/seresnext101_64x4d.gluon_in1k
+      $revision: d5c03bddf85df71edbb36eb5888cf05a09b30918
     $resources:
       checkpoint: checkpoint
       config: config

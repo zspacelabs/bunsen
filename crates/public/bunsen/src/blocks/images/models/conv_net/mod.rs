@@ -34,8 +34,9 @@
 //!
 //! Every unit kind ([`ConvUnitKind`]) is one [`ResidualUnit`]: a path of
 //! [`ResidualConv`]s, one of them the spatial mixer (the conv that strides;
-//! a drop block follows its norm), a [`ConvShortcut`] when the path changes
-//! the channels or the size, and an activation after the add. The path's
+//! a drop block follows its norm), a channel attention over the path's output
+//! when the policy names one, a [`ConvShortcut`] when the path changes the
+//! channels or the size, and an activation after the add. The path's
 //! last conv has none of its own. A basic unit's path is two `3x3` convs, the
 //! first the mixer; a bottleneck's a `1x1`, a `3x3` mixer and a `1x1`.
 //!
@@ -50,6 +51,7 @@
 //! | the stem's `k`th conv and its norm | `stem.convs.{k}.conv`, `stem.convs.{k}.norm` |
 //! | stage `i`'s unit `j`: its path's `k`th conv | `stages.{i}.units.{j}.convs.{k}.conv`, `….norm` |
 //! | its shortcut | `stages.{i}.units.{j}.shortcut.conv`, `….norm` |
+//! | its channel attention | `stages.{i}.units.{j}.attn` (`.fc1`, `.fc2`; `.conv`) |
 //! | the classifier | `head.fc` |
 //!
 //! ## Seams
@@ -63,6 +65,9 @@
 //! - a path's conv: [`ResidualConvConfig`] (a conv block);
 //! - the shortcut: [`ConvShortcutKind`] / [`ConvShortcutConfig`] (a conv and a
 //!   norm; an average pool, then a conv and a norm);
+//! - the channel attention: [`ConvAttentionKind`] /
+//!   [`ChannelAttentionConfig`](crate::blocks::images::attention::ChannelAttentionConfig)
+//!   (squeeze-excite, ECA);
 //! - the stem's pool: [`ConvStemPoolKind`] / [`ConvStemPoolConfig`] (max,
 //!   none);
 //! - the head's pool: [`GlobalPool2dConfig`] (average).

@@ -83,6 +83,7 @@ impl ResNetStateLayout {
 /// | a block's `conv{k}`, `bn{k}` | its `convs.{k-1}.conv`, `convs.{k-1}.norm` |
 /// | a block's `downsample.0`, `downsample.1` | its `shortcut.conv`, `shortcut.norm` |
 /// | an `avg_down` block's `downsample.1`, `downsample.2` | its `shortcut.conv`, `shortcut.norm` |
+/// | a block's `se` (squeeze-excite `fc1`, `fc2`; ECA `conv`) | its `attn` |
 /// | `fc` | `head.fc` |
 ///
 /// A unit's path is its block's convs in order, whether basic or
@@ -113,7 +114,8 @@ pub fn resnet_rekey(layout: ResNetStateLayout) -> Rekey {
         .mount_indexed_with("conv", "convs.", Indices::From(1), conv_block("conv."))
         .mount_indexed_with("bn", "convs.", Indices::From(1), conv_block("norm."))
         .rename(conv, "shortcut.conv.")
-        .rename(norm, "shortcut.norm.");
+        .rename(norm, "shortcut.norm.")
+        .rename("se.", "attn.");
     let last = layout.stem_convs.saturating_sub(1);
     let mut rekey = Rekey::keep_rest().drop_suffix(".num_batches_tracked");
     if layout.stem_convs == 1 {
@@ -206,6 +208,14 @@ mod tests {
             (
                 "layer2.0.downsample.2.running_var",
                 Some("stages.1.units.0.shortcut.norm.running_var"),
+            ),
+            (
+                "layer3.1.se.fc1.bias",
+                Some("stages.2.units.1.attn.fc1.bias"),
+            ),
+            (
+                "layer4.0.se.conv.weight",
+                Some("stages.3.units.0.attn.conv.weight"),
             ),
         ] {
             assert_eq!(rekey.apply(timm).as_deref(), bunsen, "{timm}");

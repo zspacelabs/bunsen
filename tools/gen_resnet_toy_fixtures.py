@@ -1,6 +1,6 @@
 """Generate the resnet kit's toy fixtures: tiny seeded timm `ResNet`s and their answers.
 
-Seven toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
+Nine toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
 narrow stage widths (its `channels`), on timm's fixed 64-wide 7x7 stem, 10 classes (timm's
 forward runs exactly four stages):
 
@@ -17,7 +17,10 @@ forward runs exactly four stages):
 - `toy_tiered`: `Bottleneck`s on a tiered stem (`stem_width=16`: 12, 16, 32) with
   `avg_down`, as a `resnet26t`'s;
 - `toy_dilated`: `toy_tiered`'s geometry at `output_stride=8`: its last two stages dilate,
-  and their `avg_down` pools are timm's `AvgPool2dSame`.
+  and their `avg_down` pools are timm's `AvgPool2dSame`;
+- `toy_se`: `Bottleneck`s of `(8, 16, 32, 64)` planes with timm's `'se'` attention
+  (reductions of 1/16 in 8s: 8, 8, 8, 16), as a `seresnet50`'s;
+- `toy_eca`: the same with `'eca'` (kernels 3, 3, 5, 5), as an `ecaresnet50d`'s blocks.
 
 The stem toys run on 36x36 images, so the stages see odd sizes (9, 5, 3) and the shortcuts'
 ceil-mode pools a partial window; the others on 32x32.
@@ -59,6 +62,7 @@ from toy_fixture import (  # noqa: E402
 
 OUT = TESTDATA / "resnet"
 
+# Each toy's seed is its position here: a new toy goes at the end.
 TOYS = {
     "toy_basic": dict(block=BasicBlock, channels=(8, 16, 32, 64)),
     "toy_bottleneck": dict(block=Bottleneck, channels=(8, 16, 32, 64)),
@@ -75,6 +79,10 @@ TOYS = {
     "toy_dilated": dict(
         block=Bottleneck, channels=(8, 16, 32, 64), stem_type="deep_tiered", stem_width=16,
         avg_down=True, output_stride=8,
+    ),
+    "toy_se": dict(block=Bottleneck, channels=(8, 16, 32, 64), block_args=dict(attn_layer="se")),
+    "toy_eca": dict(
+        block=Bottleneck, channels=(8, 16, 32, 64), block_args=dict(attn_layer="eca"),
     ),
 }
 

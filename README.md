@@ -685,6 +685,72 @@ run them.
 
 * timm/wide_resnet101_2.tv_in1k: [508.9 MB]
   timm's `wide_resnet101_2`, its `tv_in1k` weights.
+
+* timm/ecaresnet26t.ra2_in1k: [64.9 MB]
+  timm's `ecaresnet26t`, its `ra2_in1k` weights.
+
+* timm/ecaresnet50d.miil_in1k: [103.3 MB]
+  timm's `ecaresnet50d`, its `miil_in1k` weights.
+
+* timm/ecaresnet50t.a1_in1k: [103.3 MB]
+  timm's `ecaresnet50t`, its `a1_in1k` weights.
+
+* timm/ecaresnet50t.a2_in1k: [103.3 MB]
+  timm's `ecaresnet50t`, its `a2_in1k` weights.
+
+* timm/ecaresnet50t.a3_in1k: [103.3 MB]
+  timm's `ecaresnet50t`, its `a3_in1k` weights.
+
+* timm/ecaresnet50t.ra2_in1k: [103.3 MB]
+  timm's `ecaresnet50t`, its `ra2_in1k` weights.
+
+* timm/ecaresnetlight.miil_in1k: [121.7 MB]
+  timm's `ecaresnetlight`, its `miil_in1k` weights.
+
+* timm/ecaresnet101d.miil_in1k: [179.5 MB]
+  timm's `ecaresnet101d`, its `miil_in1k` weights.
+
+* timm/ecaresnet269d.ra2_in1k: [410.3 MB]
+  timm's `ecaresnet269d`, its `ra2_in1k` weights.
+
+* timm/seresnet50.a1_in1k: [113.4 MB]
+  timm's `seresnet50`, its `a1_in1k` weights.
+
+* timm/seresnet50.a2_in1k: [113.4 MB]
+  timm's `seresnet50`, its `a2_in1k` weights.
+
+* timm/seresnet50.a3_in1k: [113.4 MB]
+  timm's `seresnet50`, its `a3_in1k` weights.
+
+* timm/seresnet50.ra2_in1k: [113.4 MB]
+  timm's `seresnet50`, its `ra2_in1k` weights.
+
+* timm/seresnet152d.ra2_in1k: [268.8 MB]
+  timm's `seresnet152d`, its `ra2_in1k` weights.
+
+* timm/seresnext26d_32x4d.bt_in1k: [68.2 MB]
+  timm's `seresnext26d_32x4d`, its `bt_in1k` weights.
+
+* timm/seresnext26t_32x4d.bt_in1k: [68.2 MB]
+  timm's `seresnext26t_32x4d`, its `bt_in1k` weights.
+
+* timm/seresnext50_32x4d.gluon_in1k: [111.3 MB]
+  timm's `seresnext50_32x4d`, its `gluon_in1k` weights.
+
+* timm/seresnext50_32x4d.racm_in1k: [111.3 MB]
+  timm's `seresnext50_32x4d`, its `racm_in1k` weights.
+
+* timm/seresnext101_32x4d.gluon_in1k: [197.2 MB]
+  timm's `seresnext101_32x4d`, its `gluon_in1k` weights.
+
+* timm/seresnext101_32x8d.ah_in1k: [375.9 MB]
+  timm's `seresnext101_32x8d`, its `ah_in1k` weights.
+
+* timm/seresnext101d_32x8d.ah_in1k: [376.0 MB]
+  timm's `seresnext101d_32x8d`, its `ah_in1k` weights.
+
+* timm/seresnext101_64x4d.gluon_in1k: [354.6 MB]
+  timm's `seresnext101_64x4d`, its `gluon_in1k` weights.
 ```
 
 <!-- /card -->
