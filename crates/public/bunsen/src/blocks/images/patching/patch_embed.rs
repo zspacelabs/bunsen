@@ -2,22 +2,25 @@
 use burn::{
     config::Config,
     module::Module,
-    nn::{
-        LayerNorm,
-        LayerNormConfig,
-        conv::{
-            Conv2d,
-            Conv2dConfig,
-        },
+    nn::conv::{
+        Conv2d,
+        Conv2dConfig,
     },
     prelude::Tensor,
     tensor::Device,
 };
 
 use crate::{
+    blocks::norm::{
+        BunsenNormalization,
+        BunsenNormalizationConfig,
+    },
     burner::module::ModuleInit,
     contracts::assert_shape_contract_periodically,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// Common introspection interface for `PatchEmbed` module.
@@ -64,12 +67,12 @@ pub trait PatchEmbedMeta {
     /// Output feature dimension size.
     fn d_output(&self) -> usize;
 
-    /// Enable patch normalization.
+    /// Whether each patch token is normalized.
     fn enable_patch_norm(&self) -> bool;
 }
 
 /// Configuration for [`PatchEmbed`].
-#[derive(Config, Debug, Copy)]
+#[derive(Config, Debug)]
 pub struct PatchEmbedConfig {
     /// Input resolution (height, width).
     input_resolution: [usize; 2],
@@ -83,9 +86,10 @@ pub struct PatchEmbedConfig {
     /// Output feature dimension size.
     d_output: usize,
 
-    /// Enable patch normalization.
-    #[config(default = true)]
-    enable_patch_norm: bool,
+    /// The norm of each patch token, sized to `d_output` at init (a Swin's
+    /// `LayerNorm`); `None` for none (a `ViT`'s).
+    #[config(default = "None")]
+    norm: Option<BunsenNormalizationConfig>,
 
     /// Whether the projection has a bias. timm's `PatchEmbed` has one,
     /// except under a pre-norm `ViT` (CLIP's), which normalises the tokens
@@ -112,22 +116,43 @@ impl PatchEmbedMeta for PatchEmbedConfig {
     }
 
     fn enable_patch_norm(&self) -> bool {
-        self.enable_patch_norm
+        self.norm.is_some()
+    }
+}
+
+impl PatchEmbedConfig {
+    /// Checks the geometry: a nonzero patch size that divides both sides of
+    /// the input.
+    ///
+    /// See the [errors convention](crate::errors#convention-try_x-and-x).
+    ///
+    /// # Errors
+    ///
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when it doesn't.
+    pub fn try_validate(&self) -> BunsenResult<()> {
+        let [h, w] = self.input_resolution;
+        let p = self.patch_size;
+        if p == 0 || !h.is_multiple_of(p) || !w.is_multiple_of(p) {
+            return Err(BunsenError::illegal(format!(
+                "{h}x{w} images don't divide into {p}x{p} patches"
+            )));
+        }
+        Ok(())
     }
 }
 
 impl ModuleInit<PatchEmbed> for PatchEmbedConfig {
+    /// The patch embedding.
+    ///
+    /// # Errors
+    ///
+    /// As [`try_validate`](PatchEmbedConfig::try_validate), and as the
+    /// norm's `try_init`.
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<PatchEmbed> {
-        let [h, w] = self.input_resolution;
-        assert!(
-            h % self.patch_size == 0 && w % self.patch_size == 0,
-            "Input resolution must be divisible by patch size: {:?}",
-            self.input_resolution
-        );
-
+        self.try_validate()?;
         let stride = [self.patch_size, self.patch_size];
 
         let module = PatchEmbed {
@@ -137,10 +162,11 @@ impl ModuleInit<PatchEmbed> for PatchEmbedConfig {
                 .with_stride(stride)
                 .with_bias(self.bias)
                 .init(device),
-            norm: match self.enable_patch_norm {
-                true => Some(LayerNormConfig::new(self.d_output()).init(device)),
-                false => None,
-            },
+            norm: self
+                .norm
+                .clone()
+                .map(|norm| norm.with_num_features(self.d_output).try_init(device))
+                .transpose()?,
         };
 
         Ok(module)
@@ -165,7 +191,7 @@ pub struct PatchEmbed {
     pub projection: Conv2d,
 
     /// Patch normalization layer, if enabled.
-    pub norm: Option<LayerNorm>,
+    pub norm: Option<BunsenNormalization>,
 }
 
 impl PatchEmbedMeta for PatchEmbed {
@@ -265,9 +291,19 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::WithOkOrPanic,
+        blocks::norm::BunsenLayerNormConfig,
+        errors::{
+            BunsenErrorKind,
+            WithOkOrPanic,
+            testing::ErrorMatcher,
+        },
         support::testing::cpu_device,
     };
+
+    /// A `LayerNorm`, sized at init.
+    fn layer_norm() -> BunsenNormalizationConfig {
+        BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0))
+    }
 
     #[test]
     fn test_patch_embed_meta() {
@@ -276,7 +312,7 @@ mod tests {
             patch_size: 16,
             d_input: 3,
             d_output: 768,
-            enable_patch_norm: true,
+            norm: Some(layer_norm()),
             bias: true,
         };
 
@@ -308,19 +344,28 @@ mod tests {
         assert!(patch_embed.enable_patch_norm());
     }
 
-    #[should_panic(expected = "Input resolution must be divisible by patch size")]
     #[test]
     fn test_patch_embed_invalid_resolution() {
-        let config = PatchEmbedConfig {
-            input_resolution: [224, 223], // Invalid resolution
-            patch_size: 16,
-            d_input: 3,
-            d_output: 768,
-            enable_patch_norm: true,
-            bias: true,
-        };
         let device = cpu_device();
-        let _d: PatchEmbed = config.try_init(&device).ok_or_panic();
+        for config in [
+            PatchEmbedConfig::new([224, 223], 16, 3, 768),
+            PatchEmbedConfig::new([224, 224], 0, 3, 768),
+        ] {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .message_contains("don't divide into")
+                .assert_err(&ModuleInit::<PatchEmbed>::try_init(&config, &device));
+        }
+    }
+
+    /// The norm is the seam's, sized to the tokens.
+    #[test]
+    fn test_patch_embed_norm_is_sized() {
+        let device = cpu_device();
+        let embed: PatchEmbed = PatchEmbedConfig::new([32, 32], 16, 3, 8)
+            .with_norm(Some(layer_norm()))
+            .init(&device);
+        assert_eq!(embed.norm.as_ref().unwrap().num_features(), 8);
+        assert!(embed.enable_patch_norm());
     }
 
     #[test]
@@ -330,7 +375,7 @@ mod tests {
             patch_size: 16,
             d_input: 3,
             d_output: 768,
-            enable_patch_norm: true,
+            norm: Some(layer_norm()),
             bias: true,
         };
         let device = cpu_device();
@@ -364,7 +409,7 @@ mod tests {
             patch_size: 16,
             d_input: 3,
             d_output: 768,
-            enable_patch_norm: false,
+            norm: None,
             bias: true,
         };
         let device = cpu_device();

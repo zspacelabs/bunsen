@@ -166,13 +166,7 @@ impl VisionEncoderStructureConfig {
                 )));
             }
         }
-        let [h, w] = self.patch_embed.input_resolution();
-        let p = self.patch_embed.patch_size();
-        if p == 0 || h % p != 0 || w % p != 0 {
-            return Err(BunsenError::illegal(format!(
-                "{h}x{w} images don't divide into {p}x{p} patches"
-            )));
-        }
+        self.patch_embed.try_validate()?;
         if self.tokens.n_patches != self.patch_embed.num_patches() {
             return Err(BunsenError::illegal(format!(
                 "the prefix tokens cover {} patches; the grid has {}",
