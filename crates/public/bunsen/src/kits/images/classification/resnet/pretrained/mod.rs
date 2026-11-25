@@ -11,14 +11,23 @@
 //! s prefabs: six
 //! [`ResNetContractConfig`](super::ResNetContractConfig)s by name,
 //! `resnet18` to `resnet152`, each with 1000 classes. The checkpoints are
-//! 14 rows, the built-in catalog's builds of [`RESNET_CATALOG_CONTRACT`], in
-//! two namespaces: `torchvision`, the
-//! reference `ImageNet` weights, and `timm`, the `ResNet` Strikes Back
-//! recipes (`a1`, `a2`, `a3`) and earlier `pytorch-image-models` releases.
-//! Each row states the prefab's geometry it instantiates, and is one `.pth`
-//! file under its group's base URL, pinned to its digest. A spec is
-//! `torchvision/resnet50`, `timm/resnet18_a1`, or a bare `resnet50`, which
-//! the torchvision group answers first.
+//! 47 rows, the built-in catalog's builds of [`RESNET_CATALOG_CONTRACT`], in
+//! two namespaces, each row binding `ImageNet`-1k's labels:
+//!
+//! - `torchvision`: the reference `ImageNet` weights, five rows. Each states
+//!   the prefab geometry it instantiates and its eval transform, and is one
+//!   `.pth` file under torchvision's base URL, pinned to its digest.
+//! - `timm`: 42 timm hub repos of the six architectures
+//!   (`timm/resnet50.a1_in1k`): the `ResNet` Strikes Back recipes, timm's own,
+//!   torchvision's v2 recipe, Gluon's and Facebook's semi-supervised weights.
+//!   Each is the repo's `model.safetensors` and `config.json`, which gives the
+//!   geometry and the eval transform, pinned at a revision. The names of
+//!   earlier rows (`timm/resnet18_a1`) are aliases of the repos with their
+//!   weights.
+//!
+//! A spec is `torchvision/resnet50`, `timm/resnet50.a1_in1k`,
+//! `timm/resnet18_a1`, or a bare `resnet50`, which the torchvision group
+//! answers first.
 //!
 //! A timm hub repo the catalog does not name loads as `hf:timm/<repo>`
 //! (`hf:timm/resnet50.a1_in1k`): its `model.safetensors`, and its

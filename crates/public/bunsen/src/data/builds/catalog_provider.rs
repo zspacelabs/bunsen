@@ -288,7 +288,8 @@ mod tests {
                 .unwrap()
                 .name
                 .to_string(),
-            "timm/resnet34"
+            "timm/resnet34.bt_in1k",
+            "an alias resolves to the build it names"
         );
     }
 }
