@@ -83,13 +83,15 @@ impl ConvStemPoolConfig {
             Self::MaxBlur(config) => config.max.strides[0] * config.blur.stride(),
         }
     }
+}
 
-    /// The pool.
-    ///
-    /// # Errors
-    ///
-    /// As [`BlurPool2dConfig::try_init`] and the conv block's `try_init`.
-    pub fn try_init(
+/// The pool.
+///
+/// # Errors
+///
+/// As [`BlurPool2dConfig`]'s and the conv block's `try_init`.
+impl ModuleInit<ConvStemPool> for ConvStemPoolConfig {
+    fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<ConvStemPool> {
@@ -99,7 +101,7 @@ impl ConvStemPoolConfig {
             Self::Avg(config) => ConvStemPool::Avg(config.init()),
             Self::MaxBlur(config) => ConvStemPool::MaxBlur(MaxBlurPool {
                 max: config.max.init(),
-                blur: config.blur.try_init()?,
+                blur: config.blur.try_init(device)?,
             }),
         })
     }
