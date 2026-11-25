@@ -39,7 +39,11 @@ use crate::{
             DecoderStackStructureConfig,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -274,6 +278,14 @@ impl VisionEncoderMeta for VisionEncoderModel {
 
     fn num_classes(&self) -> usize {
         self.head.num_classes()
+    }
+}
+
+/// The transformer's canonical names under `stack.` (its layers' `attn_norm`,
+/// `attn.c_q`, `mlp.linear1`, …); every other path is its own.
+impl CanonicalKeys for VisionEncoderModel {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
     }
 }
 

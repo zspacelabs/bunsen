@@ -1,0 +1,39 @@
+# What the vit kit's loader reads: a ViT's weights, and its geometry, which a state dict doesn't
+# carry: a timm hub repo's config.json, or stated.
+vit-classifier:
+  $kind: contract
+  $description: >-
+    A ViT image encoder, or classifier: a timm hub repo's safetensors and `config.json`.
+  $resources:
+    checkpoint:
+      $format: [safetensors]
+      $description: "The state dict: a timm hub repo's `model.safetensors`."
+    config:
+      $format: [json]
+      $optional: true
+      $description: "A timm hub repo's `config.json`: its architecture, classes, pool and eval
+        transform."
+    labels:
+      $format: [synsets]
+      $optional: true
+      $description: "The class labels: one `WordNet` synset per class, in class order; none for a
+        headless tower or a projection head."
+    label_names:
+      $format: [synset-lemmas]
+      $optional: true
+      $description: "Each synset's lemmas, its readable name."
+  $args:
+    geometry:
+      $type: geometry
+      $optional: true
+      $description: "The network's geometry; without it, `config.json`'s architecture."
+    eval_transform:
+      $type: $object
+      $optional: true
+      $description: >-
+        The eval transform its images go through: an `ImageEvalTransformConfig`, as it serializes.
+  geometry:
+    $kind: type
+    $description: >-
+      A `ViTContractConfig`, as it serializes.
+    $type: $object

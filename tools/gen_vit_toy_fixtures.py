@@ -1,0 +1,100 @@
+"""Generate the vit kit's toy fixtures: tiny seeded timm `VisionTransformer`s and their answers.
+
+Nine toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on 16x16 images in
+4x4 patches (a 4x4 grid), 16 wide, two layers of two heads, 10 classes:
+
+- `toy_token`: timm's defaults: a class token, its pool, layer norms of epsilon 1e-6, a
+  biased `qkv`, `GELU`;
+- `toy_avg`: the patch tokens' mean (`global_pool='avg'`), its norm after the pool
+  (`fc_norm`) in place of the final norm;
+- `toy_avgmax`: the same with `avgmax`;
+- `toy_clip`: CLIP's pre-norm (`pre_norm=True`: a bias-free patch embedding and `norm_pre`),
+  its layer norms of epsilon 1e-5;
+- `toy_quickgelu`: `toy_clip` with `QuickGELU`, as the `_quickgelu` archs;
+- `toy_reg`: two register tokens, the position embedding over the patches alone
+  (`no_embed_class`), and layer scale (`init_values`), as DeiT III and the register ViTs;
+- `toy_gap`: no class token, the mean pool (`class_token=False`, `global_pool='avg'`);
+- `toy_miil`: no `qkv` bias (`qkv_bias=False`), as `vit_base_patch16_224_miil`;
+- `toy_headless`: no classifier (`num_classes=0`): the output is the pooled features.
+
+The toy test builds each as bunsen's `ViTContractConfig`.
+
+Each is built in float64 on the CPU with seeded weights: the norms' gains and shifts random, so
+a misplaced norm shows. A two-image `[2, 3, 16, 16]` batch runs through
+`forward_intermediates` (each layer's patch tokens as a map), the pooled features and the
+logits. The fixture is the weights under timm's own state-dict names (what its hub safetensors
+hold) and `io.*`: `images`, `layer_0`, `layer_1`, `features` (`forward_features`), `pooled`,
+`logits`.
+
+Run from the repository root:
+
+    /media/Data/bunsen-tmp/timm/venv/bin/python -I tools/gen_vit_toy_fixtures.py
+
+Pinned versions used to produce the committed fixtures: timm 1.0.31, torch 2.15.0,
+safetensors 0.8.0, numpy 2.5.5.
+"""
+
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+from functools import partial  # noqa: E402
+
+import torch  # noqa: E402
+from timm.layers import QuickGELU  # noqa: E402
+from timm.models.vision_transformer import VisionTransformer  # noqa: E402
+
+from toy_fixture import (  # noqa: E402
+    TESTDATA,
+    build,
+    init_weights,
+    io_tensors,
+    weights,
+    write,
+)
+
+OUT = TESTDATA / "vit"
+
+CLIP = dict(pre_norm=True, norm_layer=partial(torch.nn.LayerNorm, eps=1e-5))
+
+# Each toy's seed is its position here: a new toy goes at the end.
+TOYS = {
+    "toy_token": dict(),
+    "toy_avg": dict(global_pool="avg"),
+    "toy_avgmax": dict(global_pool="avgmax"),
+    "toy_clip": dict(CLIP),
+    "toy_quickgelu": dict(CLIP, act_layer=QuickGELU),
+    "toy_reg": dict(reg_tokens=2, no_embed_class=True, init_values=1e-5),
+    "toy_gap": dict(class_token=False, global_pool="avg"),
+    "toy_miil": dict(qkv_bias=False),
+    "toy_headless": dict(num_classes=0),
+}
+
+
+def main() -> None:
+    for i, (name, args) in enumerate(TOYS.items()):
+        args = dict(dict(num_classes=10), **args)
+        model = build(
+            lambda: VisionTransformer(
+                img_size=16, patch_size=4, embed_dim=16, depth=2, num_heads=2, **args
+            ),
+            seed=4321 + i,
+        )
+        init_weights(model, norm_bias=0.1)
+        torch.manual_seed(77 + i)
+        images = torch.randn(2, 3, 16, 16, dtype=torch.float64)
+        with torch.no_grad():
+            layers = model.forward_intermediates(images, intermediates_only=True)
+            features = model.forward_features(images)
+            pooled = model.forward_head(features, pre_logits=True)
+            logits = model(images)
+        assert len(layers) == 2, len(layers)
+        io = {"images": images, "features": features, "pooled": pooled, "logits": logits}
+        io.update({f"layer_{k}": x for k, x in enumerate(layers)})
+        write(OUT / f"{name}.safetensors", weights(model), io_tensors(io))
+        print(name, {k: tuple(v.shape) for k, v in io.items()})
+
+
+if __name__ == "__main__":
+    main()
