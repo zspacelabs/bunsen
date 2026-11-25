@@ -4,6 +4,7 @@
 //! cargo catalog build  [--kit K]... [--verify-remote]
 //! cargo catalog check  [--kit K]... [--verify-remote]
 //! cargo catalog update [--kit K]... [--verify-remote]
+//! cargo catalog timm-rows [--kit K]... [--refresh]
 //! ```
 //!
 //! The sources are the probe contracts in `probe_contracts/`: a
@@ -32,6 +33,10 @@
 //! from the remotes again, whatever the cache holds; `--verify-remote`
 //! fetches every file built and checks it hashes to its pin.
 //!
+//! `timm-rows` writes a kit's timm hub builds into its source, from the
+//! Hub ([`timm_rows`]): the repos of its prefabs' names that it can load,
+//! each pinned to a revision. `cargo catalog update --kit K` then builds them.
+//!
 //! Nothing else in the validation workspace uses this crate: the kits and
 //! their checks read the built catalog, through bunsen.
 
@@ -46,6 +51,7 @@ use clap::{
 pub mod catalog;
 pub mod layer;
 pub mod remote;
+pub mod timm_rows;
 pub mod tree;
 
 /// Builds bunsen's built-in catalog from its probe contracts.
@@ -66,6 +72,23 @@ enum Command {
 
     /// Build, then replace the checked-in catalog.
     Update(BuildArgs),
+
+    /// Write a kit's timm hub builds into its source, from the Hub.
+    ///
+    /// The repos of the kit's prefab names it can load, each pinned to its
+    /// revision and card license; a row the source has keeps its pins.
+    TimmRows(TimmRowsArgs),
+}
+
+#[derive(Debug, Args)]
+struct TimmRowsArgs {
+    /// Write this kit's rows; every kit with timm rows when none is named.
+    #[arg(long = "kit", value_name = "K")]
+    kits: Vec<String>,
+
+    /// Pin every row to the repo's revision now, not only the new ones.
+    #[arg(long)]
+    refresh: bool,
 }
 
 #[derive(Debug, Args)]
@@ -89,6 +112,46 @@ impl BuildArgs {
     }
 }
 
+/// Writes the timm rows of the kits `args` names into their sources.
+fn timm_rows(
+    remote: &dyn remote::Remote,
+    paths: &catalog::Paths,
+    args: &TimmRowsArgs,
+) -> Result<bool, String> {
+    let kits = timm_rows::timm_kits();
+    for name in &args.kits {
+        if !kits.iter().any(|k| k.name == name) {
+            let names: Vec<_> = kits.iter().map(|k| k.name).collect();
+            return Err(format!(
+                "no kit `{name}` has timm rows; those that do are {}",
+                names.join(", ")
+            ));
+        }
+    }
+    for kit in kits
+        .iter()
+        .filter(|k| args.kits.is_empty() || args.kits.iter().any(|n| n == k.name))
+    {
+        let path = paths.sources.join(kit.source_file());
+        let text =
+            std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
+        let generated = timm_rows::generate(remote, kit, &text, args.refresh)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        for skipped in &generated.skipped {
+            eprintln!("  not a row: {}: {}", skipped.repo, skipped.reason);
+        }
+        std::fs::write(&path, &generated.text)
+            .map_err(|e| format!("write {}: {e}", path.display()))?;
+        eprintln!(
+            "wrote {} timm rows into {}; `cargo catalog update --kit {}` builds them",
+            generated.rows.len(),
+            path.display(),
+            kit.name
+        );
+    }
+    Ok(true)
+}
+
 fn run(cli: Cli) -> Result<bool, String> {
     let paths = catalog::Paths::of_checkout();
     let remote = remote::Http::new();
@@ -96,6 +159,7 @@ fn run(cli: Cli) -> Result<bool, String> {
         Command::Build(args) => (args, None),
         Command::Check(args) => (args, Some(false)),
         Command::Update(args) => (args, Some(true)),
+        Command::TimmRows(args) => return timm_rows(&remote, &paths, args),
     };
     let built = catalog::build(&remote, &paths, &args.options())?;
     catalog::write_dir(&built, &paths.built())?;

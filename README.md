@@ -385,138 +385,138 @@ run them.
 
 * timm/resnet18.a1_in1k: [47.6 MB]
   - resnet18_a1
-  ResNet-18, timm's `a1_in1k` weights, ImageNet-1k.
+  timm's `resnet18`, its `a1_in1k` weights.
 
 * timm/resnet18.a2_in1k: [47.6 MB]
   - resnet18_a2
-  ResNet-18, timm's `a2_in1k` weights, ImageNet-1k.
+  timm's `resnet18`, its `a2_in1k` weights.
 
 * timm/resnet18.a3_in1k: [47.6 MB]
   - resnet18_a3
-  ResNet-18, timm's `a3_in1k` weights, ImageNet-1k.
+  timm's `resnet18`, its `a3_in1k` weights.
 
-* timm/resnet34.a1_in1k: [88.0 MB]
-  - resnet34_a1
-  ResNet-34, timm's `a1_in1k` weights, ImageNet-1k.
+* timm/resnet18.fb_ssl_yfcc100m_ft_in1k: [47.6 MB]
+  timm's `resnet18`, its `fb_ssl_yfcc100m_ft_in1k` weights.
 
-* timm/resnet34.a2_in1k: [88.0 MB]
-  - resnet34_a2
-  ResNet-34, timm's `a2_in1k` weights, ImageNet-1k.
+* timm/resnet18.fb_swsl_ig1b_ft_in1k: [47.6 MB]
+  timm's `resnet18`, its `fb_swsl_ig1b_ft_in1k` weights.
 
-* timm/resnet34.a3_in1k: [88.0 MB]
-  - resnet34_a3
-  ResNet-34, timm's `a3_in1k` weights, ImageNet-1k.
-
-* timm/resnet34.bt_in1k: [88.0 MB]
-  - resnet34
-  ResNet-34, timm's `bt_in1k` weights, ImageNet-1k.
-
-* timm/resnet34.ra4_e3600_r224_in1k: [88.0 MB]
-  ResNet-34, timm's `ra4_e3600_r224_in1k` weights, ImageNet-1k.
+* timm/resnet18.gluon_in1k: [47.6 MB]
+  timm's `resnet18`, its `gluon_in1k` weights.
 
 * timm/resnet26.bt_in1k: [64.9 MB]
   - resnet26
-  ResNet-26, timm's `bt_in1k` weights, ImageNet-1k.
+  timm's `resnet26`, its `bt_in1k` weights.
+
+* timm/resnet34.a1_in1k: [88.0 MB]
+  - resnet34_a1
+  timm's `resnet34`, its `a1_in1k` weights.
+
+* timm/resnet34.a2_in1k: [88.0 MB]
+  - resnet34_a2
+  timm's `resnet34`, its `a2_in1k` weights.
+
+* timm/resnet34.a3_in1k: [88.0 MB]
+  - resnet34_a3
+  timm's `resnet34`, its `a3_in1k` weights.
+
+* timm/resnet34.bt_in1k: [88.0 MB]
+  - resnet34
+  timm's `resnet34`, its `bt_in1k` weights.
+
+* timm/resnet34.gluon_in1k: [88.0 MB]
+  timm's `resnet34`, its `gluon_in1k` weights.
+
+* timm/resnet34.ra4_e3600_r224_in1k: [88.0 MB]
+  timm's `resnet34`, its `ra4_e3600_r224_in1k` weights.
 
 * timm/resnet50.a1_in1k: [103.2 MB]
-  ResNet-50, timm's `a1_in1k` weights, ImageNet-1k.
+  timm's `resnet50`, its `a1_in1k` weights.
 
 * timm/resnet50.a1h_in1k: [103.2 MB]
-  ResNet-50, timm's `a1h_in1k` weights, ImageNet-1k.
+  timm's `resnet50`, its `a1h_in1k` weights.
 
 * timm/resnet50.a2_in1k: [103.2 MB]
-  ResNet-50, timm's `a2_in1k` weights, ImageNet-1k.
+  timm's `resnet50`, its `a2_in1k` weights.
 
 * timm/resnet50.a3_in1k: [103.2 MB]
-  ResNet-50, timm's `a3_in1k` weights, ImageNet-1k.
-
-* timm/resnet50.b1k_in1k: [103.2 MB]
-  ResNet-50, timm's `b1k_in1k` weights, ImageNet-1k.
-
-* timm/resnet50.b2k_in1k: [103.2 MB]
-  ResNet-50, timm's `b2k_in1k` weights, ImageNet-1k.
-
-* timm/resnet50.c1_in1k: [103.2 MB]
-  ResNet-50, timm's `c1_in1k` weights, ImageNet-1k.
-
-* timm/resnet50.c2_in1k: [103.2 MB]
-  ResNet-50, timm's `c2_in1k` weights, ImageNet-1k.
-
-* timm/resnet50.d_in1k: [103.2 MB]
-  ResNet-50, timm's `d_in1k` weights, ImageNet-1k.
-
-* timm/resnet50.ram_in1k: [103.2 MB]
-  ResNet-50, timm's `ram_in1k` weights, ImageNet-1k.
+  timm's `resnet50`, its `a3_in1k` weights.
 
 * timm/resnet50.am_in1k: [103.2 MB]
-  ResNet-50, timm's `am_in1k` weights, ImageNet-1k.
+  timm's `resnet50`, its `am_in1k` weights.
 
-* timm/resnet50.ra_in1k: [103.2 MB]
-  ResNet-50, timm's `ra_in1k` weights, ImageNet-1k.
+* timm/resnet50.b1k_in1k: [103.2 MB]
+  timm's `resnet50`, its `b1k_in1k` weights.
+
+* timm/resnet50.b2k_in1k: [103.2 MB]
+  timm's `resnet50`, its `b2k_in1k` weights.
 
 * timm/resnet50.bt_in1k: [103.2 MB]
-  ResNet-50, timm's `bt_in1k` weights, ImageNet-1k.
+  timm's `resnet50`, its `bt_in1k` weights.
 
-* timm/resnet101.a1h_in1k: [179.4 MB]
-  ResNet-101, timm's `a1h_in1k` weights, ImageNet-1k.
+* timm/resnet50.c1_in1k: [103.2 MB]
+  timm's `resnet50`, its `c1_in1k` weights.
+
+* timm/resnet50.c2_in1k: [103.2 MB]
+  timm's `resnet50`, its `c2_in1k` weights.
+
+* timm/resnet50.d_in1k: [103.2 MB]
+  timm's `resnet50`, its `d_in1k` weights.
+
+* timm/resnet50.fb_ssl_yfcc100m_ft_in1k: [103.2 MB]
+  timm's `resnet50`, its `fb_ssl_yfcc100m_ft_in1k` weights.
+
+* timm/resnet50.fb_swsl_ig1b_ft_in1k: [103.2 MB]
+  timm's `resnet50`, its `fb_swsl_ig1b_ft_in1k` weights.
+
+* timm/resnet50.gluon_in1k: [103.2 MB]
+  timm's `resnet50`, its `gluon_in1k` weights.
+
+* timm/resnet50.ra_in1k: [103.2 MB]
+  timm's `resnet50`, its `ra_in1k` weights.
+
+* timm/resnet50.ram_in1k: [103.2 MB]
+  timm's `resnet50`, its `ram_in1k` weights.
+
+* timm/resnet50.tv2_in1k: [103.2 MB]
+  timm's `resnet50`, its `tv2_in1k` weights.
 
 * timm/resnet101.a1_in1k: [179.4 MB]
   - resnet101_a1
-  ResNet-101, timm's `a1_in1k` weights, ImageNet-1k.
+  timm's `resnet101`, its `a1_in1k` weights.
+
+* timm/resnet101.a1h_in1k: [179.4 MB]
+  timm's `resnet101`, its `a1h_in1k` weights.
 
 * timm/resnet101.a2_in1k: [179.4 MB]
-  ResNet-101, timm's `a2_in1k` weights, ImageNet-1k.
+  timm's `resnet101`, its `a2_in1k` weights.
 
 * timm/resnet101.a3_in1k: [179.4 MB]
-  ResNet-101, timm's `a3_in1k` weights, ImageNet-1k.
-
-* timm/resnet152.a1h_in1k: [242.2 MB]
-  ResNet-152, timm's `a1h_in1k` weights, ImageNet-1k.
-
-* timm/resnet152.a1_in1k: [242.2 MB]
-  ResNet-152, timm's `a1_in1k` weights, ImageNet-1k.
-
-* timm/resnet152.a2_in1k: [242.2 MB]
-  ResNet-152, timm's `a2_in1k` weights, ImageNet-1k.
-
-* timm/resnet152.a3_in1k: [242.2 MB]
-  ResNet-152, timm's `a3_in1k` weights, ImageNet-1k.
-
-* timm/resnet50.tv2_in1k: [103.2 MB]
-  ResNet-50, timm's `tv2_in1k` weights, ImageNet-1k.
-
-* timm/resnet101.tv2_in1k: [179.4 MB]
-  ResNet-101, timm's `tv2_in1k` weights, ImageNet-1k.
-
-* timm/resnet152.tv2_in1k: [242.2 MB]
-  ResNet-152, timm's `tv2_in1k` weights, ImageNet-1k.
-
-* timm/resnet18.fb_ssl_yfcc100m_ft_in1k: [47.6 MB]
-  ResNet-18, timm's `fb_ssl_yfcc100m_ft_in1k` weights, ImageNet-1k.
-
-* timm/resnet50.fb_ssl_yfcc100m_ft_in1k: [103.2 MB]
-  ResNet-50, timm's `fb_ssl_yfcc100m_ft_in1k` weights, ImageNet-1k.
-
-* timm/resnet18.fb_swsl_ig1b_ft_in1k: [47.6 MB]
-  ResNet-18, timm's `fb_swsl_ig1b_ft_in1k` weights, ImageNet-1k.
-
-* timm/resnet50.fb_swsl_ig1b_ft_in1k: [103.2 MB]
-  ResNet-50, timm's `fb_swsl_ig1b_ft_in1k` weights, ImageNet-1k.
-
-* timm/resnet18.gluon_in1k: [47.6 MB]
-  ResNet-18, timm's `gluon_in1k` weights, ImageNet-1k.
-
-* timm/resnet34.gluon_in1k: [88.0 MB]
-  ResNet-34, timm's `gluon_in1k` weights, ImageNet-1k.
-
-* timm/resnet50.gluon_in1k: [103.2 MB]
-  ResNet-50, timm's `gluon_in1k` weights, ImageNet-1k.
+  timm's `resnet101`, its `a3_in1k` weights.
 
 * timm/resnet101.gluon_in1k: [179.4 MB]
-  ResNet-101, timm's `gluon_in1k` weights, ImageNet-1k.
+  timm's `resnet101`, its `gluon_in1k` weights.
+
+* timm/resnet101.tv2_in1k: [179.4 MB]
+  timm's `resnet101`, its `tv2_in1k` weights.
+
+* timm/resnet152.a1_in1k: [242.2 MB]
+  timm's `resnet152`, its `a1_in1k` weights.
+
+* timm/resnet152.a1h_in1k: [242.2 MB]
+  timm's `resnet152`, its `a1h_in1k` weights.
+
+* timm/resnet152.a2_in1k: [242.2 MB]
+  timm's `resnet152`, its `a2_in1k` weights.
+
+* timm/resnet152.a3_in1k: [242.2 MB]
+  timm's `resnet152`, its `a3_in1k` weights.
 
 * timm/resnet152.gluon_in1k: [242.2 MB]
-  ResNet-152, timm's `gluon_in1k` weights, ImageNet-1k.
+  timm's `resnet152`, its `gluon_in1k` weights.
+
+* timm/resnet152.tv2_in1k: [242.2 MB]
+  timm's `resnet152`, its `tv2_in1k` weights.
 ```
 
 <!-- /card -->

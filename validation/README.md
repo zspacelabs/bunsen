@@ -190,6 +190,21 @@ a checkpoint's dtype (from its `config.json`), and the presets its probes
 find in the files they read. The catalog's format is
 `crates/public/bunsen/src/data/catalog/catalog_format.md`.
 
+A kit that loads timm's hub repos has its timm rows written, not hand-written:
+
+```sh
+cargo catalog timm-rows --kit resnet    # the Hub's timm/<arch>.<tag> repos of the kit's prefabs
+cargo catalog update --kit resnet       # then build them
+```
+
+`timm-rows` replaces the source's lines between its `BEGIN` / `END` markers
+with a build for each repo timm publishes under one of the kit's prefab names,
+provided the repo has a `model.safetensors` and a `config.json` of the kit's
+class count. It skips a `tv_in1k` repo whose architecture has a `torchvision/`
+row, since that row holds the same weights, and prints each repo it leaves
+out, with the reason. A row keeps its revision and license pins; `--refresh`
+pins every row again from the Hub.
+
 ## Timing the decodes: `cargo timing`
 
 Throughput, on demand: never a check, it reports. `cargo timing run` chooses
