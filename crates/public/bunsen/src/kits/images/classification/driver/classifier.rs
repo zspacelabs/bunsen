@@ -11,9 +11,15 @@ use burn::{
 };
 
 use crate::{
-    blocks::images::models::conv_net::{
-        ConvNetMeta,
-        ConvNetModel,
+    blocks::{
+        images::models::conv_net::{
+            ConvNetMeta,
+            ConvNetModel,
+        },
+        transformers::models::vision_encoder::{
+            VisionEncoderMeta,
+            VisionEncoderModel,
+        },
     },
     kits::images::support::{
         encoder::ImageEncoder,
@@ -40,6 +46,22 @@ pub trait ImageClassifier: ImageEncoder {
 /// The generic conv net as an image classifier: its head's logits
 /// ([`ConvNetModel::forward`]).
 impl ImageClassifier for ConvNetModel {
+    fn n_classes(&self) -> usize {
+        self.num_classes()
+    }
+
+    fn forward_logits(
+        &self,
+        images: Tensor<4>,
+    ) -> Tensor<2> {
+        self.forward(images)
+    }
+}
+
+/// The generic vision encoder as an image classifier: its head's logits
+/// ([`VisionEncoderModel::forward`]). A headless model has 0 classes: its
+/// output is its pooled features, not logits.
+impl ImageClassifier for VisionEncoderModel {
     fn n_classes(&self) -> usize {
         self.num_classes()
     }
