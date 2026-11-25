@@ -24,7 +24,10 @@ use crate::{
         norm::BunsenNormalizationConfig,
     },
     burner::module::ToStructureConfig,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// ResNet-18 block depths.
@@ -57,11 +60,13 @@ impl Default for BottleneckPolicyConfig {
     }
 }
 
-/// `ResNet`'s policy: the stage depths, the classes, the stem's width, the
-/// output stride, the bottleneck policy, the norm and the activation.
+/// `ResNet`'s policy: the stage depths and widths, the classes, the input's
+/// channels, the stem's width, the output stride, the bottleneck policy, the
+/// norm and the activation.
 ///
-/// The user-facing way to name a `ResNet`, in its own terms. It lowers to
-/// the generic conv net's policy ([`to_conv_net`](Self::to_conv_net)), and
+/// The user-facing way to name a `ResNet`, in its own terms; its knobs are
+/// timm's `ResNet`'s, by their meaning. It lowers to the generic conv net's
+/// policy ([`try_to_conv_net`](Self::try_to_conv_net)), and
 /// through it, by [`ToStructureConfig`], to a [`ConvNetStructureConfig`];
 /// `.init(device)` builds the
 /// [`ConvNetModel`](crate::blocks::images::models::conv_net::ConvNetModel) in
@@ -77,10 +82,18 @@ pub struct ResNetContractConfig {
     /// The classes of the head.
     pub num_classes: usize,
 
-    /// The stem's width, and the first stage's mixer width; each later stage
-    /// doubles it.
+    /// The input's channels: 3 for an RGB image (timm's `in_chans`).
+    #[config(default = "3")]
+    pub in_channels: usize,
+
+    /// Each stage's planes, one per entry of `layers` (timm's `channels`): a
+    /// basic unit's width, a bottleneck's mixer's.
+    #[config(default = "vec![64, 128, 256, 512]")]
+    pub channels: Vec<usize>,
+
+    /// The `7x7` stem's width: 64 in every timm and torchvision `ResNet`.
     #[config(default = "64")]
-    pub stem_width: usize,
+    pub conv_stem_width: usize,
 
     /// The net's stride at its last stage: 32, or 16 or 8 for a dilated net.
     #[config(default = "32")]
@@ -109,15 +122,27 @@ impl ResNetContractConfig {
         self.with_bottleneck_policy(enable.then(BottleneckPolicyConfig::default))
     }
 
-    /// The generic conv net's policy of this `ResNet`: a `stem_width`-wide
-    /// `7x7` stem (stride 2) and its `3x3` max pool; then a stage per entry
-    /// of `layers`, the first at stride 1 and each later one at stride 2.
+    /// The generic conv net's policy of this `ResNet`: a `conv_stem_width`
+    /// wide `7x7` stem (stride 2) and its `3x3` max pool; then a stage per
+    /// entry of `layers`, the first at stride 1 and each later one at stride
+    /// 2.
     ///
-    /// The first stage's mixers are `stem_width` wide, and each later
-    /// stage's twice the one before's. A basic unit puts out its mixer's
-    /// width; a bottleneck `pinch_factor` times it, so a `resnet50`'s stages
-    /// put out 256, 512, 1024 and 2048 channels.
-    pub fn to_conv_net(&self) -> ConvNetContractConfig {
+    /// Each stage's mixers are its `channels` wide. A basic unit puts out its
+    /// mixer's width; a bottleneck `pinch_factor` times it, so a `resnet50`'s
+    /// stages put out 256, 512, 1024 and 2048 channels.
+    ///
+    /// # Errors
+    ///
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when `channels`
+    /// doesn't give one width per stage.
+    pub fn try_to_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
+        if self.channels.len() != self.layers.len() {
+            return Err(BunsenError::illegal(format!(
+                "ResNetContractConfig: {} channels for {} stages; one width per stage",
+                self.channels.len(),
+                self.layers.len()
+            )));
+        }
         let expansion = self
             .bottleneck_policy
             .as_ref()
@@ -129,37 +154,49 @@ impl ResNetContractConfig {
         let stages = self
             .layers
             .iter()
+            .zip(&self.channels)
             .enumerate()
-            .map(|(idx, &depth)| {
-                let mid = self.stem_width << idx;
+            .map(|(idx, (&depth, &mid))| {
                 ConvStageContractConfig::new(depth, unit, mid * expansion, mid)
                     .with_stride(if idx == 0 { 1 } else { 2 })
             })
             .collect();
-        ConvNetContractConfig::new(
-            ConvStemContractConfig::new(vec![self.stem_width]),
+        Ok(ConvNetContractConfig::new(
+            ConvStemContractConfig::new(vec![self.conv_stem_width]),
             stages,
             self.num_classes,
         )
+        .with_in_channels(self.in_channels)
         .with_output_stride(self.output_stride)
         .with_layers(
             ConvLayersConfig::new()
                 .with_norm(self.normalization.clone())
                 .with_act(self.activation.clone()),
-        )
+        ))
+    }
+
+    /// [`try_to_conv_net`](Self::try_to_conv_net), for a policy known to be
+    /// sound.
+    ///
+    /// # Panics
+    ///
+    /// When it is not.
+    pub fn to_conv_net(&self) -> ConvNetContractConfig {
+        self.try_to_conv_net().unwrap_or_else(|e| panic!("{e}"))
     }
 }
 
 impl ToStructureConfig for ResNetContractConfig {
     type Structure = ConvNetStructureConfig;
 
-    /// Lowers through [`to_conv_net`](Self::to_conv_net).
+    /// Lowers through [`try_to_conv_net`](Self::try_to_conv_net).
     ///
     /// # Errors
     ///
-    /// As [`ConvNetContractConfig`]'s lowering.
+    /// As [`try_to_conv_net`](Self::try_to_conv_net), and as
+    /// [`ConvNetContractConfig`]'s lowering.
     fn try_to_structure(&self) -> BunsenResult<ConvNetStructureConfig> {
-        self.to_conv_net().try_to_structure()
+        self.try_to_conv_net()?.try_to_structure()
     }
 }
 
@@ -216,7 +253,8 @@ mod tests {
     fn test_policy_pathways_agree() {
         let device = cpu_device();
         let policy = ResNetContractConfig::new(vec![1, 1], 7)
-            .with_stem_width(8)
+            .with_channels(vec![8, 16])
+            .with_conv_stem_width(8)
             .with_bottleneck(true)
             .with_activation(BunsenActivationConfig::Gelu);
         let structure = policy.to_structure();
@@ -235,22 +273,44 @@ mod tests {
         assert_eq!(direct.num_classes(), 7);
     }
 
-    /// A policy with no stages, or an empty one, is an error from `try_init`.
+    /// A policy with no stages, an empty one, or other than one width per
+    /// stage is an error from `try_init`.
     #[test]
-    fn test_try_init_rejects_empty_stages() {
+    fn test_try_init_rejects_bad_stages() {
         let device = cpu_device();
         let illegal = || ErrorMatcher::kind(BunsenErrorKind::Illegal);
         let none: BunsenResult<ConvNetModel> = ResNetContractConfig::new(vec![], 7)
-            .with_stem_width(8)
+            .with_channels(vec![])
             .try_init(&device);
         illegal()
             .message_contains("ConvNetStructureConfig.stages")
             .assert_err(&none);
         let empty: BunsenResult<ConvNetModel> = ResNetContractConfig::new(vec![1, 0], 7)
-            .with_stem_width(8)
+            .with_channels(vec![8, 16])
             .try_init(&device);
         illegal()
             .frame_contains("conv net stage 1")
             .assert_err(&empty);
+        let unmatched: BunsenResult<ConvNetModel> =
+            ResNetContractConfig::new(vec![1, 1], 7).try_init(&device);
+        illegal()
+            .message_contains("4 channels for 2 stages")
+            .assert_err(&unmatched);
+    }
+
+    /// The input's channels reach the stem; the stem's width and the stage
+    /// widths are their own knobs.
+    #[test]
+    fn test_in_channels_and_widths() {
+        let device = cpu_device();
+        let model: ConvNetModel = ResNetContractConfig::new(vec![1, 1], 5)
+            .with_in_channels(1)
+            .with_conv_stem_width(12)
+            .with_channels(vec![8, 24])
+            .init(&device);
+        assert_eq!(model.in_channels(), 1);
+        assert_eq!(model.d_features(), 24);
+        let logits = model.forward(burn::Tensor::<4>::zeros([2, 1, 32, 32], &device));
+        assert_eq!(logits.dims(), [2, 5]);
     }
 }

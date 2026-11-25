@@ -4,14 +4,15 @@
 //! ([arXiv:1512.03385](https://arxiv.org/abs/1512.03385)), with the
 //! checkpoints torchvision and `timm` publish. A residual network is a
 //! stem, a run of stages of residual blocks, and a classifier head; the
-//! depth of each stage, and whether its blocks are basic or bottleneck,
-//! name the variant, `resnet18` to `resnet152`.
+//! depth of each stage, its width, whether its blocks are basic or
+//! bottleneck, and the norm name the variant, `resnet18` to `resnet152` and
+//! `resnet50_gn`.
 //!
 //! [`pretrained`] turns names into loaded models.
-//! [`ResNetContractConfig`]'s prefabs name the six geometries, `resnet18`
-//! to `resnet152`, and
+//! [`ResNetContractConfig`]'s prefabs name the seven geometries, by timm's
+//! architecture names, and
 //! [`default_resnet_factory`](pretrained::default_resnet_factory) is the
-//! index of 47 torchvision and `timm` checkpoints: `torchvision/resnet50`,
+//! index of 48 torchvision and `timm` checkpoints: `torchvision/resnet50`,
 //! `timm/resnet50.a1_in1k`, or a bare `resnet50`.
 //!
 //! # Example
@@ -62,10 +63,11 @@
 //! A `ResNet` is the generic conv net,
 //! [`ConvNetModel`](crate::blocks::images::models::conv_net::ConvNetModel):
 //! the kit has no model type of its own. [`ResNetContractConfig`] is the
-//! policy in `ResNet`'s terms (the stage depths, the classes, the stem's
-//! width, the output stride, the bottleneck policy, the norm and the
-//! activation), and lowers to the generic one
-//! ([`to_conv_net`](ResNetContractConfig::to_conv_net)); `init` builds the
+//! policy in `ResNet`'s terms, its knobs timm's by their meaning (the stage
+//! depths and widths, the classes, the input's channels, the stem's width,
+//! the output stride, the bottleneck policy, the norm, a group norm
+//! included, and the activation), and lowers to the generic one
+//! ([`try_to_conv_net`](ResNetContractConfig::try_to_conv_net)); `init` builds the
 //! model through it. A geometry the policy cannot express is built from the
 //! generic policy or structure directly.
 //!

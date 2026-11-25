@@ -359,6 +359,12 @@ crates:
         core: true
         dtypes: [f32]
         varies: a 176-pixel input, odd stage sizes (11x11 at stage 3)
+      timm/resnet50_gn.a1h_in1k:
+        size: small
+        gb: 0.21
+        core: false
+        dtypes: [f32]
+        varies: timm's group norm (32 groups) in every norm, the stem's included
       torchvision/resnet18:
         size: small
         gb: 0.15

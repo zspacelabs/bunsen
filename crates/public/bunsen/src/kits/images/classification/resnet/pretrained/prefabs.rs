@@ -2,6 +2,8 @@
 
 use alloc::vec;
 
+use burn::nn::GroupNormConfig;
+
 use crate::{
     data::pretrained::{
         PrefabTable,
@@ -31,6 +33,12 @@ impl ResNetContractConfig {
         ResNetContractConfig::new(vec![3, 4, 6, 3], 1000).with_bottleneck(true)
     }
 
+    /// The `resnet50_gn` prefab: ResNet-50 with timm's group norm (32
+    /// groups, epsilon `1e-5`) for every norm, the stem's included.
+    pub fn resnet50_gn() -> Self {
+        Self::resnet50().with_normalization(GroupNormConfig::new(32, 0).into())
+    }
+
     /// The `resnet101` prefab: ResNet-101 [3, 4, 23, 3] Bottleneck.
     pub fn resnet101() -> Self {
         ResNetContractConfig::new(vec![3, 4, 23, 3], 1000).with_bottleneck(true)
@@ -42,8 +50,9 @@ impl ResNetContractConfig {
     }
 }
 
-/// The `ResNet` geometries by name: six [`ResNetContractConfig`]s,
-/// `resnet18` to `resnet152`, each with 1000 classes.
+/// The `ResNet` geometries by name, timm's architecture names: seven
+/// [`ResNetContractConfig`]s, `resnet18` to `resnet152` and `resnet50_gn`,
+/// each with 1000 classes.
 ///
 /// A prefab has no weights. The catalog rows state the geometry of the
 /// prefab they instantiate, and
@@ -54,6 +63,7 @@ impl Prefabs for ResNetContractConfig {
         ("resnet26", Self::resnet26),
         ("resnet34", Self::resnet34),
         ("resnet50", Self::resnet50),
+        ("resnet50_gn", Self::resnet50_gn),
         ("resnet101", Self::resnet101),
         ("resnet152", Self::resnet152),
     ];

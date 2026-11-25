@@ -4,6 +4,8 @@ use burn::{
     nn::{
         BatchNorm,
         BatchNormConfig,
+        GroupNorm,
+        GroupNormConfig,
         Identity,
         LayerNormConfig,
         RmsNorm,
@@ -24,7 +26,10 @@ use crate::{
         ModuleInit,
         ResultDType,
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     ops::norm::RmsNormOptions,
 };
 
@@ -37,6 +42,10 @@ pub enum BunsenNormalizationConfig {
     /// burn's [`BatchNorm`].
     Batch(BatchNormConfig),
 
+    /// burn's [`GroupNorm`]: its features are its `num_channels`, split into
+    /// `num_groups` groups.
+    Group(GroupNormConfig),
+
     /// bunsen's layer norm ([`BunsenNormalization::Layer`]); its serde form
     /// is burn's [`LayerNormConfig`]'s.
     Layer(BunsenLayerNormConfig),
@@ -48,6 +57,12 @@ pub enum BunsenNormalizationConfig {
 impl From<BatchNormConfig> for BunsenNormalizationConfig {
     fn from(config: BatchNormConfig) -> Self {
         Self::Batch(config)
+    }
+}
+
+impl From<GroupNormConfig> for BunsenNormalizationConfig {
+    fn from(config: GroupNormConfig) -> Self {
+        Self::Group(config)
     }
 }
 
@@ -70,6 +85,11 @@ impl From<RmsNormConfig> for BunsenNormalizationConfig {
 }
 
 /// The norm, on `device`.
+///
+/// # Errors
+///
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a group norm
+/// whose channels don't split into its groups.
 impl ModuleInit<BunsenNormalization> for BunsenNormalizationConfig {
     fn try_init(
         &self,
@@ -78,6 +98,15 @@ impl ModuleInit<BunsenNormalization> for BunsenNormalizationConfig {
         Ok(match self {
             Self::Identity => BunsenNormalization::Identity(Identity::new()),
             Self::Batch(config) => BunsenNormalization::Batch(config.init(device)),
+            Self::Group(config) => {
+                if config.num_groups == 0 || config.num_channels % config.num_groups != 0 {
+                    return Err(BunsenError::illegal(format!(
+                        "a group norm of {} channels in {} groups: the groups split the channels",
+                        config.num_channels, config.num_groups
+                    )));
+                }
+                BunsenNormalization::Group(config.init(device))
+            }
             Self::Layer(config) => BunsenNormalization::Layer(config.try_init(device)?),
             Self::Rms(config) => BunsenNormalization::Rms(config.init(device)),
         })
@@ -95,6 +124,11 @@ impl BunsenNormalizationConfig {
             Self::Identity => self,
             Self::Batch(config) => BatchNormConfig {
                 num_features,
+                ..config
+            }
+            .into(),
+            Self::Group(config) => GroupNormConfig {
+                num_channels: num_features,
                 ..config
             }
             .into(),
@@ -116,6 +150,7 @@ impl BunsenNormalizationConfig {
         match self {
             Self::Identity => 0,
             Self::Batch(config) => config.num_features,
+            Self::Group(config) => config.num_channels,
             Self::Layer(config) => config.d_model,
             Self::Rms(config) => config.d_model,
         }
@@ -131,6 +166,9 @@ pub enum BunsenNormalization {
 
     /// burn's [`BatchNorm`].
     Batch(BatchNorm),
+
+    /// burn's [`GroupNorm`], over a `[batch, channels, ...]` input.
+    Group(GroupNorm),
 
     /// A layer norm: burn's `LayerNorm`'s parameters, under bunsen's forward
     /// ([`LayerNorm::forward`]).
@@ -153,6 +191,12 @@ impl From<BatchNorm> for BunsenNormalization {
     }
 }
 
+impl From<GroupNorm> for BunsenNormalization {
+    fn from(layer: GroupNorm) -> Self {
+        Self::Group(layer)
+    }
+}
+
 impl BunsenNormalization {
     /// `input`, normalized; in `input`'s dtype.
     ///
@@ -166,6 +210,7 @@ impl BunsenNormalization {
         match self {
             Self::Identity(norm) => norm.forward(input),
             Self::Batch(norm) => norm.forward(input),
+            Self::Group(norm) => norm.forward(input),
             Self::Layer(norm) => norm.forward(input),
             Self::Rms(norm) => {
                 let dtype = input.dtype();
@@ -184,6 +229,7 @@ impl BunsenNormalization {
         match self {
             Self::Identity(_) => 0,
             Self::Batch(norm) => norm.gamma.shape()[0],
+            Self::Group(norm) => norm.num_channels,
             Self::Layer(norm) => norm.gamma.shape()[0],
             Self::Rms(norm) => norm.gamma.shape()[0],
         }
@@ -195,17 +241,19 @@ impl BunsenNormalization {
         match self {
             Self::Identity(_) => None,
             Self::Batch(norm) => Some(norm.epsilon),
+            Self::Group(norm) => Some(norm.epsilon),
             Self::Layer(norm) => Some(norm.epsilon),
             Self::Rms(norm) => Some(norm.epsilon),
         }
     }
 
     /// The float dtype of its parameters; `None` for
-    /// [`Identity`](Self::Identity).
+    /// [`Identity`](Self::Identity) and a group norm without an affine.
     pub fn param_dtype(&self) -> Option<FloatDType> {
         let gamma = match self {
             Self::Identity(_) => return None,
             Self::Batch(norm) => norm.gamma.val(),
+            Self::Group(norm) => norm.gamma.as_ref()?.val(),
             Self::Layer(norm) => norm.gamma.val(),
             Self::Rms(norm) => norm.gamma.val(),
         };
@@ -261,6 +309,10 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::DTypeMapper,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         support::testing::cpu_device,
     };
 
@@ -334,6 +386,7 @@ mod tests {
             BunsenNormalizationConfig::from(LayerNormConfig::new(0)),
             BunsenNormalizationConfig::from(RmsNormConfig::new(0)),
             BunsenNormalizationConfig::from(BatchNormConfig::new(0)),
+            BunsenNormalizationConfig::from(GroupNormConfig::new(2, 0)),
         ] {
             let config = config.with_num_features(4);
             assert_eq!(config.num_features(), 4);
@@ -388,10 +441,41 @@ mod tests {
                 BatchNormConfig::new(3).into(),
                 BatchNormConfig::new(3).into(),
             ),
+            (
+                GroupNormConfig::new(32, 64).into(),
+                GroupNormConfig::new(32, 64).into(),
+            ),
         ] {
             let ours = serde_json::to_value(&ours).unwrap();
             assert_eq!(ours, serde_json::to_value(&burns).unwrap());
             let _: BunsenNormalizationConfig = serde_json::from_value(ours).unwrap();
         }
+    }
+
+    /// A group norm is burn's; channels its groups don't split are an
+    /// error from `try_init`, not a panic.
+    #[test]
+    fn test_group_is_burns_and_checks_its_groups() {
+        let device = cpu_device();
+        let config = GroupNormConfig::new(2, 0);
+        let ours = BunsenNormalizationConfig::from(config.clone())
+            .with_num_features(4)
+            .init(&device);
+        assert_eq!(ours.num_features(), 4);
+        assert_eq!(ours.epsilon(), Some(1e-5));
+        assert_eq!(ours.param_dtype(), Some(FloatDType::F32));
+        let burns = GroupNormConfig::new(2, 4).init(&device);
+        let x: Tensor<3> = input(&device).reshape([1, 4, 2]);
+        ours.forward(x.clone()).into_data().assert_approx_eq::<f32>(
+            &burns.forward(x).into_data(),
+            burn::tensor::Tolerance::absolute(1e-6),
+        );
+
+        let odd: BunsenResult<BunsenNormalization> = BunsenNormalizationConfig::from(config)
+            .with_num_features(5)
+            .try_init(&device);
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("5 channels in 2 groups")
+            .assert_err(&odd);
     }
 }

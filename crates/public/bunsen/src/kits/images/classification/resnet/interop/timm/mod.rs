@@ -28,8 +28,8 @@ mod weights;
 pub use weights::*;
 
 /// The [`ResNetContractConfig`] a timm `config.json` describes: the prefab of
-/// its architecture's name (`resnet18`, `resnet26`, `resnet34`, `resnet50`,
-/// `resnet101`, `resnet152`), with its class count.
+/// its architecture's name (`resnet50`, `resnet50_gn`, …), with its class
+/// count.
 ///
 /// # Errors
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for an
