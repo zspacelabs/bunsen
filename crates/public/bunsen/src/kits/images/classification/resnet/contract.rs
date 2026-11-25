@@ -328,9 +328,9 @@ mod tests {
     use super::*;
     use crate::{
         blocks::images::models::conv_net::{
+            ConvChainMeta,
             ConvNetMeta,
             ConvNetModel,
-            ResidualUnitMeta,
         },
         burner::module::ModuleInit,
         data::pretrained::Prefabs,
