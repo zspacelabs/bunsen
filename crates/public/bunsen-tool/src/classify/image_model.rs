@@ -29,6 +29,16 @@ use bunsen::{
                 ResNetContractConfig,
                 pretrained::default_resnet_factory,
             },
+            swin::{
+                v1::{
+                    SwinV1ContractConfig,
+                    pretrained::default_swin_v1_factory,
+                },
+                v2::{
+                    SwinV2ContractConfig,
+                    pretrained::default_swin_v2_factory,
+                },
+            },
             vit::{
                 ViTContractConfig,
                 pretrained::default_vit_factory,
@@ -54,11 +64,24 @@ pub enum ImageFamily {
 
     /// `kits::images::classification::deit`: `DeiT` and `DeiT` III.
     DeiT,
+
+    /// `kits::images::classification::swin::v1`: the Swin Transformer, and
+    /// Swin-S3.
+    SwinV1,
+
+    /// `kits::images::classification::swin::v2`: Swin Transformer V2.
+    SwinV2,
 }
 
 impl ImageFamily {
     /// Every family, in the order `list` and the summary show them.
-    pub const ALL: [Self; 3] = [Self::ResNet, Self::ViT, Self::DeiT];
+    pub const ALL: [Self; 5] = [
+        Self::ResNet,
+        Self::ViT,
+        Self::DeiT,
+        Self::SwinV1,
+        Self::SwinV2,
+    ];
 
     /// The family's kit name.
     pub fn name(self) -> &'static str {
@@ -66,6 +89,8 @@ impl ImageFamily {
             Self::ResNet => "resnet",
             Self::ViT => "vit",
             Self::DeiT => "deit",
+            Self::SwinV1 => "swin-v1",
+            Self::SwinV2 => "swin-v2",
         }
     }
 
@@ -75,6 +100,8 @@ impl ImageFamily {
             Self::ResNet => ResNetContractConfig::prefab_names(),
             Self::ViT => ViTContractConfig::prefab_names(),
             Self::DeiT => DeiTContractConfig::prefab_names(),
+            Self::SwinV1 => SwinV1ContractConfig::prefab_names(),
+            Self::SwinV2 => SwinV2ContractConfig::prefab_names(),
         }
     }
 
@@ -114,6 +141,8 @@ impl ImageFamily {
             Self::ResNet => provider(default_resnet_factory()?, name),
             Self::ViT => provider(default_vit_factory()?, name),
             Self::DeiT => provider(default_deit_factory()?, name),
+            Self::SwinV1 => provider(default_swin_v1_factory()?, name),
+            Self::SwinV2 => provider(default_swin_v2_factory()?, name),
         })
     }
 
@@ -137,6 +166,8 @@ impl ImageFamily {
             Self::ResNet => rows(default_resnet_factory()?),
             Self::ViT => rows(default_vit_factory()?),
             Self::DeiT => rows(default_deit_factory()?),
+            Self::SwinV1 => rows(default_swin_v1_factory()?),
+            Self::SwinV2 => rows(default_swin_v2_factory()?),
         }
     }
 }
@@ -200,6 +231,24 @@ pub fn load_image_model(
                 card: construct.card,
             }
         }
+        ImageFamily::SwinV1 => {
+            let construct = Arc::unwrap_or_clone(
+                default_swin_v1_factory()?.load_construct(name, cache, device, policy)?,
+            );
+            LoadedImageModel {
+                model: Box::new(construct.model),
+                card: construct.card,
+            }
+        }
+        ImageFamily::SwinV2 => {
+            let construct = Arc::unwrap_or_clone(
+                default_swin_v2_factory()?.load_construct(name, cache, device, policy)?,
+            );
+            LoadedImageModel {
+                model: Box::new(construct.model),
+                card: construct.card,
+            }
+        }
     })
 }
 
@@ -225,6 +274,8 @@ pub fn fetch_image_model(
         ImageFamily::ResNet => fetch(default_resnet_factory()?, name, cache),
         ImageFamily::ViT => fetch(default_vit_factory()?, name, cache),
         ImageFamily::DeiT => fetch(default_deit_factory()?, name, cache),
+        ImageFamily::SwinV1 => fetch(default_swin_v1_factory()?, name, cache),
+        ImageFamily::SwinV2 => fetch(default_swin_v2_factory()?, name, cache),
     }
 }
 
@@ -249,6 +300,13 @@ mod tests {
                 ImageFamily::DeiT,
             ),
             ("hf:timm/deit3_small_patch16_224.mine", ImageFamily::DeiT),
+            ("timm/swin_s3_tiny_224.ms_in1k", ImageFamily::SwinV1),
+            (
+                "hf:timm/swin_tiny_patch4_window7_224.mine",
+                ImageFamily::SwinV1,
+            ),
+            ("timm/swinv2_tiny_window8_256.ms_in1k", ImageFamily::SwinV2),
+            ("hf:timm/swinv2_base_window12_192.mine", ImageFamily::SwinV2),
             ("hf:timm/resnet18.mine", ImageFamily::ResNet),
             ("hf:someone/unknown", ImageFamily::ResNet),
         ] {

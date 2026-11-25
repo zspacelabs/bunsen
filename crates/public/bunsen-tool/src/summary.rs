@@ -207,6 +207,14 @@ pub fn kinds() -> BunsenResult<Vec<Kind>> {
                     "deit",
                     bunsen::kits::images::classification::deit::pretrained::default_deit_factory()?,
                 ),
+                Family::of(
+                    "swin-v1",
+                    bunsen::kits::images::classification::swin::v1::pretrained::default_swin_v1_factory()?,
+                ),
+                Family::of(
+                    "swin-v2",
+                    bunsen::kits::images::classification::swin::v2::pretrained::default_swin_v2_factory()?,
+                ),
             ],
         },
     ]);
