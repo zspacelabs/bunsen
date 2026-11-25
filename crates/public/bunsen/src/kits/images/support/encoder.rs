@@ -45,7 +45,8 @@ pub trait ImageEncoder: Debug + Send + Sync {
     fn input_channels(&self) -> usize;
 
     /// The width of [`forward_pooled`](Self::forward_pooled)'s features:
-    /// timm's `num_features`.
+    /// timm's `num_features`, times its pool's `feat_mult` (2 for
+    /// `catavgmax`).
     fn d_features(&self) -> usize;
 
     /// The unpooled features of a `[batch, channels, height, width]` batch:
@@ -79,8 +80,10 @@ impl ImageEncoder for ConvNetModel {
         self.in_channels()
     }
 
+    /// The head's pooled width: the last stage's channels, twice them for a
+    /// `catavgmax` pool.
     fn d_features(&self) -> usize {
-        ConvNetMeta::d_features(self)
+        self.head.pooled_features()
     }
 
     fn forward_features(

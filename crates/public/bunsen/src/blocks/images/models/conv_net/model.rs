@@ -405,7 +405,8 @@ impl ConvNetModel {
     ///
     /// # Returns
     ///
-    /// `[batch, d_features]`.
+    /// `[batch, pooled]`: `d_features` wide, or twice it for a
+    /// [`CatAvgMax`](super::GlobalPool2dConfig::CatAvgMax) pool.
     pub fn pooled_features(
         &self,
         images: Tensor<4>,

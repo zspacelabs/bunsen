@@ -24,6 +24,7 @@ use crate::{
             ConvStemContractConfig,
             ConvStemPoolKind,
             ConvUnitKind,
+            GlobalPool2dConfig,
         },
         norm::BunsenNormalizationConfig,
     },
@@ -171,6 +172,16 @@ pub struct ResNetContractConfig {
     #[config(default = "false")]
     pub replace_stem_pool: bool,
 
+    /// The head's global pool (timm's `global_pool`): `avg`, `max`, `avgmax`
+    /// or `catavgmax`.
+    #[config(default = "GlobalPool2dConfig::Avg")]
+    pub global_pool: GlobalPool2dConfig,
+
+    /// The dropout before the classifier (timm's `drop_rate`; training
+    /// only).
+    #[config(default = "0.0")]
+    pub drop_rate: f64,
+
     /// The net's stride at its last stage: 32, or 16 or 8 for a dilated net.
     #[config(default = "32")]
     pub output_stride: usize,
@@ -273,6 +284,8 @@ impl ResNetContractConfig {
             ConvShortcutKind::Conv
         };
         Ok(ConvNetContractConfig::new(stem, stages, self.num_classes)
+            .with_global_pool(self.global_pool)
+            .with_drop_rate(self.drop_rate)
             .with_in_channels(self.in_channels)
             .with_output_stride(self.output_stride)
             .with_layers(

@@ -1,6 +1,6 @@
 """Generate the resnet kit's toy fixtures: tiny seeded timm `ResNet`s and their answers.
 
-Thirteen toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
+Fifteen toys, each timm's own `timm.models.resnet.ResNet` with four stages of one block and
 narrow stage widths (its `channels`), on timm's fixed 64-wide 7x7 stem, 10 classes (timm's
 forward runs exactly four stages):
 
@@ -28,7 +28,10 @@ forward runs exactly four stages):
 - `toy_blur_dilated`: `Bottleneck`s anti-aliased by `BlurPool2d` at `output_stride=16`: the
   last stage's first unit blurs at stride 1 where it would have strided;
 - `toy_rs`: a `ResNet-RS`'s knobs: `Bottleneck`s on a deep stem whose max pool is a strided
-  conv (`replace_stem_pool`), `avg_down`, and squeeze-excite of a quarter of the channels.
+  conv (`replace_stem_pool`), `avg_down`, and squeeze-excite of a quarter of the channels;
+- `toy_catavgmax`: `toy_bottleneck`'s geometry with a `catavgmax` head (twice the features
+  into the classifier) and a head dropout (a no-op in eval);
+- `toy_avgmax`: `toy_basic`'s geometry with an `avgmax` head.
 
 The stem, blur and RS toys run on 36x36 images, so the stages see odd sizes (9, 5, 3) and the shortcuts'
 ceil-mode pools a partial window; the others on 32x32. (`toy_aa` can't be odd: timm's own
@@ -109,6 +112,10 @@ TOYS = {
         replace_stem_pool=True, avg_down=True,
         block_args=dict(attn_layer=partial(get_attn("se"), rd_ratio=0.25)),
     ),
+    "toy_catavgmax": dict(
+        block=Bottleneck, channels=(8, 16, 32, 64), global_pool="catavgmax", drop_rate=0.25,
+    ),
+    "toy_avgmax": dict(block=BasicBlock, channels=(8, 16, 32, 64), global_pool="avgmax"),
 }
 
 # The image side of each toy: odd stage sizes for the stem toys.

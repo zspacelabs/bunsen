@@ -11,6 +11,7 @@
 //!   checkpoint.
 
 use crate::{
+    blocks::images::models::conv_net::GlobalPool2dConfig,
     data::pretrained::Prefabs,
     errors::{
         BunsenError,
@@ -29,12 +30,13 @@ pub use weights::*;
 
 /// The [`ResNetContractConfig`] a timm `config.json` describes: the prefab of
 /// its architecture's name (`resnet50`, `resnet50_gn`, …), with its class
-/// count.
+/// count and its global pool.
 ///
 /// # Errors
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for an
 /// architecture the kit has no prefab of (`resnest50d`, …), a headless model
-/// (0 classes), or a pool other than `avg`.
+/// (0 classes), or a pool timm's `SelectAdaptivePool2d` names but the head
+/// doesn't build (`''`, no pool).
 pub fn resnet_contract_config(
     config: &TimmModelConfigMirror
 ) -> BunsenResult<ResNetContractConfig> {
@@ -50,12 +52,13 @@ pub fn resnet_contract_config(
             "timm's headless {architecture}: the resnet kit builds a classifier"
         )));
     }
-    if let Some(pool) = config.global_pool.as_deref()
-        && pool != "avg"
-    {
-        return Err(BunsenError::unsupported(format!(
-            "timm's {architecture} with a {pool:?} pool: the resnet kit pools by average"
-        )));
+    if let Some(pool) = config.global_pool.as_deref() {
+        contract.global_pool = GlobalPool2dConfig::from_timm(pool).ok_or_else(|| {
+            BunsenError::unsupported(format!(
+                "timm's {architecture} with a {pool:?} pool: the resnet kit pools by avg, max, \
+                 avgmax or catavgmax"
+            ))
+        })?;
     }
     contract.num_classes = config.num_classes;
     Ok(contract)
@@ -112,10 +115,29 @@ mod tests {
         unsupported()
             .message_contains("headless")
             .assert_err(&resnet_contract_config(&config("resnet50", 0)));
-        let mut max_pooled = config("resnet50", 1000);
-        max_pooled.global_pool = Some("max".into());
+        let mut unpooled = config("resnet50", 1000);
+        unpooled.global_pool = Some("".into());
         unsupported()
-            .message_contains("\"max\" pool")
-            .assert_err(&resnet_contract_config(&max_pooled));
+            .message_contains("\"\" pool")
+            .assert_err(&resnet_contract_config(&unpooled));
+    }
+
+    /// timm's pools are the head's.
+    #[test]
+    fn test_pools_map() {
+        for (name, pool) in [
+            ("avg", GlobalPool2dConfig::Avg),
+            ("max", GlobalPool2dConfig::Max),
+            ("avgmax", GlobalPool2dConfig::AvgMax),
+            ("catavgmax", GlobalPool2dConfig::CatAvgMax),
+        ] {
+            let mut pooled = config("resnet50", 1000);
+            pooled.global_pool = Some(name.into());
+            assert_eq!(
+                resnet_contract_config(&pooled).unwrap().global_pool,
+                pool,
+                "{name}"
+            );
+        }
     }
 }
