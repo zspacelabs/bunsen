@@ -56,14 +56,17 @@ impl Default for ResNetStateLayout {
 
 impl ResNetStateLayout {
     /// The layout of `model`'s checkpoints: its stem's convs, and whether its
-    /// shortcuts pool.
+    /// shortcuts pool. A net of `avg_down` shortcuts has one that pools (each
+    /// that strides or dilates); timm's names every one of them
+    /// `downsample.1` and `.2`, the unpooled ones too (their pool is
+    /// `nn.Identity`).
     pub fn of(model: &ConvNetModel) -> Self {
         let avg_down = model
             .stages
             .iter()
             .flat_map(|stage| &stage.units)
-            .find_map(|unit| unit.shortcut.as_ref())
-            .is_some_and(|shortcut| matches!(shortcut, ConvShortcut::AvgConv(_)));
+            .filter_map(|unit| unit.shortcut.as_ref())
+            .any(|shortcut: &ConvShortcut| shortcut.pool.is_some());
         Self {
             stem_convs: model.stem.convs.len(),
             avg_down,

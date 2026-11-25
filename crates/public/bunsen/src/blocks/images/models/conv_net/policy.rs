@@ -33,7 +33,6 @@ use crate::{
                 SqueezeExciteConfig,
             },
             models::conv_net::{
-                AvgConvShortcutConfig,
                 ConvChainMeta,
                 ConvHeadConfig,
                 ConvNetStructureConfig,
@@ -85,7 +84,7 @@ pub enum ConvShortcutKind {
     Conv,
 
     /// An average pool, then a `1x1` conv and a norm (timm's `avg_down`, the
-    /// `ResNet-D` variants): [`AvgConvShortcutConfig::timm`].
+    /// `ResNet-D` variants): [`ConvShortcutConfig::timm_avg_down`].
     AvgConv,
 }
 
@@ -397,7 +396,7 @@ impl ConvStageContractConfig {
         };
         let shortcut = if stride != 1 || in_channels != width {
             Some(match layers.shortcut {
-                ConvShortcutKind::Conv => ConvShortcutConfig::Conv(layers.conv(
+                ConvShortcutKind::Conv => ConvShortcutConfig::conv(layers.conv(
                     [in_channels, width],
                     1,
                     stride,
@@ -405,13 +404,11 @@ impl ConvStageContractConfig {
                     1,
                     false,
                 )),
-                ConvShortcutKind::AvgConv => {
-                    ConvShortcutConfig::AvgConv(AvgConvShortcutConfig::timm(
-                        layers.conv([in_channels, width], 1, 1, 1, 1, false),
-                        stride,
-                        dilation,
-                    ))
-                }
+                ConvShortcutKind::AvgConv => ConvShortcutConfig::timm_avg_down(
+                    layers.conv([in_channels, width], 1, 1, 1, 1, false),
+                    stride,
+                    dilation,
+                ),
             })
         } else {
             None

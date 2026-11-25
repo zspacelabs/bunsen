@@ -95,8 +95,12 @@ fn test_basic_units_lower_to_resnets() {
         down.convs.iter().map(conv_shape).collect::<Vec<_>>(),
         [([8, 16], 3, 2, 1, 1, true), ([16, 16], 3, 1, 1, 1, false)]
     );
-    let Some(ConvShortcutConfig::Conv(shortcut)) = &down.shortcut else {
-        panic!("a strided unit has a shortcut");
+    let Some(ConvShortcutConfig {
+        pool: None,
+        block: shortcut,
+    }) = &down.shortcut
+    else {
+        panic!("a strided unit has a conv shortcut");
     };
     assert_eq!(
         (
@@ -271,7 +275,7 @@ fn test_avg_conv_shortcuts_are_timms() {
         .stages
         .iter()
         .map(|stage| {
-            let Some(ConvShortcutConfig::AvgConv(shortcut)) = &stage.units[0].shortcut else {
+            let Some(shortcut) = &stage.units[0].shortcut else {
                 panic!("an avg-conv shortcut");
             };
             assert_eq!(shortcut.block.stride(), [1, 1]);

@@ -64,8 +64,9 @@
 //!
 //! - the unit kind: [`ConvUnitKind`] (basic, bottleneck);
 //! - a path's conv: [`ResidualConvConfig`] (a conv block);
-//! - the shortcut: [`ConvShortcutKind`] / [`ConvShortcutConfig`] (a conv and a
-//!   norm; an average pool, then a conv and a norm);
+//! - the shortcut: [`ConvShortcutKind`] (a conv and a norm; an average pool,
+//!   then a conv and a norm), lowering to one [`ConvShortcutConfig`], an
+//!   optional pool before a conv block;
 //! - the channel attention: [`ConvAttentionKind`] /
 //!   [`ChannelAttentionConfig`](crate::blocks::images::attention::ChannelAttentionConfig)
 //!   (squeeze-excite, ECA);
