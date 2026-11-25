@@ -54,7 +54,10 @@
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
-//!     blocks::activation::BunsenActivationConfig,
+//!     blocks::{
+//!         activation::BunsenActivationConfig,
+//!         images::models::conv_net::ConvNetModel,
+//!     },
 //!     data::{
 //!         pretrained::Prefabs,
 //!         resources::{
@@ -63,7 +66,6 @@
 //!         },
 //!     },
 //!     kits::images::classification::resnet::{
-//!         ResNet,
 //!         ResNetContractConfig,
 //!         pretrained::default_resnet_factory,
 //!     },
@@ -79,7 +81,7 @@
 //! let mut model =
 //!     default_resnet_factory()?.resolve("timm/resnet18_a1", &cache)?;
 //! model.config = model.config.with_config(config);
-//! let resnet: ResNet = Arc::unwrap_or_clone(
+//! let resnet: ConvNetModel = Arc::unwrap_or_clone(
 //!     model
 //!         .load(
 //!             &cache,

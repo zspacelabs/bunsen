@@ -8,9 +8,10 @@
 //! [`ImageClassifier`](driver::ImageClassifier) seam every classifier
 //! implements, and the top classes of its logits. The kits:
 //!
-//! - [`resnet`]: the `ResNet` family. Six prefabs, `resnet18` to `resnet152`,
-//!   and 47 pretrained rows, torchvision's and `timm`'s hub repos, loaded by
-//!   name through
+//! - [`resnet`]: the `ResNet` family, built as the generic conv net
+//!   ([`ConvNetModel`](crate::blocks::images::models::conv_net::ConvNetModel)).
+//!   Six prefabs, `resnet18` to `resnet152`, and 47 pretrained rows,
+//!   torchvision's and `timm`'s hub repos, loaded by name through
 //!   [`default_resnet_factory`](resnet::pretrained::default_resnet_factory).
 //!   Its [compatibility](resnet#compatibility) section lists what of `timm`'s
 //!   `ResNet` is missing.

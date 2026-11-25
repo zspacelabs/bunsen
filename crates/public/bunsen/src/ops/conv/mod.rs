@@ -11,7 +11,7 @@
 //! `forward`. This module gives the same answer as a pure function, which is
 //! what a config or a `{Name}Meta` trait needs to advertise its output size
 //! before any tensor exists. [`ConvBlock2dMeta::try_output_resolution`] and
-//! the `ResNet` downsample are built on it.
+//! the conv net's padding are built on it.
 //!
 //! ## Map
 //!

@@ -133,14 +133,16 @@ is [`ModuleInit`'s Stacked Config example](bunsen::burner::module::ModuleInit#st
 
 The crate's Stacked families show the variations:
 
-- **ResNet** has one policy,
-  [`ResNetContractConfig`](bunsen::kits::images::classification::resnet::ResNetContractConfig),
-  over [`ResNetStructureConfig`](bunsen::kits::images::classification::resnet::ResNetStructureConfig).
-  Inside it,
-  [`ResidualBlockStructureConfig`](bunsen::kits::images::classification::resnet::blocks::ResidualBlockStructureConfig)
-  is an enum. That makes it one contract with two implementations (basic and
-  bottleneck), and the enum, not its callers, dispatches each method to the
-  variant it holds.
+- **ResNet** has a family's policy over a generic model.
+  [`ResNetContractConfig`](bunsen::kits::images::classification::resnet::ResNetContractConfig)
+  states a `ResNet` in its own terms, and refines into the generic
+  [`ConvNetContractConfig`](bunsen::blocks::images::models::conv_net::ConvNetContractConfig),
+  which lowers to
+  [`ConvNetStructureConfig`](bunsen::blocks::images::models::conv_net::ConvNetStructureConfig).
+  Inside it, each slot is an enum, such as
+  [`ResidualConvConfig`](bunsen::blocks::images::models::conv_net::ResidualConvConfig):
+  one contract with an implementation per kind, and the enum, not its
+  callers, dispatches each method to the variant it holds.
 - **Silero VAD** has two chained policies.
   [`SileroVadSignalConfig`](bunsen::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig)
   refines into

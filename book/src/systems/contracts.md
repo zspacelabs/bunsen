@@ -99,9 +99,10 @@ cannot make. When you do gate a check:
 
 [`next_interior_3d`](bunsen::sims::conway::ops::next_interior_3d) is a
 small example: a gated unpack of its input and a gated periodic assert of
-its shrunken output. The ResNet blocks, such as
-[`LayerBlock::forward`](bunsen::kits::images::classification::resnet::blocks::LayerBlock::forward),
-use the same pattern.
+its shrunken output. The conv net's
+[`ResidualUnit::forward`](bunsen::blocks::images::models::conv_net::ResidualUnit::forward)
+reads its input's dims in its body, so unpacks it always, and asserts its
+output in a gated block.
 
 ## Reading a failure
 

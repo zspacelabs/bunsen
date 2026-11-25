@@ -5,6 +5,7 @@ use alloc::sync::Arc;
 use burn::tensor::Device;
 
 use crate::{
+    blocks::images::models::conv_net::ConvNetModel,
     data::{
         builds::{
             BuildRef,
@@ -24,7 +25,6 @@ use crate::{
     },
     kits::images::{
         classification::resnet::{
-            ResNet,
             ResNetContractConfig,
             pretrained::RESNET_KIT,
         },
@@ -40,7 +40,7 @@ use crate::{
 ///
 /// `ResNet`'s [`ConstructInit`] hook, behind
 /// [`default_resnet_factory`](super::default_resnet_factory). It
-/// builds a [`ResNet`] from the config, reads the checkpoint into it with
+/// builds a [`ConvNetModel`] from the config, reads the checkpoint into it with
 /// [`load_resnet`](crate::kits::images::classification::resnet::interop::torchvision::load_resnet),
 /// and reads the build's [`ImageModelCard`]: its eval transform and labels.
 ///
@@ -104,7 +104,7 @@ impl ResNetConstructConfig {
 }
 
 impl ConstructInit for ResNetConstructConfig {
-    type Construct = ImageModelConstruct<ResNet>;
+    type Construct = ImageModelConstruct<ConvNetModel>;
 
     const KIT: &'static str = RESNET_KIT;
 
@@ -123,7 +123,7 @@ impl ConstructInit for ResNetConstructConfig {
         loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
-    ) -> BunsenResult<Arc<ImageModelConstruct<ResNet>>> {
+    ) -> BunsenResult<Arc<ImageModelConstruct<ConvNetModel>>> {
         use crate::{
             data::{
                 builds::CONFIG,

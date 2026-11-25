@@ -180,8 +180,9 @@ use crate::errors::{
 ///
 /// The crate's Stacked families show the variations:
 ///
-/// - [`ResNetContractConfig`] is a single policy over [`ResNetStructureConfig`]
-///   and [`ResNet`].
+/// - [`ResNetContractConfig`] is a family's policy: it lowers to the generic
+///   [`ConvNetContractConfig`], which lowers to [`ConvNetStructureConfig`] and
+///   builds a [`ConvNetModel`].
 /// - [`SileroVadSignalConfig`] and [`SileroVadStftConfig`] are two chained
 ///   policies: [`to_stft`] refines the signal policy into the STFT one, and
 ///   both lower straight to [`SileroVadStructureConfig`].
@@ -333,8 +334,9 @@ use crate::errors::{
 /// [`SileroVadContextConfig::init`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadContextConfig::init
 /// [`LBMD2Q9Config::init`]: crate::sims::lbm::d2q9::LBMD2Q9Config::init
 /// [`ResNetContractConfig`]: crate::kits::images::classification::resnet::ResNetContractConfig
-/// [`ResNetStructureConfig`]: crate::kits::images::classification::resnet::ResNetStructureConfig
-/// [`ResNet`]: crate::kits::images::classification::resnet::ResNet
+/// [`ConvNetContractConfig`]: crate::blocks::images::models::conv_net::ConvNetContractConfig
+/// [`ConvNetStructureConfig`]: crate::blocks::images::models::conv_net::ConvNetStructureConfig
+/// [`ConvNetModel`]: crate::blocks::images::models::conv_net::ConvNetModel
 /// [`SileroVadSignalConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig
 /// [`SileroVadStftConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStftConfig
 /// [`SileroVadStructureConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStructureConfig
