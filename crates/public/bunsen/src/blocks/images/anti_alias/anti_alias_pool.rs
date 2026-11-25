@@ -15,7 +15,10 @@ use super::{
     BlurPool2dConfig,
     BlurPool2dMeta,
 };
-use crate::errors::BunsenResult;
+use crate::{
+    burner::module::ModuleInit,
+    errors::BunsenResult,
+};
 
 /// The config of an [`AntiAlias`]: its kind, and that kind's config.
 #[derive(Config, Debug)]
@@ -46,15 +49,21 @@ impl AntiAliasConfig {
             Self::Avg(config) => config.strides[0],
         }
     }
+}
 
-    /// The pool.
-    ///
-    /// # Errors
-    ///
-    /// As [`BlurPool2dConfig::try_init`].
-    pub fn try_init(&self) -> BunsenResult<AntiAlias> {
+/// The pool; no kind has parameters, so `device` is unused but by the
+/// kinds' own inits.
+///
+/// # Errors
+///
+/// As [`BlurPool2dConfig`]'s `try_init`.
+impl ModuleInit<AntiAlias> for AntiAliasConfig {
+    fn try_init(
+        &self,
+        device: &burn::tensor::Device,
+    ) -> BunsenResult<AntiAlias> {
         Ok(match self {
-            Self::Blur(config) => AntiAlias::Blur(config.try_init()?),
+            Self::Blur(config) => AntiAlias::Blur(config.try_init(device)?),
             Self::Avg(config) => AntiAlias::Avg(config.init()),
         })
     }

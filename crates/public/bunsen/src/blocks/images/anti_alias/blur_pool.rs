@@ -16,9 +16,12 @@ use burn::{
     },
 };
 
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    burner::module::ModuleInit,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// The view shared by [`BlurPool2dConfig`] and [`BlurPool2d`].
@@ -58,14 +61,17 @@ impl BlurPool2dMeta for BlurPool2dConfig {
     }
 }
 
-impl BlurPool2dConfig {
-    /// The pool.
-    ///
-    /// # Errors
-    ///
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a side
-    /// under 2 or a zero stride.
-    pub fn try_init(&self) -> BunsenResult<BlurPool2d> {
+/// The pool; it has no parameters, so `device` is unused.
+///
+/// # Errors
+///
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a side under 2
+/// or a zero stride.
+impl ModuleInit<BlurPool2d> for BlurPool2dConfig {
+    fn try_init(
+        &self,
+        _device: &burn::tensor::Device,
+    ) -> BunsenResult<BlurPool2d> {
         if self.filt_size < 2 || self.stride == 0 {
             return Err(BunsenError::illegal(format!(
                 "BlurPool2dConfig: filt_size {} and stride {}; the side is at least 2, the stride \
@@ -77,15 +83,6 @@ impl BlurPool2dConfig {
             filt_size: self.filt_size,
             stride: self.stride,
         })
-    }
-
-    /// [`try_init`](Self::try_init), for a config known to be sound.
-    ///
-    /// # Panics
-    ///
-    /// When it is not.
-    pub fn init(&self) -> BlurPool2d {
-        self.try_init().unwrap_or_else(|e| panic!("{e}"))
     }
 }
 
@@ -171,9 +168,16 @@ mod tests {
     /// The binomial taps.
     #[test]
     fn test_taps() {
-        assert_eq!(BlurPool2dConfig::new().init().taps(), [0.25, 0.5, 0.25]);
+        let device = cpu_device();
         assert_eq!(
-            BlurPool2dConfig::new().with_filt_size(5).init().taps(),
+            BlurPool2dConfig::new().init(&device).taps(),
+            [0.25, 0.5, 0.25]
+        );
+        assert_eq!(
+            BlurPool2dConfig::new()
+                .with_filt_size(5)
+                .init(&device)
+                .taps(),
             [1.0 / 16.0, 4.0 / 16.0, 6.0 / 16.0, 4.0 / 16.0, 1.0 / 16.0]
         );
     }
@@ -183,7 +187,7 @@ mod tests {
     #[test]
     fn test_forward_keeps_a_constant_and_strides() {
         let device = cpu_device();
-        let pool = BlurPool2dConfig::new().init();
+        let pool = BlurPool2dConfig::new().init(&device);
         let x = Tensor::<4>::ones([2, 3, 7, 6], &device) * 3.0;
         let y = pool.forward(x);
         assert_eq!(y.dims(), [2, 3, 4, 3]);
@@ -197,7 +201,7 @@ mod tests {
     #[test]
     fn test_impulse_response() {
         let device = cpu_device();
-        let pool = BlurPool2dConfig::new().with_stride(1).init();
+        let pool = BlurPool2dConfig::new().with_stride(1).init(&device);
         let mut values = alloc::vec![0f32; 25];
         values[12] = 16.0;
         let x = Tensor::<4>::from_data(TensorData::new(values, [1, 1, 5, 5]), &device);

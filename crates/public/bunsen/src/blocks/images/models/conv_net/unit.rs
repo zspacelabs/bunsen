@@ -621,11 +621,7 @@ impl ModuleInit<ResidualUnit> for ResidualUnitConfig {
                 .map(|c| c.try_init(device))
                 .collect::<BunsenResult<_>>()?,
             mixer: self.mixer,
-            aa: self
-                .aa
-                .as_ref()
-                .map(AntiAliasConfig::try_init)
-                .transpose()?,
+            aa: self.aa.as_ref().map(|aa| aa.try_init(device)).transpose()?,
             shortcut: self
                 .shortcut
                 .as_ref()
