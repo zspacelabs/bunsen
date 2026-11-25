@@ -8,11 +8,12 @@
 //!
 //! The geometries are [`ViTContractConfig`](super::ViTContractConfig)'s
 //! prefabs: 25 by timm's architecture names, each with 1000 classes at its
-//! name's size. The checkpoints are 96 rows, the built-in catalog's builds
+//! name's size. The checkpoints are 99 rows, the built-in catalog's builds
 //! of [`VIT_CATALOG_CONTRACT`] in its `timm` namespace, written by the
 //! catalog builder's `timm-rows`: every timm hub repo of a prefab's
-//! architecture in timm's own layout
-//! (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), each pinned at a
+//! architecture (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`): its
+//! `model.safetensors`, or an older repo's `pytorch_model.bin` (three
+//! `OpenAI` CLIP towers, in CLIP's own layout), each pinned at a
 //! revision: `AugReg`'s, the original `ViT` paper's, SAM's, DINO's, MAE's,
 //! MIIL's, and the CLIP towers of LAION, `DataComp`, `MetaCLIP`, DFN and
 //! `OpenAI`, with timm's fine-tunes of them. A row whose head has an

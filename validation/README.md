@@ -200,7 +200,8 @@ cargo catalog timm-rows --kit vit       # the same for the vit kit, whose towers
 
 `timm-rows` replaces the source's lines between its `BEGIN` / `END` markers
 with a build for each repo timm publishes under one of the kit's prefab names,
-provided the repo has a `model.safetensors` and a `config.json` whose head has
+provided the repo has a timm checkpoint (a `model.safetensors`, else an older
+repo's `pytorch_model.bin`) and a `config.json` whose head has
 an `ImageNet` label set's class count (1k, 12k, 21k Google's or 21k MIIL's): the
 row binds that set's labels. A kit that loads other heads (a headless tower, a
 CLIP projection) has them written too, with no labels. It skips a `tv_in1k` repo whose architecture has a `torchvision/`

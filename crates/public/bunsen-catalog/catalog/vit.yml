@@ -1751,6 +1751,37 @@ timm:
         - $hub:
             $repo: timm/vit_base_patch32_clip_224.metaclip_400m
             $revision: 52dc0f732ea7b1f56c260f9c05f449cdc24b2814
+  vit_base_patch32_clip_224.openai:
+    $kind: build
+    $description: timm's `vit_base_patch32_clip_224`, its `openai` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch32_clip_224.openai
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: pytorch_model.bin
+      $format: pytorch fp32
+      $sha256: bd41409c7f2bb021cd96142f3a490caa78494cf4ec7f245d916bc33641a80d09
+      $size: 605221285
+      $sources:
+        - $hub:
+            $repo: timm/vit_base_patch32_clip_224.openai
+            $revision: a6f597a30f7b82c51704746581f9a4e41421e878
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: db74f69aabca2fa69ab2d3f132183de13b452cc375722589205edd6d1e061393
+      $size: 617
+      $sources:
+        - $hub:
+            $repo: timm/vit_base_patch32_clip_224.openai
+            $revision: a6f597a30f7b82c51704746581f9a4e41421e878
   vit_base_patch32_clip_224.openai_ft_in1k:
     $kind: build
     $description: timm's `vit_base_patch32_clip_224`, its `openai_ft_in1k` weights.
@@ -2135,6 +2166,37 @@ timm:
         - $hub:
             $repo: timm/vit_base_patch16_clip_224.metaclip_400m
             $revision: b9e318ae7ebed751491a6e22e02c5992e67bed2d
+  vit_base_patch16_clip_224.openai:
+    $kind: build
+    $description: timm's `vit_base_patch16_clip_224`, its `openai` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_clip_224.openai
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: pytorch_model.bin
+      $format: pytorch fp32
+      $sha256: 53b401837e5baa82115d3b6db60c6fff43cfd1a6412e48ed0193d54a69d2f993
+      $size: 598594981
+      $sources:
+        - $hub:
+            $repo: timm/vit_base_patch16_clip_224.openai
+            $revision: 977e3dd0ec55ab8da155f2fbeb6b5f54948b6e3d
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 8d835b47b0ce0415a21bcc70e314d394b212acfafeefc364ba20c8de95b68547
+      $size: 617
+      $sources:
+        - $hub:
+            $repo: timm/vit_base_patch16_clip_224.openai
+            $revision: 977e3dd0ec55ab8da155f2fbeb6b5f54948b6e3d
   vit_base_patch16_clip_224.openai_ft_in12k:
     $kind: build
     $description: timm's `vit_base_patch16_clip_224`, its `openai_ft_in12k` weights.
@@ -2744,6 +2806,37 @@ timm:
         - $hub:
             $repo: timm/vit_large_patch14_clip_224.metaclip_400m
             $revision: 41b287cf80fb4f3af3e9393d5d866a451cd7bffd
+  vit_large_patch14_clip_224.openai:
+    $kind: build
+    $description: timm's `vit_large_patch14_clip_224`, its `openai` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch14_clip_224.openai
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: pytorch_model.bin
+      $format: pytorch fp32
+      $sha256: eb70c15b117effa76315db43fcbd9f32a655292fc861798343939a02f561c6ae
+      $size: 1710633285
+      $sources:
+        - $hub:
+            $repo: timm/vit_large_patch14_clip_224.openai
+            $revision: 18d0535469bb561bf468d76c1d73aa35156c922b
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 8a5bb1350acbf8b9157d977ac705f48e4bc9d86d36d0f8fd4e36d11e5ef9cf33
+      $size: 619
+      $sources:
+        - $hub:
+            $repo: timm/vit_large_patch14_clip_224.openai
+            $revision: 18d0535469bb561bf468d76c1d73aa35156c922b
   vit_large_patch14_clip_224.openai_ft_in12k:
     $kind: build
     $description: timm's `vit_large_patch14_clip_224`, its `openai_ft_in12k` weights.
