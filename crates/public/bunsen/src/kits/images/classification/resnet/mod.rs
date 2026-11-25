@@ -8,8 +8,7 @@
 //! name the variant, `resnet18` to `resnet152`.
 //!
 //! [`pretrained`] turns names into loaded models.
-//! [`ResNetContractConfig`]'
-//! s prefabs names the six geometries, `resnet18`
+//! [`ResNetContractConfig`]'s prefabs name the six geometries, `resnet18`
 //! to `resnet152`, and
 //! [`default_resnet_factory`](pretrained::default_resnet_factory) is the
 //! index of 47 torchvision and `timm` checkpoints: `torchvision/resnet50`,
@@ -25,14 +24,12 @@
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
+//!     blocks::images::models::conv_net::ConvNetModel,
 //!     data::resources::{
 //!         ResourceCache,
 //!         ResourceCacheOptions,
 //!     },
-//!     kits::images::classification::resnet::{
-//!         ResNet,
-//!         pretrained::default_resnet_factory,
-//!     },
+//!     kits::images::classification::resnet::pretrained::default_resnet_factory,
 //!     support::testing::cpu_device,
 //! };
 //!
@@ -48,7 +45,7 @@
 //!     bunsen::data::formats::LoadPolicy::performance(),
 //! )?;
 //!
-//! let model: ResNet = Arc::unwrap_or_clone(loaded.handle)
+//! let model: ConvNetModel = Arc::unwrap_or_clone(loaded.handle)
 //!     .model
 //!     // re-head the model to 10 classes:
 //!     .with_classes(10)
@@ -60,35 +57,21 @@
 //! # Ok::<(), bunsen::errors::BunsenError>(())
 //! ```
 //!
-//! # Lifecycle
+//! # The model
 //!
-//! `ResNet` is a [Stacked
-//! config](crate::burner::module::ModuleInit#stacked-config):
+//! A `ResNet` is the generic conv net,
+//! [`ConvNetModel`](crate::blocks::images::models::conv_net::ConvNetModel):
+//! the kit has no model type of its own. [`ResNetContractConfig`] is the
+//! policy in `ResNet`'s terms (the stage depths, the classes, the stem's
+//! width, the output stride, the bottleneck policy, the norm and the
+//! activation), and lowers to the generic one
+//! ([`to_conv_net`](ResNetContractConfig::to_conv_net)); `init` builds the
+//! model through it. A geometry the policy cannot express is built from the
+//! generic policy or structure directly.
 //!
-//! 1. [`ResNetContractConfig`] is the policy: the stage depths, the class
-//!    count, the stem width, the output stride, the bottleneck policy, the norm
-//!    and the activation.
-//! 2. [`to_structure`](crate::burner::module::ToStructureConfig::to_structure)
-//!    unrolls it into a [`ResNetStructureConfig`]: the stem's conv block, one
-//!    [`LayerBlockStructureConfig`](blocks::LayerBlockStructureConfig) per
-//!    stage, each an explicit list of residual blocks, and the class count.
-//! 3. `init` builds the [`ResNet`]: from the structure, or from the policy in
-//!    one step through the blanket
-//!    [`ModuleInit`](crate::burner::module::ModuleInit).
-//! 4. [`forward`](ResNet::forward) maps a `[batch, 3, height, width]` image
-//!    batch to `[batch, num_classes]` logits.
-//!
-//! The policy is the simple way to name a variant, and is meant to stay
-//! that way as variants are added. The structure is for building one the
-//! policy cannot express: edit the tree, then `init` it. [`ResNetMeta`]
-//! answers the same questions of the structure and the module, and
-//! [`blocks`] has the parts.
-//!
-//! A built model can still change: [`with_classes`](ResNet::with_classes)
-//! re-heads it, and
-//! [`with_stochastic_drop_block`](ResNet::with_stochastic_drop_block) and
-//! [`with_stochastic_path_depth`](ResNet::with_stochastic_path_depth) add
-//! regularization for training.
+//! The model's parameter paths are the conv net's own; [`interop`] maps
+//! torchvision's and timm's names onto them
+//! ([`resnet_rekey`](interop::torchvision::resnet_rekey)).
 //!
 //! # Compatibility
 //!
@@ -96,31 +79,19 @@
 //! for parity with the `timm` library's. The equivalence matrix is a large
 //! amount of work and is not complete. Missing today:
 //!
-//! * all the fancy-stem options
-//! * injectable norm layers
-//! * injectable activation layers
-//! * conv / avg downsample switching
+//! * the deep and tiered stems
+//! * the average-pool shortcut (`ResNet-D`)
+//! * grouped and widened units (`ResNeXt`, wide `ResNet`s) on the policy
 //! * anti-aliasing
-//! * block attention
+//! * channel attention
 
 pub mod pretrained;
 
-pub mod blocks;
-
 pub mod interop;
+
+mod contract;
 
 #[cfg(all(test, feature = "store"))]
 mod toy_tests;
 
-pub use blocks::resnet_model::*;
-
-/// ResNet-18 block depths.
-pub const RESNET18_BLOCKS: [usize; 4] = [2, 2, 2, 2];
-/// ResNet-34 block depths.
-pub const RESNET34_BLOCKS: [usize; 4] = [3, 4, 6, 3];
-/// ResNet-50 block depths.
-pub const RESNET50_BLOCKS: [usize; 4] = [3, 4, 6, 3];
-/// ResNet-101 block depths.
-pub const RESNET101_BLOCKS: [usize; 4] = [3, 4, 23, 3];
-/// ResNet-152 block depths.
-pub const RESNET152_BLOCKS: [usize; 4] = [3, 8, 36, 3];
+pub use contract::*;

@@ -45,12 +45,10 @@ pub fn classify_files(
 mod tests {
     use super::*;
     use crate::{
+        blocks::images::models::conv_net::ConvNetModel,
         burner::module::ModuleInit,
         kits::images::{
-            classification::resnet::{
-                ResNet,
-                ResNetContractConfig,
-            },
+            classification::resnet::ResNetContractConfig,
             support::{
                 labels::ImageLabelSet,
                 transform::ImageEvalTransformConfig,
@@ -64,7 +62,7 @@ mod tests {
     #[test]
     fn test_classify_files() {
         let device = cpu_device();
-        let model: ResNet = ResNetContractConfig::new(vec![1], 3)
+        let model: ConvNetModel = ResNetContractConfig::new(vec![1], 3)
             .with_stem_width(8)
             .init(&device);
         let card = ImageModelCard::new(ImageEvalTransformConfig::new().with_size([32, 32]))

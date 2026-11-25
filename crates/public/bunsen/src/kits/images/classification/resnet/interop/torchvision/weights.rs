@@ -3,9 +3,9 @@ use burn::store::burn_pack::Tensor as PackTensor;
 
 use super::resnet_rekey;
 use crate::{
+    blocks::images::models::conv_net::ConvNetModel,
     data::formats::NamedTensorsApplied,
     errors::BunsenResult,
-    kits::images::classification::resnet::ResNet,
 };
 
 /// Loads tensors named as torchvision's `ResNet` state dict into `model`:
@@ -16,7 +16,7 @@ use crate::{
 /// As [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to), when the
 /// checkpoint does not load into the model.
 pub fn load_resnet_tensors(
-    model: &mut ResNet,
+    model: &mut ConvNetModel,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
     resnet_rekey().apply_to(model, tensors)
@@ -39,7 +39,7 @@ pub fn load_resnet(
     config: &crate::kits::images::classification::resnet::ResNetContractConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
-) -> BunsenResult<ResNet> {
+) -> BunsenResult<ConvNetModel> {
     use crate::{
         burner::module::ModuleInit,
         errors::ResultContext,
@@ -47,7 +47,7 @@ pub fn load_resnet(
     };
     let path = loaded.expect(CHECKPOINT)?;
     let tensors = crate::data::formats::read_pytorch_tensors(path)?;
-    let mut resnet: ResNet = config.try_init(device)?;
+    let mut resnet: ConvNetModel = config.try_init(device)?;
     load_resnet_tensors(&mut resnet, tensors)
         .with_context(|| format!("loading {}", path.display()))?;
     policy.place(resnet, device, |_| true)

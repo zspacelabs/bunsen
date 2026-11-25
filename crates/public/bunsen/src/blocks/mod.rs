@@ -17,10 +17,12 @@
 //! its cache as an argument rather than holding it:
 //! [`CausalSelfAttention::forward`] takes a [`KVCache`].
 //!
-//! Where [`crate::kits`] supplies whole models (`ResNet`, `NanoChatGpt`,
-//! Whisper, ...), `blocks` supplies the sub-modules those kits are assembled
-//! from. A typical user picks an existing kit; an author building a new model
-//! reaches into `blocks`.
+//! Where [`crate::kits`] supplies named models (`ResNet`, `NanoChatGpt`,
+//! Whisper, ...), with their configs, weights and quirks, `blocks` supplies
+//! the sub-modules those kits are assembled from, and the generic models
+//! several kits share (the conv net, the language decoder). A typical user
+//! picks an existing kit; an author building a new model reaches into
+//! `blocks`.
 //!
 //! ## Lifecycle
 //!

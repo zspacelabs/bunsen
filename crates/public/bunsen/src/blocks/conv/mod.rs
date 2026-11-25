@@ -1,15 +1,15 @@
 //! # Convolution blocks
 //!
 //! Conv / norm / activation composites, in 1D and 2D. They are domain
-//! neutral: the 2D blocks build the `ResNet` kit, and the 1D blocks build the
-//! Whisper audio encoder and Silero VAD.
+//! neutral: the 2D blocks build the generic conv net, and the 1D blocks build
+//! the Whisper audio encoder and Silero VAD.
 //!
 //! - [`ConvBlock1d`] / [`ConvBlock2d`]: a burn convolution ([`Conv1d`] /
 //!   [`Conv2d`]), an optional [`BunsenNormalization`], and an optional
 //!   [`BunsenActivation`], applied in that order.
 //!   [`map_forward`](ConvBlock2d::map_forward) runs a caller's function between
-//!   the norm and the activation; `ResNet` uses it to place a `DropBlock2d`
-//!   there.
+//!   the norm and the activation; the conv net's residual unit uses it to place
+//!   a `DropBlock2d` there.
 //! - [`CausalConv1d`] / [`CausalConvTranspose1d`]: 1-d convolutions over each
 //!   frame's past, channels first: padded before (zeros or the edge
 //!   [replicated](CausalPadding)) and convolved unpadded; and an upsampler

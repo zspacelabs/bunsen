@@ -28,8 +28,9 @@ use crate::{
 ///
 /// In the crate:
 ///
-/// - [`ResNetContractConfig`] is the single-policy case, lowering to
-///   [`ResNetStructureConfig`].
+/// - [`ResNetContractConfig`] is a family's policy over a generic model: it
+///   lowers to [`ConvNetStructureConfig`], through the generic policy its
+///   inherent `to_conv_net` refines it into.
 /// - [`SileroVadSignalConfig`] and [`SileroVadStftConfig`] are two chained
 ///   policies. The inherent [`to_stft`] refines the first into the second, and
 ///   both name [`SileroVadStructureConfig`] as their `Structure`.
@@ -113,7 +114,7 @@ use crate::{
 /// ```
 ///
 /// [`ResNetContractConfig`]: crate::kits::images::classification::resnet::ResNetContractConfig
-/// [`ResNetStructureConfig`]: crate::kits::images::classification::resnet::ResNetStructureConfig
+/// [`ConvNetStructureConfig`]: crate::blocks::images::models::conv_net::ConvNetStructureConfig
 /// [`SileroVadSignalConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig
 /// [`SileroVadStftConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStftConfig
 /// [`SileroVadStructureConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStructureConfig

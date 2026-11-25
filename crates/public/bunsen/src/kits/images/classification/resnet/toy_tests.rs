@@ -8,25 +8,23 @@
 //! [`load_resnet_tensors`]; each stage output, the pooled features and the
 //! logits are checked against timm's.
 //!
-//! bunsen's [`ResNetContractConfig`] derives its stage widths from the stem's,
-//! so the geometry is built as a [`ResNetStructureConfig`], block by block.
+//! `ResNetContractConfig` derives its stage widths from the stem's, so the
+//! geometry is the generic conv net's policy, stage by stage.
 
 use std::path::PathBuf;
 
 use burn::prelude::*;
 
-use super::{
-    ResNet,
-    ResNetContractConfig,
-    ResNetStructureConfig,
-    blocks::ResidualBlockStructureConfig,
-    interop::torchvision::load_resnet_tensors,
-};
+use super::interop::torchvision::load_resnet_tensors;
 use crate::{
-    burner::module::{
-        ModuleInit,
-        ToStructureConfig,
+    blocks::images::models::conv_net::{
+        ConvNetContractConfig,
+        ConvNetModel,
+        ConvStageContractConfig,
+        ConvStemContractConfig,
+        ConvUnitKind,
     },
+    burner::module::ModuleInit,
     kits::images::{
         classification::driver::ImageClassifier,
         support::encoder::ImageEncoder,
@@ -38,32 +36,28 @@ use crate::{
     },
 };
 
-/// timm's stage widths, the planes of each stage's block.
+/// timm's stage widths, the mixer width of each stage's unit.
 const CHANNELS: [usize; 4] = [8, 16, 32, 64];
 
-/// The toys' geometry: a 64-wide stem and four one-block stages of
-/// [`CHANNELS`] planes (a bottleneck's out 4x its planes), each block's
-/// input the one before's output.
-fn toy_structure(bottleneck: bool) -> ResNetStructureConfig {
-    let mut structure = ResNetContractConfig::new(vec![1, 1, 1, 1], 10)
-        .with_bottleneck(bottleneck)
-        .to_structure();
-    let mut in_planes = 64;
-    for (layer, planes) in structure.layers.iter_mut().zip(CHANNELS) {
-        let out_planes = if bottleneck { 4 * planes } else { planes };
-        match &mut layer.blocks[0] {
-            ResidualBlockStructureConfig::Basic(block) => {
-                block.in_planes = in_planes;
-                block.out_planes = out_planes;
-            }
-            ResidualBlockStructureConfig::Bottleneck(block) => {
-                block.in_planes = in_planes;
-                block.out_planes = out_planes;
-            }
-        }
-        in_planes = out_planes;
-    }
-    structure
+/// The toys' geometry: a 64-wide `7x7` stem and four one-unit stages of
+/// [`CHANNELS`] (a bottleneck's output 4x its mixer's), the first at stride
+/// 1, 10 classes.
+fn toy_policy(bottleneck: bool) -> ConvNetContractConfig {
+    let (unit, expansion) = if bottleneck {
+        (ConvUnitKind::Bottleneck, 4)
+    } else {
+        (ConvUnitKind::Basic, 1)
+    };
+    let stages =
+        CHANNELS
+            .iter()
+            .enumerate()
+            .map(|(idx, &mid)| {
+                ConvStageContractConfig::new(1, unit, mid * expansion, mid)
+                    .with_stride(if idx == 0 { 1 } else { 2 })
+            })
+            .collect();
+    ConvNetContractConfig::new(ConvStemContractConfig::new(vec![64]), stages, 10)
 }
 
 /// The toy `name`, its weights loaded, and its fixture's answers.
@@ -71,12 +65,12 @@ fn load_toy(
     name: &str,
     bottleneck: bool,
     device: &Device,
-) -> (ResNet, ToyFixture) {
+) -> (ConvNetModel, ToyFixture) {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("testdata/resnet")
         .join(format!("{name}.safetensors"));
     let mut fixture = ToyFixture::load(path, device);
-    let mut model: ResNet = toy_structure(bottleneck).init(device);
+    let mut model: ConvNetModel = toy_policy(bottleneck).init(device);
     let applied = load_resnet_tensors(&mut model, fixture.take_weights()).expect("load the toy");
     // Only the batch norms' counters are left: the rekey drops them.
     assert!(

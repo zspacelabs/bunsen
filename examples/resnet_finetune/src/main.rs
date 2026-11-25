@@ -12,7 +12,10 @@ use std::{
 };
 
 use bunsen::{
-    blocks::activation::BunsenActivationConfig,
+    blocks::{
+        activation::BunsenActivationConfig,
+        images::models::conv_net::ConvNetModel,
+    },
     burner::module::{
         DTypeMapper,
         ModuleInit,
@@ -32,7 +35,6 @@ use bunsen::{
         sys_at,
     },
     kits::images::classification::resnet::{
-        ResNet,
         ResNetContractConfig,
         pretrained::default_resnet_factory,
     },
@@ -315,9 +317,9 @@ pub fn train(args: &Args) -> BunsenResult<()> {
         }
     }
 
-    let model: ResNet = resnet_config.clone().try_init(&device)?;
+    let model: ConvNetModel = resnet_config.clone().try_init(&device)?;
 
-    let old_float_type = model.output_fc.weight.dtype();
+    let old_float_type = model.head.fc.weight.dtype();
 
     // The activation rewrite is this example's own surgery: the deferred
     // model's hook builds from this config rather than the prefab's, and
@@ -331,7 +333,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
         )
         .context("loading pretrained weights")?;
 
-    let mut model: ResNet = Arc::unwrap_or_clone(loaded.handle)
+    let mut model: ConvNetModel = Arc::unwrap_or_clone(loaded.handle)
         .model
         .map(&mut DTypeMapper::new(old_float_type))
         .with_classes(CLASSES.len())
@@ -339,7 +341,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
         .with_stochastic_path_depth(args.stochastic_depth_prob);
 
     if args.freeze_layers {
-        model = model.freeze_layers();
+        model = model.freeze_stages();
     }
 
     let host: Host = Host {
@@ -454,7 +456,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
 pub struct Host {
     pub smoothing: Option<f32>,
 
-    pub resnet: ResNet,
+    pub resnet: ConvNetModel,
 }
 
 pub trait MultiLabelClassification {

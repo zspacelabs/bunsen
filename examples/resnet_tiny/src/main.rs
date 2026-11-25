@@ -10,7 +10,10 @@ use core::{
 use std::sync::Arc;
 
 use bunsen::{
-    blocks::activation::BunsenActivationConfig,
+    blocks::{
+        activation::BunsenActivationConfig,
+        images::models::conv_net::ConvNetModel,
+    },
     burner::module::{
         DTypeMapper,
         ModuleInit,
@@ -29,7 +32,6 @@ use bunsen::{
         ResultContext,
     },
     kits::images::classification::resnet::{
-        ResNet,
         ResNetContractConfig,
         pretrained::default_resnet_factory,
     },
@@ -230,11 +232,11 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
 
     let contract = ResNetContractConfig::try_prefab(&args.resnet_prefab)?
         .with_activation(BunsenActivationConfig::Gelu);
-    let resnet: ResNet = contract.to_structure().try_init(&device)?;
+    let resnet: ConvNetModel = contract.to_structure().try_init(&device)?;
 
-    let resnet: ResNet = match &args.resnet_pretrained {
+    let resnet: ConvNetModel = match &args.resnet_pretrained {
         Some(pretrained) => {
-            let old_float_type = resnet.output_fc.weight.dtype();
+            let old_float_type = resnet.head.fc.weight.dtype();
 
             // The activation swap is this example's own surgery: the
             // deferred model's hook builds from this config rather than
@@ -444,7 +446,7 @@ impl ModelConfig {
 
 #[derive(Module, Debug)]
 pub struct Model {
-    pub resnet: ResNet,
+    pub resnet: ConvNetModel,
 }
 
 impl Model {

@@ -1,11 +1,9 @@
 //! Loading a timm `ResNet` checkpoint.
 
 use crate::{
+    blocks::images::models::conv_net::ConvNetModel,
     errors::BunsenResult,
-    kits::images::classification::resnet::{
-        ResNet,
-        ResNetContractConfig,
-    },
+    kits::images::classification::resnet::ResNetContractConfig,
 };
 
 /// The model of `loaded`'s timm safetensors checkpoint (its `checkpoint`),
@@ -23,7 +21,7 @@ pub fn load_resnet(
     config: &ResNetContractConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
-) -> BunsenResult<ResNet> {
+) -> BunsenResult<ConvNetModel> {
     use crate::{
         burner::module::ModuleInit,
         data::formats::SafetensorsCheckpoint,
@@ -35,7 +33,7 @@ pub fn load_resnet(
     };
     let path = loaded.expect(CHECKPOINT)?;
     let tensors = SafetensorsCheckpoint::single(path).tensors()?;
-    let mut resnet: ResNet = config.try_init(device)?;
+    let mut resnet: ConvNetModel = config.try_init(device)?;
     load_resnet_tensors(&mut resnet, tensors)
         .with_context(|| format!("loading {}", path.display()))?;
     policy.place(resnet, device, |_| true)
