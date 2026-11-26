@@ -1193,6 +1193,113 @@ run them.
 
 * timm/deit3_huge_patch14_224.fb_in22k_ft_in1k: [2.53 GB]
   timm's `deit3_huge_patch14_224`, its `fb_in22k_ft_in1k` weights.
+
+# contract: swin-v1-classifier
+# A Swin V1 image classifier: a timm hub repo's checkpoint (safetensors)
+# and `config.json`.
+# publisher: timm - pytorch-image-models (timm), Ross Wightman's.
+
+* timm/swin_tiny_patch4_window7_224.ms_in1k: [115.0 MB]
+  timm's `swin_tiny_patch4_window7_224`, its `ms_in1k` weights.
+
+* timm/swin_tiny_patch4_window7_224.ms_in22k: [178.4 MB]
+  timm's `swin_tiny_patch4_window7_224`, its `ms_in22k` weights.
+
+* timm/swin_tiny_patch4_window7_224.ms_in22k_ft_in1k: [115.0 MB]
+  timm's `swin_tiny_patch4_window7_224`, its `ms_in22k_ft_in1k` weights.
+
+* timm/swin_small_patch4_window7_224.ms_in1k: [200.8 MB]
+  timm's `swin_small_patch4_window7_224`, its `ms_in1k` weights.
+
+* timm/swin_small_patch4_window7_224.ms_in22k: [264.1 MB]
+  timm's `swin_small_patch4_window7_224`, its `ms_in22k` weights.
+
+* timm/swin_small_patch4_window7_224.ms_in22k_ft_in1k: [200.8 MB]
+  timm's `swin_small_patch4_window7_224`, its `ms_in22k_ft_in1k` weights.
+
+* timm/swin_base_patch4_window7_224.ms_in1k: [353.4 MB]
+  timm's `swin_base_patch4_window7_224`, its `ms_in1k` weights.
+
+* timm/swin_base_patch4_window7_224.ms_in22k: [438.1 MB]
+  timm's `swin_base_patch4_window7_224`, its `ms_in22k` weights.
+
+* timm/swin_base_patch4_window7_224.ms_in22k_ft_in1k: [353.4 MB]
+  timm's `swin_base_patch4_window7_224`, its `ms_in22k_ft_in1k` weights.
+
+* timm/swin_base_patch4_window12_384.ms_in1k: [366.0 MB]
+  timm's `swin_base_patch4_window12_384`, its `ms_in1k` weights.
+
+* timm/swin_base_patch4_window12_384.ms_in22k: [450.7 MB]
+  timm's `swin_base_patch4_window12_384`, its `ms_in22k` weights.
+
+* timm/swin_base_patch4_window12_384.ms_in22k_ft_in1k: [366.0 MB]
+  timm's `swin_base_patch4_window12_384`, its `ms_in22k_ft_in1k` weights.
+
+* timm/swin_large_patch4_window7_224.ms_in22k: [915.9 MB]
+  timm's `swin_large_patch4_window7_224`, its `ms_in22k` weights.
+
+* timm/swin_large_patch4_window7_224.ms_in22k_ft_in1k: [788.5 MB]
+  timm's `swin_large_patch4_window7_224`, its `ms_in22k_ft_in1k` weights.
+
+* timm/swin_large_patch4_window12_384.ms_in22k: [928.7 MB]
+  timm's `swin_large_patch4_window12_384`, its `ms_in22k` weights.
+
+* timm/swin_large_patch4_window12_384.ms_in22k_ft_in1k: [801.3 MB]
+  timm's `swin_large_patch4_window12_384`, its `ms_in22k_ft_in1k` weights.
+
+* timm/swin_s3_tiny_224.ms_in1k: [116.8 MB]
+  timm's `swin_s3_tiny_224`, its `ms_in1k` weights.
+
+* timm/swin_s3_small_224.ms_in1k: [209.6 MB]
+  timm's `swin_s3_small_224`, its `ms_in1k` weights.
+
+* timm/swin_s3_base_224.ms_in1k: [295.4 MB]
+  timm's `swin_s3_base_224`, its `ms_in1k` weights.
+
+# contract: swin-v2-classifier
+# A Swin V2 image classifier: a timm hub repo's checkpoint (safetensors)
+# and `config.json`.
+# publisher: timm - pytorch-image-models (timm), Ross Wightman's.
+
+* timm/swinv2_tiny_window16_256.ms_in1k: [119.4 MB]
+  timm's `swinv2_tiny_window16_256`, its `ms_in1k` weights.
+
+* timm/swinv2_tiny_window8_256.ms_in1k: [115.7 MB]
+  timm's `swinv2_tiny_window8_256`, its `ms_in1k` weights.
+
+* timm/swinv2_small_window16_256.ms_in1k: [205.0 MB]
+  timm's `swinv2_small_window16_256`, its `ms_in1k` weights.
+
+* timm/swinv2_small_window8_256.ms_in1k: [201.6 MB]
+  timm's `swinv2_small_window8_256`, its `ms_in1k` weights.
+
+* timm/swinv2_base_window16_256.ms_in1k: [357.7 MB]
+  timm's `swinv2_base_window16_256`, its `ms_in1k` weights.
+
+* timm/swinv2_base_window8_256.ms_in1k: [354.4 MB]
+  timm's `swinv2_base_window8_256`, its `ms_in1k` weights.
+
+* timm/swinv2_base_window12_192.ms_in22k: [438.8 MB]
+  timm's `swinv2_base_window12_192`, its `ms_in22k` weights.
+
+* timm/swinv2_base_window12to16_192to256.ms_in22k_ft_in1k: [357.7 MB]
+  timm's `swinv2_base_window12to16_192to256`, its `ms_in22k_ft_in1k`
+  weights.
+
+* timm/swinv2_base_window12to24_192to384.ms_in22k_ft_in1k: [379.0 MB]
+  timm's `swinv2_base_window12to24_192to384`, its `ms_in22k_ft_in1k`
+  weights.
+
+* timm/swinv2_large_window12_192.ms_in22k: [916.8 MB]
+  timm's `swinv2_large_window12_192`, its `ms_in22k` weights.
+
+* timm/swinv2_large_window12to16_192to256.ms_in22k_ft_in1k: [793.0 MB]
+  timm's `swinv2_large_window12to16_192to256`, its `ms_in22k_ft_in1k`
+  weights.
+
+* timm/swinv2_large_window12to24_192to384.ms_in22k_ft_in1k: [814.3 MB]
+  timm's `swinv2_large_window12to24_192to384`, its `ms_in22k_ft_in1k`
+  weights.
 ```
 
 <!-- /card -->
