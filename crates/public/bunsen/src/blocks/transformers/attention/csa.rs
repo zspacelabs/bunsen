@@ -1,5 +1,7 @@
 //! # Causal Self-Attention
 
+use alloc::format;
+
 use burn::{
     Tensor,
     config::Config,
@@ -42,6 +44,8 @@ use crate::{
     },
     errors::{
         BunsenResult,
+        ConstraintError,
+        Rule,
         WithOkOrPanic,
     },
     ops::transformers::attention::{
@@ -317,63 +321,102 @@ impl CausalSelfAttentionConfig {
         self.key_bias.unwrap_or(self.qkv_bias)
     }
 
-    /// Validate the config.
-    pub fn validate(&self) {
-        assert!(
-            self.n_head > 0,
-            "n_head must be > 0; got n_head={}",
-            self.n_head
-        );
-        assert!(
-            self.head_dim.is_some() || self.n_embed.is_multiple_of(self.n_head),
-            "n_embed ({}) must be multiple of n_head ({})",
-            self.n_embed,
-            self.n_head
-        );
-        assert!(
-            self.head_dim.is_some() || self.n_embed.is_multiple_of(self.n_kv_head),
-            "n_embed ({}) must be multiple of n_kv_head ({})",
-            self.n_embed,
-            self.n_kv_head
-        );
-        assert!(
-            self.head_dim() > 0,
-            "head_dim must be > 0; got n_embed={}/n_head={}",
-            self.n_embed,
-            self.n_head
-        );
-        assert!(
-            self.n_kv_head <= self.n_head,
-            "n_kv_head must be <= n_head; got n_kv_head={}, n_head={}",
-            self.n_kv_head,
-            self.n_head
-        );
-        assert!(
-            self.n_head.is_multiple_of(self.n_kv_head),
-            "n_head must be divisible by n_kv_head; got n_head={}, n_kv_head={}",
-            self.n_head,
-            self.n_kv_head
-        );
-        assert!(
-            self.sliding_window != Some(0),
-            "sliding_window must be > 0 when set"
-        );
+    /// Checks the config: heads that split the width, key/value heads that
+    /// divide the query heads, a positive window, and a value-residual gate
+    /// within the width.
+    ///
+    /// See the [errors convention](crate::errors#convention-try_x-and-x).
+    ///
+    /// # Errors
+    ///
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause naming the field.
+    pub fn try_validate(&self) -> BunsenResult<()> {
+        const OWNER: &str = "CausalSelfAttentionConfig";
+        if self.n_head == 0 {
+            return Err(ConstraintError::zero_or_empty(OWNER, "n_head").into());
+        }
+        if self.n_kv_head == 0 {
+            return Err(ConstraintError::zero_or_empty(OWNER, "n_kv_head").into());
+        }
+        if self.head_dim.is_none() {
+            for (field, heads) in [("n_head", self.n_head), ("n_kv_head", self.n_kv_head)] {
+                if !self.n_embed.is_multiple_of(heads) {
+                    return Err(ConstraintError::new(
+                        OWNER,
+                        "n_embed",
+                        Rule::NotMultiple {
+                            value: self.n_embed,
+                            of: format!("{field} ({heads})"),
+                        },
+                    )
+                    .into());
+                }
+            }
+        }
+        if self.head_dim() == 0 {
+            return Err(ConstraintError::zero_or_empty(OWNER, "head_dim").into());
+        }
+        if self.n_kv_head > self.n_head {
+            return Err(ConstraintError::new(
+                OWNER,
+                "n_kv_head",
+                Rule::Relation {
+                    lhs: ("n_kv_head".into(), format!("{}", self.n_kv_head)),
+                    op: "<=",
+                    rhs: ("n_head".into(), format!("{}", self.n_head)),
+                },
+            )
+            .into());
+        }
+        if !self.n_head.is_multiple_of(self.n_kv_head) {
+            return Err(ConstraintError::new(
+                OWNER,
+                "n_head",
+                Rule::NotMultiple {
+                    value: self.n_head,
+                    of: format!("n_kv_head ({})", self.n_kv_head),
+                },
+            )
+            .into());
+        }
+        if self.sliding_window == Some(0) {
+            return Err(ConstraintError::zero_or_empty(OWNER, "sliding_window").into());
+        }
         if let AttentionMask::Blocks { window } = self.mask {
-            assert!(window > 0, "a block mask's window must be > 0");
-            assert!(
-                self.sliding_window.is_none(),
-                "a block mask takes no sliding_window; got {:?}",
-                self.sliding_window
-            );
+            if window == 0 {
+                return Err(ConstraintError::zero_or_empty(OWNER, "mask.window").into());
+            }
+            if let Some(sliding) = self.sliding_window {
+                return Err(ConstraintError::custom(
+                    OWNER,
+                    "sliding_window",
+                    format!("a block mask takes no sliding_window; got {sliding}"),
+                )
+                .into());
+            }
         }
-        if let Some(vr) = &self.value_residual {
-            assert!(
-                vr.gate_channels > 0 && vr.gate_channels <= self.n_embed,
-                "value_residual.gate_channels must be in 1..=n_embed ({}); got {}",
-                self.n_embed,
-                vr.gate_channels
-            );
+        if let Some(vr) = &self.value_residual
+            && !(1..=self.n_embed).contains(&vr.gate_channels)
+        {
+            return Err(ConstraintError::out_of_range(
+                OWNER,
+                "value_residual.gate_channels",
+                vr.gate_channels,
+                format!("1..={}", self.n_embed),
+            )
+            .into());
         }
+        Ok(())
+    }
+
+    /// [`try_validate`](Self::try_validate), for a config known to be sound.
+    ///
+    /// # Panics
+    ///
+    /// When it is not.
+    pub fn validate(&self) {
+        self.try_validate().ok_or_panic();
     }
 }
 
@@ -384,7 +427,7 @@ impl CausalSelfAttentionConfig {
         layer_index: usize,
         device: &Device,
     ) -> BunsenResult<CausalSelfAttention> {
-        self.validate();
+        self.try_validate()?;
         let head_dim = self.head_dim();
         let norm = || {
             self.norm
@@ -931,6 +974,13 @@ mod tests {
         },
         burner::module::ModuleInit,
         contracts::assert_shape_contract,
+        errors::{
+            BunsenErrorKind,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
+        },
         ops::transformers::attention::KVCacheConfig,
         support::testing::{
             DeviceMemoryGuard,
@@ -1178,20 +1228,45 @@ mod tests {
         assert_eq!(across, 0.0);
     }
 
-    /// A block mask takes no sliding window.
+    /// Each refusal is an `Illegal` naming its field: heads that don't split
+    /// the width, more key/value heads than query heads, a block mask with a
+    /// sliding window or an empty window, a gate wider than the width.
     #[test]
-    #[should_panic(expected = "a block mask takes no sliding_window")]
-    fn test_block_mask_takes_no_sliding_window() {
+    fn test_try_validate_refusals() {
+        let refused = |config: CausalSelfAttentionConfig, field: &'static str| {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .cause(predicate(field, move |e: &ConstraintError| {
+                    e.field == field
+                }))
+                .assert_err(&config.try_validate());
+        };
+        refused(CausalSelfAttentionConfig::new(0, 1, 16), "n_head");
+        refused(CausalSelfAttentionConfig::new(3, 3, 16), "n_embed");
+        refused(CausalSelfAttentionConfig::new(2, 4, 16), "n_kv_head");
+        refused(CausalSelfAttentionConfig::new(4, 3, 24), "n_head");
+        refused(
+            CausalSelfAttentionConfig::new(4, 2, 16).with_sliding_window(Some(0)),
+            "sliding_window",
+        );
+        refused(
+            CausalSelfAttentionConfig::new(4, 2, 16)
+                .with_mask(AttentionMask::Blocks { window: 3 })
+                .with_sliding_window(Some(2)),
+            "sliding_window",
+        );
+        refused(
+            CausalSelfAttentionConfig::new(4, 2, 16).with_mask(AttentionMask::Blocks { window: 0 }),
+            "mask.window",
+        );
         CausalSelfAttentionConfig::new(4, 2, 16)
-            .with_mask(AttentionMask::Blocks { window: 3 })
-            .with_sliding_window(Some(2))
-            .validate();
+            .try_validate()
+            .unwrap();
     }
 
-    /// A block mask's blocks are not empty.
+    /// `validate` is `try_validate`'s panicking twin.
     #[test]
-    #[should_panic(expected = "a block mask's window must be > 0")]
-    fn test_block_mask_window_is_positive() {
+    #[should_panic(expected = "CausalSelfAttentionConfig.mask.window")]
+    fn test_validate_panics() {
         CausalSelfAttentionConfig::new(4, 2, 16)
             .with_mask(AttentionMask::Blocks { window: 0 })
             .validate();
