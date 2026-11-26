@@ -90,6 +90,13 @@ impl LayerNorm {
         &self,
         input: Tensor<D>,
     ) -> Tensor<D> {
+        // The norm's features are the input's last axis.
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            [..., "features"],
+            &input.dims(),
+            &[("features", self.gamma.dims()[0])]
+        );
         Widening::F32.around(input.dtype(), |w| {
             burn::tensor::module::layer_norm(
                 w.widen(input),

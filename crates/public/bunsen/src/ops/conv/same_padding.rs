@@ -90,14 +90,32 @@ pub fn pad_same(
     dilation: [usize; 2],
     value: f32,
 ) -> Tensor<4> {
-    let ih = input.shape()[2];
-    let iw = input.shape()[3];
+    let [b, c, ih, iw] = crate::contracts::unpack_shape_contract!(
+        ["batch", "channels", "height", "width"],
+        &input.dims()
+    );
     let pad_h = get_same_padding(ih, kernel_size[0], stride[0], dilation[0]);
     let pad_w = get_same_padding(iw, kernel_size[1], stride[1], dilation[1]);
-    input.pad(
+    let padded = input.pad(
         (pad_w / 2, pad_w - pad_w / 2, pad_h / 2, pad_h - pad_h / 2),
         value,
-    )
+    );
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["batch", "channels", "height" + "pad_h", "width" + "pad_w"],
+        &padded.dims(),
+        &[
+            ("batch", b),
+            ("channels", c),
+            ("height", ih),
+            ("width", iw),
+            ("pad_h", pad_h),
+            ("pad_w", pad_w)
+        ]
+    );
+    #[cfg(not(any(debug_assertions, test)))]
+    let _ = (b, c);
+    padded
 }
 
 #[cfg(test)]

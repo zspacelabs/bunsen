@@ -169,7 +169,10 @@ impl RangeClamp {
             // Reduce over `[frames, n_mels]` but NOT over batch: each row is
             // an independent stream and must not see its neighbours' peaks.
             Self::PerWindowClamp { db } => {
-                let dims = x.dims();
+                let dims = crate::contracts::unpack_shape_contract!(
+                    ["batch", "frames", "n_mels"],
+                    &x.dims()
+                );
                 let floor = x.clone().max_dims(&[1, 2]).sub_scalar(*db).expand(dims);
                 x.max_pair(floor)
             }

@@ -478,10 +478,26 @@ impl ConvSeq2d {
         &self,
         input: Tensor<4>,
     ) -> Tensor<4> {
+        // The output is the shape the sequence predicts for the input.
+        #[cfg(any(debug_assertions, test))]
+        let [batch, out_channels, out_height, out_width] = self
+            .try_output_shape(input.dims())
+            .unwrap_or_else(|e| panic!("a conv sequence's input: {e}"));
         let mut output = input;
         for block in &self.blocks {
             output = block.forward(output);
         }
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "out_channels", "out_height", "out_width"],
+            &output.dims(),
+            &[
+                ("batch", batch),
+                ("out_channels", out_channels),
+                ("out_height", out_height),
+                ("out_width", out_width)
+            ]
+        );
         output
     }
 }

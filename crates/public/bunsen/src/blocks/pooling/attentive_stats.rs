@@ -56,6 +56,16 @@ impl AttentiveStatsDeviation {
         x: Tensor<3>,
         w: Tensor<3>,
     ) -> (Tensor<3>, Tensor<3>) {
+        #[cfg(any(debug_assertions, test))]
+        let [b, c, t] = {
+            let [b, c, t] = crate::contracts::unpack_shape_contract!(["B", "C", "T"], &x.dims());
+            crate::contracts::assert_shape_contract_periodically!(
+                ["B", _, "T"],
+                &w.dims(),
+                &[("B", b), ("T", t)]
+            );
+            [b, c, t]
+        };
         let mean = (w.clone() * x.clone()).sum_dim(2);
         let variance = match self {
             Self::RawMoment { .. } => (w * x.clone() * x).sum_dim(2) - mean.clone() * mean.clone(),
@@ -67,7 +77,19 @@ impl AttentiveStatsDeviation {
         let floor = match self {
             Self::RawMoment { floor } | Self::Centered { floor } => *floor,
         };
-        (mean, variance.clamp_min(floor).sqrt())
+        let std = variance.clamp_min(floor).sqrt();
+        #[cfg(any(debug_assertions, test))]
+        {
+            let _ = t;
+            for stat in [&mean, &std] {
+                crate::contracts::assert_shape_contract_periodically!(
+                    ["B", "C", 1],
+                    &stat.dims(),
+                    &[("B", b), ("C", c)]
+                );
+            }
+        }
+        (mean, std)
     }
 }
 
