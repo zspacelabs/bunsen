@@ -18,7 +18,7 @@ use crate::{
     },
     kits::speech::asr::whisper::blocks::{
         AUDIO_ENCODER_STRIDE,
-        WHISPER_DEFAULT_D_MODEL,
+        WHISPER_DEFAULT_D_HEAD,
         Whisper,
         WhisperApiConfig,
         WhisperFrontEndConfig,
@@ -58,7 +58,7 @@ pub struct SafetensorsWhisperScanner {
 
     /// Head dimensionality: every `OpenAI` checkpoint's is 64, and a
     /// checkpoint does not record it.
-    #[config(default = "WHISPER_DEFAULT_D_MODEL")]
+    #[config(default = "WHISPER_DEFAULT_D_HEAD")]
     pub d_head: usize,
 }
 

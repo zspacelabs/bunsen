@@ -17,7 +17,7 @@ use burn::{
     },
 };
 
-use super::WHISPER_DEFAULT_D_MODEL;
+use super::WHISPER_DEFAULT_D_HEAD;
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
@@ -105,7 +105,7 @@ pub struct AudioEncoderConfig {
     pub n_layers: usize,
 
     /// Head Dimensionality.
-    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
+    #[config(default = "WHISPER_DEFAULT_D_HEAD")]
     pub d_head: usize,
 
     /// Head Activation.
@@ -461,5 +461,15 @@ mod tests {
         let encoder = encoder.map(&mut DTypeMapper::new(DType::F16));
         let mel: Tensor<3> = Tensor::random([1, 8, 16], Distribution::Default, &device);
         assert_coerces_input(&encoder, mel, |e, x| e.forward(x), 0.0);
+    }
+
+    /// A config built from its required fields takes the default head width,
+    /// [`WHISPER_DEFAULT_D_HEAD`].
+    #[test]
+    fn test_d_head_defaults() {
+        assert_eq!(
+            AudioEncoderConfig::new(80, 384, 1500, 4).d_head,
+            WHISPER_DEFAULT_D_HEAD
+        );
     }
 }

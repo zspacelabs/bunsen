@@ -21,7 +21,7 @@ use burn::{
     },
 };
 
-use super::WHISPER_DEFAULT_D_MODEL;
+use super::WHISPER_DEFAULT_D_HEAD;
 use crate::{
     blocks::transformers::decoders::cross::{
         CrossDecoderBlock,
@@ -114,7 +114,7 @@ pub struct TextDecoderConfig {
     pub n_layers: usize,
 
     /// Head Dimensionality.
-    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
+    #[config(default = "WHISPER_DEFAULT_D_HEAD")]
     pub d_head: usize,
 
     /// Dropout.
@@ -729,5 +729,15 @@ mod tests {
         let tokens = Tensor::<2, Int>::from_data([[1i64, 2, 3]], &device);
         let xa: Tensor<3> = Tensor::random([1, 4, 128], Distribution::Default, &device);
         assert_coerces_input(&decoder, xa, |d, xa| d.forward(tokens.clone(), xa), 0.0);
+    }
+
+    /// A config built from its required fields takes the default head width,
+    /// [`WHISPER_DEFAULT_D_HEAD`].
+    #[test]
+    fn test_d_head_defaults() {
+        assert_eq!(
+            TextDecoderConfig::new(51865, 384, 448, 4).d_head,
+            WHISPER_DEFAULT_D_HEAD
+        );
     }
 }
