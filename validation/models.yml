@@ -564,6 +564,24 @@ crates:
         dtypes: [f32]
         varies: BEiT3's sub-LN - norms before the attention's output projection and on the MLP's
           hidden width
+      timm/vit_small_r26_s32_224.augreg_in21k_ft_in1k:
+        size: small
+        gb: 0.15
+        core: false
+        dtypes: [f32]
+        varies: a hybrid - a non-preact ResNetV2 of four stages, SAME-padded, before 1x1 patches
+      timm/vit_base_r50_s16_384.orig_in21k_ft_in1k:
+        size: small
+        gb: 0.4
+        core: false
+        dtypes: [f32]
+        varies: the original R50+ViT-B/16 hybrid - three backbone stages at 384
+      timm/vit_tiny_r_s16_p8_224.augreg_in21k:
+        size: small
+        gb: 0.04
+        core: false
+        dtypes: [f32]
+        varies: a hybrid on the backbone's stem alone, in 8x8 patches, a 21k head
       timm/regnetx_002.pycls_in1k:
         size: small
         gb: 0.11

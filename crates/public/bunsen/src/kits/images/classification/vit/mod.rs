@@ -21,7 +21,7 @@
 //! architecture names, generated from timm's own entrypoints
 //! (`tools/gen_vit_prefabs.py`), and
 //! [`default_vit_factory`](pretrained::default_vit_factory) is the index of
-//! 294 timm hub repos (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), and
+//! 305 timm hub repos (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), and
 //! loads any other of the prefabs' architectures as `hf:timm/<repo>`.
 //!
 //! # The model
