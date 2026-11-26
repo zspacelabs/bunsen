@@ -1,7 +1,9 @@
 //! # Attention blocks
 //!
 //! [`rel_pos::RelPosSelfAttention`] is Transformer-XL relative-position
-//! self-attention, the Conformer's; the rest of this page is about
+//! self-attention, the Conformer's; [`window::WindowAttention`] is a Swin
+//! block's shifted-window self-attention over a stage's grid, with its
+//! per-head relative position bias; the rest of this page is about
 //! [`CausalSelfAttention`], whose
 //! [`AttentionMask`](csa::AttentionMask) makes it a decoder's (causal) or an
 //! encoder's (bidirectional, every key seen, padding keys masked).
@@ -83,3 +85,4 @@
 
 pub mod csa;
 pub mod rel_pos;
+pub mod window;

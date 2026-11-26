@@ -11,10 +11,16 @@ use burn::{
 
 use crate::{
     blocks::transformers::{
-        attention::csa::{
-            CausalSelfAttention,
-            CausalSelfAttentionConfig,
-            CausalSelfAttentionMeta,
+        attention::{
+            csa::{
+                CausalSelfAttention,
+                CausalSelfAttentionConfig,
+                CausalSelfAttentionMeta,
+            },
+            window::{
+                WindowAttention,
+                WindowAttentionConfig,
+            },
         },
         mixers::{
             GatedDeltaNet,
@@ -37,6 +43,15 @@ pub enum TokenMixerConfig {
 
     /// A gated `DeltaNet`, linear attention.
     GatedDeltaNet(GatedDeltaNetConfig),
+
+    /// A Swin block's shifted-window attention over a stage's grid.
+    Window(WindowAttentionConfig),
+}
+
+impl From<WindowAttentionConfig> for TokenMixerConfig {
+    fn from(config: WindowAttentionConfig) -> Self {
+        Self::Window(config)
+    }
 }
 
 impl From<CausalSelfAttentionConfig> for TokenMixerConfig {
@@ -57,6 +72,7 @@ impl TokenMixerConfig {
         match self {
             Self::Attention(c) => c.n_embed(),
             Self::GatedDeltaNet(c) => c.n_embed(),
+            Self::Window(c) => c.d_model,
         }
     }
 
@@ -64,7 +80,7 @@ impl TokenMixerConfig {
     pub fn as_attention(&self) -> Option<&CausalSelfAttentionConfig> {
         match self {
             Self::Attention(c) => Some(c),
-            Self::GatedDeltaNet(_) => None,
+            Self::GatedDeltaNet(_) | Self::Window(_) => None,
         }
     }
 
@@ -72,7 +88,7 @@ impl TokenMixerConfig {
     pub fn as_attention_mut(&mut self) -> Option<&mut CausalSelfAttentionConfig> {
         match self {
             Self::Attention(c) => Some(c),
-            Self::GatedDeltaNet(_) => None,
+            Self::GatedDeltaNet(_) | Self::Window(_) => None,
         }
     }
 
@@ -105,6 +121,7 @@ impl TokenMixerConfig {
         Ok(match self {
             Self::Attention(c) => TokenMixer::Attention(c.try_init(slot, device)?),
             Self::GatedDeltaNet(c) => TokenMixer::GatedDeltaNet(c.try_init(slot, device)?),
+            Self::Window(c) => TokenMixer::Window(c.try_init(slot, device)?),
         })
     }
 }
@@ -125,6 +142,9 @@ pub enum TokenMixer {
 
     /// A gated `DeltaNet`, linear attention.
     GatedDeltaNet(GatedDeltaNet),
+
+    /// A Swin block's shifted-window attention over a stage's grid.
+    Window(WindowAttention),
 }
 
 impl From<CausalSelfAttention> for TokenMixer {
@@ -145,6 +165,7 @@ impl TokenMixer {
         match self {
             Self::Attention(m) => m.n_embed(),
             Self::GatedDeltaNet(m) => m.n_embed(),
+            Self::Window(m) => m.n_embed(),
         }
     }
 
@@ -152,7 +173,7 @@ impl TokenMixer {
     pub fn as_attention(&self) -> Option<&CausalSelfAttention> {
         match self {
             Self::Attention(m) => Some(m),
-            Self::GatedDeltaNet(_) => None,
+            Self::GatedDeltaNet(_) | Self::Window(_) => None,
         }
     }
 
@@ -160,7 +181,7 @@ impl TokenMixer {
     pub fn as_attention_mut(&mut self) -> Option<&mut CausalSelfAttention> {
         match self {
             Self::Attention(m) => Some(m),
-            Self::GatedDeltaNet(_) => None,
+            Self::GatedDeltaNet(_) | Self::Window(_) => None,
         }
     }
 
@@ -183,8 +204,16 @@ impl TokenMixer {
     /// The gated `DeltaNet`, if the mixer is one.
     pub fn as_gated_delta_net(&self) -> Option<&GatedDeltaNet> {
         match self {
-            Self::Attention(_) => None,
+            Self::Attention(_) | Self::Window(_) => None,
             Self::GatedDeltaNet(m) => Some(m),
+        }
+    }
+
+    /// The window attention, if the mixer is one.
+    pub fn as_window(&self) -> Option<&WindowAttention> {
+        match self {
+            Self::Window(m) => Some(m),
+            Self::Attention(_) | Self::GatedDeltaNet(_) => None,
         }
     }
 }
@@ -195,6 +224,7 @@ impl InputDTypes for TokenMixer {
         match self {
             Self::Attention(m) => m.preferred_dtype(),
             Self::GatedDeltaNet(m) => m.preferred_dtype(),
+            Self::Window(m) => m.preferred_dtype(),
         }
     }
 }
@@ -208,6 +238,7 @@ impl ResultDType for TokenMixer {
         match self {
             Self::Attention(m) => m.result_dtype(input),
             Self::GatedDeltaNet(m) => m.result_dtype(input),
+            Self::Window(_) => input,
         }
     }
 }
