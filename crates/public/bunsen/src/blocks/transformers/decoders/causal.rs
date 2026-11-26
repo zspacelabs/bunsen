@@ -162,6 +162,12 @@ pub struct CausalDecoderBlockConfig {
     #[config(default = false)]
     pub layer_scale: bool,
 
+    /// Each sublayer's stochastic depth: the probability of dropping its
+    /// residual for a whole sample in training (timm's `drop_path`); 0,
+    /// none.
+    #[config(default = 0.0)]
+    pub drop_path: f64,
+
     /// A scale on the feed-forward's normalized input, learned from a
     /// conditioning vector the forward pass is handed
     /// ([`forward_with_caches`](CausalDecoderBlock::forward_with_caches)'s condition):
@@ -237,12 +243,14 @@ impl CausalDecoderBlockConfig {
                 self.attn_norm.then(|| self.norm.clone()),
             ))
             .with_layer_scale(self.layer_scale)
+            .with_drop_path(self.drop_path)
             .init(self.attn.try_init(layer_index, device)?, n_embed, device),
             mlp: sandwich(ResidualSublayerConfig::placed(
                 self.norm_placement,
                 Some(self.norm.clone()),
             ))
             .with_layer_scale(self.layer_scale)
+            .with_drop_path(self.drop_path)
             .init(self.mlp.try_init(device)?, n_embed, device),
             mlp_scale: self
                 .mlp_scale

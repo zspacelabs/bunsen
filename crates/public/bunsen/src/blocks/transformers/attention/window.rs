@@ -10,6 +10,8 @@ use burn::{
         Param,
     },
     nn::{
+        Dropout,
+        DropoutConfig,
         Linear,
         LinearConfig,
     },
@@ -197,6 +199,11 @@ pub struct WindowAttentionConfig {
     /// The per-head relative position bias.
     #[config(default = "RelativePositionBiasConfig::Table")]
     pub bias: RelativePositionBiasConfig,
+
+    /// The dropout on the attention weights, after the softmax (training
+    /// only).
+    #[config(default = "0.0")]
+    pub attn_drop: f64,
 }
 
 impl WindowAttentionConfig {
@@ -269,6 +276,7 @@ impl WindowAttentionConfig {
                 .cosine
                 .then(|| Param::from_tensor(Tensor::full([heads, 1, 1], 10f64.ln(), device))),
             bias,
+            attn_drop: (self.attn_drop > 0.0).then(|| DropoutConfig::new(self.attn_drop).init()),
             index: relative_position_index(window, device),
             mask: shifted_window_mask(self.grid, window, shift, device),
         })
@@ -321,6 +329,9 @@ pub struct WindowAttention {
 
     /// The per-head relative position bias.
     pub bias: RelativePositionBias,
+
+    /// The dropout on the attention weights, when its rate is not 0.
+    pub attn_drop: Option<Dropout>,
 
     /// The window's relative position index: a constant.
     #[module(skip)]
@@ -389,6 +400,10 @@ impl WindowAttention {
             None => scores,
         };
         let attn = softmax(scores, 3);
+        let attn = match &self.attn_drop {
+            Some(drop) => drop.forward(attn),
+            None => attn,
+        };
         let y = attn.matmul(v).swap_dims(1, 2).reshape([bw, n, d]);
         self.c_proj.forward(y)
     }
