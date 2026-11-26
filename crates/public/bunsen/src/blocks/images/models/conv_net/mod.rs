@@ -42,7 +42,12 @@
 //! [`ConvShortcut`] when the path changes the channels or the size, and an
 //! activation after the add. The path's last conv has none of its own. A basic
 //! unit's path is two `3x3` convs, the first the mixer; a bottleneck's a `1x1`,
-//! a `3x3` mixer and a `1x1`.
+//! a `3x3` mixer and a `1x1`. A pre-activation unit normalizes and activates
+//! its input once ([`NormAct`]), read by the path and the shortcut, and each
+//! later conv after its own norm ([`PreActConv`]); it has no activation after
+//! the add. A unit with no residual is its path alone. After the last stage,
+//! the net may have a final layer before the pool ([`ConvFinal`]: an
+//! activation, or a conv block).
 //!
 //! ## Parameter paths
 //!
@@ -54,8 +59,10 @@
 //! |---|---|
 //! | the stem's `k`th conv and its norm | `stem.convs.{k}.conv`, `stem.convs.{k}.norm` |
 //! | stage `i`'s unit `j`: its path's `k`th conv | `stages.{i}.units.{j}.convs.{k}.conv`, `….norm` |
+//! | its pre-activation | `stages.{i}.units.{j}.pre.norm` |
 //! | its shortcut | `stages.{i}.units.{j}.shortcut.conv`, `….norm` |
 //! | its channel attention | `stages.{i}.units.{j}.attn` (`.fc1`, `.fc2`; `.conv`) |
+//! | the final conv | `final_conv.conv`, `final_conv.norm` |
 //! | the classifier | `head.fc` |
 //!
 //! ## Seams
@@ -65,23 +72,28 @@
 //! added as a variant whose lowering is
 //! [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported):
 //!
-//! - the unit kind: [`ConvUnitKind`] (basic, bottleneck);
-//! - a path's conv: [`ResidualConvConfig`] (a conv block);
+//! - the unit kind: [`ConvUnitKind`] (basic, bottleneck, pre-activation
+//!   bottleneck);
+//! - a path's conv: [`ResidualConvConfig`] (a conv block, a pre-activation
+//!   conv);
 //! - the shortcut: [`ConvShortcutKind`] (a conv and a norm; an average pool,
-//!   then a conv and a norm), lowering to one [`ConvShortcutConfig`], an
-//!   optional pool before a conv block;
+//!   then a conv and a norm; none, and no residual), lowering to one
+//!   [`ConvShortcutConfig`], an optional pool before a conv block;
 //! - the channel attention: [`ConvAttentionKind`] /
 //!   [`ChannelAttentionConfig`](crate::blocks::images::attention::ChannelAttentionConfig)
 //!   (squeeze-excite, ECA, `RegNet`'s squeeze-excite of the unit's input), and
 //!   its [`ConvAttentionPlace`];
 //! - the stem's pool: [`ConvStemPoolKind`] / [`ConvStemPoolConfig`] (max,
 //!   none);
+//! - the final layer: [`ConvFinalKind`] / [`ConvFinalConfig`] (an activation, a
+//!   conv block);
 //! - the global pool: [`GlobalPool2dConfig`] (average, max, their mean, their
 //!   concatenation).
 
 mod model;
 mod policy;
 mod pool;
+mod preact;
 mod stage;
 mod stem;
 mod unit;
@@ -89,6 +101,7 @@ mod unit;
 pub use model::*;
 pub use policy::*;
 pub use pool::*;
+pub use preact::*;
 pub use stage::*;
 pub use stem::*;
 pub use unit::*;

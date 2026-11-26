@@ -2010,6 +2010,138 @@ timm:
         - $hub:
             $repo: timm/regnety_2560.seer_ft_in1k
             $revision: d2364be736c0a96b5838a1ae398c902142ef278e
+  regnetv_040.ra3_in1k:
+    $kind: build
+    $description: timm's `regnetv_040`, its `ra3_in1k` weights.
+    $join:
+      - regnet
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnetv_040.ra3_in1k
+    $contract: regnet-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 9507aec3c9f5724cbdf68c56c8ad0e902c3972eb63ca86fbcc62fd28c82e5c75
+      $size: 82831598
+      $sources:
+        - $hub:
+            $repo: timm/regnetv_040.ra3_in1k
+            $revision: eb50fdba03a04ece175083157994ee2e44010df5
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 855004835e24534a842210132193fd4486f0fa1da8e01f9a049a55c929d7194d
+      $size: 654
+      $sources:
+        - $hub:
+            $repo: timm/regnetv_040.ra3_in1k
+            $revision: eb50fdba03a04ece175083157994ee2e44010df5
+  regnetv_064.ra3_in1k:
+    $kind: build
+    $description: timm's `regnetv_064`, its `ra3_in1k` weights.
+    $join:
+      - regnet
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnetv_064.ra3_in1k
+    $contract: regnet-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: db554a2ee544e06239fcdf99dcdece12bae66a6c858f480e791d6678d4426fe8
+      $size: 122655334
+      $sources:
+        - $hub:
+            $repo: timm/regnetv_064.ra3_in1k
+            $revision: 804163d8b85a23709590cc470866571c5cef5305
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: a1ce6f147bc0c0693e65153cf61be7c00aa5116a58d5e743d0556fc17913262d
+      $size: 654
+      $sources:
+        - $hub:
+            $repo: timm/regnetv_064.ra3_in1k
+            $revision: 804163d8b85a23709590cc470866571c5cef5305
+  regnetz_040.ra3_in1k:
+    $kind: build
+    $description: timm's `regnetz_040`, its `ra3_in1k` weights.
+    $join:
+      - regnet
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnetz_040.ra3_in1k
+    $contract: regnet-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: e3637a48641c8b74ab00fad222570dd26e607abac67ef4c740eef7f183caf99f
+      $size: 109046880
+      $sources:
+        - $hub:
+            $repo: timm/regnetz_040.ra3_in1k
+            $revision: b80c03b867074c36cb475828a9f5991e45b1fe50
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 665fd5159cde4805393ea19d5f4feb16c25d6e2f72fbb15d7bc96a821df8817b
+      $size: 657
+      $sources:
+        - $hub:
+            $repo: timm/regnetz_040.ra3_in1k
+            $revision: b80c03b867074c36cb475828a9f5991e45b1fe50
+  regnetz_040_h.ra3_in1k:
+    $kind: build
+    $description: timm's `regnetz_040_h`, its `ra3_in1k` weights.
+    $join:
+      - regnet
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnetz_040_h.ra3_in1k
+    $contract: regnet-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 4d454928cb7cc7fe520e37f7d5fd4a2f97f68d1d1c20b6af48023eff4e1d2ff6
+      $size: 116348318
+      $sources:
+        - $hub:
+            $repo: timm/regnetz_040_h.ra3_in1k
+            $revision: ffc2e870c09aec5b5e6c5c81c0f98278a4b2d43c
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 8b07febe0a542c7923417ab12f093d206cf65dfccc3a25f4e64d7d17d0525f66
+      $size: 660
+      $sources:
+        - $hub:
+            $repo: timm/regnetz_040_h.ra3_in1k
+            $revision: ffc2e870c09aec5b5e6c5c81c0f98278a4b2d43c
 regnet:
   $kind: namespace
   $description: RegNetX and RegNetY ImageNet classifiers and the SEER trunks.

@@ -1,12 +1,15 @@
 //! The toy models against timm's own `RegNet`.
 //!
-//! `testdata/regnet/` holds five tiny seeded timm `RegNet`s and their
+//! `testdata/regnet/` holds nine tiny seeded timm `RegNet`s and their
 //! answers, computed in float64 (`tools/gen_regnet_toy_fixtures.py`, timm's
 //! `timm.models.regnet.RegNet`), each of a 7-unit `RegNetCfg` (`w0=8`,
 //! `wa=6.0`, `wm=1.5`) that timm's width rule makes four stages: a `RegNetX`;
 //! a `RegNetY`, its squeeze-excite after the mixer; a `_tv` arch's rounding
 //! (groups of 12 under `group_min_ratio=0.9`, which moves the widths); a
-//! headless trunk; and the `RegNetY` on odd stage sizes. Each is the
+//! headless trunk; the `RegNetY` on odd stage sizes; a `RegNetV`
+//! (pre-activation), with conv and with `avg` shortcuts; and a `RegNetZ`
+//! (an inverted bottleneck, no shortcut convs, linear unit outputs), with and
+//! without a final conv. Each is the
 //! [`RegNetContractConfig`] of the same knobs. The weights, under timm's
 //! names, load through [`load_regnet_tensors`]; each stage output, the pooled
 //! features and the logits are checked against timm's.
@@ -17,10 +20,14 @@ use burn::prelude::*;
 
 use super::{
     RegNetContractConfig,
+    RegNetDownsample,
     interop::timm::load_regnet_tensors,
 };
 use crate::{
-    blocks::images::models::conv_net::ConvNetModel,
+    blocks::{
+        activation::BunsenActivationConfig,
+        images::models::conv_net::ConvNetModel,
+    },
     burner::module::ModuleInit,
     kits::images::{
         classification::driver::ImageClassifier,
@@ -125,4 +132,53 @@ fn test_headless_toy_is_timms() {
 #[test]
 fn test_odd_toy_is_timms() {
     check_toy("toy_odd", toy_policy().with_se_ratio(0.25));
+}
+
+/// `toy_v`'s knobs: pre-activation units, `SiLU`, the squeeze-excite.
+fn regnet_v() -> RegNetContractConfig {
+    toy_policy()
+        .with_preact(true)
+        .with_act_layer(BunsenActivationConfig::Silu)
+        .with_se_ratio(0.25)
+}
+
+/// `toy_z`'s knobs: a bottleneck 4x its unit, no shortcut convs, linear unit
+/// outputs, `SiLU`, the squeeze-excite.
+fn regnet_z() -> RegNetContractConfig {
+    toy_policy()
+        .with_bottle_ratio(4.0)
+        .with_downsample(RegNetDownsample::None)
+        .with_linear_out(true)
+        .with_act_layer(BunsenActivationConfig::Silu)
+        .with_se_ratio(0.25)
+}
+
+/// Pre-activation: a bare stem conv; each unit's input normalized and
+/// activated before its path and its shortcut; an activation after the last
+/// stage.
+#[test]
+fn test_v_toy_is_timms() {
+    check_toy("toy_v", regnet_v());
+}
+
+/// Pre-activation with `avg` shortcuts: a pool, then a conv with no norm.
+#[test]
+fn test_v_avg_toy_is_timms() {
+    check_toy(
+        "toy_v_avg",
+        regnet_v().with_downsample(RegNetDownsample::Avg),
+    );
+}
+
+/// An inverted bottleneck whose units that change shape have no residual,
+/// and linear unit outputs, an activation after the last stage.
+#[test]
+fn test_z_toy_is_timms() {
+    check_toy("toy_z", regnet_z());
+}
+
+/// `toy_z` with a final `1x1` conv, norm and activation to 48 features.
+#[test]
+fn test_z_h_toy_is_timms() {
+    check_toy("toy_z_h", regnet_z().with_num_features(48));
 }

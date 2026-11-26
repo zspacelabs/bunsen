@@ -76,6 +76,9 @@ pub fn regnet_contract_config(
 /// | a block's `conv{k}.conv`, `conv{k}.bn` | its `convs.{k-1}.conv`, `convs.{k-1}.norm` |
 /// | a block's `se` (`fc1`, `fc2`) | its `attn` |
 /// | a block's `downsample.conv`, `downsample.bn` | its `shortcut.conv`, `shortcut.norm` |
+/// | an `avg` block's `downsample.1` (after the pool, `downsample.0`) | its `shortcut` |
+/// | `RegNetV`'s `stem.weight`, a block's `norm1`, `norm{k}`, `conv{k}.weight`, `downsample.weight` | `stem.convs.0.conv.weight`, its `pre.norm`, `convs.{k-1}.norm`, `convs.{k-1}.conv.weight`, `shortcut.conv.weight` |
+/// | `RegNetZ`'s `final_conv.conv`, `final_conv.bn` | `final_conv.conv`, `final_conv.norm` |
 /// | `head.fc` | `head.fc` |
 ///
 /// Batch-norm counters (`num_batches_tracked`) are dropped; anything else is
@@ -90,16 +93,28 @@ pub fn regnet_contract_config(
 /// );
 /// ```
 pub fn regnet_rekey() -> Rekey {
-    let conv = Rekey::keep_rest().rename("bn.", "norm.");
+    // A conv block's `conv` and `bn`, or a pre-activation net's bare conv.
+    let conv = Rekey::keep_rest()
+        .rename("bn.", "norm.")
+        .exact("weight", "conv.weight");
     let unit = Rekey::keep_rest()
         .mount_indexed_with("conv", "convs.", Indices::From(1), conv)
+        .rename("norm1.", "pre.norm.")
+        .rename("norm2.", "convs.1.norm.")
+        .rename("norm3.", "convs.2.norm.")
         .rename("se.", "attn.")
         .rename("downsample.conv.", "shortcut.conv.")
-        .rename("downsample.bn.", "shortcut.norm.");
+        .rename("downsample.bn.", "shortcut.norm.")
+        .rename("downsample.1.conv.", "shortcut.conv.")
+        .rename("downsample.1.bn.", "shortcut.norm.")
+        .exact("downsample.weight", "shortcut.conv.weight")
+        .exact("downsample.1.weight", "shortcut.conv.weight");
     Rekey::keep_rest()
         .drop_suffix(".num_batches_tracked")
         .rename("stem.conv.", "stem.convs.0.conv.")
         .rename("stem.bn.", "stem.convs.0.norm.")
+        .exact("stem.weight", "stem.convs.0.conv.weight")
+        .rename("final_conv.bn.", "final_conv.norm.")
         .mount_indexed_with(
             "s",
             "stages.",
@@ -190,5 +205,29 @@ mod tests {
             assert_eq!(rekey.apply(timm).as_deref(), Some(bunsen), "{timm}");
         }
         assert_eq!(rekey.apply("s1.b1.conv1.bn.num_batches_tracked"), None);
+        // `RegNetV`'s pre-activation names, and `RegNetZ`'s final conv.
+        for (timm, bunsen) in [
+            ("stem.weight", "stem.convs.0.conv.weight"),
+            ("s1.b1.norm1.weight", "stages.0.units.0.pre.norm.weight"),
+            ("s1.b1.conv1.weight", "stages.0.units.0.convs.0.conv.weight"),
+            (
+                "s1.b1.norm2.running_var",
+                "stages.0.units.0.convs.1.norm.running_var",
+            ),
+            ("s1.b1.norm3.bias", "stages.0.units.0.convs.2.norm.bias"),
+            ("s3.b2.conv3.weight", "stages.2.units.1.convs.2.conv.weight"),
+            (
+                "s1.b1.downsample.weight",
+                "stages.0.units.0.shortcut.conv.weight",
+            ),
+            (
+                "s1.b1.downsample.1.weight",
+                "stages.0.units.0.shortcut.conv.weight",
+            ),
+            ("final_conv.conv.weight", "final_conv.conv.weight"),
+            ("final_conv.bn.weight", "final_conv.norm.weight"),
+        ] {
+            assert_eq!(rekey.apply(timm).as_deref(), Some(bunsen), "{timm}");
+        }
     }
 }

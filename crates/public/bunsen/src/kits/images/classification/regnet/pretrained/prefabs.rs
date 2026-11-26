@@ -5,11 +5,15 @@
 // `regnet.py` configs and models; edit the script, not them.
 
 use crate::{
+    blocks::activation::BunsenActivationConfig,
     data::pretrained::{
         PrefabTable,
         Prefabs,
     },
-    kits::images::classification::regnet::RegNetContractConfig,
+    kits::images::classification::regnet::{
+        RegNetContractConfig,
+        RegNetDownsample,
+    },
 };
 
 impl RegNetContractConfig {
@@ -182,13 +186,57 @@ impl RegNetContractConfig {
     pub fn regnety_2560() -> Self {
         Self::regnet(27, 640, 230.83, 2.53, 373).with_se_ratio(0.25)
     }
+
+    /// The `regnetv_040` prefab: `RegNetV` of 4 GF; squeeze-excite of 0.25,
+    /// pre-activation units, `silu`.
+    pub fn regnetv_040() -> Self {
+        Self::regnet(22, 96, 31.41, 2.24, 64)
+            .with_se_ratio(0.25)
+            .with_preact(true)
+            .with_act_layer(BunsenActivationConfig::Silu)
+    }
+
+    /// The `regnetv_064` prefab: `RegNetV` of 6.4 GF; squeeze-excite of 0.25,
+    /// `avg` shortcuts, pre-activation units, `silu`.
+    pub fn regnetv_064() -> Self {
+        Self::regnet(25, 112, 33.22, 2.27, 72)
+            .with_se_ratio(0.25)
+            .with_downsample(RegNetDownsample::Avg)
+            .with_preact(true)
+            .with_act_layer(BunsenActivationConfig::Silu)
+    }
+
+    /// The `regnetz_040` prefab: `RegNetZ` of 4 GF; a bottleneck 4x its unit's
+    /// width, squeeze-excite of 0.25, no shortcut convs, linear unit outputs,
+    /// `silu`.
+    pub fn regnetz_040() -> Self {
+        Self::regnet(28, 48, 14.5, 2.226, 8)
+            .with_bottle_ratio(4.0)
+            .with_se_ratio(0.25)
+            .with_downsample(RegNetDownsample::None)
+            .with_linear_out(true)
+            .with_act_layer(BunsenActivationConfig::Silu)
+    }
+
+    /// The `regnetz_040_h` prefab: `RegNetZ` of 4 GF; a bottleneck 4x its
+    /// unit's width, squeeze-excite of 0.25, no shortcut convs, linear unit
+    /// outputs, a final conv to 1536 features, `silu`.
+    pub fn regnetz_040_h() -> Self {
+        Self::regnet(28, 48, 14.5, 2.226, 8)
+            .with_bottle_ratio(4.0)
+            .with_se_ratio(0.25)
+            .with_downsample(RegNetDownsample::None)
+            .with_linear_out(true)
+            .with_num_features(1536)
+            .with_act_layer(BunsenActivationConfig::Silu)
+    }
     // gen_regnet_prefabs: end fns
 }
 
 /// The `RegNet` geometries by name, timm's architecture names: a
 /// [`RegNetContractConfig`] of 1000 classes for every architecture of timm's
-/// `regnet.py` with hub weights that the kit builds, `RegNetX` and
-/// `RegNetY`, from `regnetx_002` to the `SEER` towers.
+/// `regnet.py` with hub weights: `RegNetX` and `RegNetY` from `regnetx_002`
+/// to the `SEER` towers, `RegNetV` and `RegNetZ`.
 ///
 /// A prefab has no weights: a timm row takes the classes from its
 /// `config.json`.
@@ -225,6 +273,10 @@ impl Prefabs for RegNetContractConfig {
         ("regnety_640", Self::regnety_640),
         ("regnety_1280", Self::regnety_1280),
         ("regnety_2560", Self::regnety_2560),
+        ("regnetv_040", Self::regnetv_040),
+        ("regnetv_064", Self::regnetv_064),
+        ("regnetz_040", Self::regnetz_040),
+        ("regnetz_040_h", Self::regnetz_040_h),
         // gen_regnet_prefabs: end table
     ];
     const PREFAB_TABLE: &'static str = "regnet";
@@ -510,6 +562,42 @@ mod tests {
                 (7, 1492, 1492, 4),
                 (17, 4103, 4103, 11),
                 (1, 10444, 10444, 28),
+            ],
+        ),
+        (
+            "regnetv_040",
+            [
+                (2, 128, 128, 2),
+                (6, 192, 192, 3),
+                (12, 512, 512, 8),
+                (2, 1088, 1088, 17),
+            ],
+        ),
+        (
+            "regnetv_064",
+            [
+                (2, 144, 144, 2),
+                (7, 288, 288, 4),
+                (14, 576, 576, 8),
+                (2, 1296, 1296, 18),
+            ],
+        ),
+        (
+            "regnetz_040",
+            [
+                (2, 48, 192, 24),
+                (6, 104, 416, 52),
+                (14, 240, 960, 120),
+                (6, 528, 2112, 264),
+            ],
+        ),
+        (
+            "regnetz_040_h",
+            [
+                (2, 48, 192, 24),
+                (6, 104, 416, 52),
+                (14, 240, 960, 120),
+                (6, 528, 2112, 264),
             ],
         ),
         // gen_regnet_prefabs: end stages

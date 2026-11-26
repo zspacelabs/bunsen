@@ -35,6 +35,8 @@ DEFAULTS = regnet.RegNetCfg()
 
 ACTS = {"relu": "Relu", "silu": "Silu"}
 
+DOWNSAMPLES = {"conv1x1": "Conv1x1", "avg": "Avg", None: "None"}
+
 
 def archs():
     """The `regnet.py` architectures with a pretrained hub tag."""
@@ -66,6 +68,21 @@ def lower(arch, cfg):
         elif name == "act_layer" and value in ACTS:
             expr += f".with_act_layer(BunsenActivationConfig::{ACTS[value]})"
             notes.append(f"`{value}`")
+        elif name == "bottle_ratio":
+            expr += f".with_bottle_ratio({float(value)!r})"
+            notes.append(f"a bottleneck {float(value):g}x its unit's width")
+        elif name == "downsample" and value in DOWNSAMPLES:
+            expr += f".with_downsample(RegNetDownsample::{DOWNSAMPLES[value]})"
+            notes.append("no shortcut convs" if value is None else f"`{value}` shortcuts")
+        elif name == "linear_out" and value:
+            expr += ".with_linear_out(true)"
+            notes.append("linear unit outputs")
+        elif name == "preact" and value:
+            expr += ".with_preact(true)"
+            notes.append("pre-activation units")
+        elif name == "num_features":
+            expr += f".with_num_features({value})"
+            notes.append(f"a final conv to {value} features")
         else:
             return f"{name}={value!r}"
     return expr, notes
@@ -79,15 +96,19 @@ def stages(arch):
     for i in range(1, 5):
         stage = getattr(model, f"s{i}")
         blocks = list(stage.children())
-        conv2 = blocks[0].conv2.conv
-        out.append((len(blocks), blocks[0].conv3.conv.out_channels, conv2.out_channels, conv2.groups))
+        # A conv block's conv, or a pre-activation net's bare conv.
+        bare = lambda m: getattr(m, "conv", m)
+        conv2, conv3 = bare(blocks[0].conv2), bare(blocks[0].conv3)
+        out.append((len(blocks), conv3.out_channels, conv2.out_channels, conv2.groups))
     return out
 
 
 def render(built):
     fns, rows, table = [], [], []
     for arch, (expr, notes), stage_rows in built:
-        kind = {"x": "`RegNetX`", "y": "`RegNetY`"}[arch[len("regnet")]]
+        kind = {"x": "`RegNetX`", "y": "`RegNetY`", "v": "`RegNetV`", "z": "`RegNetZ`"}[
+            arch[len("regnet")]
+        ]
         flops = arch.split("_")[1]
         doc = f"The `{arch}` prefab: {kind} of {int(flops) / 10:g} GF"
         if notes:
@@ -118,8 +139,9 @@ def main():
             skipped.append((arch, lowered))
             continue
         built.append((arch, lowered, stages(arch)))
-    # RegNetX, then RegNetY, each by its FLOPs (the name's number), then its name.
-    built.sort(key=lambda b: (b[0][len("regnet")], int(b[0].split("_")[1]), b[0]))
+    # RegNetX, RegNetY, RegNetV, RegNetZ, each by its FLOPs (the name's number), then its name.
+    order = "xyvz"
+    built.sort(key=lambda b: (order.index(b[0][len("regnet")]), int(b[0].split("_")[1]), b[0]))
     fns, rows, table = render(built)
     text = PREFABS.read_text()
     text = splice(splice(splice(text, "fns", fns), "table", rows), "stages", table)
