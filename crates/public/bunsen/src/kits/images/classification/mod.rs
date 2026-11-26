@@ -32,6 +32,9 @@
 //!   generic conv net, their widths generated from timm's configs; prefabs and
 //!   timm's hub repos, loaded by name through
 //!   [`default_regnet_factory`](regnet::pretrained::default_regnet_factory).
+//! - [`resnetv2`]: the pre-activation `ResNetV2` and `BiT`, built as the
+//!   generic conv net; prefabs and timm's hub repos, loaded by name through
+//!   [`default_resnetv2_factory`](resnetv2::pretrained::default_resnetv2_factory).
 //! - [`swin`]: the Swin Transformer, V1 (with the Swin-S3 geometries) and V2,
 //!   built as the generic staged vision encoder, with timm's hub repos.
 
@@ -39,5 +42,6 @@ pub mod deit;
 pub mod driver;
 pub mod regnet;
 pub mod resnet;
+pub mod resnetv2;
 pub mod swin;
 pub mod vit;

@@ -54,6 +54,10 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
                 RESNET_CONTRACT,
                 RESNET_KIT,
             },
+            resnetv2::pretrained::{
+                RESNETV2_CONTRACT,
+                RESNETV2_KIT,
+            },
             swin::{
                 v1::pretrained::{
                     SWIN_V1_CONTRACT,
@@ -113,6 +117,7 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
         contract(LAYA_KIT, LAYA_CONTRACT),
         contract(RESNET_KIT, RESNET_CONTRACT),
         contract(REGNET_KIT, REGNET_CONTRACT),
+        contract(RESNETV2_KIT, RESNETV2_CONTRACT),
         contract(VIT_KIT, VIT_CONTRACT),
         contract(DEIT_KIT, DEIT_CONTRACT),
         contract(SWIN_V1_KIT, SWIN_V1_CONTRACT),
