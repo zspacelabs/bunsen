@@ -11,7 +11,15 @@ use crate::{
     blocks::{
         activation::BunsenActivationConfig,
         images::{
-            models::classifier_head::ClassifierHeadConfig,
+            models::{
+                classifier_head::ClassifierHeadConfig,
+                conv_net::{
+                    ConvLayersConfig,
+                    ConvNetContractConfig,
+                    ConvStemContractConfig,
+                    ConvStemPoolKind,
+                },
+            },
             patching::{
                 patch_embed::PatchEmbedConfig,
                 prefix_tokens::PrefixTokensConfig,
@@ -234,4 +242,57 @@ fn test_map_pool() {
     let images = Tensor::<4>::random([2, 3, 16, 16], Distribution::Default, &device);
     assert_eq!(model.pooled_features(images.clone()).dims(), [2, 8]);
     assert_eq!(model.forward(images).dims(), [2, 5]);
+}
+
+/// A hybrid: a conv backbone (a SAME-padded stem alone, stride 4) whose
+/// 6-channel map the patch embedding cuts, in 2x2 patches. The model takes
+/// the backbone's images; a map that is not the patch embedding's input is
+/// refused, as is a backbone with a head.
+#[test]
+fn test_backbone() {
+    let net = |classes: usize| {
+        ConvNetContractConfig::new(
+            ConvStemContractConfig::new(vec![6]).with_pool(ConvStemPoolKind::SameMax),
+            vec![],
+            classes,
+        )
+        .with_layers(ConvLayersConfig::new().with_same_pad(true))
+        .to_structure()
+    };
+    let mut config = tiny(TokenPoolConfig::Token, 0);
+    config.patch_embed = PatchEmbedConfig::new([8, 8], 2, 6, 8);
+    config.backbone = Some(VisionBackboneConfig::new(net(0), [30, 32]));
+    assert_eq!(config.in_channels(), 3);
+    assert_eq!(config.image_size(), [30, 32]);
+    assert_eq!(config.grid(), [4, 4]);
+    let device = cpu_device();
+    let model: VisionEncoderModel = config.init(&device);
+    assert_eq!(model.image_size(), [30, 32]);
+    assert_eq!(model.in_channels(), 3);
+    let images: Tensor<4> = seeded_tensor(3, [2, 3, 30, 32], Distribution::Default, &device);
+    assert_eq!(model.forward(images.clone()).dims(), [2, 5]);
+    // The backbone's map is the patch embedding's input.
+    let backbone = model.backbone.as_ref().unwrap();
+    let tokens = model.patch_embed.forward(backbone.forward(images.clone()));
+    assert_tensors_close(
+        &model.embed(images),
+        &model.tokens.forward(tokens),
+        Tolerance::rel_abs(1e-6, 1e-6),
+    );
+
+    let illegal = |config: VisionEncoderStructureConfig, message: &str| {
+        let built: crate::errors::BunsenResult<VisionEncoderModel> = config.try_init(&device);
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains(message)
+            .assert_err(&built);
+    };
+    let mut wrong_size = config.clone();
+    wrong_size.backbone = Some(VisionBackboneConfig::new(net(0), [16, 16]));
+    illegal(
+        wrong_size,
+        "the backbone's map is 6 channels at [4, 4]; the patch embedding takes 6 at [8, 8]",
+    );
+    let mut headed = config;
+    headed.backbone = Some(VisionBackboneConfig::new(net(5), [30, 32]));
+    illegal(headed, "the backbone has a head of 5 classes");
 }

@@ -18,13 +18,18 @@ use burn::{
 use super::{
     TokenPool,
     TokenPoolConfig,
+    VisionBackbone,
+    VisionBackboneConfig,
 };
 use crate::{
     blocks::{
         images::{
-            models::classifier_head::{
-                ClassifierHead,
-                ClassifierHeadConfig,
+            models::{
+                classifier_head::{
+                    ClassifierHead,
+                    ClassifierHeadConfig,
+                },
+                conv_net::ConvNetMeta,
             },
             patching::{
                 patch_embed::{
@@ -61,13 +66,14 @@ use crate::{
 /// The view shared by [`VisionEncoderStructureConfig`] and
 /// [`VisionEncoderModel`].
 pub trait VisionEncoderMeta {
-    /// The image channels the patch embedding takes.
+    /// The image channels it takes: the backbone's, or the patch
+    /// embedding's.
     fn in_channels(&self) -> usize;
 
     /// The `[height, width]` of the images it takes.
     fn image_size(&self) -> [usize; 2];
 
-    /// The patch size.
+    /// The patch size, over the backbone's map when there is one.
     fn patch_size(&self) -> usize;
 
     /// The `[height, width]` of the patch grid.
@@ -86,9 +92,9 @@ pub trait VisionEncoderMeta {
     fn num_classes(&self) -> usize;
 }
 
-/// [`VisionEncoderModel`]'s structure: the patch embedding, the prefix
-/// tokens and position embedding, the transformer, the token pool and the
-/// head.
+/// [`VisionEncoderModel`]'s structure: the conv backbone, if any, the patch
+/// embedding, the prefix tokens and position embedding, the transformer, the
+/// token pool and the head.
 ///
 /// A family's policy (`ViTContractConfig`) lowers to it. `try_init` checks
 /// that the parts agree: one width, the tokens over the patch grid, a class
@@ -97,7 +103,7 @@ pub trait VisionEncoderMeta {
 /// Implements [`VisionEncoderMeta`].
 #[derive(Config, Debug)]
 pub struct VisionEncoderStructureConfig {
-    /// The patch embedding.
+    /// The patch embedding: over the images, or the backbone's map.
     pub patch_embed: PatchEmbedConfig,
 
     /// The prefix tokens and the position embedding.
@@ -121,15 +127,26 @@ pub struct VisionEncoderStructureConfig {
     /// The head, over the pooled features: distilled for a
     /// [`Distilled`](TokenPoolConfig::Distilled) pool.
     pub head: ClassifierHeadConfig,
+
+    /// The conv backbone before the patch embedding (the hybrid `ViT`'s);
+    /// none when `None`, the patch embedding cutting the images.
+    #[config(default = "None")]
+    pub backbone: Option<VisionBackboneConfig>,
 }
 
 impl VisionEncoderMeta for VisionEncoderStructureConfig {
     fn in_channels(&self) -> usize {
-        self.patch_embed.d_input()
+        match &self.backbone {
+            Some(backbone) => backbone.net.in_channels(),
+            None => self.patch_embed.d_input(),
+        }
     }
 
     fn image_size(&self) -> [usize; 2] {
-        self.patch_embed.input_resolution()
+        match &self.backbone {
+            Some(backbone) => backbone.image_size,
+            None => self.patch_embed.input_resolution(),
+        }
     }
 
     fn patch_size(&self) -> usize {
@@ -170,9 +187,11 @@ impl VisionEncoderStructureConfig {
     /// pool reads more prefix tokens than there are, or the head is distilled
     /// and the pool not (or the other way); when a
     /// [`Map`](TokenPoolConfig::Map) pool has no attention pool, or another
-    /// kind has one; when the stack has attention-residual routes; or as the
-    /// patch embedding's
-    /// [`try_validate`](PatchEmbedConfig::try_validate).
+    /// kind has one; when the stack has attention-residual routes; when a
+    /// backbone's map is not the patch embedding's input (its channels and
+    /// size); or as the patch embedding's
+    /// [`try_validate`](PatchEmbedConfig::try_validate) and the backbone's
+    /// [`try_validate`](VisionBackboneConfig::try_validate).
     pub fn try_validate(&self) -> BunsenResult<()> {
         let d = self.stack.d_model();
         let widths = [
@@ -194,6 +213,21 @@ impl VisionEncoderStructureConfig {
             }
         }
         self.patch_embed.try_validate()?;
+        if let Some(backbone) = &self.backbone {
+            backbone.try_validate()?;
+            let map = backbone.try_feature_size()?;
+            let (channels, input) = (
+                backbone.net.d_features(),
+                self.patch_embed.input_resolution(),
+            );
+            if channels != self.patch_embed.d_input() || map != input {
+                return Err(BunsenError::illegal(format!(
+                    "the backbone's map is {channels} channels at {map:?}; the patch embedding \
+                     takes {} at {input:?}",
+                    self.patch_embed.d_input()
+                )));
+            }
+        }
         if self.tokens.n_patches != self.patch_embed.num_patches() {
             return Err(BunsenError::illegal(format!(
                 "the prefix tokens cover {} patches; the grid has {}",
@@ -247,6 +281,11 @@ impl ModuleInit<VisionEncoderModel> for VisionEncoderStructureConfig {
     ) -> BunsenResult<VisionEncoderModel> {
         self.try_validate()?;
         Ok(VisionEncoderModel {
+            backbone: self
+                .backbone
+                .as_ref()
+                .map(|backbone| backbone.try_init(device))
+                .transpose()?,
             patch_embed: self.patch_embed.try_init(device)?,
             tokens: self.tokens.try_init(device).context("the prefix tokens")?,
             stack: self.stack.try_init(device).context("the transformer")?,
@@ -262,9 +301,10 @@ impl ModuleInit<VisionEncoderModel> for VisionEncoderStructureConfig {
     }
 }
 
-/// The generic vision encoder: a [`PatchEmbed`], [`PrefixTokens`] with the
-/// learnt position embedding, a [`DecoderStack`] of bidirectional layers,
-/// a [`TokenPool`] and a [`ClassifierHead`]: timm's `VisionTransformer`.
+/// The generic vision encoder: a [`PatchEmbed`] (after a [`VisionBackbone`],
+/// for a hybrid), [`PrefixTokens`] with the learnt position embedding, a
+/// [`DecoderStack`] of bidirectional layers, a [`TokenPool`] and a
+/// [`ClassifierHead`]: timm's `VisionTransformer`.
 ///
 /// Every `ViT` family is this type, built from its policy.
 /// [`forward`](Self::forward) maps `[batch, in_channels, height, width]`
@@ -279,6 +319,9 @@ impl ModuleInit<VisionEncoderModel> for VisionEncoderStructureConfig {
 /// Implements [`VisionEncoderMeta`].
 #[derive(Module, Debug)]
 pub struct VisionEncoderModel {
+    /// The conv backbone before the patch embedding, if any.
+    pub backbone: Option<VisionBackbone>,
+
     /// The patch embedding.
     pub patch_embed: PatchEmbed,
 
@@ -297,11 +340,17 @@ pub struct VisionEncoderModel {
 
 impl VisionEncoderMeta for VisionEncoderModel {
     fn in_channels(&self) -> usize {
-        self.patch_embed.d_input()
+        match &self.backbone {
+            Some(backbone) => backbone.net.in_channels(),
+            None => self.patch_embed.d_input(),
+        }
     }
 
     fn image_size(&self) -> [usize; 2] {
-        self.patch_embed.input_resolution()
+        match &self.backbone {
+            Some(backbone) => backbone.image_size,
+            None => self.patch_embed.input_resolution(),
+        }
     }
 
     fn patch_size(&self) -> usize {
@@ -430,7 +479,11 @@ impl VisionEncoderModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<3> {
-        self.tokens.forward(self.patch_embed.forward(images))
+        let x = match &self.backbone {
+            Some(backbone) => backbone.forward(images),
+            None => images,
+        };
+        self.tokens.forward(self.patch_embed.forward(x))
     }
 
     /// The transformer's output tokens, normalised (timm's

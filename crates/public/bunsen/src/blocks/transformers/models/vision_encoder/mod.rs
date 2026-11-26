@@ -1,6 +1,6 @@
 //! # The generic vision encoder
 //!
-//! [`VisionEncoderModel`]: a [`PatchEmbed`](crate::blocks::images::patching::patch_embed::PatchEmbed),
+//! [`VisionEncoderModel`]: an optional conv [`VisionBackbone`], a [`PatchEmbed`](crate::blocks::images::patching::patch_embed::PatchEmbed),
 //! [`PrefixTokens`](crate::blocks::images::patching::prefix_tokens::PrefixTokens)
 //! (the class, distillation and register tokens, and the learnt position
 //! embedding), a bidirectional
@@ -15,7 +15,9 @@
 //!
 //! As timm's `forward_features` and `forward_head`:
 //!
-//! 1. the patch embedding cuts the image into patches, one token each;
+//! 1. the patch embedding cuts the image into patches, one token each; a
+//!    hybrid's conv backbone runs first (timm's `HybridEmbed`), and the patch
+//!    embedding cuts its last map;
 //! 2. the prefix tokens go before them, and the position embedding is added
 //!    (over the prefix too, or the patches alone);
 //! 3. the transformer's input norm (timm's `norm_pre`, CLIP's), its pre-norm
@@ -34,14 +36,17 @@
 //!
 //! | part | path |
 //! |---|---|
+//! | a hybrid's conv backbone | `backbone.net.*`, [`ConvNetModel`](crate::blocks::images::models::conv_net::ConvNetModel)'s |
 //! | the patch embedding's conv | `patch_embed.projection` |
 //! | the prefix tokens, the position embedding | `tokens.cls_token`, `tokens.dist_token`, `tokens.reg_token`, `tokens.pos_embed` |
 //! | the transformer | `stack.*`, [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)'s |
 //! | the head's norm and classifiers | `head.fc_norm`, `head.fc`, `head.fc_dist` |
 
+mod backbone;
 mod model;
 mod pool;
 
+pub use backbone::*;
 pub use model::*;
 pub use pool::*;
 
