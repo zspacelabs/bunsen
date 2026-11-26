@@ -96,6 +96,12 @@ pub struct PatchEmbedConfig {
     /// before the first block.
     #[config(default = true)]
     bias: bool,
+
+    /// Whether a side may be other than a whole number of patches, the conv
+    /// dropping the pixels past the last whole patch (timm's `PatchEmbed`,
+    /// as a `ViT` builds it); `false`, such a geometry is refused (a Swin's).
+    #[config(default = false)]
+    allow_remainder: bool,
 }
 
 impl PatchEmbedMeta for PatchEmbedConfig {
@@ -122,7 +128,7 @@ impl PatchEmbedMeta for PatchEmbedConfig {
 
 impl PatchEmbedConfig {
     /// Checks the geometry: a nonzero patch size that divides both sides of
-    /// the input.
+    /// the input, or fits in both under `allow_remainder`.
     ///
     /// See the [errors convention](crate::errors#convention-try_x-and-x).
     ///
@@ -132,7 +138,15 @@ impl PatchEmbedConfig {
     pub fn try_validate(&self) -> BunsenResult<()> {
         let [h, w] = self.input_resolution;
         let p = self.patch_size;
-        if p == 0 || !h.is_multiple_of(p) || !w.is_multiple_of(p) {
+        if p == 0 {
+            return Err(BunsenError::illegal("a patch size of 0"));
+        }
+        if self.allow_remainder && (h < p || w < p) {
+            return Err(BunsenError::illegal(format!(
+                "{h}x{w} images don't hold a {p}x{p} patch"
+            )));
+        }
+        if !self.allow_remainder && !(h.is_multiple_of(p) && w.is_multiple_of(p)) {
             return Err(BunsenError::illegal(format!(
                 "{h}x{w} images don't divide into {p}x{p} patches"
             )));
@@ -314,6 +328,7 @@ mod tests {
             d_output: 768,
             norm: Some(layer_norm()),
             bias: true,
+            allow_remainder: false,
         };
 
         assert_eq!(config.input_resolution(), [224, 224]);
@@ -347,14 +362,36 @@ mod tests {
     #[test]
     fn test_patch_embed_invalid_resolution() {
         let device = cpu_device();
-        for config in [
-            PatchEmbedConfig::new([224, 223], 16, 3, 768),
-            PatchEmbedConfig::new([224, 224], 0, 3, 768),
+        for (config, message) in [
+            (
+                PatchEmbedConfig::new([224, 223], 16, 3, 768),
+                "224x223 images don't divide into 16x16 patches",
+            ),
+            (
+                PatchEmbedConfig::new([224, 224], 0, 3, 768),
+                "a patch size of 0",
+            ),
+            (
+                PatchEmbedConfig::new([224, 12], 16, 3, 768).with_allow_remainder(true),
+                "224x12 images don't hold a 16x16 patch",
+            ),
         ] {
             ErrorMatcher::kind(BunsenErrorKind::Illegal)
-                .message_contains("don't divide into")
+                .message_contains(message)
                 .assert_err(&ModuleInit::<PatchEmbed>::try_init(&config, &device));
         }
+    }
+
+    /// Under `allow_remainder`, the pixels past the last whole patch are
+    /// dropped: 38 pixels in 16-pixel patches are 2 patches a side.
+    #[test]
+    fn test_patch_embed_remainder() {
+        let device = cpu_device();
+        let config = PatchEmbedConfig::new([38, 38], 16, 3, 8).with_allow_remainder(true);
+        assert_eq!(config.patches_resolution(), [2, 2]);
+        let embed: PatchEmbed = config.init(&device);
+        let output = embed.forward(Tensor::<4>::zeros([1, 3, 38, 38], &device));
+        assert_eq!(output.dims(), [1, 4, 8]);
     }
 
     /// The norm is the seam's, sized to the tokens.
@@ -377,6 +414,7 @@ mod tests {
             d_output: 768,
             norm: Some(layer_norm()),
             bias: true,
+            allow_remainder: false,
         };
         let device = cpu_device();
         let patch_embed = config.try_init(&device).ok_or_panic();
@@ -411,6 +449,7 @@ mod tests {
             d_output: 768,
             norm: None,
             bias: true,
+            allow_remainder: false,
         };
         let device = cpu_device();
         let patch_embed = config.try_init(&device).ok_or_panic();

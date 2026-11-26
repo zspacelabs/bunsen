@@ -33,6 +33,7 @@ use crate::{
                 TokenPoolConfig,
                 VisionEncoderStructureConfig,
             },
+            sublayer::NormPlacement,
         },
     },
     burner::module::ToStructureConfig,
@@ -55,7 +56,8 @@ pub const CLIP_NORM_EPSILON: f64 = 1e-5;
 /// [`VisionEncoderStructureConfig`].
 ///
 /// The model runs at `image_size`, the size its position embedding is learnt
-/// for.
+/// for. As timm's, an `image_size` that isn't a whole number of patches is
+/// taken: the patch embedding drops the pixels past the last whole patch.
 #[derive(Config, Debug)]
 pub struct ViTContractConfig {
     /// The side of the square images it takes (timm's `img_size`).
@@ -117,9 +119,22 @@ pub struct ViTContractConfig {
     #[config(default = "TokenPoolConfig::Token")]
     pub global_pool: TokenPoolConfig,
 
-    /// Layer scale on each sublayer (timm's `init_values` set).
+    /// Layer scale on each sublayer (timm's `init_values` set, on its
+    /// `Block`).
     #[config(default = "false")]
     pub layer_scale: bool,
+
+    /// Where each block normalizes: before each sublayer (timm's `Block`),
+    /// or [`ResPost`](NormPlacement::ResPost), on each branch's output
+    /// (its `ResPostBlock`, the `rpn` archs').
+    #[config(default = "NormPlacement::Pre")]
+    pub norm_placement: NormPlacement,
+
+    /// Whether the tokens are normalized after the last layer, before the
+    /// head (timm's `final_norm`); `false`, no norm there or after the pool
+    /// (C-RADIO's).
+    #[config(default = "true")]
+    pub final_norm: bool,
 
     /// The layer norms' epsilon: [`VIT_NORM_EPSILON`], or
     /// [`CLIP_NORM_EPSILON`] for the CLIP archs.
@@ -146,10 +161,20 @@ impl ViTContractConfig {
     }
 
     /// Whether the norm follows the pool: [`fc_norm`](Self::fc_norm), else
-    /// timm's default for the pool.
+    /// timm's default for the pool; never without a
+    /// [`final_norm`](Self::final_norm).
     pub fn uses_fc_norm(&self) -> bool {
-        self.fc_norm
-            .unwrap_or_else(|| self.global_pool.timm_fc_norm())
+        self.final_norm
+            && self
+                .fc_norm
+                .unwrap_or_else(|| self.global_pool.timm_fc_norm())
+    }
+
+    /// Whether the norm follows the last layer: a
+    /// [`final_norm`](Self::final_norm) the pool's norm doesn't take
+    /// ([`uses_fc_norm`](Self::uses_fc_norm)).
+    pub fn uses_last_norm(&self) -> bool {
+        self.final_norm && !self.uses_fc_norm()
     }
 
     /// The MLP's hidden width: `embed_dim * mlp_ratio`, rounded down.
@@ -179,27 +204,30 @@ impl ToStructureConfig for ViTContractConfig {
 
     /// The vision encoder of this `ViT`:
     ///
-    /// - a patch embedding of `patch_size` patches, with no norm, biased but
-    ///   under [`pre_norm`](Self::pre_norm);
+    /// - a patch embedding of `patch_size` patches, the pixels past the last
+    ///   whole patch dropped, with no norm, biased but under
+    ///   [`pre_norm`](Self::pre_norm);
     /// - the class and register tokens, and the position embedding;
     /// - `depth` pre-norm layers: attention over every token, `num_heads` heads
     ///   of `embed_dim / num_heads`, a fused-`qkv` bias as
     ///   [`qkv_bias`](Self::qkv_bias) says and an output bias; an MLP of
     ///   [`mlp_hidden`](Self::mlp_hidden) with biases; layer scale as
-    ///   [`layer_scale`](Self::layer_scale) says; an input norm under
-    ///   `pre_norm`; the final norm, unless the head's norm follows its pool
-    ///   ([`uses_fc_norm`](Self::uses_fc_norm));
+    ///   [`layer_scale`](Self::layer_scale) says; the norms where
+    ///   [`norm_placement`](Self::norm_placement) puts them; an input norm
+    ///   under `pre_norm`; the final norm, as
+    ///   [`uses_last_norm`](Self::uses_last_norm) says;
     /// - the head: the pool, its norm, the dropout, the classifier.
     ///
     /// # Errors
     ///
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for images that
-    /// don't divide into patches, a width the heads don't divide, a
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for images
+    /// smaller than a patch, a width the heads don't divide, a
     /// class-token pool with no class token, or zero layers.
     fn try_to_structure(&self) -> BunsenResult<VisionEncoderStructureConfig> {
         let (d, heads, p) = (self.embed_dim, self.num_heads, self.patch_size);
         let patch_embed = PatchEmbedConfig::new([self.image_size; 2], p, self.in_channels, d)
-            .with_bias(!self.pre_norm);
+            .with_bias(!self.pre_norm)
+            .with_allow_remainder(true);
         patch_embed
             .try_validate()
             .context("ViTContractConfig's patches")?;
@@ -235,10 +263,11 @@ impl ToStructureConfig for ViTContractConfig {
                     .into(),
             )
             .with_norm(self.norm())
+            .with_norm_placement(self.norm_placement)
             .with_layer_scale(self.layer_scale),
-            match fc_norm {
-                true => BunsenNormalizationConfig::Identity,
-                false => self.norm(),
+            match self.uses_last_norm() {
+                true => self.norm(),
+                false => BunsenNormalizationConfig::Identity,
             },
             RotaryEmbeddingConfig::unrotated(d / heads),
         );
@@ -314,6 +343,21 @@ mod tests {
         assert_eq!(reg.tokens.pos_embed_len(), Some(16));
 
         assert_eq!(tiny().with_mlp_ratio(2.5).mlp_hidden(), 20);
+
+        let bare = tiny()
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_final_norm(false)
+            .to_structure();
+        assert!(matches!(
+            bare.stack.norm,
+            BunsenNormalizationConfig::Identity
+        ));
+        assert!(bare.head.fc_norm.is_none());
+
+        // 18 pixels in 4-pixel patches: 4 patches a side, 2 pixels dropped.
+        let remainder = ViTContractConfig::new(18, 4, 8, 2, 2, 5).to_structure();
+        assert_eq!(remainder.grid(), [4, 4]);
+        assert_eq!(remainder.tokens.pos_embed_len(), Some(17));
     }
 
     /// A pre-norm model's patch embedding has no bias; the policy builds.
@@ -335,8 +379,8 @@ mod tests {
                 .assert_err(&config.try_to_structure());
         };
         illegal(
-            ViTContractConfig::new(18, 4, 8, 2, 2, 5),
-            "18x18 images don't divide into 4x4 patches",
+            ViTContractConfig::new(3, 4, 8, 2, 2, 5),
+            "3x3 images don't hold a 4x4 patch",
         );
         illegal(
             ViTContractConfig::new(16, 4, 8, 2, 3, 5),

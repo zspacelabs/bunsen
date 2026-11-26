@@ -19,16 +19,17 @@
 //!   `ResNet` is missing.
 //! - [`vit`]: the Vision Transformer, built as the generic vision encoder
 //!   ([`VisionEncoderModel`](crate::blocks::transformers::models::vision_encoder::VisionEncoderModel)).
-//!   25 prefabs (`vit_tiny_patch16_224` to `vit_huge_patch14_224`, the MIIL
-//!   `ViT` and the CLIP image towers), and 99 pretrained rows, timm's hub
+//!   101 prefabs, generated from timm's `vision_transformer.py` (from
+//!   `vit_tiny_patch16_224` and the CLIP image towers to the `SigLIP`,
+//!   `DINOv2`, sbb and C-RADIO archs), and 99 pretrained rows, timm's hub
 //!   repos, loaded by name through
 //!   [`default_vit_factory`](vit::pretrained::default_vit_factory).
 //! - [`deit`]: `DeiT` and `DeiT` III, `ViT`s built the same way, the distilled
 //!   ones with a distillation token and a second classifier. 16 prefabs, loaded
 //!   from timm's hub repos through
 //!   [`default_deit_factory`](deit::pretrained::default_deit_factory).
-//! - [`swin::v2`]: Swin Transformer V2. The model and its configs, with no
-//!   prefabs and no pretrained weights yet.
+//! - [`swin`]: the Swin Transformer, V1 (with the Swin-S3 geometries) and V2,
+//!   built as the generic staged vision encoder, with timm's hub repos.
 
 pub mod deit;
 pub mod driver;

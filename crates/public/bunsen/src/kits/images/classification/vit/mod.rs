@@ -6,15 +6,16 @@
 //! embeds each as a token, puts a class token (and register tokens) before
 //! them, adds a learnt position embedding, runs a transformer encoder over
 //! the sequence, and pools it for a classifier head. The patch size, the
-//! width, the depth, the heads and the image size name the variant:
-//! `vit_tiny_patch16_224` to `vit_huge_patch14_224`, the MIIL
-//! `vit_base_patch16_224_miil`, and the CLIP image towers
-//! (`vit_base_patch32_clip_224`, …), which normalise the tokens before the
-//! first layer.
+//! width, the depth, the heads and the image size name the variant
+//! (`vit_base_patch16_224`); later weight sets keep the tree and turn its
+//! knobs: the CLIP image towers normalise the tokens before the first layer,
+//! `DINOv2` adds register tokens and layer scale, `SigLIP`'s `gap` towers drop
+//! the class token for the mean, C-RADIO drops the final norm.
 //!
 //! [`pretrained`] turns names into loaded models.
-//! [`ViTContractConfig`]'s prefabs name the 25 geometries, by timm's
-//! architecture names, and
+//! [`ViTContractConfig`]'s prefabs name the 101 geometries, by timm's
+//! architecture names, generated from timm's own entrypoints
+//! (`tools/gen_vit_prefabs.py`), and
 //! [`default_vit_factory`](pretrained::default_vit_factory) is the index of
 //! 99 timm hub repos (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), and
 //! loads any other of the prefabs' architectures as `hf:timm/<repo>`.
@@ -27,7 +28,8 @@
 //! in timm's terms (the image and patch sizes, the width, depth and heads,
 //! the MLP ratio, the `qkv` bias, the class and register tokens, the position
 //! embedding's reach, CLIP's pre-norm, the head's pool and norm, layer scale,
-//! the norms' epsilon, the activation) and lowers to the generic structure;
+//! the blocks' norm placement, the final norm, the norms' epsilon, the
+//! activation) and lowers to the generic structure;
 //! `init` builds the model through it.
 //!
 //! The model's parameter paths are the vision encoder's own; [`interop`]
@@ -42,9 +44,11 @@
 //! * the attention pool (`global_pool='map'`, `SigLIP`'s) and `prr`
 //! * running at another size than the position embedding's
 //!   (`resample_abs_pos_embed`, `dynamic_img_size`)
-//! * the hybrid stems (`vit_base_r50_s16_384`) and the other block kinds
-//!   (`ParallelScalingBlock`, `ResPostBlock`)
-//! * QK-norm, `SwiGLU` MLPs and RMS norms (the post-2021 configs)
+//! * the hybrid stems (`vit_base_r50_s16_384`), the parallel blocks
+//!   (`ParallelScalingBlock`, `DiffParallelScalingBlock`) and differential
+//!   attention
+//! * QK-norm, `SwiGLU` and GLU MLPs, RMS norms, a patch-embedding norm,
+//!   `BEiT3`'s inner norms (`AIMv2`'s, the giant `DINOv2`'s, `BEiT3`'s)
 
 pub mod pretrained;
 
