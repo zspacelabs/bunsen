@@ -817,6 +817,194 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 * timm/resnetrs420.tf_in1k: [770.1 MB]
   timm's `resnetrs420`, its `tf_in1k` weights.
 
+# contract: regnet-classifier
+# A RegNet image classifier, or headless trunk: a timm hub repo's
+# checkpoint (safetensors) and `config.json`.
+# publisher: timm - pytorch-image-models (timm), Ross Wightman's.
+
+* timm/regnetx_002.pycls_in1k: [11.6 MB]
+  timm's `regnetx_002`, its `pycls_in1k` weights.
+
+* timm/regnetx_004.pycls_in1k: [21.6 MB]
+  timm's `regnetx_004`, its `pycls_in1k` weights.
+
+* timm/regnetx_004_tv.tv2_in1k: [22.9 MB]
+  timm's `regnetx_004_tv`, its `tv2_in1k` weights.
+
+* timm/regnetx_006.pycls_in1k: [25.7 MB]
+  timm's `regnetx_006`, its `pycls_in1k` weights.
+
+* timm/regnetx_008.pycls_in1k: [30.0 MB]
+  timm's `regnetx_008`, its `pycls_in1k` weights.
+
+* timm/regnetx_008.tv2_in1k: [30.0 MB]
+  timm's `regnetx_008`, its `tv2_in1k` weights.
+
+* timm/regnetx_016.pycls_in1k: [37.7 MB]
+  timm's `regnetx_016`, its `pycls_in1k` weights.
+
+* timm/regnetx_016.tv2_in1k: [37.7 MB]
+  timm's `regnetx_016`, its `tv2_in1k` weights.
+
+* timm/regnetx_032.pycls_in1k: [62.2 MB]
+  timm's `regnetx_032`, its `pycls_in1k` weights.
+
+* timm/regnetx_032.tv2_in1k: [62.2 MB]
+  timm's `regnetx_032`, its `tv2_in1k` weights.
+
+* timm/regnetx_040.pycls_in1k: [89.6 MB]
+  timm's `regnetx_040`, its `pycls_in1k` weights.
+
+* timm/regnetx_064.pycls_in1k: [105.9 MB]
+  timm's `regnetx_064`, its `pycls_in1k` weights.
+
+* timm/regnetx_080.pycls_in1k: [159.4 MB]
+  timm's `regnetx_080`, its `pycls_in1k` weights.
+
+* timm/regnetx_080.tv2_in1k: [159.4 MB]
+  timm's `regnetx_080`, its `tv2_in1k` weights.
+
+* timm/regnetx_120.pycls_in1k: [185.6 MB]
+  timm's `regnetx_120`, its `pycls_in1k` weights.
+
+* timm/regnetx_160.pycls_in1k: [218.4 MB]
+  timm's `regnetx_160`, its `pycls_in1k` weights.
+
+* timm/regnetx_160.tv2_in1k: [218.4 MB]
+  timm's `regnetx_160`, its `tv2_in1k` weights.
+
+* timm/regnetx_320.pycls_in1k: [432.7 MB]
+  timm's `regnetx_320`, its `pycls_in1k` weights.
+
+* timm/regnetx_320.tv2_in1k: [432.7 MB]
+  timm's `regnetx_320`, its `tv2_in1k` weights.
+
+* timm/regnety_002.pycls_in1k: [13.5 MB]
+  timm's `regnety_002`, its `pycls_in1k` weights.
+
+* timm/regnety_004.pycls_in1k: [18.3 MB]
+  timm's `regnety_004`, its `pycls_in1k` weights.
+
+* timm/regnety_004.tv2_in1k: [18.3 MB]
+  timm's `regnety_004`, its `tv2_in1k` weights.
+
+* timm/regnety_006.pycls_in1k: [25.1 MB]
+  timm's `regnety_006`, its `pycls_in1k` weights.
+
+* timm/regnety_008.pycls_in1k: [26.0 MB]
+  timm's `regnety_008`, its `pycls_in1k` weights.
+
+* timm/regnety_008_tv.tv2_in1k: [26.6 MB]
+  timm's `regnety_008_tv`, its `tv2_in1k` weights.
+
+* timm/regnety_016.pycls_in1k: [45.8 MB]
+  timm's `regnety_016`, its `pycls_in1k` weights.
+
+* timm/regnety_016.tv2_in1k: [45.8 MB]
+  timm's `regnety_016`, its `tv2_in1k` weights.
+
+* timm/regnety_032.pycls_in1k: [78.8 MB]
+  timm's `regnety_032`, its `pycls_in1k` weights.
+
+* timm/regnety_032.ra_in1k: [78.8 MB]
+  timm's `regnety_032`, its `ra_in1k` weights.
+
+* timm/regnety_032.tv2_in1k: [78.8 MB]
+  timm's `regnety_032`, its `tv2_in1k` weights.
+
+* timm/regnety_040.pycls_in1k: [83.6 MB]
+  timm's `regnety_040`, its `pycls_in1k` weights.
+
+* timm/regnety_040.ra3_in1k: [83.6 MB]
+  timm's `regnety_040`, its `ra3_in1k` weights.
+
+* timm/regnety_064.pycls_in1k: [123.5 MB]
+  timm's `regnety_064`, its `pycls_in1k` weights.
+
+* timm/regnety_064.ra3_in1k: [123.5 MB]
+  timm's `regnety_064`, its `ra3_in1k` weights.
+
+* timm/regnety_080.pycls_in1k: [157.9 MB]
+  timm's `regnety_080`, its `pycls_in1k` weights.
+
+* timm/regnety_080.ra3_in1k: [157.9 MB]
+  timm's `regnety_080`, its `ra3_in1k` weights.
+
+* timm/regnety_080_tv.tv2_in1k: [158.7 MB]
+  timm's `regnety_080_tv`, its `tv2_in1k` weights.
+
+* timm/regnety_120.pycls_in1k: [208.5 MB]
+  timm's `regnety_120`, its `pycls_in1k` weights.
+
+* timm/regnety_120.sw_in12k: [305.6 MB]
+  timm's `regnety_120`, its `sw_in12k` weights.
+
+* timm/regnety_120.sw_in12k_ft_in1k: [208.5 MB]
+  timm's `regnety_120`, its `sw_in12k_ft_in1k` weights.
+
+* timm/regnety_160.deit_in1k: [335.6 MB]
+  timm's `regnety_160`, its `deit_in1k` weights.
+
+* timm/regnety_160.lion_in12k_ft_in1k: [335.6 MB]
+  timm's `regnety_160`, its `lion_in12k_ft_in1k` weights.
+
+* timm/regnety_160.pycls_in1k: [335.6 MB]
+  timm's `regnety_160`, its `pycls_in1k` weights.
+
+* timm/regnety_160.sw_in12k: [466.7 MB]
+  timm's `regnety_160`, its `sw_in12k` weights.
+
+* timm/regnety_160.sw_in12k_ft_in1k: [335.6 MB]
+  timm's `regnety_160`, its `sw_in12k_ft_in1k` weights.
+
+* timm/regnety_160.swag_ft_in1k: [335.6 MB]
+  timm's `regnety_160`, its `swag_ft_in1k` weights.
+
+* timm/regnety_160.swag_lc_in1k: [335.6 MB]
+  timm's `regnety_160`, its `swag_lc_in1k` weights.
+
+* timm/regnety_160.tv2_in1k: [335.6 MB]
+  timm's `regnety_160`, its `tv2_in1k` weights.
+
+* timm/regnety_320.pycls_in1k: [581.6 MB]
+  timm's `regnety_320`, its `pycls_in1k` weights.
+
+* timm/regnety_320.seer: [566.0 MB]
+  timm's `regnety_320`, its `seer` weights.
+
+* timm/regnety_320.seer_ft_in1k: [581.6 MB]
+  timm's `regnety_320`, its `seer_ft_in1k` weights.
+
+* timm/regnety_320.swag_ft_in1k: [581.6 MB]
+  timm's `regnety_320`, its `swag_ft_in1k` weights.
+
+* timm/regnety_320.swag_lc_in1k: [581.6 MB]
+  timm's `regnety_320`, its `swag_lc_in1k` weights.
+
+* timm/regnety_320.tv2_in1k: [581.6 MB]
+  timm's `regnety_320`, its `tv2_in1k` weights.
+
+* timm/regnety_640.seer: [1.11 GB]
+  timm's `regnety_640`, its `seer` weights.
+
+* timm/regnety_640.seer_ft_in1k: [1.13 GB]
+  timm's `regnety_640`, its `seer_ft_in1k` weights.
+
+* timm/regnety_1280.seer: [2.55 GB]
+  timm's `regnety_1280`, its `seer` weights.
+
+* timm/regnety_1280.seer_ft_in1k: [2.58 GB]
+  timm's `regnety_1280`, its `seer_ft_in1k` weights.
+
+* timm/regnety_1280.swag_ft_in1k: [2.58 GB]
+  timm's `regnety_1280`, its `swag_ft_in1k` weights.
+
+* timm/regnety_1280.swag_lc_in1k: [2.58 GB]
+  timm's `regnety_1280`, its `swag_lc_in1k` weights.
+
+* timm/regnety_2560.seer_ft_in1k: [5.13 GB]
+  timm's `regnety_2560`, its `seer_ft_in1k` weights.
+
 # contract: vit-classifier
 # A ViT image encoder, or classifier: a timm hub repo's checkpoint
 # (safetensors, or an older repo's PyTorch state dict) and `config.json`.

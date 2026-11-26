@@ -25,6 +25,10 @@ use bunsen::{
                 pretrained::default_deit_factory,
             },
             driver::ImageClassifier,
+            regnet::{
+                RegNetContractConfig,
+                pretrained::default_regnet_factory,
+            },
             resnet::{
                 ResNetContractConfig,
                 pretrained::default_resnet_factory,
@@ -71,12 +75,17 @@ pub enum ImageFamily {
 
     /// `kits::images::classification::swin::v2`: Swin Transformer V2.
     SwinV2,
+
+    /// `kits::images::classification::regnet`: `RegNetX` and `RegNetY`, and
+    /// the `SEER` trunks.
+    RegNet,
 }
 
 impl ImageFamily {
     /// Every family, in the order `list` and the summary show them.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::ResNet,
+        Self::RegNet,
         Self::ViT,
         Self::DeiT,
         Self::SwinV1,
@@ -91,6 +100,7 @@ impl ImageFamily {
             Self::DeiT => "deit",
             Self::SwinV1 => "swin-v1",
             Self::SwinV2 => "swin-v2",
+            Self::RegNet => "regnet",
         }
     }
 
@@ -102,6 +112,7 @@ impl ImageFamily {
             Self::DeiT => DeiTContractConfig::prefab_names(),
             Self::SwinV1 => SwinV1ContractConfig::prefab_names(),
             Self::SwinV2 => SwinV2ContractConfig::prefab_names(),
+            Self::RegNet => RegNetContractConfig::prefab_names(),
         }
     }
 
@@ -143,6 +154,7 @@ impl ImageFamily {
             Self::DeiT => provider(default_deit_factory()?, name),
             Self::SwinV1 => provider(default_swin_v1_factory()?, name),
             Self::SwinV2 => provider(default_swin_v2_factory()?, name),
+            Self::RegNet => provider(default_regnet_factory()?, name),
         })
     }
 
@@ -168,6 +180,7 @@ impl ImageFamily {
             Self::DeiT => rows(default_deit_factory()?),
             Self::SwinV1 => rows(default_swin_v1_factory()?),
             Self::SwinV2 => rows(default_swin_v2_factory()?),
+            Self::RegNet => rows(default_regnet_factory()?),
         }
     }
 }
@@ -249,6 +262,15 @@ pub fn load_image_model(
                 card: construct.card,
             }
         }
+        ImageFamily::RegNet => {
+            let construct = Arc::unwrap_or_clone(
+                default_regnet_factory()?.load_construct(name, cache, device, policy)?,
+            );
+            LoadedImageModel {
+                model: Box::new(construct.model),
+                card: construct.card,
+            }
+        }
     })
 }
 
@@ -276,6 +298,7 @@ pub fn fetch_image_model(
         ImageFamily::DeiT => fetch(default_deit_factory()?, name, cache),
         ImageFamily::SwinV1 => fetch(default_swin_v1_factory()?, name, cache),
         ImageFamily::SwinV2 => fetch(default_swin_v2_factory()?, name, cache),
+        ImageFamily::RegNet => fetch(default_regnet_factory()?, name, cache),
     }
 }
 
@@ -307,6 +330,9 @@ mod tests {
             ),
             ("timm/swinv2_tiny_window8_256.ms_in1k", ImageFamily::SwinV2),
             ("hf:timm/swinv2_base_window12_192.mine", ImageFamily::SwinV2),
+            ("timm/regnety_032.ra_in1k", ImageFamily::RegNet),
+            ("timm/regnety_320.seer", ImageFamily::RegNet),
+            ("hf:timm/regnetx_002.mine", ImageFamily::RegNet),
             ("hf:timm/resnet18.mine", ImageFamily::ResNet),
             ("hf:someone/unknown", ImageFamily::ResNet),
         ] {
