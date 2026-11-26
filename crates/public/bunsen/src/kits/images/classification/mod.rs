@@ -44,6 +44,10 @@
 //! - [`resnetv2`]: the pre-activation `ResNetV2` and `BiT`, built as the
 //!   generic conv net; prefabs and timm's hub repos, loaded by name through
 //!   [`default_resnetv2_factory`](resnetv2::pretrained::default_resnetv2_factory).
+//! - [`sknet`]: Selective Kernel Networks, `ResNet`s whose mixer selects its
+//!   kernel, built as the generic conv net; prefabs and timm's hub repos,
+//!   loaded by name through
+//!   [`default_sknet_factory`](sknet::pretrained::default_sknet_factory).
 //! - [`swin`]: the Swin Transformer, V1 (with the Swin-S3 geometries) and V2,
 //!   built as the generic staged vision encoder, with timm's hub repos.
 
@@ -54,5 +58,6 @@ pub mod res2net;
 pub mod resnest;
 pub mod resnet;
 pub mod resnetv2;
+pub mod sknet;
 pub mod swin;
 pub mod vit;

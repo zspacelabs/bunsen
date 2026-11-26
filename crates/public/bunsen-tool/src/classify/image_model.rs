@@ -45,6 +45,10 @@ use bunsen::{
                 ResNetV2ContractConfig,
                 pretrained::default_resnetv2_factory,
             },
+            sknet::{
+                SKNetContractConfig,
+                pretrained::default_sknet_factory,
+            },
             swin::{
                 v1::{
                     SwinV1ContractConfig,
@@ -101,15 +105,19 @@ pub enum ImageFamily {
 
     /// `kits::images::classification::resnest`: `ResNeSt`.
     ResNeSt,
+
+    /// `kits::images::classification::sknet`: Selective Kernel Networks.
+    SKNet,
 }
 
 impl ImageFamily {
     /// Every family, in the order `list` and the summary show them.
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::ResNet,
         Self::ResNetV2,
         Self::Res2Net,
         Self::ResNeSt,
+        Self::SKNet,
         Self::RegNet,
         Self::ViT,
         Self::DeiT,
@@ -129,6 +137,7 @@ impl ImageFamily {
             Self::ResNetV2 => "resnetv2",
             Self::Res2Net => "res2net",
             Self::ResNeSt => "resnest",
+            Self::SKNet => "sknet",
         }
     }
 
@@ -144,6 +153,7 @@ impl ImageFamily {
             Self::ResNetV2 => ResNetV2ContractConfig::prefab_names(),
             Self::Res2Net => Res2NetContractConfig::prefab_names(),
             Self::ResNeSt => ResNeStContractConfig::prefab_names(),
+            Self::SKNet => SKNetContractConfig::prefab_names(),
         }
     }
 
@@ -189,6 +199,7 @@ impl ImageFamily {
             Self::ResNetV2 => provider(default_resnetv2_factory()?, name),
             Self::Res2Net => provider(default_res2net_factory()?, name),
             Self::ResNeSt => provider(default_resnest_factory()?, name),
+            Self::SKNet => provider(default_sknet_factory()?, name),
         })
     }
 
@@ -218,6 +229,7 @@ impl ImageFamily {
             Self::ResNetV2 => rows(default_resnetv2_factory()?),
             Self::Res2Net => rows(default_res2net_factory()?),
             Self::ResNeSt => rows(default_resnest_factory()?),
+            Self::SKNet => rows(default_sknet_factory()?),
         }
     }
 }
@@ -335,6 +347,15 @@ pub fn load_image_model(
                 card: construct.card,
             }
         }
+        ImageFamily::SKNet => {
+            let construct = Arc::unwrap_or_clone(
+                default_sknet_factory()?.load_construct(name, cache, device, policy)?,
+            );
+            LoadedImageModel {
+                model: Box::new(construct.model),
+                card: construct.card,
+            }
+        }
     })
 }
 
@@ -366,6 +387,7 @@ pub fn fetch_image_model(
         ImageFamily::ResNetV2 => fetch(default_resnetv2_factory()?, name, cache),
         ImageFamily::Res2Net => fetch(default_res2net_factory()?, name, cache),
         ImageFamily::ResNeSt => fetch(default_resnest_factory()?, name, cache),
+        ImageFamily::SKNet => fetch(default_sknet_factory()?, name, cache),
     }
 }
 
@@ -409,6 +431,8 @@ mod tests {
             ("hf:timm/res2next50.mine", ImageFamily::Res2Net),
             ("timm/resnest50d.in1k", ImageFamily::ResNeSt),
             ("hf:timm/resnest14d.mine", ImageFamily::ResNeSt),
+            ("timm/skresnet18.ra_in1k", ImageFamily::SKNet),
+            ("hf:timm/skresnext50_32x4d.mine", ImageFamily::SKNet),
             ("hf:timm/resnet18.mine", ImageFamily::ResNet),
             ("hf:someone/unknown", ImageFamily::ResNet),
         ] {

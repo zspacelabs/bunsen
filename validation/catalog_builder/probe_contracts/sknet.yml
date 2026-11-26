@@ -1,0 +1,84 @@
+# The sknet kit's builds: a probe-contract source of the built-in catalog. The timm hub rows
+# are written by `cargo catalog timm-rows --kit sknet`.
+$description: "The SKNet checkpoints bunsen knows by name: timm's hub repos."
+timm:
+  $kind: namespace
+  $merge: update
+  # BEGIN `cargo catalog timm-rows`: generated, don't edit by hand.
+  skresnet18.ra_in1k:
+    $kind: build
+    $description: "timm's `skresnet18`, its `ra_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/skresnet18.ra_in1k
+    $contract: sknet-classifier
+    $join:
+      - sknet
+    $hub:
+      $repo: timm/skresnet18.ra_in1k
+      $revision: 556ba2012f3470fd43feba5a4841a49827ae3998
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  skresnet34.ra_in1k:
+    $kind: build
+    $description: "timm's `skresnet34`, its `ra_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/skresnet34.ra_in1k
+    $contract: sknet-classifier
+    $join:
+      - sknet
+    $hub:
+      $repo: timm/skresnet34.ra_in1k
+      $revision: d2a81d9e9e1770dadf562bd93dfc579414b000dc
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  skresnext50_32x4d.ra_in1k:
+    $kind: build
+    $description: "timm's `skresnext50_32x4d`, its `ra_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/skresnext50_32x4d.ra_in1k
+    $contract: sknet-classifier
+    $join:
+      - sknet
+    $hub:
+      $repo: timm/skresnext50_32x4d.ra_in1k
+      $revision: f6ab14274f51e44cde08a51492ee68ba3a9fa0ce
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      # END `cargo catalog timm-rows`.
+sknet:
+  $kind: namespace
+  $facet: family
+  $description: Selective Kernel Network ImageNet classifiers.

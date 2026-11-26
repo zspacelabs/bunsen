@@ -568,6 +568,24 @@ mod timm {
 
     #[test]
     #[serial_test::serial]
+    fn skresnet18_ra_in1k() {
+        check_row("timm/skresnet18.ra_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn skresnet34_ra_in1k() {
+        check_row("timm/skresnet34.ra_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn skresnext50_32x4d_ra_in1k() {
+        check_row("timm/skresnext50_32x4d.ra_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn deit_small_patch16_224_fb_in1k() {
         check_row("timm/deit_small_patch16_224.fb_in1k");
     }

@@ -47,6 +47,7 @@ use bunsen::{
         resnest::ResNeStContractConfig,
         resnet::ResNetContractConfig,
         resnetv2::ResNetV2ContractConfig,
+        sknet::SKNetContractConfig,
         swin::{
             v1::SwinV1ContractConfig,
             v2::SwinV2ContractConfig,
@@ -171,6 +172,13 @@ pub fn timm_kits() -> Vec<TimmKit> {
             contract: "resnest-classifier",
             join: &["resnest"],
             architectures: ResNeStContractConfig::prefab_names(),
+            unlabelled: false,
+        },
+        TimmKit {
+            name: "sknet",
+            contract: "sknet-classifier",
+            join: &["sknet"],
+            architectures: SKNetContractConfig::prefab_names(),
             unlabelled: false,
         },
         TimmKit {
