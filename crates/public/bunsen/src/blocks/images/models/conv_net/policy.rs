@@ -32,6 +32,7 @@ use crate::{
                 EcaConfig,
                 SqueezeExciteConfig,
             },
+            mixers::Res2ConvConfig,
             models::{
                 classifier_head::ClassifierHeadConfig,
                 conv_net::{
@@ -56,6 +57,7 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
+        BunsenError,
         BunsenResult,
         ConstraintError,
         ResultContext,
@@ -193,6 +195,27 @@ impl ConvAaKind {
     }
 }
 
+/// A unit's spatial mixer, the conv that strides: what its
+/// [`ResidualConvConfig`] is built as.
+///
+/// A seam: a kind a unit can't hold is
+/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) there.
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum ConvMixerKind {
+    /// One conv block (`ResNet`'s `3x3`).
+    Conv,
+
+    /// `Res2Net`'s scale split of `scale` chunks of the mixer's width
+    /// ([`Res2ConvConfig`]; a bottleneck's alone). Each branch is the layers'
+    /// conv, norm and activation, `mid_width / scale` wide; in a unit that
+    /// strides or reshapes, the branches are apart and the last chunk is
+    /// pooled ([`Res2ConvConfig::timm_pool`]).
+    Res2 {
+        /// The chunks (timm's `scale`).
+        scale: usize,
+    },
+}
+
 /// The layer a policy puts between the last stage and the pool: what a
 /// [`ConvFinalConfig`] is built from.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
@@ -294,6 +317,10 @@ pub struct ConvLayersConfig {
     /// [`weight_std`](Self::weight_std); the hybrid `ViT`'s backbone).
     #[config(default = "false")]
     pub same_pad: bool,
+
+    /// Each unit's spatial mixer.
+    #[config(default = "ConvMixerKind::Conv")]
+    pub mixer: ConvMixerKind,
 }
 
 impl Default for ConvLayersConfig {
@@ -341,6 +368,47 @@ impl ConvLayersConfig {
             .with_weight_std(self.weight_std)
             .with_same_pad(self.same_pad)
             .match_norm_features()
+    }
+
+    /// A unit's spatial mixer of these layers' [`mixer`](Self::mixer), from
+    /// `channels[0]` to `channels[1]`; `is_first` for a unit that strides or
+    /// reshapes (timm's `Bottle2neck.is_first`).
+    ///
+    /// # Errors
+    ///
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a scale split
+    /// that doesn't keep the channels or split them evenly.
+    fn try_mixer(
+        &self,
+        channels: [usize; 2],
+        kernel_size: usize,
+        stride: usize,
+        dilation: usize,
+        groups: usize,
+        is_first: bool,
+    ) -> BunsenResult<ResidualConvConfig> {
+        match self.mixer {
+            ConvMixerKind::Conv => Ok(self
+                .conv(channels, kernel_size, stride, dilation, groups, true)
+                .into()),
+            ConvMixerKind::Res2 { scale } => {
+                let [c_in, c_out] = channels;
+                if scale == 0 || c_in != c_out || !c_in.is_multiple_of(scale) {
+                    return Err(BunsenError::illegal(format!(
+                        "a scale split of {scale} chunks from {c_in} to {c_out} channels: it keeps \
+                         the channels, in whole chunks"
+                    )));
+                }
+                let width = c_in / scale;
+                let convs = (0..scale.saturating_sub(1).max(1))
+                    .map(|_| self.conv([width, width], kernel_size, stride, dilation, groups, true))
+                    .collect();
+                Ok(Res2ConvConfig::new(scale, convs)
+                    .with_hierarchical(!is_first)
+                    .with_pool((is_first && scale > 1).then(|| Res2ConvConfig::timm_pool(stride)))
+                    .into())
+            }
+        }
     }
 
     /// A pre-activation conv of these layers: the norm and the activation
@@ -522,6 +590,21 @@ impl ConvStageContractConfig {
             self.unit,
             ConvUnitKind::PreBasic | ConvUnitKind::PreBottleneck
         );
+        let reshapes = stride != 1 || in_channels != width;
+        if layers.mixer != ConvMixerKind::Conv {
+            if self.unit != ConvUnitKind::Bottleneck {
+                return Err(BunsenError::unsupported(format!(
+                    "a {:?} mixer in a {:?} unit: it is a bottleneck's",
+                    layers.mixer, self.unit
+                )));
+            }
+            if aa.is_some() {
+                return Err(BunsenError::unsupported(format!(
+                    "a {:?} mixer with anti-aliasing",
+                    layers.mixer
+                )));
+            }
+        }
         let (convs, mixer): (Vec<ResidualConvConfig>, usize) = match self.unit {
             ConvUnitKind::Basic => (
                 alloc::vec![
@@ -544,9 +627,14 @@ impl ConvStageContractConfig {
             ConvUnitKind::Bottleneck => (
                 alloc::vec![
                     layers.conv([in_channels, mid], 1, 1, 1, 1, true).into(),
-                    layers
-                        .conv([mid, mid], k, mixer_stride, first_dilation, groups, true)
-                        .into(),
+                    layers.try_mixer(
+                        [mid, mid],
+                        k,
+                        mixer_stride,
+                        first_dilation,
+                        groups,
+                        reshapes
+                    )?,
                     layers.conv([mid, width], 1, 1, 1, 1, false).into(),
                 ],
                 1,
@@ -591,7 +679,6 @@ impl ConvStageContractConfig {
                 false => conv,
             }
         };
-        let reshapes = stride != 1 || in_channels != width;
         let shortcut = match (reshapes, layers.shortcut) {
             (false, _) | (true, ConvShortcutKind::None) => None,
             (true, ConvShortcutKind::Conv) => Some(ConvShortcutConfig::conv(shortcut_conv(stride))),

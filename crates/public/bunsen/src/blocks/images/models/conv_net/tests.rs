@@ -631,7 +631,7 @@ fn test_preact_and_unshortcut_units() {
         .iter()
         .map(|c| match c {
             ResidualConvConfig::PreAct(conv) => conv.norm.is_some(),
-            ResidualConvConfig::Block(_) => panic!("a pre-activation conv"),
+            other => panic!("a pre-activation conv, not {other:?}"),
         })
         .collect();
     assert_eq!(norms, [false, true, true]);
@@ -748,7 +748,7 @@ fn test_same_padded_net() {
             .iter()
             .map(|c| match c {
                 ResidualConvConfig::Block(block) => block,
-                ResidualConvConfig::PreAct(_) => panic!("a conv block"),
+                other => panic!("a conv block, not {other:?}"),
             })
             .chain(unit.shortcut.as_ref().map(|s| &s.block)),
     );
@@ -798,4 +798,42 @@ fn test_stem_only_net() {
     let images = Tensor::<4>::zeros([2, 3, 32, 32], &device);
     assert_eq!(model.feature_map(images.clone()).dims(), [2, 8, 8, 8]);
     assert_eq!(model.forward(images).dims(), [2, 8]);
+}
+
+/// `Res2Net`'s mixer: a bottleneck's `3x3` becomes the scale split, its
+/// branches apart and its last chunk pooled in a unit that strides or
+/// reshapes, hierarchical in the others; it is a bottleneck's alone.
+#[test]
+fn test_res2_mixer() {
+    let mut policy = resnet_like(&[2, 1], 8, ConvUnitKind::Bottleneck);
+    policy.stages[0].mid_width = 12;
+    policy.stages[1].mid_width = 12;
+    policy.layers.mixer = ConvMixerKind::Res2 { scale: 3 };
+    let structure = policy.to_structure();
+    let res2 = |unit: &ResidualUnitConfig| match &unit.convs[1] {
+        ResidualConvConfig::Res2(res2) => res2.clone(),
+        other => panic!("a scale split, not {other:?}"),
+    };
+    let first = res2(&structure.stages[0].units[0]);
+    assert_eq!((first.scale, first.width(), first.convs.len()), (3, 4, 2));
+    assert!(!first.hierarchical && first.pool.as_ref().is_some_and(|p| p.strides == [1, 1]));
+    let second = res2(&structure.stages[0].units[1]);
+    assert!(second.hierarchical && second.pool.is_none());
+    let strided = res2(&structure.stages[1].units[0]);
+    assert!(strided.pool.as_ref().is_some_and(|p| p.strides == [2, 2]));
+    let device = cpu_device();
+    let model: ConvNetModel = structure.init(&device);
+    let images = Tensor::<4>::random([1, 3, 33, 33], Distribution::Default, &device);
+    assert_eq!(model.forward(images).dims(), [1, 7]);
+
+    let mut basic = resnet_like(&[1], 8, ConvUnitKind::Basic);
+    basic.layers.mixer = ConvMixerKind::Res2 { scale: 2 };
+    ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        .message_contains("a Res2 { scale: 2 } mixer in a Basic unit")
+        .assert_err(&basic.try_to_structure());
+    let mut uneven = resnet_like(&[1], 8, ConvUnitKind::Bottleneck);
+    uneven.layers.mixer = ConvMixerKind::Res2 { scale: 3 };
+    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        .message_contains("a scale split of 3 chunks from 8 to 8 channels")
+        .assert_err(&uneven.try_to_structure());
 }

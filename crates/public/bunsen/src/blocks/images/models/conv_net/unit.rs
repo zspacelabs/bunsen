@@ -57,6 +57,10 @@ use crate::{
                     DropPathConfig,
                 },
             },
+            mixers::{
+                Res2Conv,
+                Res2ConvConfig,
+            },
         },
         norm::BunsenNormalization,
     },
@@ -91,11 +95,10 @@ pub trait ConvChainMeta {
 
 /// One conv of a [`ResidualUnit`]'s path: the config of a [`ResidualConv`].
 ///
-/// A seam: each kind is a module of its own. Built today: a conv block
-/// ([`ConvBlock2dConfig`]) and a pre-activation conv ([`PreActConvConfig`]).
-/// The spatial mixers of the `ResNet` kin (`Res2Net`'s
-/// scale split, `ResNeSt`'s split attention, `SKNet`'s selective kernel) are
-/// further kinds.
+/// A seam: each kind is a module of its own. Built: a conv block
+/// ([`ConvBlock2dConfig`]), a pre-activation conv ([`PreActConvConfig`]),
+/// and the spatial mixers of [`mixers`](crate::blocks::images::mixers)
+/// (`Res2Net`'s scale split, [`Res2ConvConfig`]).
 #[derive(Config, Debug)]
 pub enum ResidualConvConfig {
     /// A conv, norm and activation.
@@ -103,6 +106,15 @@ pub enum ResidualConvConfig {
 
     /// A norm and activation, then a conv (a pre-activation unit's).
     PreAct(PreActConvConfig),
+
+    /// `Res2Net`'s scale split.
+    Res2(Res2ConvConfig),
+}
+
+impl From<Res2ConvConfig> for ResidualConvConfig {
+    fn from(config: Res2ConvConfig) -> Self {
+        Self::Res2(config)
+    }
 }
 
 impl From<PreActConvConfig> for ResidualConvConfig {
@@ -122,6 +134,7 @@ impl ConvChainMeta for ResidualConvConfig {
         match self {
             Self::Block(config) => config.in_channels(),
             Self::PreAct(config) => config.in_channels(),
+            Self::Res2(config) => config.channels(),
         }
     }
 
@@ -129,6 +142,7 @@ impl ConvChainMeta for ResidualConvConfig {
         match self {
             Self::Block(config) => config.out_channels(),
             Self::PreAct(config) => config.out_channels(),
+            Self::Res2(config) => config.channels(),
         }
     }
 
@@ -136,6 +150,7 @@ impl ConvChainMeta for ResidualConvConfig {
         match self {
             Self::Block(config) => config.stride()[0],
             Self::PreAct(config) => config.stride(),
+            Self::Res2(config) => config.stride(),
         }
     }
 }
@@ -148,6 +163,7 @@ impl ModuleInit<ResidualConv> for ResidualConvConfig {
         Ok(match self {
             Self::Block(config) => ResidualConv::Block(config.try_init(device)?),
             Self::PreAct(config) => ResidualConv::PreAct(config.try_init(device)?),
+            Self::Res2(config) => ResidualConv::Res2(config.try_init(device)?),
         })
     }
 }
@@ -163,6 +179,9 @@ pub enum ResidualConv {
 
     /// A norm and activation, then a conv.
     PreAct(PreActConv),
+
+    /// `Res2Net`'s scale split.
+    Res2(Res2Conv),
 }
 
 impl ConvChainMeta for ResidualConv {
@@ -170,6 +189,7 @@ impl ConvChainMeta for ResidualConv {
         match self {
             Self::Block(block) => block.in_channels(),
             Self::PreAct(conv) => conv.in_channels(),
+            Self::Res2(res2) => res2.channels(),
         }
     }
 
@@ -177,6 +197,7 @@ impl ConvChainMeta for ResidualConv {
         match self {
             Self::Block(block) => block.out_channels(),
             Self::PreAct(conv) => conv.out_channels(),
+            Self::Res2(res2) => res2.channels(),
         }
     }
 
@@ -184,6 +205,7 @@ impl ConvChainMeta for ResidualConv {
         match self {
             Self::Block(block) => block.stride()[0],
             Self::PreAct(conv) => conv.stride(),
+            Self::Res2(res2) => res2.stride(),
         }
     }
 }
@@ -192,7 +214,8 @@ impl ResidualConv {
     /// Applies the conv, with `f` run where a regularizer goes: for a block,
     /// after its norm and before its activation
     /// ([`ConvBlock2d::map_forward`]); for a pre-activation conv, on its
-    /// output ([`PreActConv::map_forward`]).
+    /// output ([`PreActConv::map_forward`]); for a scale split, on its
+    /// concatenated output ([`Res2Conv::map_forward`]).
     ///
     /// # Arguments
     ///
@@ -213,6 +236,7 @@ impl ResidualConv {
         match self {
             Self::Block(block) => block.map_forward(input, f),
             Self::PreAct(conv) => conv.map_forward(input, f),
+            Self::Res2(res2) => res2.map_forward(input, f),
         }
     }
 
