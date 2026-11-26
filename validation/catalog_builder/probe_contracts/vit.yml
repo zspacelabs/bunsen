@@ -2795,6 +2795,314 @@ timm:
       $kind: resource
       $file: config.json
       $format: json
+  aimv2_large_patch14_224.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_large_patch14_224`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_large_patch14_224.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_large_patch14_224.apple_pt
+      $revision: 4ecf1a8825bbd2b5a334523c67c428b6b9a34ca1
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_large_patch14_224.apple_pt_dist:
+    $kind: build
+    $description: "timm's `aimv2_large_patch14_224`, its `apple_pt_dist` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_large_patch14_224.apple_pt_dist
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_large_patch14_224.apple_pt_dist
+      $revision: db26778a8511477db97de37564bfec96e1be7da5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_large_patch14_336.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_large_patch14_336`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_large_patch14_336.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_large_patch14_336.apple_pt
+      $revision: a7b22f8fa516003af8bccc77080c1cba268463e4
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_large_patch14_336.apple_pt_dist:
+    $kind: build
+    $description: "timm's `aimv2_large_patch14_336`, its `apple_pt_dist` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_large_patch14_336.apple_pt_dist
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_large_patch14_336.apple_pt_dist
+      $revision: e2728487b37c1c84ee494700939f20fa7e878094
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_large_patch14_448.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_large_patch14_448`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_large_patch14_448.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_large_patch14_448.apple_pt
+      $revision: 2856d6105d4081d7d37276997f87c4957d6be67a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_huge_patch14_224.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_huge_patch14_224`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_huge_patch14_224.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_huge_patch14_224.apple_pt
+      $revision: bcf57dd619b3a9d6f823242961150fdfc432a669
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_huge_patch14_336.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_huge_patch14_336`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_huge_patch14_336.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_huge_patch14_336.apple_pt
+      $revision: f7b4d4ee92ff5694f388841696196f03686c063b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_huge_patch14_448.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_huge_patch14_448`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_huge_patch14_448.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_huge_patch14_448.apple_pt
+      $revision: 9526a00e6bef3c80172218af57347594a4c09ed7
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_1b_patch14_224.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_1b_patch14_224`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_1b_patch14_224.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_1b_patch14_224.apple_pt
+      $revision: a87c9711a206d5394ec251f5290d676151608bb5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_1b_patch14_336.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_1b_patch14_336`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_1b_patch14_336.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_1b_patch14_336.apple_pt
+      $revision: ad63e727dc7995fdc9315fc56f4945cdbfd5f826
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_1b_patch14_448.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_1b_patch14_448`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_1b_patch14_448.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_1b_patch14_448.apple_pt
+      $revision: 2757c9fcce43ad59f2f245c2eced9541a70ba2d5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_3b_patch14_224.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_3b_patch14_224`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_3b_patch14_224.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_3b_patch14_224.apple_pt
+      $revision: f09f30908320b084842bb6654f75ecb4882aed5b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_3b_patch14_336.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_3b_patch14_336`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_3b_patch14_336.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_3b_patch14_336.apple_pt
+      $revision: c36bff98de60714fd2367ecf915e364b82a96ee9
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  aimv2_3b_patch14_448.apple_pt:
+    $kind: build
+    $description: "timm's `aimv2_3b_patch14_448`, its `apple_pt` weights."
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_3b_patch14_448.apple_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/aimv2_3b_patch14_448.apple_pt
+      $revision: dbd02fe9a5ae18e3804485cd2154af74cdff64a9
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
   eva_large_patch14_196.in22k_ft_in1k:
     $kind: build
     $description: "timm's `eva_large_patch14_196`, its `in22k_ft_in1k` weights."
@@ -3577,6 +3885,28 @@ timm:
       $kind: resource
       $file: config.json
       $format: json
+  vit_giant_patch14_dinov2.lvd142m:
+    $kind: build
+    $description: "timm's `vit_giant_patch14_dinov2`, its `lvd142m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_giant_patch14_dinov2.lvd142m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_giant_patch14_dinov2.lvd142m
+      $revision: dd22bb6485eeb29d67273f76d983061298bdc7f0
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
   vit_medium_patch16_gap_240.sw_in12k:
     $kind: build
     $description: "timm's `vit_medium_patch16_gap_240`, its `sw_in12k` weights."
@@ -4063,6 +4393,28 @@ timm:
       $kind: resource
       $file: config.json
       $format: json
+  vit_giant_patch14_reg1_tipsv2.webli:
+    $kind: build
+    $description: "timm's `vit_giant_patch14_reg1_tipsv2`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_giant_patch14_reg1_tipsv2.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_giant_patch14_reg1_tipsv2.webli
+      $revision: e46add966842a9a7e9964e50f23521f94c24feed
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
   vit_small_patch14_reg4_dinov2.lvd142m:
     $kind: build
     $description: "timm's `vit_small_patch14_reg4_dinov2`, its `lvd142m` weights."
@@ -4118,6 +4470,28 @@ timm:
     $hub:
       $repo: timm/vit_large_patch14_reg4_dinov2.lvd142m
       $revision: f3c408e77602bb412aa65fb03dfa0d5f95cb3832
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_giant_patch14_reg4_dinov2.lvd142m:
+    $kind: build
+    $description: "timm's `vit_giant_patch14_reg4_dinov2`, its `lvd142m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_giant_patch14_reg4_dinov2.lvd142m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_giant_patch14_reg4_dinov2.lvd142m
+      $revision: 6994d74074a8f74e220de3f403dc49dd5d8ae704
     $resources:
       checkpoint: checkpoint
       config: config

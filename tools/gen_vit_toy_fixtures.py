@@ -1,6 +1,6 @@
 """Generate the vit kit's toy fixtures: tiny seeded timm `VisionTransformer`s and their answers.
 
-Fifteen toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on 16x16
+Seventeen toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on 16x16
 images in 4x4 patches (a 4x4 grid), 16 wide, two layers of two heads, 10 classes:
 
 - `toy_token`: timm's defaults: a class token, its pool, layer norms of epsilon 1e-6, a
@@ -29,7 +29,11 @@ images in 4x4 patches (a 4x4 grid), 16 wide, two layers of two heads, 10 classes
 - `toy_bare_avg`: `toy_bare` pooled by the mean: no norm before the pool or after it;
 - `toy_map`: the attention pool (`global_pool='map'`, `AttentionPoolLatent`), no class token,
   tanh `GELU`, as SigLIP's towers;
-- `toy_map_cls`: the attention pool with a class token, which the pool leaves out.
+- `toy_map_cls`: the attention pool with a class token, which the pool leaves out;
+- `toy_aimv2`: AIMv2's knobs: a `SwiGLU` MLP (`fc1_g`, `fc1_x`), RMS norms of epsilon 1e-5, a
+  normed patch embedding, no `qkv`, output or MLP biases, `SiLU`, no class token, the mean pool;
+- `toy_glu`: a packed `SwiGLU` (`GluMlp`, its gate first, `gate_last=False`) with layer scale,
+  as the giant DINOv2.
 
 The toy test builds each as bunsen's `ViTContractConfig`.
 
@@ -56,7 +60,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from functools import partial  # noqa: E402
 
 import torch  # noqa: E402
-from timm.layers import QuickGELU  # noqa: E402
+from timm.layers import GluMlp, QuickGELU, RmsNorm, SwiGLU  # noqa: E402
 from timm.models.vision_transformer import (  # noqa: E402
     ResPostBlock,
     VisionTransformer,
@@ -94,6 +98,23 @@ TOYS = {
     "toy_bare_avg": dict(final_norm=False, global_pool="avg"),
     "toy_map": dict(class_token=False, global_pool="map", act_layer="gelu_tanh"),
     "toy_map_cls": dict(global_pool="map"),
+    "toy_aimv2": dict(
+        mlp_layer=SwiGLU,
+        mlp_ratio=2.75,
+        norm_layer=partial(RmsNorm, eps=1e-5),
+        embed_norm_layer=partial(RmsNorm, eps=1e-5),
+        proj_bias=False,
+        qkv_bias=False,
+        act_layer="silu",
+        class_token=False,
+        global_pool="avg",
+        fc_norm=False,
+    ),
+    "toy_glu": dict(
+        mlp_layer=partial(GluMlp, act_layer=torch.nn.SiLU, gate_last=False),
+        act_layer=torch.nn.SiLU,
+        init_values=1e-5,
+    ),
 }
 
 # The toys whose weights are written in `OpenAI` CLIP's layout.

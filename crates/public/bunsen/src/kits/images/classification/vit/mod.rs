@@ -11,14 +11,15 @@
 //! knobs: the CLIP image towers normalise the tokens before the first layer,
 //! `DINOv2` adds register tokens and layer scale, `SigLIP`'s `gap` towers drop
 //! the class token for the mean, and its `map` towers pool by a learned query's
-//! attention; C-RADIO drops the final norm.
+//! attention; C-RADIO drops the final norm; `AIMv2` takes a `SwiGLU` MLP, RMS
+//! norms and no biases.
 //!
 //! [`pretrained`] turns names into loaded models.
-//! [`ViTContractConfig`]'s prefabs name the 117 geometries, by timm's
+//! [`ViTContractConfig`]'s prefabs name the 132 geometries, by timm's
 //! architecture names, generated from timm's own entrypoints
 //! (`tools/gen_vit_prefabs.py`), and
 //! [`default_vit_factory`](pretrained::default_vit_factory) is the index of
-//! 269 timm hub repos (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), and
+//! 286 timm hub repos (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), and
 //! loads any other of the prefabs' architectures as `hf:timm/<repo>`.
 //!
 //! # The model
@@ -29,8 +30,9 @@
 //! in timm's terms (the image and patch sizes, the width, depth and heads,
 //! the MLP ratio, the `qkv` bias, the class and register tokens, the position
 //! embedding's reach, CLIP's pre-norm, the head's pool and norm, layer scale,
-//! the blocks' norm placement, the final norm, the norms' epsilon, the
-//! activation) and lowers to the generic structure;
+//! the blocks' norm placement, the final norm, the MLP's and the norms'
+//! kinds, the projections' biases, the norms' epsilon, the activation) and
+//! lowers to the generic structure;
 //! `init` builds the model through it.
 //!
 //! The model's parameter paths are the vision encoder's own; [`interop`]
@@ -48,8 +50,7 @@
 //! * the hybrid stems (`vit_base_r50_s16_384`), the parallel blocks
 //!   (`ParallelScalingBlock`, `DiffParallelScalingBlock`) and differential
 //!   attention
-//! * QK-norm, `SwiGLU` and GLU MLPs, RMS norms, a patch-embedding norm,
-//!   `BEiT3`'s inner norms (`AIMv2`'s, the giant `DINOv2`'s, `BEiT3`'s)
+//! * QK-norm, and `BEiT3`'s inner norms
 
 pub mod pretrained;
 

@@ -4,11 +4,16 @@ use alloc::vec::Vec;
 use burn::store::burn_pack::Tensor as PackTensor;
 
 use super::{
+    vit_gated_rekey,
+    vit_gated_row_splits,
     vit_rekey,
     vit_row_splits,
 };
 use crate::{
-    blocks::transformers::models::vision_encoder::VisionEncoderModel,
+    blocks::transformers::{
+        mlp::TransformerFeedForward,
+        models::vision_encoder::VisionEncoderModel,
+    },
     burner::module::CanonicalKeys,
     data::formats::{
         NamedTensorsApplied,
@@ -24,8 +29,9 @@ use crate::{
 /// Loads tensors named as timm's `VisionTransformer` state dict into
 /// `model`: the fused `qkv` projections split by rows ([`vit_row_splits`]),
 /// then [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to) under
-/// [`vit_rekey`] and the model's canonical map. A checkpoint in `OpenAI`
-/// CLIP's layout ([`is_openai_clip`]) goes through
+/// [`vit_rekey`] and the model's canonical map; for a model whose MLP is
+/// gated, [`vit_gated_row_splits`] and [`vit_gated_rekey`]. A checkpoint in
+/// `OpenAI` CLIP's layout ([`is_openai_clip`]) goes through
 /// [`load_openai_clip_tensors`] instead, as timm's `checkpoint_filter_fn`
 /// converts it.
 ///
@@ -41,10 +47,19 @@ pub fn load_vit_tensors(
     if is_openai_clip(tensors.iter().map(|t| t.name.as_str())) {
         return load_openai_clip_tensors(model, tensors);
     }
-    let tensors = split_rows(tensors, &vit_row_splits())?;
-    vit_rekey()
-        .then(model.canonical_rekey())
-        .apply_to(model, tensors)
+    let gated = model
+        .stack
+        .layers
+        .first()
+        .is_some_and(|layer| matches!(layer.mlp.branch, TransformerFeedForward::Gated(_)));
+    let (tensors, rekey) = match gated {
+        true => (
+            split_rows(tensors, &vit_gated_row_splits())?,
+            vit_gated_rekey(),
+        ),
+        false => (split_rows(tensors, &vit_row_splits())?, vit_rekey()),
+    };
+    rekey.then(model.canonical_rekey()).apply_to(model, tensors)
 }
 
 /// The model of `loaded`'s timm checkpoint (its `checkpoint`: a

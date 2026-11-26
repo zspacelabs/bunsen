@@ -3884,6 +3884,440 @@ timm:
         - $hub:
             $repo: timm/vit_gigantic_patch14_clip_378.metaclip2_worldwide
             $revision: 93d4360cb4bd1dc22a37069097a0e4ff7876753e
+  aimv2_large_patch14_224.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_large_patch14_224`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_large_patch14_224.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 8dc027ba415c49598576493d1fb66b88645357da1f301557bc488d2c87df61f8
+      $size: 1236808368
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_large_patch14_224.apple_pt
+            $revision: 4ecf1a8825bbd2b5a334523c67c428b6b9a34ca1
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 9d753da7dea568efd6092b1e6379d187e9e62ffffdcf45ecca98029d459a61ca
+      $size: 641
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_large_patch14_224.apple_pt
+            $revision: 4ecf1a8825bbd2b5a334523c67c428b6b9a34ca1
+  aimv2_large_patch14_224.apple_pt_dist:
+    $kind: build
+    $description: timm's `aimv2_large_patch14_224`, its `apple_pt_dist` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_large_patch14_224.apple_pt_dist
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: a90f37c2d9fb2d4070994494b9810483d6232f8d2464b0fb0659334d289553bc
+      $size: 1236808368
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_large_patch14_224.apple_pt_dist
+            $revision: db26778a8511477db97de37564bfec96e1be7da5
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 4276352e0e9cae48ba54805eab1c82245f5f3c60f3ef62b0825b25286fef4deb
+      $size: 646
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_large_patch14_224.apple_pt_dist
+            $revision: db26778a8511477db97de37564bfec96e1be7da5
+  aimv2_large_patch14_336.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_large_patch14_336`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_large_patch14_336.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 4daa2174ee908b09a079a7dd085239d8090ed561ba75e06bc0d70d9d829668cd
+      $size: 1238119088
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_large_patch14_336.apple_pt
+            $revision: a7b22f8fa516003af8bccc77080c1cba268463e4
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: fc4d7f9e5bec1f76940d1b8cf991e407a9cd6b7f3f0952dc75565facedf6495b
+      $size: 641
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_large_patch14_336.apple_pt
+            $revision: a7b22f8fa516003af8bccc77080c1cba268463e4
+  aimv2_large_patch14_336.apple_pt_dist:
+    $kind: build
+    $description: timm's `aimv2_large_patch14_336`, its `apple_pt_dist` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_large_patch14_336.apple_pt_dist
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: ff460c716f2f8719b0d4ec8509eaee8d1b2854675d5d76f7218978f35fb09faf
+      $size: 1238119088
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_large_patch14_336.apple_pt_dist
+            $revision: e2728487b37c1c84ee494700939f20fa7e878094
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 1deef4d6ac1a4919eace932bcd0b28fd12c0bb7b6437652b8c23f4ce6167f7c7
+      $size: 646
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_large_patch14_336.apple_pt_dist
+            $revision: e2728487b37c1c84ee494700939f20fa7e878094
+  aimv2_large_patch14_448.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_large_patch14_448`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_large_patch14_448.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: b3f2b27b31387782d3a7ba28719b9ae2aaf4c054ed0fe2831b6a6a00eb8a23f3
+      $size: 1239954096
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_large_patch14_448.apple_pt
+            $revision: 2856d6105d4081d7d37276997f87c4957d6be67a
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: dc0f8d80cad21ba84283e958a8f7de90ae29ade87af2af43b5dcb21e03603cd8
+      $size: 641
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_large_patch14_448.apple_pt
+            $revision: 2856d6105d4081d7d37276997f87c4957d6be67a
+  aimv2_huge_patch14_224.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_huge_patch14_224`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_huge_patch14_224.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: a67b6731a4c312ba6e8b94f3ebcfd49e32dd4431cd08f9acf08e941bb3728de2
+      $size: 2723425112
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_huge_patch14_224.apple_pt
+            $revision: bcf57dd619b3a9d6f823242961150fdfc432a669
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: dd8cc6527f3531cb2fd9137a3efde0c3a8906130f0cf772a90996f29dcf9307f
+      $size: 640
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_huge_patch14_224.apple_pt
+            $revision: bcf57dd619b3a9d6f823242961150fdfc432a669
+  aimv2_huge_patch14_336.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_huge_patch14_336`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_huge_patch14_336.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 4100a676339bb1d3e03290281689b895f8d8eccf595fcd51704e809bc0c1a935
+      $size: 2725391192
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_huge_patch14_336.apple_pt
+            $revision: f7b4d4ee92ff5694f388841696196f03686c063b
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 38ad46dc8ca86674f47e14b8e61c0e63f62ccc63fd317186e7d7197aedf52a2a
+      $size: 640
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_huge_patch14_336.apple_pt
+            $revision: f7b4d4ee92ff5694f388841696196f03686c063b
+  aimv2_huge_patch14_448.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_huge_patch14_448`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_huge_patch14_448.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: ed10b582777cb93a89537a4ed2af7178b62e7a5006b49ddfa6e44676522f1298
+      $size: 2728143704
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_huge_patch14_448.apple_pt
+            $revision: 9526a00e6bef3c80172218af57347594a4c09ed7
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: ba306c3eb1641cf95c8aeb375a75e65dab0356c114e237e921f7ed5337265df0
+      $size: 640
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_huge_patch14_448.apple_pt
+            $revision: 9526a00e6bef3c80172218af57347594a4c09ed7
+  aimv2_1b_patch14_224.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_1b_patch14_224`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_1b_patch14_224.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 9c1b3b79c56cf4844e53f046ac819878bc9e8c638d4cfad2bca5ceb247676cb3
+      $size: 4939850640
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_1b_patch14_224.apple_pt
+            $revision: a87c9711a206d5394ec251f5290d676151608bb5
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 4239f65401e9615e11aa84e0130f977bbdfcadabacb0609354daf028b2e2720f
+      $size: 638
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_1b_patch14_224.apple_pt
+            $revision: a87c9711a206d5394ec251f5290d676151608bb5
+  aimv2_1b_patch14_336.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_1b_patch14_336`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_1b_patch14_336.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 8bb01863e9302b24b59bf0e19a740e0b729519abf2c7a0c6fc2a7d1f035a33dd
+      $size: 4942472080
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_1b_patch14_336.apple_pt
+            $revision: ad63e727dc7995fdc9315fc56f4945cdbfd5f826
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 20414f9dbc8f557946c43bc87a75dd9dbf2eeb68a8ff29153203050e0082805f
+      $size: 638
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_1b_patch14_336.apple_pt
+            $revision: ad63e727dc7995fdc9315fc56f4945cdbfd5f826
+  aimv2_1b_patch14_448.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_1b_patch14_448`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_1b_patch14_448.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 52dab426370a90a7750bdea1caf4875a7fabb6429c60d93563c745ac9749ab4f
+      $size: 4946142104
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_1b_patch14_448.apple_pt
+            $revision: 2757c9fcce43ad59f2f245c2eced9541a70ba2d5
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 3d7f7db20b5bafb8e5946749b1c161a7b185e012409d2f104eb4c5bfe11e97f5
+      $size: 638
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_1b_patch14_448.apple_pt
+            $revision: 2757c9fcce43ad59f2f245c2eced9541a70ba2d5
+  aimv2_3b_patch14_224.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_3b_patch14_224`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_3b_patch14_224.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: ef1931c6354436211540ff8b7dc162881964d35ae740480f556c824c5e634ccc
+      $size: 10882651104
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_3b_patch14_224.apple_pt
+            $revision: f09f30908320b084842bb6654f75ecb4882aed5b
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: ccd56ed16c6afd1d06cc1316bdf9e3591e43bf7f79a1a20ba2e8157b0ea04b85
+      $size: 638
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_3b_patch14_224.apple_pt
+            $revision: f09f30908320b084842bb6654f75ecb4882aed5b
+  aimv2_3b_patch14_336.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_3b_patch14_336`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_3b_patch14_336.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: fc3f4646a9057036921aa45439af7dae1816107412a3a98e6f1f7af668487edb
+      $size: 10886583264
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_3b_patch14_336.apple_pt
+            $revision: c36bff98de60714fd2367ecf915e364b82a96ee9
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: b8d63b1eb5ee290067b20f6a1dc7e3d983dc9d94366be6c4f9715229f2de1aa4
+      $size: 638
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_3b_patch14_336.apple_pt
+            $revision: c36bff98de60714fd2367ecf915e364b82a96ee9
+  aimv2_3b_patch14_448.apple_pt:
+    $kind: build
+    $description: timm's `aimv2_3b_patch14_448`, its `apple_pt` weights.
+    $join:
+      - vit
+    $license: apple-ascl
+    $origin: https://huggingface.co/timm/aimv2_3b_patch14_448.apple_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: a8817dbe8aec6df8eb8e0b43fbb602c4b82854fd8d59006592b53084141bde22
+      $size: 10892088288
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_3b_patch14_448.apple_pt
+            $revision: dbd02fe9a5ae18e3804485cd2154af74cdff64a9
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: f691c1a7da36e17e18a56d1165562edcad806291d407f266efa79561795a0edd
+      $size: 638
+      $sources:
+        - $hub:
+            $repo: timm/aimv2_3b_patch14_448.apple_pt
+            $revision: dbd02fe9a5ae18e3804485cd2154af74cdff64a9
   eva_large_patch14_196.in22k_ft_in1k:
     $kind: build
     $description: timm's `eva_large_patch14_196`, its `in22k_ft_in1k` weights.
@@ -4974,6 +5408,37 @@ timm:
         - $hub:
             $repo: timm/vit_large_patch14_dinov2.lvd142m
             $revision: 4741e1cafbf45415e77074bb0cb42dba76c8684a
+  vit_giant_patch14_dinov2.lvd142m:
+    $kind: build
+    $description: timm's `vit_giant_patch14_dinov2`, its `lvd142m` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_giant_patch14_dinov2.lvd142m
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 949077749c7a414f3443a007cf021d085bc11deb0b08959a6e32e170b1e8e359
+      $size: 4545971222
+      $sources:
+        - $hub:
+            $repo: timm/vit_giant_patch14_dinov2.lvd142m
+            $revision: dd22bb6485eeb29d67273f76d983061298bdc7f0
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 5e6e5351ddb12d7238a48d9d42efdef23ffb6930ea76a3c1b959acf310b22d13
+      $size: 616
+      $sources:
+        - $hub:
+            $repo: timm/vit_giant_patch14_dinov2.lvd142m
+            $revision: dd22bb6485eeb29d67273f76d983061298bdc7f0
   vit_medium_patch16_gap_240.sw_in12k:
     $kind: build
     $description: timm's `vit_medium_patch16_gap_240`, its `sw_in12k` weights.
@@ -5652,6 +6117,37 @@ timm:
         - $hub:
             $repo: timm/vit_so400m_patch14_reg1_tipsv2.webli
             $revision: 5cb140ebd7e7f75ed12d319204195e985e607752
+  vit_giant_patch14_reg1_tipsv2.webli:
+    $kind: build
+    $description: timm's `vit_giant_patch14_reg1_tipsv2`, its `webli` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_giant_patch14_reg1_tipsv2.webli
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 7423d6d9b90a747f8a5a3174cc05d2dd731930536aa5f11260086780318d3859
+      $size: 4543851624
+      $sources:
+        - $hub:
+            $repo: timm/vit_giant_patch14_reg1_tipsv2.webli
+            $revision: e46add966842a9a7e9964e50f23521f94c24feed
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 1daf0a483b16f7ce4fcb6b1dee94959cae556ee3ea586ea586fa9637e001993d
+      $size: 605
+      $sources:
+        - $hub:
+            $repo: timm/vit_giant_patch14_reg1_tipsv2.webli
+            $revision: e46add966842a9a7e9964e50f23521f94c24feed
   vit_small_patch14_reg4_dinov2.lvd142m:
     $kind: build
     $description: timm's `vit_small_patch14_reg4_dinov2`, its `lvd142m` weights.
@@ -5745,6 +6241,37 @@ timm:
         - $hub:
             $repo: timm/vit_large_patch14_reg4_dinov2.lvd142m
             $revision: f3c408e77602bb412aa65fb03dfa0d5f95cb3832
+  vit_giant_patch14_reg4_dinov2.lvd142m:
+    $kind: build
+    $description: timm's `vit_giant_patch14_reg4_dinov2`, its `lvd142m` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_giant_patch14_reg4_dinov2.lvd142m
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 6c038d1d0b91f20d551b052b85e66bf792e53a086a10ab2b054a8b1f185ed303
+      $size: 4545989736
+      $sources:
+        - $hub:
+            $repo: timm/vit_giant_patch14_reg4_dinov2.lvd142m
+            $revision: 6994d74074a8f74e220de3f403dc49dd5d8ae704
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 4a346ea3adc9f184924563072951f9b5479f42ce68cef1b0e0d71bff04fb068b
+      $size: 619
+      $sources:
+        - $hub:
+            $repo: timm/vit_giant_patch14_reg4_dinov2.lvd142m
+            $revision: 6994d74074a8f74e220de3f403dc49dd5d8ae704
   vit_little_patch16_reg4_gap_256.sbb_in1k:
     $kind: build
     $description: timm's `vit_little_patch16_reg4_gap_256`, its `sbb_in1k` weights.
