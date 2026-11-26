@@ -1,0 +1,1470 @@
+# The regnet kit's builds: a probe-contract source of the built-in catalog. The timm hub rows are
+# written by `cargo catalog timm-rows --kit regnet`.
+$description: "The RegNet checkpoints bunsen knows by name: timm's hub repos."
+timm:
+  $kind: namespace
+  $merge: update
+  # BEGIN `cargo catalog timm-rows`: generated, don't edit by hand.
+  regnetx_002.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_002`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_002.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_002.pycls_in1k
+      $revision: 2e9ff4c4c1b7aaf0326ab5903602ecf32d2c06e2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_004.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_004`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_004.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_004.pycls_in1k
+      $revision: 96def0eae670bf27b9c6ae63b829357dd0f4a726
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_004_tv.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnetx_004_tv`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnetx_004_tv.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_004_tv.tv2_in1k
+      $revision: 19678d69c25eb04cc6589cf1f3fe8372dc74d357
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_006.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_006`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_006.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_006.pycls_in1k
+      $revision: dd492dec3433aab0642bfb52a8ea1a2a3010d75b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_008.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_008`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_008.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_008.pycls_in1k
+      $revision: 8b159eee8664b5271d0a327def42232e8a1a65a6
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_008.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnetx_008`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnetx_008.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_008.tv2_in1k
+      $revision: 0c78568f3a757ffae468758c8cb4db871e37922a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_016.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_016`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_016.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_016.pycls_in1k
+      $revision: 5d6478af73a34270c6e16224113c66e123fc66a9
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_016.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnetx_016`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnetx_016.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_016.tv2_in1k
+      $revision: 788092fd477715e9f88416471f067ce541bb6343
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_032.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_032`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_032.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_032.pycls_in1k
+      $revision: b41e809a326cfa155038effd47efe5142669e326
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_032.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnetx_032`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnetx_032.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_032.tv2_in1k
+      $revision: 5bfd40749bcaba36c2177c55e9ecc874fa8a11ac
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_040.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_040`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_040.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_040.pycls_in1k
+      $revision: d3daf9cd2636c1ceca290e0ca3ce6108b84f2e35
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_064.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_064`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_064.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_064.pycls_in1k
+      $revision: bcf34307c2e89510469caeb6f6c3a6866b57c581
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_080.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_080`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_080.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_080.pycls_in1k
+      $revision: 543787059f4dc75820928d3f934a08cccb0bcf1e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_080.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnetx_080`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnetx_080.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_080.tv2_in1k
+      $revision: 28f4396b815b92d99b5f52aeaed0cba959bd24a2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_120.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_120`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_120.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_120.pycls_in1k
+      $revision: 9648e182d256b4a9915d93327db88d5ff8e3a717
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_160.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_160`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_160.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_160.pycls_in1k
+      $revision: 96778eec1e2538e5b3e842583de28b7fa5ddef42
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_160.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnetx_160`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnetx_160.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_160.tv2_in1k
+      $revision: ff91474b95959dfe6a4d80f73d92739ee1546f1d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_320.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnetx_320`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnetx_320.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_320.pycls_in1k
+      $revision: b568da7fa828d01cd3d44c13a24ef5e42ce3fbc8
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetx_320.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnetx_320`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnetx_320.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetx_320.tv2_in1k
+      $revision: 4209ec54a2dbd00df9a8bdb1e11e4c3eae50c656
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_002.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_002`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_002.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_002.pycls_in1k
+      $revision: 3c4d5882de76610654d238ecd8f265519505aa51
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_004.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_004`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_004.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_004.pycls_in1k
+      $revision: 9a992e3b1048eea5a20877cca4722720733c3dcc
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_004.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnety_004`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnety_004.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_004.tv2_in1k
+      $revision: a4ca85068fcf6325fdf13e83f5d67c18335078a7
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_006.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_006`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_006.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_006.pycls_in1k
+      $revision: 19da2f91f8b56021ec9ea4060fc99cd4317e753a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_008.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_008`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_008.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_008.pycls_in1k
+      $revision: ad27a8e42099466890afc4dbcc24cce1340776b9
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_008_tv.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnety_008_tv`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnety_008_tv.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_008_tv.tv2_in1k
+      $revision: 56a71621f7f864477ab136983a05392438e3918f
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_016.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_016`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_016.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_016.pycls_in1k
+      $revision: 86d273d6265a772b85f821ac4540a71562ae7c66
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_016.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnety_016`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnety_016.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_016.tv2_in1k
+      $revision: 1fb6443a743820bceaf740bd5541265ed27e221b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_032.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_032`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_032.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_032.pycls_in1k
+      $revision: a6b12fbbfe0224f5710a81c9e93a543f8a637a67
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_032.ra_in1k:
+    $kind: build
+    $description: "timm's `regnety_032`, its `ra_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnety_032.ra_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_032.ra_in1k
+      $revision: 8159ad6dd3b3581844c63840b917557214da7295
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_032.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnety_032`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnety_032.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_032.tv2_in1k
+      $revision: a3d227ebf9109806f76220bb63b16ecf98d320ab
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_040.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_040`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_040.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_040.pycls_in1k
+      $revision: c505af9c69f6c8881a742cb1bd0d6a733df500e7
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_040.ra3_in1k:
+    $kind: build
+    $description: "timm's `regnety_040`, its `ra3_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnety_040.ra3_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_040.ra3_in1k
+      $revision: a1875159c7b04f3b3189af804642eebba1e2c118
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_064.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_064`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_064.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_064.pycls_in1k
+      $revision: 78535e995c66f3f0222358dd6a50674c2ce2f056
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_064.ra3_in1k:
+    $kind: build
+    $description: "timm's `regnety_064`, its `ra3_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnety_064.ra3_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_064.ra3_in1k
+      $revision: a17788970e80a048177fa42fc02ad269a083daff
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_080.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_080`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_080.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_080.pycls_in1k
+      $revision: 1bf55db9fe7425eb1bf85e2feb200e46d42a4466
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_080.ra3_in1k:
+    $kind: build
+    $description: "timm's `regnety_080`, its `ra3_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnety_080.ra3_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_080.ra3_in1k
+      $revision: 4035fc760d49616adbb18d8dd7c6c4401a9b5fa2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_080_tv.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnety_080_tv`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnety_080_tv.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_080_tv.tv2_in1k
+      $revision: 1fcffbccffd8b78fcf6a4a9b359edf0344170321
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_120.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_120`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_120.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_120.pycls_in1k
+      $revision: 8f51a2c52772681726cc31773ab91e1af04c3020
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_120.sw_in12k:
+    $kind: build
+    $description: "timm's `regnety_120`, its `sw_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnety_120.sw_in12k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_120.sw_in12k
+      $revision: 9561f8105ff83928591decb3d372a7d7dd16e397
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_120.sw_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `regnety_120`, its `sw_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnety_120.sw_in12k_ft_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_120.sw_in12k_ft_in1k
+      $revision: c548a7f861003ba92ffda37d3d1ab56abce71eb2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_160.deit_in1k:
+    $kind: build
+    $description: "timm's `regnety_160`, its `deit_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnety_160.deit_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_160.deit_in1k
+      $revision: b4e9178b4ad26c90ec2bdc237e6ca563e0c15ba5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_160.lion_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `regnety_160`, its `lion_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnety_160.lion_in12k_ft_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_160.lion_in12k_ft_in1k
+      $revision: cde7dfd76e5f23ddf25c7e5abac475cfbf52aeea
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_160.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_160`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_160.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_160.pycls_in1k
+      $revision: 5c0ce6f7aa4fa70365d2d6415cd415b1ea3b8e7f
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_160.sw_in12k:
+    $kind: build
+    $description: "timm's `regnety_160`, its `sw_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnety_160.sw_in12k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_160.sw_in12k
+      $revision: 9e518a0d825260a108b04c9eb80e58f79ff10e0f
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_160.sw_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `regnety_160`, its `sw_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnety_160.sw_in12k_ft_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_160.sw_in12k_ft_in1k
+      $revision: 32bbf032d41d9ebfe807ace1c51c42d0117d3fbb
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_160.swag_ft_in1k:
+    $kind: build
+    $description: "timm's `regnety_160`, its `swag_ft_in1k` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/regnety_160.swag_ft_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_160.swag_ft_in1k
+      $revision: d799aae9c73775cbe3dc73796cc3a83a9ebb96c5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_160.swag_lc_in1k:
+    $kind: build
+    $description: "timm's `regnety_160`, its `swag_lc_in1k` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/regnety_160.swag_lc_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_160.swag_lc_in1k
+      $revision: 07b644ec6987639fad9629e0e85ca59f2ccf13fa
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_160.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnety_160`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnety_160.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_160.tv2_in1k
+      $revision: 9a11011b4491396addc1cd9e4b3c1c1df4abfdac
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_320.pycls_in1k:
+    $kind: build
+    $description: "timm's `regnety_320`, its `pycls_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/regnety_320.pycls_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_320.pycls_in1k
+      $revision: de6be254b6ca5a27b6e2d4658dcff3ce601331b0
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_320.seer:
+    $kind: build
+    $description: "timm's `regnety_320`, its `seer` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/regnety_320.seer
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_320.seer
+      $revision: 2b24700bb9916c931392b6380d98417324276d78
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_320.seer_ft_in1k:
+    $kind: build
+    $description: "timm's `regnety_320`, its `seer_ft_in1k` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/regnety_320.seer_ft_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_320.seer_ft_in1k
+      $revision: 34bd2af3e11512d6216174ae934a1aa55ca4057c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_320.swag_ft_in1k:
+    $kind: build
+    $description: "timm's `regnety_320`, its `swag_ft_in1k` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/regnety_320.swag_ft_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_320.swag_ft_in1k
+      $revision: db9b2064f1c456c05d32ba947040eccd5f9a9dd0
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_320.swag_lc_in1k:
+    $kind: build
+    $description: "timm's `regnety_320`, its `swag_lc_in1k` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/regnety_320.swag_lc_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_320.swag_lc_in1k
+      $revision: 133284517aedca4f80f6e26b5e32615f4e2697f6
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_320.tv2_in1k:
+    $kind: build
+    $description: "timm's `regnety_320`, its `tv2_in1k` weights."
+    $license: bsd-3-clause
+    $origin: https://huggingface.co/timm/regnety_320.tv2_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_320.tv2_in1k
+      $revision: feff5e86cebc65d4cfcde14d53b1fbaa9c04f362
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_640.seer:
+    $kind: build
+    $description: "timm's `regnety_640`, its `seer` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/regnety_640.seer
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_640.seer
+      $revision: 9199f67ac5e2dc0c2ff7e1daae1f981a5d2866a5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_640.seer_ft_in1k:
+    $kind: build
+    $description: "timm's `regnety_640`, its `seer_ft_in1k` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/regnety_640.seer_ft_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_640.seer_ft_in1k
+      $revision: 3fa788798a4e53009ce83aba388353701b4eb2e6
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_1280.seer:
+    $kind: build
+    $description: "timm's `regnety_1280`, its `seer` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/regnety_1280.seer
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_1280.seer
+      $revision: e24c957d482c4936262dc21b8514ed952e97fd1d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_1280.seer_ft_in1k:
+    $kind: build
+    $description: "timm's `regnety_1280`, its `seer_ft_in1k` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/regnety_1280.seer_ft_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_1280.seer_ft_in1k
+      $revision: 9331594ea0571963016fff4c9d8a6da7639d1eb2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_1280.swag_ft_in1k:
+    $kind: build
+    $description: "timm's `regnety_1280`, its `swag_ft_in1k` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/regnety_1280.swag_ft_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_1280.swag_ft_in1k
+      $revision: fb672208e3c9e5236d40a27b60fe0ba2696a3f29
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_1280.swag_lc_in1k:
+    $kind: build
+    $description: "timm's `regnety_1280`, its `swag_lc_in1k` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/regnety_1280.swag_lc_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_1280.swag_lc_in1k
+      $revision: 0ba567e27b1bff47c8d9716a7871fdd847130721
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnety_2560.seer_ft_in1k:
+    $kind: build
+    $description: "timm's `regnety_2560`, its `seer_ft_in1k` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/regnety_2560.seer_ft_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnety_2560.seer_ft_in1k
+      $revision: d2364be736c0a96b5838a1ae398c902142ef278e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      # END `cargo catalog timm-rows`.
+regnet:
+  $kind: namespace
+  $facet: family
+  $description: RegNetX and RegNetY ImageNet classifiers and the SEER trunks.

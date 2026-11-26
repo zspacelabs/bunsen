@@ -588,11 +588,3 @@ fn test_mixer_attention_forward() {
         burn::tensor::Tolerance::default(),
     );
 }
-
-/// `round(x)` ties to even, as Python's.
-#[test]
-fn test_round_ties_even() {
-    for (x, want) in [(0.5, 0), (1.5, 2), (2.5, 2), (2.25, 2), (2.75, 3), (8.0, 8)] {
-        assert_eq!(super::policy::round_ties_even(x), want, "{x}");
-    }
-}

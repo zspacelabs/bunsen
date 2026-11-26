@@ -3,10 +3,12 @@
 mod divisible;
 mod iroot;
 mod nan_utils;
+mod round;
 
 pub use divisible::*;
 pub use iroot::*;
 pub use nan_utils::*;
+pub use round::*;
 
 /// `1.0 / 3.0.sqrt()`.
 // TODO: use `f64::consts::FRAC_1_SQRT_3` once it is stable.

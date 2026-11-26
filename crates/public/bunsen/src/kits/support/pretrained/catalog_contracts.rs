@@ -46,6 +46,10 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
                 DEIT_CONTRACT,
                 DEIT_KIT,
             },
+            regnet::pretrained::{
+                REGNET_CONTRACT,
+                REGNET_KIT,
+            },
             resnet::pretrained::{
                 RESNET_CONTRACT,
                 RESNET_KIT,
@@ -108,6 +112,7 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
         ),
         contract(LAYA_KIT, LAYA_CONTRACT),
         contract(RESNET_KIT, RESNET_CONTRACT),
+        contract(REGNET_KIT, REGNET_CONTRACT),
         contract(VIT_KIT, VIT_CONTRACT),
         contract(DEIT_KIT, DEIT_CONTRACT),
         contract(SWIN_V1_KIT, SWIN_V1_CONTRACT),
