@@ -817,6 +817,84 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 * timm/resnetrs420.tf_in1k: [770.1 MB]
   timm's `resnetrs420`, its `tf_in1k` weights.
 
+# contract: resnetv2-classifier
+# A ResNetV2 image classifier: a timm hub repo's checkpoint (safetensors)
+# and `config.json`.
+# publisher: timm - pytorch-image-models (timm), Ross Wightman's.
+
+* timm/resnetv2_18.ra4_e3600_r224_in1k: [47.5 MB]
+  timm's `resnetv2_18`, its `ra4_e3600_r224_in1k` weights.
+
+* timm/resnetv2_18d.ra4_e3600_r224_in1k: [47.6 MB]
+  timm's `resnetv2_18d`, its `ra4_e3600_r224_in1k` weights.
+
+* timm/resnetv2_34.ra4_e3600_r224_in1k: [88.0 MB]
+  timm's `resnetv2_34`, its `ra4_e3600_r224_in1k` weights.
+
+* timm/resnetv2_34d.ra4_e3600_r224_in1k: [88.1 MB]
+  timm's `resnetv2_34d`, its `ra4_e3600_r224_in1k` weights.
+
+* timm/resnetv2_34d.ra4_e3600_r384_in1k: [88.1 MB]
+  timm's `resnetv2_34d`, its `ra4_e3600_r384_in1k` weights.
+
+* timm/resnetv2_50.a1h_in1k: [103.2 MB]
+  timm's `resnetv2_50`, its `a1h_in1k` weights.
+
+* timm/resnetv2_50d_evos.ah_in1k: [103.1 MB]
+  timm's `resnetv2_50d_evos`, its `ah_in1k` weights.
+
+* timm/resnetv2_50d_gn.ah_in1k: [103.0 MB]
+  timm's `resnetv2_50d_gn`, its `ah_in1k` weights.
+
+* timm/resnetv2_101.a1h_in1k: [179.4 MB]
+  timm's `resnetv2_101`, its `a1h_in1k` weights.
+
+* timm/resnetv2_50x1_bit.goog_distilled_in1k: [103.0 MB]
+  timm's `resnetv2_50x1_bit`, its `goog_distilled_in1k` weights.
+
+* timm/resnetv2_50x1_bit.goog_in21k: [274.0 MB]
+  timm's `resnetv2_50x1_bit`, its `goog_in21k` weights.
+
+* timm/resnetv2_50x1_bit.goog_in21k_ft_in1k: [103.0 MB]
+  timm's `resnetv2_50x1_bit`, its `goog_in21k_ft_in1k` weights.
+
+* timm/resnetv2_50x3_bit.goog_in21k: [1.38 GB]
+  timm's `resnetv2_50x3_bit`, its `goog_in21k` weights.
+
+* timm/resnetv2_50x3_bit.goog_in21k_ft_in1k: [870.0 MB]
+  timm's `resnetv2_50x3_bit`, its `goog_in21k_ft_in1k` weights.
+
+* timm/resnetv2_101x1_bit.goog_in21k: [350.0 MB]
+  timm's `resnetv2_101x1_bit`, its `goog_in21k` weights.
+
+* timm/resnetv2_101x1_bit.goog_in21k_ft_in1k: [178.9 MB]
+  timm's `resnetv2_101x1_bit`, its `goog_in21k_ft_in1k` weights.
+
+* timm/resnetv2_101x3_bit.goog_in21k: [2.07 GB]
+  timm's `resnetv2_101x3_bit`, its `goog_in21k` weights.
+
+* timm/resnetv2_101x3_bit.goog_in21k_ft_in1k: [1.55 GB]
+  timm's `resnetv2_101x3_bit`, its `goog_in21k_ft_in1k` weights.
+
+* timm/resnetv2_152x2_bit.goog_in21k: [1.29 GB]
+  timm's `resnetv2_152x2_bit`, its `goog_in21k` weights.
+
+* timm/resnetv2_152x2_bit.goog_in21k_ft_in1k: [946.1 MB]
+  timm's `resnetv2_152x2_bit`, its `goog_in21k_ft_in1k` weights.
+
+* timm/resnetv2_152x2_bit.goog_teacher_in21k_ft_in1k: [946.1 MB]
+  timm's `resnetv2_152x2_bit`, its `goog_teacher_in21k_ft_in1k` weights.
+
+* timm/resnetv2_152x2_bit.goog_teacher_in21k_ft_in1k_384: [946.1 MB]
+  timm's `resnetv2_152x2_bit`, its `goog_teacher_in21k_ft_in1k_384`
+  weights.
+
+* timm/resnetv2_152x4_bit.goog_in21k: [4.43 GB]
+  timm's `resnetv2_152x4_bit`, its `goog_in21k` weights.
+
+* timm/resnetv2_152x4_bit.goog_in21k_ft_in1k: [3.75 GB]
+  timm's `resnetv2_152x4_bit`, its `goog_in21k_ft_in1k` weights.
+
 # contract: regnet-classifier
 # A RegNet image classifier, or headless trunk: a timm hub repo's
 # checkpoint (safetensors) and `config.json`.
