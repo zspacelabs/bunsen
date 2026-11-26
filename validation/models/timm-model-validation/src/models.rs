@@ -472,6 +472,42 @@ mod timm {
 
     #[test]
     #[serial_test::serial]
+    fn resnetv2_50x1_bit_goog_in21k_ft_in1k() {
+        check_row("timm/resnetv2_50x1_bit.goog_in21k_ft_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnetv2_50x1_bit_goog_in21k() {
+        check_row("timm/resnetv2_50x1_bit.goog_in21k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnetv2_50_a1h_in1k() {
+        check_row("timm/resnetv2_50.a1h_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnetv2_18d_ra4_e3600_r224_in1k() {
+        check_row("timm/resnetv2_18d.ra4_e3600_r224_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnetv2_50d_gn_ah_in1k() {
+        check_row("timm/resnetv2_50d_gn.ah_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnetv2_50d_evos_ah_in1k() {
+        check_row("timm/resnetv2_50d_evos.ah_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn deit_small_patch16_224_fb_in1k() {
         check_row("timm/deit_small_patch16_224.fb_in1k");
     }
