@@ -169,15 +169,27 @@ mod tests {
         kits::images::support::interop::timm::timm_model_config_from_str,
     };
 
-    /// A timm config of `architecture` with `num_classes` classes at `size`.
+    /// A timm config of `architecture` with `num_classes` classes at `size`,
+    /// pooled by its class token.
     fn config(
         architecture: &str,
         num_classes: usize,
         size: usize,
     ) -> TimmModelConfigMirror {
+        pooled_config(architecture, num_classes, size, "token")
+    }
+
+    /// A timm config of `architecture` with `num_classes` classes at `size`,
+    /// pooled by `pool`.
+    fn pooled_config(
+        architecture: &str,
+        num_classes: usize,
+        size: usize,
+        pool: &str,
+    ) -> TimmModelConfigMirror {
         timm_model_config_from_str(&format!(
             r#"{{"architecture": "{architecture}", "num_classes": {num_classes},
-                "num_features": 768, "global_pool": "token", "pretrained_cfg": {{
+                "num_features": 768, "global_pool": "{pool}", "pretrained_cfg": {{
                 "input_size": [3, {size}, {size}], "mean": [0.5, 0.5, 0.5],
                 "std": [0.5, 0.5, 0.5]}}}}"#
         ))
@@ -191,10 +203,16 @@ mod tests {
         for name in ViTContractConfig::prefab_names() {
             let mut want = ViTContractConfig::expect_prefab(name);
             want.num_classes = 21843;
+            let pool = match want.global_pool {
+                TokenPoolConfig::Token => "token",
+                TokenPoolConfig::Avg => "avg",
+                other => panic!("{name}: a {other:?} prefab"),
+            };
             assert_eq!(
                 format!(
                     "{:?}",
-                    vit_contract_config(&config(name, 21843, want.image_size)).unwrap()
+                    vit_contract_config(&pooled_config(name, 21843, want.image_size, pool))
+                        .unwrap()
                 ),
                 format!("{want:?}"),
                 "{name}"

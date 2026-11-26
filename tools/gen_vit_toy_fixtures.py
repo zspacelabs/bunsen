@@ -1,7 +1,7 @@
 """Generate the vit kit's toy fixtures: tiny seeded timm `VisionTransformer`s and their answers.
 
-Nine toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on 16x16 images in
-4x4 patches (a 4x4 grid), 16 wide, two layers of two heads, 10 classes:
+Thirteen toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on 16x16
+images in 4x4 patches (a 4x4 grid), 16 wide, two layers of two heads, 10 classes:
 
 - `toy_token`: timm's defaults: a class token, its pool, layer norms of epsilon 1e-6, a
   biased `qkv`, `GELU`;
@@ -19,14 +19,21 @@ Nine toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on
 - `toy_openai`: `toy_clip` with an 8-wide projection head of no bias, its weights written in
   `OpenAI` CLIP's own layout (`visual.*`, with a stand-in for the text tower), as the `openai`
   repos' `pytorch_model.bin`s hold them. timm's `_convert_openai_clip` maps them back onto the
-  model's state dict exactly, which the generator checks.
+  model's state dict exactly, which the generator checks;
+- `toy_rpn`: res-post-norm blocks (`block_fn=ResPostBlock`: each branch normed on its output),
+  no class token, the mean pool, no `qkv` bias, as `vit_base_patch16_rpn_224`;
+- `toy_bare`: no norm after the last layer (`final_norm=False`), with register tokens and layer
+  scale, as the C-RADIO archs;
+- `toy_remainder`: 18x18 images, the patch embedding dropping the 2 pixels past the last whole
+  patch, as `vit_so400m_patch14_siglip_384`;
+- `toy_bare_avg`: `toy_bare` pooled by the mean: no norm before the pool or after it.
 
 The toy test builds each as bunsen's `ViTContractConfig`.
 
 Each is built in float64 on the CPU with seeded weights: the norms' gains and shifts random, so
 a misplaced norm shows. A two-image `[2, 3, 16, 16]` batch runs through
 `forward_intermediates` (each layer's patch tokens as a map), the pooled features and the
-logits. The fixture is the weights under timm's own state-dict names (what its hub safetensors
+logits (an 18x18 batch for `toy_remainder`). The fixture is the weights under timm's own state-dict names (what its hub safetensors
 hold; `toy_openai`'s in `OpenAI`'s) and `io.*`: `images`, `layer_0`, `layer_1`, `features` (`forward_features`), `pooled`,
 `logits`.
 
@@ -48,6 +55,7 @@ from functools import partial  # noqa: E402
 import torch  # noqa: E402
 from timm.layers import QuickGELU  # noqa: E402
 from timm.models.vision_transformer import (  # noqa: E402
+    ResPostBlock,
     VisionTransformer,
     _convert_openai_clip,
 )
@@ -77,6 +85,10 @@ TOYS = {
     "toy_miil": dict(qkv_bias=False),
     "toy_headless": dict(num_classes=0),
     "toy_openai": dict(CLIP, num_classes=8),
+    "toy_rpn": dict(block_fn=ResPostBlock, class_token=False, global_pool="avg", qkv_bias=False),
+    "toy_bare": dict(final_norm=False, reg_tokens=2, no_embed_class=True, init_values=1e-5),
+    "toy_remainder": dict(img_size=18),
+    "toy_bare_avg": dict(final_norm=False, global_pool="avg"),
 }
 
 # The toys whose weights are written in `OpenAI` CLIP's layout.
@@ -125,11 +137,10 @@ def openai_clip(state: dict) -> dict:
 
 def main() -> None:
     for i, (name, args) in enumerate(TOYS.items()):
-        args = dict(dict(num_classes=10), **args)
+        args = dict(dict(num_classes=10, img_size=16), **args)
+        size = args["img_size"]
         model = build(
-            lambda: VisionTransformer(
-                img_size=16, patch_size=4, embed_dim=16, depth=2, num_heads=2, **args
-            ),
+            lambda: VisionTransformer(patch_size=4, embed_dim=16, depth=2, num_heads=2, **args),
             seed=4321 + i,
         )
         init_weights(model, norm_bias=0.1)
@@ -137,7 +148,7 @@ def main() -> None:
             with torch.no_grad():
                 model.head.bias.zero_()
         torch.manual_seed(77 + i)
-        images = torch.randn(2, 3, 16, 16, dtype=torch.float64)
+        images = torch.randn(2, 3, size, size, dtype=torch.float64)
         with torch.no_grad():
             layers = model.forward_intermediates(images, intermediates_only=True)
             features = model.forward_features(images)

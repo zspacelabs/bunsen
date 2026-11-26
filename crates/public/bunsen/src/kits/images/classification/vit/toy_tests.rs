@@ -1,14 +1,16 @@
 //! The toy models against timm's own `VisionTransformer`.
 //!
-//! `testdata/vit/` holds ten tiny seeded timm `VisionTransformer`s and their
-//! answers, computed in float64 (`tools/gen_vit_toy_fixtures.py`), each on
-//! 16x16 images in 4x4 patches, 16 wide, two layers of two heads: timm's
+//! `testdata/vit/` holds fourteen tiny seeded timm `VisionTransformer`s and
+//! their answers, computed in float64 (`tools/gen_vit_toy_fixtures.py`), each
+//! on 16x16 images in 4x4 patches, 16 wide, two layers of two heads: timm's
 //! defaults (the class token's pool); the patch tokens' mean and their
 //! `avgmax`, with the norm after the pool; CLIP's pre-norm, with `GELU` and
 //! with `QuickGELU`; register tokens with the position embedding over the
 //! patches alone and layer scale; no class token; no `qkv` bias; no
-//! classifier; and CLIP's pre-norm with a projection head, its weights in
-//! `OpenAI` CLIP's own layout. Each is the [`ViTContractConfig`] of the same
+//! classifier; CLIP's pre-norm with a projection head, its weights in
+//! `OpenAI` CLIP's own layout; res-post-norm blocks; no final norm, with the
+//! class token's pool and the mean's; and 18x18 images, the pixels past the
+//! last whole patch dropped. Each is the [`ViTContractConfig`] of the same
 //! knobs. The
 //! weights, under timm's names, load through [`load_vit_tensors`]; each
 //! layer's map, the output tokens, the pooled features and the logits are
@@ -25,9 +27,12 @@ use super::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        transformers::models::vision_encoder::{
-            TokenPoolConfig,
-            VisionEncoderModel,
+        transformers::{
+            models::vision_encoder::{
+                TokenPoolConfig,
+                VisionEncoderModel,
+            },
+            sublayer::NormPlacement,
         },
     },
     burner::module::ModuleInit,
@@ -185,6 +190,52 @@ fn test_openai_toy_is_timms() {
     let mut policy = toy_policy().with_clip();
     policy.num_classes = 8;
     check_openai_toy("toy_openai", policy);
+}
+
+/// Res-post-norm blocks (each branch normed on its output), no class token,
+/// the mean pool, no `qkv` bias: `vit_base_patch16_rpn_224`'s knobs.
+#[test]
+fn test_rpn_toy_is_timms() {
+    check_toy(
+        "toy_rpn",
+        toy_policy()
+            .with_norm_placement(NormPlacement::ResPost)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_qkv_bias(false),
+    );
+}
+
+/// No norm after the last layer, with register tokens and layer scale:
+/// C-RADIO's knobs.
+#[test]
+fn test_bare_toy_is_timms() {
+    check_toy(
+        "toy_bare",
+        toy_policy()
+            .with_final_norm(false)
+            .with_reg_tokens(2)
+            .with_no_embed_class(true)
+            .with_layer_scale(true),
+    );
+}
+
+/// No final norm under the mean pool: no norm before the pool or after it.
+#[test]
+fn test_bare_avg_toy_is_timms() {
+    check_toy(
+        "toy_bare_avg",
+        toy_policy()
+            .with_final_norm(false)
+            .with_global_pool(TokenPoolConfig::Avg),
+    );
+}
+
+/// 18x18 images in 4x4 patches: the 2 pixels past the last whole patch
+/// dropped, as timm's conv drops them.
+#[test]
+fn test_remainder_toy_is_timms() {
+    check_toy("toy_remainder", ViTContractConfig::new(18, 4, 16, 2, 2, 10));
 }
 
 /// [`check_toy`], for a toy whose weights are in `OpenAI`'s layout: only the
