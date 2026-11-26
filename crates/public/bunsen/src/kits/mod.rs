@@ -158,6 +158,11 @@
 //!   ([`speech::asr::qwen3_asr`]). An op that only one kit uses lives in that
 //!   kit's `ops`. A kit is found by what it is, and kit-only code stays out of
 //!   the shared layers.
+//! - **A kit's own tensor code checks its shapes with
+//!   [`contracts`](crate::contracts)**, as
+//!   [`blocks`](crate::blocks#design-rules) does, and keeps them when it moves
+//!   into a shared block: the crate root's [contracts
+//!   rule](crate#design-rules).
 //! - **A loaded model is immutable.** Decode and stream state is a context or a
 //!   cache that the caller creates and passes back in
 //!   ([`WhisperStreamContext`](speech::asr::whisper::driver::WhisperStreamContext)),

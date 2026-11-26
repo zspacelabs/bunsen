@@ -61,8 +61,10 @@
 //!   only the gated check reads a binding, a `#[cfg(not(any(debug_assertions,
 //!   test)))] let _ = d;` keeps it. The rustdoc writes each tensor argument and
 //!   result in the notation the contract checks. A forward that only delegates
-//!   inherits its callee's checks. The contracts are both the runtime check and
-//!   the shape language of the API docs.
+//!   inherits its callee's checks. A block folded into a shared one keeps its
+//!   checks in the shared body. The crate root's [contracts
+//!   rule](crate#design-rules) gives the reasons: faster R&D, malformed
+//!   assemblies caught, algorithms readable by people and agents.
 //! - **A seam is an enum config plus an enum module, and each kind is a module
 //!   type of its own**, never a bare value: weight loading walks each variant's
 //!   module, as [`activation`]'s `Pow` kind is a

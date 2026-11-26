@@ -149,6 +149,25 @@
 //! - **Two names for one concept become one** when the concept is unambiguously
 //!   the same. When the parts do not line up, they stay apart, each named for
 //!   its owner.
+//! - **Code that works on tensors states its shapes as [`contracts`]**:
+//!   [`blocks`], [`ops`] and the kits' own modules alike, each as
+//!   [`blocks`'](blocks#design-rules) and [`ops`'](ops#design-rules) rules say
+//!   (an always-run unpack where a body reads dims, cfg-gated checks on what it
+//!   produces). New code carries them from its first layer, and code that moves
+//!   or folds into a shared body carries its contracts with it: a lift that
+//!   drops them is a regression, whatever its tests say. The contracts serve
+//!   three ends:
+//!   - **They speed R&D.** A shape mistake fails where it is made, naming its
+//!     dims and their sizes, not as a panic deep in burn or as wrong numbers
+//!     that a parity check has to trace back.
+//!   - **They detect malformed assemblies.** A model put together from configs
+//!     whose parts disagree (widths, grids, heads, a seam's variant fed another
+//!     layout) is refused at its first forward: by every check in debug and
+//!     test builds, and by the always-run unpacks in release.
+//!   - **They aid human and agent reading of the algorithms.** Each tensor's
+//!     shape is stated in named dims beside the code that makes it, in the
+//!     rustdoc's notation, so a reader, a person or an agent, follows the
+//!     algorithm without rebuilding the shapes from its reshapes.
 //! - **Before defining a type or a reader that burn or an established crate
 //!   has, use theirs**: burn's `FloatDType`, burn-store's `PytorchStore`,
 //!   `serde_pickle`. A duplicate competes with the upstream vocabulary, and

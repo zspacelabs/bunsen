@@ -28,6 +28,19 @@ code checks `dims()[1] % window == 0` in one line and computes
 `dims()[1] / window` in the next, and the two can disagree. With a contract,
 the check and the values come from one declaration.
 
+Bunsen expects contracts in all of its tensor code: `blocks`, `ops` and the
+kits' own modules. New code carries them from the start, and code that moves
+into a shared block keeps them; a refactor that drops them is a regression
+even when its tests pass. The
+[crate's Design Rules](bunsen#design-rules) give three goals:
+
+- **Speed R&D:** a shape mistake fails where it is made, naming its
+  dimensions, instead of surfacing later as a panic or a parity gap.
+- **Detect malformed assemblies:** a model built from configs whose parts
+  disagree is refused at its first forward.
+- **Aid human and agent reading of the algorithms:** each tensor's shape is
+  written in named dimensions beside the code that makes it.
+
 ## Contracts read like the docs
 
 STYLE.md writes a tensor shape in rustdoc as one code span in square

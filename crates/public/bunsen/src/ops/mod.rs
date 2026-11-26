@@ -90,8 +90,10 @@
 //!   it is.
 //! - **An op checks the shapes at its boundary with [`crate::contracts`]**, in
 //!   the notation of its rustdoc, as blocks do
-//!   ([`drop_block_2d`](drop::drop_block_2d)). An op is the last place a wrong
-//!   shape can be named before it turns into a wrong value.
+//!   ([`drop_block_2d`](drop::drop_block_2d)): an always-run unpack where it
+//!   reads dims, cfg-gated checks on what it returns. An op is the last place a
+//!   wrong shape can be named before it turns into a wrong value. The crate
+//!   root's [contracts rule](crate#design-rules) gives the reasons.
 //! - **A table or constant that an op builds is made in a dtype the caller
 //!   names**, through a dtype policy or a
 //!   [`Widening`](crate::burner::tensor::Widening), never in the device default
