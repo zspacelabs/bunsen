@@ -21,9 +21,12 @@ use crate::{
             ConvBlock2dConfig,
             ConvBlock2dMeta,
         },
-        images::attention::{
-            ChannelAttentionConfig,
-            SqueezeExciteConfig,
+        images::{
+            anti_alias::AntiAliasConfig,
+            attention::{
+                ChannelAttentionConfig,
+                SqueezeExciteConfig,
+            },
         },
     },
     burner::module::{
@@ -836,4 +839,39 @@ fn test_res2_mixer() {
     ErrorMatcher::kind(BunsenErrorKind::Illegal)
         .message_contains("a scale split of 3 chunks from 8 to 8 channels")
         .assert_err(&uneven.try_to_structure());
+}
+
+/// `ResNeSt`'s mixer: a bottleneck's `3x3` becomes the split attention in
+/// the stage's groups; its `avd` pool takes the stride where a unit strides
+/// 2 (not the first stage's reshaping unit), after the mixer or before it.
+#[test]
+fn test_split_attn_mixer_and_avd() {
+    for aa_first in [false, true] {
+        let mut policy = resnet_like(&[1, 1], 8, ConvUnitKind::Bottleneck);
+        policy.layers.mixer = ConvMixerKind::SplitAttn {
+            radix: 2,
+            rd_ratio: 0.25,
+            rd_divisor: 8,
+        };
+        policy.layers.aa = Some(ConvAaKind::Avd);
+        policy.layers.aa_first = aa_first;
+        let structure = policy.to_structure();
+        let first = &structure.stages[0].units[0];
+        assert!(first.aa.is_none(), "the first stage doesn't stride");
+        let strided = &structure.stages[1].units[0];
+        assert!(strided.aa_first == aa_first);
+        let Some(AntiAliasConfig::Avg(pool)) = &strided.aa else {
+            panic!("an avd pool");
+        };
+        assert_eq!((pool.kernel_size, pool.strides), ([3, 3], [2, 2]));
+        assert!(pool.count_include_pad);
+        let ResidualConvConfig::SplitAttn(attn) = &strided.convs[1] else {
+            panic!("a split attention");
+        };
+        assert_eq!((attn.radix, attn.stride(), attn.out_channels()), (2, 1, 16));
+        let device = cpu_device();
+        let model: ConvNetModel = structure.init(&device);
+        let images = Tensor::<4>::random([1, 3, 33, 33], Distribution::Default, &device);
+        assert_eq!(model.forward(images).dims(), [1, 7]);
+    }
 }

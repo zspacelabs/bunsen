@@ -7,6 +7,9 @@
 //!   timm's `Bottle2neck`'s `convs`). The channels split into `scale` chunks;
 //!   each chunk but the last is convolved, after the first adding the previous
 //!   branch's output, so the receptive field grows branch by branch.
+//! - [`SplitAttn`]: `ResNeSt`'s split attention ([arXiv:2004.08955](https://arxiv.org/abs/2004.08955);
+//!   timm's `SplitAttn`). A grouped conv widens to `radix` splits, and an
+//!   attention over their sum weighs them per channel.
 //!
 //! Each keeps its upstream's parameter names where the conv net's
 //! conventions allow (`convs.{k}.conv`, `convs.{k}.norm`), and is a kind of
@@ -16,5 +19,7 @@
 //! [`ConvMixerKind`](crate::blocks::images::models::conv_net::ConvMixerKind).
 
 mod res2;
+mod split_attn;
 
 pub use res2::*;
+pub use split_attn::*;

@@ -42,6 +42,17 @@ impl AntiAliasConfig {
         Self::Avg(AvgPool2dConfig::new([stride, stride]).with_strides([stride, stride]))
     }
 
+    /// `ResNeSt`'s `avd` at `stride`: `AvgPool2d(3, stride, padding=1)`, the
+    /// padding counted.
+    pub fn avd(stride: usize) -> Self {
+        Self::Avg(
+            AvgPool2dConfig::new([3, 3])
+                .with_strides([stride, stride])
+                .with_padding(burn::nn::PaddingConfig2d::Explicit(1, 1, 1, 1))
+                .with_count_include_pad(true),
+        )
+    }
+
     /// The stride.
     pub fn stride(&self) -> usize {
         match self {

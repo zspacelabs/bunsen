@@ -32,7 +32,10 @@ use crate::{
                 EcaConfig,
                 SqueezeExciteConfig,
             },
-            mixers::Res2ConvConfig,
+            mixers::{
+                Res2ConvConfig,
+                SplitAttnConfig,
+            },
             models::{
                 classifier_head::ClassifierHeadConfig,
                 conv_net::{
@@ -180,6 +183,11 @@ pub enum ConvAaKind {
 
     /// A `3x3` binomial blur, then the stride (timm's `BlurPool2d`).
     Blur,
+
+    /// `ResNeSt`'s `avd`: a `3x3` average pool of the stride, padded 1, the
+    /// padding counted ([`AntiAliasConfig::avd`]); where a unit strides 2
+    /// alone, not where it enters a dilated stage.
+    Avd,
 }
 
 impl ConvAaKind {
@@ -191,6 +199,7 @@ impl ConvAaKind {
         match self {
             Self::Avg => AntiAliasConfig::avg(stride),
             Self::Blur => AntiAliasConfig::blur(stride),
+            Self::Avd => AntiAliasConfig::avd(stride),
         }
     }
 }
@@ -200,7 +209,7 @@ impl ConvAaKind {
 ///
 /// A seam: a kind a unit can't hold is
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) there.
-#[derive(Config, Debug, Copy, PartialEq, Eq)]
+#[derive(Config, Debug, Copy, PartialEq)]
 pub enum ConvMixerKind {
     /// One conv block (`ResNet`'s `3x3`).
     Conv,
@@ -213,6 +222,20 @@ pub enum ConvMixerKind {
     Res2 {
         /// The chunks (timm's `scale`).
         scale: usize,
+    },
+
+    /// `ResNeSt`'s split attention of `radix` splits
+    /// ([`SplitAttnConfig::timm`]; a bottleneck's alone), in the stage's
+    /// groups, the layers' norm and activation, its attention width
+    /// `rd_ratio` of the splits' input in `rd_divisor`s.
+    SplitAttn {
+        /// The splits (timm's `radix`).
+        radix: usize,
+        /// The attention width's share of the splits' input (timm's
+        /// `rd_ratio`, 0.25).
+        rd_ratio: f64,
+        /// The attention width's divisor (timm's `rd_divisor`, 8).
+        rd_divisor: usize,
     },
 }
 
@@ -321,6 +344,11 @@ pub struct ConvLayersConfig {
     /// Each unit's spatial mixer.
     #[config(default = "ConvMixerKind::Conv")]
     pub mixer: ConvMixerKind,
+
+    /// Whether the anti-aliased downsampling ([`aa`](Self::aa)) goes before
+    /// the mixer rather than after it (`ResNeSt`'s `avd_first`).
+    #[config(default = "false")]
+    pub aa_first: bool,
 }
 
 impl Default for ConvLayersConfig {
@@ -407,6 +435,31 @@ impl ConvLayersConfig {
                     .with_hierarchical(!is_first)
                     .with_pool((is_first && scale > 1).then(|| Res2ConvConfig::timm_pool(stride)))
                     .into())
+            }
+            ConvMixerKind::SplitAttn {
+                radix,
+                rd_ratio,
+                rd_divisor,
+            } => {
+                if radix == 0 || rd_divisor == 0 || rd_ratio <= 0.0 {
+                    return Err(BunsenError::illegal(format!(
+                        "a split attention of radix {radix}, its attention {rd_ratio} of its input \
+                         in {rd_divisor}s"
+                    )));
+                }
+                Ok(SplitAttnConfig::timm(
+                    channels,
+                    kernel_size,
+                    stride,
+                    dilation,
+                    groups,
+                    radix,
+                    rd_ratio,
+                    rd_divisor,
+                    self.norm.clone(),
+                    self.act.clone(),
+                )
+                .into())
             }
         }
     }
@@ -583,7 +636,7 @@ impl ConvStageContractConfig {
         // or enters a dilated stage; the mixer keeps stride 1.
         let aa = layers
             .aa
-            .filter(|_| stride == 2 || first_dilation != dilation)
+            .filter(|kind| stride == 2 || (*kind != ConvAaKind::Avd && first_dilation != dilation))
             .map(|kind| kind.to_config(stride));
         let mixer_stride = if aa.is_some() { 1 } else { stride };
         let preact = matches!(
@@ -598,7 +651,7 @@ impl ConvStageContractConfig {
                     layers.mixer, self.unit
                 )));
             }
-            if aa.is_some() {
+            if aa.is_some() && matches!(layers.mixer, ConvMixerKind::Res2 { .. }) {
                 return Err(BunsenError::unsupported(format!(
                     "a {:?} mixer with anti-aliasing",
                     layers.mixer
@@ -698,6 +751,7 @@ impl ConvStageContractConfig {
             residual,
             pre_identity: layers.pre_identity,
             aa,
+            aa_first: layers.aa_first,
             shortcut,
             attn: layers.attn.map(|kind| {
                 let channels = match layers.attn_place {
