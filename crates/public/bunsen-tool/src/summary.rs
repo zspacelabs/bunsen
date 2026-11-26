@@ -200,6 +200,10 @@ pub fn kinds() -> BunsenResult<Vec<Kind>> {
                     bunsen::kits::images::classification::resnet::pretrained::default_resnet_factory()?,
                 ),
                 Family::of(
+                    "regnet",
+                    bunsen::kits::images::classification::regnet::pretrained::default_regnet_factory()?,
+                ),
+                Family::of(
                     "vit",
                     bunsen::kits::images::classification::vit::pretrained::default_vit_factory()?,
                 ),
