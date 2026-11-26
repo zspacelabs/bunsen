@@ -109,6 +109,12 @@ pub struct PreActConvConfig {
     /// The activation after the norm; none when `None`.
     #[config(default = "None")]
     pub act: Option<BunsenActivationConfig>,
+
+    /// Weight standardization of the conv, by this `eps`
+    /// ([`weight_standardized_conv2d`](crate::ops::conv::weight_standardized_conv2d));
+    /// none when `None`.
+    #[config(default = "None")]
+    pub weight_std: Option<f64>,
 }
 
 impl PreActConvConfig {
@@ -146,6 +152,7 @@ impl ModuleInit<PreActConv> for PreActConvConfig {
                 .transpose()?,
             act: self.act.as_ref().map(|a| a.init(device)),
             conv: self.conv.init(device),
+            weight_std: self.weight_std,
         })
     }
 }
@@ -161,6 +168,10 @@ pub struct PreActConv {
 
     /// The conv.
     pub conv: Conv2d,
+
+    /// The conv's weight standardization `eps`, if any.
+    #[module(skip)]
+    pub weight_std: Option<f64>,
 }
 
 impl PreActConv {
@@ -212,7 +223,11 @@ impl PreActConv {
             Some(act) => act.forward(x),
             None => x,
         };
-        let x = f(self.conv.forward(x));
+        let x = match self.weight_std {
+            Some(eps) => crate::ops::conv::weight_standardized_conv2d(&self.conv, x, eps),
+            None => self.conv.forward(x),
+        };
+        let x = f(x);
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "out_channels", _, _],

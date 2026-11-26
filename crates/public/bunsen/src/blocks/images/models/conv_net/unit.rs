@@ -310,12 +310,18 @@ impl ModuleInit<ConvShortcut> for ConvShortcutConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<ConvShortcut> {
-        let ConvBlock2d { conv, norm, act } = self.block.try_init(device)?;
+        let ConvBlock2d {
+            conv,
+            norm,
+            act,
+            weight_std,
+        } = self.block.try_init(device)?;
         Ok(ConvShortcut {
             pool: self.pool.as_ref().map(AvgPool2dConfig::init),
             conv,
             norm,
             act,
+            weight_std,
         })
     }
 }
@@ -338,6 +344,10 @@ pub struct ConvShortcut {
 
     /// The activation after the norm.
     pub act: Option<BunsenActivation>,
+
+    /// The conv's weight standardization `eps`, if any.
+    #[module(skip)]
+    pub weight_std: Option<f64>,
 }
 
 impl ConvChainMeta for ConvShortcut {
@@ -382,7 +392,10 @@ impl ConvShortcut {
             Some(pool) => pool.forward(input),
             None => input,
         };
-        let x = self.conv.forward(x);
+        let x = match self.weight_std {
+            Some(eps) => crate::ops::conv::weight_standardized_conv2d(&self.conv, x, eps),
+            None => self.conv.forward(x),
+        };
         let x = match &self.norm {
             Some(norm) => norm.forward(x),
             None => x,
@@ -447,6 +460,12 @@ pub struct ResidualUnitConfig {
     /// shape, timm's `downsample=None`).
     #[config(default = "true")]
     pub residual: bool,
+
+    /// Under [`pre`](Self::pre), whether an identity shortcut reads the
+    /// pre-activated input (`RegNetV`'s) or the raw one (`ResNetV2`'s); a
+    /// projection shortcut reads the pre-activated input either way.
+    #[config(default = "true")]
+    pub pre_identity: bool,
 
     /// The anti-aliased downsampling after the mixer's activation, which then
     /// takes the stride from the mixer (timm's `aa`).
@@ -623,6 +642,7 @@ impl ModuleInit<ResidualUnit> for ResidualUnitConfig {
                 .map(|p| p.try_init(self.in_channels(), device))
                 .transpose()?,
             residual: self.residual,
+            pre_identity: self.pre_identity,
             aa: self.aa.as_ref().map(|aa| aa.try_init(device)).transpose()?,
             shortcut: self
                 .shortcut
@@ -678,6 +698,9 @@ pub struct ResidualUnit {
 
     /// Whether the path adds to a shortcut.
     pub residual: bool,
+
+    /// Whether an identity shortcut reads the pre-activated input.
+    pub pre_identity: bool,
 
     /// The anti-aliased downsampling after the mixer.
     pub aa: Option<AntiAlias>,
@@ -743,14 +766,17 @@ impl ResidualUnit {
         #[cfg(not(any(debug_assertions, test)))]
         let _ = (batch, out_height, out_width);
 
-        let input = match &self.pre {
-            Some(pre) => pre.forward(input),
-            None => input,
+        let (raw, input) = match &self.pre {
+            Some(pre) => (Some(input.clone()), pre.forward(input)),
+            None => (None, input),
         };
         let shortcut = match (&self.shortcut, self.residual) {
             (_, false) => None,
             (Some(shortcut), true) => Some(shortcut.forward(input.clone())),
-            (None, true) => Some(input.clone()),
+            (None, true) => match (raw, self.pre_identity) {
+                (Some(raw), false) => Some(raw),
+                _ => Some(input.clone()),
+            },
         };
 
         let mut x = input;

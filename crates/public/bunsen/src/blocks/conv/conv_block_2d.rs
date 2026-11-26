@@ -136,6 +136,12 @@ pub struct ConvBlock2dConfig {
     /// The [`BunsenActivation`] config.
     #[config(default = "Some(BunsenActivationConfig::Relu)")]
     pub act: Option<BunsenActivationConfig>,
+
+    /// Weight standardization of the conv, by this `eps`
+    /// ([`weight_standardized_conv2d`](crate::ops::conv::weight_standardized_conv2d),
+    /// timm's `StdConv2d`); none when `None`.
+    #[config(default = "None")]
+    pub weight_std: Option<f64>,
 }
 
 impl ConvBlock2dMeta for ConvBlock2dConfig {
@@ -194,6 +200,7 @@ impl ModuleInit<ConvBlock2d> for ConvBlock2dConfig {
                 .as_ref()
                 .map(|config| config.clone().with_num_features(out_channels).init(device)),
             act: self.act.as_ref().map(|config| config.init(device)),
+            weight_std: self.weight_std,
         })
     }
 }
@@ -221,6 +228,10 @@ pub struct ConvBlock2d {
 
     /// Activation layer.
     pub act: Option<BunsenActivation>,
+
+    /// The conv's weight standardization `eps`, if any.
+    #[module(skip)]
+    pub weight_std: Option<f64>,
 }
 
 impl ConvBlock2dMeta for ConvBlock2d {
@@ -342,7 +353,10 @@ impl ConvBlock2d {
         let [out_height, out_width] = self
             .try_output_resolution([in_height, in_width])
             .ok_or_panic();
-        let x = self.conv.forward(input);
+        let x = match self.weight_std {
+            Some(eps) => crate::ops::conv::weight_standardized_conv2d(&self.conv, input, eps),
+            None => self.conv.forward(input),
+        };
 
         #[cfg(debug_assertions)]
         assert_shape_contract_periodically!(

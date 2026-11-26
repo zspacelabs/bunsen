@@ -17,6 +17,8 @@ use burn::{
 
 use super::{
     BunsenLayerNormConfig,
+    EvoNormS0,
+    EvoNormS0Config,
     LayerNorm,
 };
 use crate::{
@@ -52,6 +54,15 @@ pub enum BunsenNormalizationConfig {
 
     /// burn's [`RmsNorm`], its forward bunsen's ([`BunsenNormalization::Rms`]).
     Rms(RmsNormConfig),
+
+    /// `EvoNorm-S0` ([`EvoNormS0`]): a norm with its own activation.
+    EvoS0(EvoNormS0Config),
+}
+
+impl From<EvoNormS0Config> for BunsenNormalizationConfig {
+    fn from(config: EvoNormS0Config) -> Self {
+        Self::EvoS0(config)
+    }
 }
 
 impl From<BatchNormConfig> for BunsenNormalizationConfig {
@@ -109,6 +120,7 @@ impl ModuleInit<BunsenNormalization> for BunsenNormalizationConfig {
             }
             Self::Layer(config) => BunsenNormalization::Layer(config.try_init(device)?),
             Self::Rms(config) => BunsenNormalization::Rms(config.init(device)),
+            Self::EvoS0(config) => BunsenNormalization::EvoS0(config.try_init(device)?),
         })
     }
 }
@@ -142,6 +154,11 @@ impl BunsenNormalizationConfig {
                 ..config
             }
             .into(),
+            Self::EvoS0(config) => EvoNormS0Config {
+                num_features,
+                ..config
+            }
+            .into(),
         }
     }
 
@@ -153,6 +170,7 @@ impl BunsenNormalizationConfig {
             Self::Group(config) => config.num_channels,
             Self::Layer(config) => config.d_model,
             Self::Rms(config) => config.d_model,
+            Self::EvoS0(config) => config.num_features,
         }
     }
 }
@@ -177,6 +195,10 @@ pub enum BunsenNormalization {
     /// burn's [`RmsNorm`]'s parameters, under bunsen's forward
     /// ([`forward`](Self::forward)).
     Rms(RmsNorm),
+
+    /// `EvoNorm-S0`, over a `[batch, channels, ...]` input; its activation
+    /// its own.
+    EvoS0(EvoNormS0),
 }
 
 impl From<RmsNorm> for BunsenNormalization {
@@ -221,6 +243,7 @@ impl BunsenNormalization {
                     .norm(input)
                     * norm.gamma.val().cast(dtype).unsqueeze()
             }
+            Self::EvoS0(norm) => norm.forward(input),
         }
     }
 
@@ -232,6 +255,7 @@ impl BunsenNormalization {
             Self::Group(norm) => norm.num_channels,
             Self::Layer(norm) => norm.gamma.shape()[0],
             Self::Rms(norm) => norm.gamma.shape()[0],
+            Self::EvoS0(norm) => norm.num_features(),
         }
     }
 
@@ -244,6 +268,7 @@ impl BunsenNormalization {
             Self::Group(norm) => Some(norm.epsilon),
             Self::Layer(norm) => Some(norm.epsilon),
             Self::Rms(norm) => Some(norm.epsilon),
+            Self::EvoS0(norm) => Some(norm.epsilon),
         }
     }
 
@@ -256,6 +281,7 @@ impl BunsenNormalization {
             Self::Group(norm) => norm.gamma.as_ref()?.val(),
             Self::Layer(norm) => norm.gamma.val(),
             Self::Rms(norm) => norm.gamma.val(),
+            Self::EvoS0(norm) => norm.weight.val(),
         };
         Some(FloatDType::from(gamma.dtype()))
     }

@@ -58,6 +58,12 @@ pub enum ConvStemPoolConfig {
 
     /// A max pool, then a blur that strides.
     MaxBlur(MaxBlurPoolConfig),
+
+    /// A zero pad of 1 on each side, then a max pool of no padding of its
+    /// own (`BiT`'s `fixed` stem: `ConstantPad2d(1, 0)` and `MaxPool2d(3, 2,
+    /// padding=0)`); the zeros, unlike a max pool's own padding, can win
+    /// over a negative map.
+    ZeroPadMax(MaxPool2dConfig),
 }
 
 impl ConvStemPoolConfig {
@@ -68,6 +74,7 @@ impl ConvStemPoolConfig {
             Self::Conv(config) => config.stride()[0],
             Self::Avg(config) => config.strides[0],
             Self::MaxBlur(config) => config.max.strides[0] * config.blur.stride(),
+            Self::ZeroPadMax(config) => config.strides[0],
         }
     }
 }
@@ -90,6 +97,7 @@ impl ModuleInit<ConvStemPool> for ConvStemPoolConfig {
                 max: config.max.init(),
                 blur: config.blur.try_init(device)?,
             }),
+            Self::ZeroPadMax(config) => ConvStemPool::ZeroPadMax(config.init()),
         })
     }
 }
@@ -132,6 +140,9 @@ pub enum ConvStemPool {
 
     /// A max pool, then a blur that strides.
     MaxBlur(MaxBlurPool),
+
+    /// A zero pad of 1, then a max pool.
+    ZeroPadMax(MaxPool2d),
 }
 
 impl ConvStemPool {
@@ -142,6 +153,7 @@ impl ConvStemPool {
             Self::Conv(block) => block.stride()[0],
             Self::Avg(pool) => pool.stride[0],
             Self::MaxBlur(pool) => pool.max.stride[0] * pool.blur.stride(),
+            Self::ZeroPadMax(pool) => pool.stride[0],
         }
     }
 
@@ -162,6 +174,7 @@ impl ConvStemPool {
             Self::Conv(block) => block.forward(input),
             Self::Avg(pool) => pool.forward(input),
             Self::MaxBlur(pool) => pool.blur.forward(pool.max.forward(input)),
+            Self::ZeroPadMax(pool) => pool.forward(input.pad([(1, 1), (1, 1)], 0.0)),
         };
         // A pool keeps the channels.
         #[cfg(any(debug_assertions, test))]

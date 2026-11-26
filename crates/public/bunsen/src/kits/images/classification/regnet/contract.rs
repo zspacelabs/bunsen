@@ -321,7 +321,7 @@ impl RegNetContractConfig {
                 .with_kernel_size(3)
                 .with_stride(2)
                 .with_pool(ConvStemPoolKind::None)
-                .with_norm_act(!self.preact),
+                .with_last_norm_act(!self.preact),
             stages,
             self.num_classes,
         )
