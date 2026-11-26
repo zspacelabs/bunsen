@@ -28,7 +28,10 @@ use crate::{
         BunsenResult,
     },
     kits::images::{
-        classification::vit::ViTContractConfig,
+        classification::{
+            resnetv2::interop::timm::resnetv2_rekey,
+            vit::ViTContractConfig,
+        },
         support::interop::timm::TimmModelConfigMirror,
     },
 };
@@ -162,6 +165,7 @@ pub fn vit_gated_rekey() -> Rekey {
 /// | timm | bunsen |
 /// |---|---|
 /// | `patch_embed.proj` | `patch_embed.projection` |
+/// | a hybrid's `patch_embed.backbone`, a non-preact `ResNetV2` | `backbone.net`, under [`resnetv2_rekey`] |
 /// | `cls_token`, `reg_token`, `pos_embed` | `tokens.cls_token`, `tokens.reg_token`, `tokens.pos_embed` |
 /// | a distilled `ViT`'s `dist_token`, `head_dist` (`DeiT`'s) | `tokens.dist_token`, `head.fc_dist` |
 /// | `norm_pre` | `stack.input_norm` |
@@ -216,6 +220,11 @@ fn vit_rekey_with(mlp: &[(&str, &str)]) -> Rekey {
         .rename("mlp.fc2.", "mlp.linear2.");
     Rekey::keep_rest()
         .mount("attn_pool.", "pool.latent.", attn_pool)
+        .mount(
+            "patch_embed.backbone.",
+            "backbone.net.",
+            resnetv2_rekey(0, 0, false),
+        )
         .rename("patch_embed.proj.", "patch_embed.projection.")
         .exact("cls_token", "tokens.cls_token")
         .exact("reg_token", "tokens.reg_token")
@@ -324,6 +333,18 @@ mod tests {
         let rekey = vit_rekey();
         for (timm, bunsen) in [
             ("patch_embed.proj.weight", "patch_embed.projection.weight"),
+            (
+                "patch_embed.backbone.stem.conv.weight",
+                "backbone.net.stem.convs.0.conv.weight",
+            ),
+            (
+                "patch_embed.backbone.stages.2.blocks.8.downsample.norm.bias",
+                "backbone.net.stages.2.units.8.shortcut.norm.bias",
+            ),
+            (
+                "patch_embed.backbone.norm.weight",
+                "backbone.net.stem.convs.0.norm.weight",
+            ),
             ("cls_token", "tokens.cls_token"),
             ("reg_token", "tokens.reg_token"),
             ("pos_embed", "tokens.pos_embed"),

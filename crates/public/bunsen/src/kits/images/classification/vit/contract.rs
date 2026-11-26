@@ -11,9 +11,15 @@ use crate::{
     blocks::{
         activation::BunsenActivationConfig,
         images::{
-            models::classifier_head::ClassifierHeadConfig,
+            models::{
+                classifier_head::ClassifierHeadConfig,
+                conv_net::ConvNetMeta,
+            },
             patching::{
-                patch_embed::PatchEmbedConfig,
+                patch_embed::{
+                    PatchEmbedConfig,
+                    PatchEmbedMeta,
+                },
                 prefix_tokens::PrefixTokensConfig,
             },
         },
@@ -39,6 +45,7 @@ use crate::{
             mlp::TransformerFeedForwardConfig,
             models::vision_encoder::{
                 TokenPoolConfig,
+                VisionBackboneConfig,
                 VisionEncoderStructureConfig,
             },
             sublayer::NormPlacement,
@@ -49,6 +56,11 @@ use crate::{
         BunsenError,
         BunsenResult,
         ResultContext,
+    },
+    kits::images::classification::resnetv2::{
+        BIT_STD_CONV_EPSILON,
+        ResNetV2ContractConfig,
+        ResNetV2Stem,
     },
 };
 
@@ -97,7 +109,8 @@ pub struct ViTContractConfig {
     /// The side of the square images it takes (timm's `img_size`).
     pub image_size: usize,
 
-    /// The side of a square patch.
+    /// The side of a square patch: of the images, or of the
+    /// [`backbone`](Self::backbone)'s map.
     pub patch_size: usize,
 
     /// The token width.
@@ -215,9 +228,41 @@ pub struct ViTContractConfig {
     /// only).
     #[config(default = "0.0")]
     pub drop_rate: f64,
+
+    /// The conv backbone the images go through before the patch embedding
+    /// (timm's `HybridEmbed`: the hybrid `ViT`'s headless, non-preact
+    /// `ResNetV2`, [`resnetv2_backbone`](Self::resnetv2_backbone)); none when
+    /// `None`. The patch embedding then cuts the backbone's map.
+    #[config(default = "None")]
+    pub backbone: Option<ResNetV2ContractConfig>,
 }
 
 impl ViTContractConfig {
+    /// The hybrid `ViT`'s backbone of `layers` (timm's
+    /// `vision_transformer_hybrid._resnetv2`): a `ResNetV2` that is not
+    /// pre-activation, its convs weight-standardized (eps
+    /// [`BIT_STD_CONV_EPSILON`]) and SAME-padded, the `same` stem, a stage of
+    /// `ResNetV2`'s widths per depth, and no head; no `layers`, its stem
+    /// alone.
+    pub fn resnetv2_backbone(layers: &[usize]) -> ResNetV2ContractConfig {
+        let channels = ResNetV2ContractConfig::new(vec![], 0).channels;
+        ResNetV2ContractConfig::new(layers.to_vec(), 0)
+            .with_channels(channels[..layers.len()].to_vec())
+            .with_stem_type(ResNetV2Stem::Same)
+            .with_std_conv(Some(BIT_STD_CONV_EPSILON))
+            .with_same_pad(true)
+            .with_preact(false)
+    }
+
+    /// This `ViT` as a hybrid on [`resnetv2_backbone`](Self::resnetv2_backbone)
+    /// of `layers`.
+    pub fn with_resnetv2_backbone(
+        self,
+        layers: &[usize],
+    ) -> Self {
+        self.with_backbone(Some(Self::resnetv2_backbone(layers)))
+    }
+
     /// The CLIP image tower's knobs: [`pre_norm`](Self::pre_norm) and
     /// [`CLIP_NORM_EPSILON`].
     pub fn with_clip(self) -> Self {
@@ -289,10 +334,12 @@ impl ViTContractConfig {
         }
     }
 
-    /// The prefix tokens' config.
-    fn tokens(&self) -> PrefixTokensConfig {
-        let grid = self.image_size / self.patch_size.max(1);
-        PrefixTokensConfig::new(self.embed_dim, grid * grid)
+    /// The prefix tokens' config, over `n_patches` patches.
+    fn tokens(
+        &self,
+        n_patches: usize,
+    ) -> PrefixTokensConfig {
+        PrefixTokensConfig::new(self.embed_dim, n_patches)
             .with_class_token(self.class_token)
             .with_reg_tokens(self.reg_tokens)
             .with_embed_prefix(!self.no_embed_class)
@@ -304,9 +351,11 @@ impl ToStructureConfig for ViTContractConfig {
 
     /// The vision encoder of this `ViT`:
     ///
-    /// - a patch embedding of `patch_size` patches, the pixels past the last
-    ///   whole patch dropped, normed under [`embed_norm`](Self::embed_norm),
-    ///   biased but under [`pre_norm`](Self::pre_norm);
+    /// - the [`backbone`](Self::backbone)'s conv net, at `image_size`;
+    /// - a patch embedding of `patch_size` patches (of the images, or the
+    ///   backbone's map), the pixels past the last whole patch dropped, normed
+    ///   under [`embed_norm`](Self::embed_norm), biased but under
+    ///   [`pre_norm`](Self::pre_norm);
     /// - the class and register tokens, and the position embedding;
     /// - `depth` layers: attention over every token, `num_heads` heads of
     ///   `embed_dim / num_heads`, a fused-`qkv` bias as
@@ -333,7 +382,28 @@ impl ToStructureConfig for ViTContractConfig {
     /// hidden width, a hidden norm on a gated MLP, or zero layers.
     fn try_to_structure(&self) -> BunsenResult<VisionEncoderStructureConfig> {
         let (d, heads, p) = (self.embed_dim, self.num_heads, self.patch_size);
-        let patch_embed = PatchEmbedConfig::new([self.image_size; 2], p, self.in_channels, d)
+        let backbone = self
+            .backbone
+            .as_ref()
+            .map(|backbone| -> BunsenResult<VisionBackboneConfig> {
+                if backbone.in_channels != self.in_channels {
+                    return Err(BunsenError::illegal(format!(
+                        "ViTContractConfig: {} image channels, its backbone's {}",
+                        self.in_channels, backbone.in_channels
+                    )));
+                }
+                Ok(VisionBackboneConfig::new(
+                    backbone.try_to_structure()?,
+                    [self.image_size; 2],
+                ))
+            })
+            .transpose()
+            .context("ViTContractConfig's backbone")?;
+        let (input, d_input) = match &backbone {
+            Some(backbone) => (backbone.try_feature_size()?, backbone.net.d_features()),
+            None => ([self.image_size; 2], self.in_channels),
+        };
+        let patch_embed = PatchEmbedConfig::new(input, p, d_input, d)
             .with_bias(!self.pre_norm)
             .with_norm(self.embed_norm.then(|| self.norm()))
             .with_allow_remainder(true);
@@ -369,7 +439,7 @@ impl ToStructureConfig for ViTContractConfig {
             ));
         }
         let fc_norm = self.uses_fc_norm();
-        let tokens = self.tokens();
+        let tokens = self.tokens(patch_embed.num_patches());
         let mut stack = UniformStackConfig::new(
             self.depth,
             CausalDecoderBlockConfig::new(
@@ -403,7 +473,8 @@ impl ToStructureConfig for ViTContractConfig {
                 .with_drop_rate(self.drop_rate),
         )
         .with_pool(self.global_pool)
-        .with_latent_pool(latent_pool))
+        .with_latent_pool(latent_pool)
+        .with_backbone(backbone))
     }
 }
 
@@ -422,6 +493,7 @@ mod tests {
             },
         },
         burner::module::ModuleInit,
+        data::pretrained::Prefabs,
         errors::{
             BunsenErrorKind,
             testing::ErrorMatcher,
@@ -514,5 +586,53 @@ mod tests {
             ViTContractConfig::new(16, 4, 8, 0, 2, 5),
             "at least one layer",
         );
+    }
+
+    /// Each hybrid prefab's backbone map and patch grid are timm's (its
+    /// `patch_embed.feature_size`, `feature_dim` and `grid_size`, read from
+    /// timm's built models), and its position embedding covers the class
+    /// token and the grid.
+    #[test]
+    fn test_hybrid_prefabs_are_timms() {
+        for (name, map, d_features, grid) in [
+            ("vit_tiny_r_s16_p8_224", 56, 64, 7),
+            ("vit_tiny_r_s16_p8_384", 96, 64, 12),
+            ("vit_small_r26_s32_224", 7, 2048, 7),
+            ("vit_small_r26_s32_384", 12, 2048, 12),
+            ("vit_base_r50_s16_224", 14, 1024, 14),
+            ("vit_base_r50_s16_384", 24, 1024, 24),
+            ("vit_large_r50_s32_224", 7, 2048, 7),
+            ("vit_large_r50_s32_384", 12, 2048, 12),
+        ] {
+            let s = ViTContractConfig::expect_prefab(name).to_structure();
+            let backbone = s.backbone.as_ref().expect("a hybrid");
+            assert_eq!(backbone.try_feature_size().unwrap(), [map; 2], "{name}");
+            assert_eq!(s.patch_embed.d_input(), d_features, "{name}");
+            assert_eq!(s.grid(), [grid; 2], "{name}");
+            assert_eq!(s.tokens.n_patches, grid * grid, "{name}");
+            assert_eq!(s.in_channels(), 3, "{name}");
+        }
+    }
+
+    /// A small hybrid builds and runs at its image size; a backbone of other
+    /// image channels than the `ViT`'s is refused.
+    #[test]
+    fn test_hybrid() {
+        let config = ViTContractConfig::new(64, 1, 32, 1, 2, 5).with_backbone(Some(
+            ViTContractConfig::resnetv2_backbone(&[1])
+                .with_channels(vec![128])
+                .with_stem_chs(32),
+        ));
+        let device = cpu_device();
+        let model: VisionEncoderModel = config.init(&device);
+        assert_eq!(model.grid(), [16, 16]);
+        let images = burn::Tensor::<4>::zeros([1, 3, 64, 64], &device);
+        assert_eq!(model.forward(images).dims(), [1, 5]);
+
+        let mut gray = config;
+        gray.in_channels = 1;
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("1 image channels, its backbone's 3")
+            .assert_err(&gray.try_to_structure());
     }
 }

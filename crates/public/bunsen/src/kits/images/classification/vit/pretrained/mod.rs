@@ -7,7 +7,7 @@
 //! features, both default. Fetching a checkpoint needs `fetch`.
 //!
 //! The geometries are [`ViTContractConfig`](super::ViTContractConfig)'s
-//! prefabs: 134 by timm's architecture names, generated from timm's own
+//! prefabs: 142 by timm's architecture names, generated from timm's own
 //! entrypoints, each with 1000 classes at its architecture's size. The
 //! checkpoints are 294 rows, the built-in catalog's builds
 //! of [`VIT_CATALOG_CONTRACT`] in its `timm` namespace, written by the
