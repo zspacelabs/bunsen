@@ -197,7 +197,8 @@ cargo catalog timm-rows --kit resnet    # the Hub's timm/<arch>.<tag> repos of t
 cargo catalog update --kit resnet       # then build them
 cargo catalog timm-rows --kit vit       # the same for the vit kit, whose towers may be unlabelled
 cargo catalog timm-rows --kit deit      # and for the deit kit
-cargo catalog timm-rows --kit swin-v2   # and the swin-v2 kit, whose 22k pretrainings are unlabelled
+cargo catalog timm-rows --kit swin-v1   # and the swin-v1 and swin-v2 kits, whose 22k
+cargo catalog timm-rows --kit swin-v2   # pretrainings are unlabelled
 ```
 
 `timm-rows` replaces the source's lines between its `BEGIN` / `END` markers

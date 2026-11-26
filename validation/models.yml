@@ -503,6 +503,26 @@ crates:
         core: false
         dtypes: [f32]
         varies: DeiT III - the position embedding over the patches alone, layer scale
+      timm/swin_tiny_patch4_window7_224.ms_in1k:
+        size: small
+        gb: 0.11
+        core: false
+        dtypes: [f32]
+        varies: Swin - shifted-window attention, a learnt relative position bias table, pre-norm
+          blocks, patch merges normed before their reduction
+      timm/swin_base_patch4_window12_384.ms_in22k_ft_in1k:
+        size: small
+        gb: 0.36
+        core: false
+        dtypes: [f32]
+        varies: Swin at 384 pixels in 12x12 windows
+      timm/swin_s3_tiny_224.ms_in1k:
+        size: small
+        gb: 0.11
+        core: false
+        dtypes: [f32]
+        varies: Swin-S3 - a window per stage, the third stage's one window over its whole grid,
+          unshifted
       timm/swinv2_tiny_window8_256.ms_in1k:
         size: small
         gb: 0.11

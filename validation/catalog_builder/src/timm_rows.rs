@@ -43,7 +43,10 @@ use bunsen::{
     kits::images::classification::{
         deit::DeiTContractConfig,
         resnet::ResNetContractConfig,
-        swin::v2::SwinV2ContractConfig,
+        swin::{
+            v1::SwinV1ContractConfig,
+            v2::SwinV2ContractConfig,
+        },
         vit::ViTContractConfig,
     },
 };
@@ -151,6 +154,13 @@ pub fn timm_kits() -> Vec<TimmKit> {
             join: &["deit"],
             architectures: DeiTContractConfig::prefab_names(),
             unlabelled: false,
+        },
+        TimmKit {
+            name: "swin-v1",
+            contract: "swin-v1-classifier",
+            join: &["swin-v1"],
+            architectures: SwinV1ContractConfig::prefab_names(),
+            unlabelled: true,
         },
         TimmKit {
             name: "swin-v2",
