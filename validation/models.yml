@@ -678,6 +678,24 @@ crates:
         core: false
         dtypes: [f32]
         varies: EvoNorm-S0 on the deep stem
+      timm/res2net50_26w_4s.in1k:
+        size: small
+        gb: 0.1
+        core: false
+        dtypes: [f32]
+        varies: Res2Net's scale split - four hierarchical 26-wide chunks per 64 planes
+      timm/res2next50.in1k:
+        size: small
+        gb: 0.1
+        core: false
+        dtypes: [f32]
+        varies: Res2NeXt - the scale split's branches in 8 groups
+      timm/res2net50d.in1k:
+        size: small
+        gb: 0.11
+        core: false
+        dtypes: [f32]
+        varies: Res2Net on the deep stem with average-pool shortcuts
       timm/deit_small_patch16_224.fb_in1k:
         size: small
         gb: 0.2
