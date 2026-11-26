@@ -285,8 +285,33 @@ impl ConvNetModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<2> {
-        self.head
-            .forward(self.pool.forward(self.feature_map(images)))
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = self.unpack_images(&images);
+        let logits = self
+            .head
+            .forward(self.pool.forward(self.feature_map(images)));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "d_output"],
+            &logits.dims(),
+            &[("batch", batch), ("d_output", self.head.d_output())]
+        );
+        logits
+    }
+
+    /// The batch of `images`, checked against the model's input:
+    /// `[batch, in_channels, height, width]`, of any size.
+    #[cfg(any(debug_assertions, test))]
+    fn unpack_images(
+        &self,
+        images: &Tensor<4>,
+    ) -> [usize; 1] {
+        crate::contracts::unpack_shape_contract!(
+            ["batch", "in_channels", _, _],
+            &images.dims(),
+            &["batch"],
+            &[("in_channels", self.in_channels())]
+        )
     }
 
     /// The last stage's map: the stem, then every stage.
@@ -303,8 +328,17 @@ impl ConvNetModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<4> {
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = self.unpack_images(&images);
         let x = self.stem.forward(images);
-        self.stages.iter().fold(x, |x, stage| stage.forward(x))
+        let x = self.stages.iter().fold(x, |x, stage| stage.forward(x));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "d_features", _, _],
+            &x.dims(),
+            &[("batch", batch), ("d_features", self.d_features())]
+        );
+        x
     }
 
     /// The pooled features, the classifier's input: the pool, then the head's
@@ -322,8 +356,21 @@ impl ConvNetModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<2> {
-        self.head
-            .pre_logits(self.pool.forward(self.feature_map(images)))
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = self.unpack_images(&images);
+        let pooled = self
+            .head
+            .pre_logits(self.pool.forward(self.feature_map(images)));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "pooled"],
+            &pooled.dims(),
+            &[
+                ("batch", batch),
+                ("pooled", self.pool.pooled_features(self.d_features()))
+            ]
+        );
+        pooled
     }
 
     /// The feature maps by stage, timm's `feature_info`: the stem's convs
@@ -340,12 +387,22 @@ impl ConvNetModel {
         &self,
         images: Tensor<4>,
     ) -> Vec<Tensor<4>> {
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = self.unpack_images(&images);
         let stem = self.stem.forward_convs(images);
         let mut maps = vec![stem.clone()];
         let mut x = self.stem.forward_pool(stem);
         for stage in &self.stages {
             x = stage.forward(x);
             maps.push(x.clone());
+        }
+        #[cfg(any(debug_assertions, test))]
+        for map in &maps {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch", _, _, _],
+                &map.dims(),
+                &[("batch", batch)]
+            );
         }
         maps
     }

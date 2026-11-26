@@ -35,6 +35,7 @@ use num_traits::Float;
 
 use crate::{
     burner::module::InputDTypes,
+    contracts::unpack_shape_contract,
     errors::{
         BunsenError,
         BunsenResult,
@@ -134,10 +135,25 @@ impl RelativePositionBias {
         match self {
             Self::Table(t) => t.table.val().cast(dtype),
             Self::Cpb(c) => {
-                let [h, w, _] = c.coords.dims();
-                let coords = c.coords.clone().cast(dtype).reshape([h * w, 2]);
+                let [rows, cols] = unpack_shape_contract!(
+                    ["rows", "cols", 2],
+                    &c.coords.dims(),
+                    &["rows", "cols"]
+                );
+                let coords = c.coords.clone().cast(dtype).reshape([rows * cols, 2]);
                 let hidden = relu(c.linear1.forward(coords));
-                sigmoid(c.linear2.forward(hidden)) * 16.0
+                let bias = sigmoid(c.linear2.forward(hidden)) * 16.0;
+                #[cfg(any(debug_assertions, test))]
+                crate::contracts::assert_shape_contract_periodically!(
+                    ["rows" * "cols", "heads"],
+                    &bias.dims(),
+                    &[
+                        ("rows", rows),
+                        ("cols", cols),
+                        ("heads", c.linear2.weight.dims()[1])
+                    ]
+                );
+                bias
             }
         }
     }
@@ -149,9 +165,9 @@ impl RelativePositionBias {
         index: &Tensor<2, Int>,
         dtype: FloatDType,
     ) -> Tensor<3> {
-        let [area, _] = index.dims();
+        let [area] = unpack_shape_contract!(["area", "area"], &index.dims(), &["area"]);
         let table = self.offset_table(dtype);
-        let heads = table.dims()[1];
+        let [heads] = unpack_shape_contract!(["offsets", "heads"], &table.dims(), &["heads"]);
         table
             .select(0, index.clone().reshape([area * area]))
             .reshape([area, area, heads])
@@ -368,9 +384,14 @@ impl WindowAttention {
         &self,
         x: Tensor<3>,
     ) -> Tensor<3> {
-        let [bw, n, d] = x.dims();
         let heads = self.n_heads;
-        let hd = d / heads;
+        let d = self.n_embed();
+        let [bw, n, hd] = unpack_shape_contract!(
+            ["batch_windows", "area", "d_model" = "heads" * "head_dim"],
+            &x.dims(),
+            &["batch_windows", "area", "head_dim"],
+            &[("heads", heads), ("d_model", d)]
+        );
         let split = |t: Tensor<3>| t.reshape([bw, n, heads, hd]).swap_dims(1, 2);
         let (q, k, v) = (
             split(self.c_q.forward(x.clone())),
@@ -392,10 +413,21 @@ impl WindowAttention {
         let scores = scores + self.bias.pair_bias(&self.index, dtype).unsqueeze::<4>();
         let scores = match &self.mask {
             Some(mask) => {
-                let windows = mask.dims()[0];
+                // The windows of each batch item, each its own mask.
+                let [windows] = unpack_shape_contract!(
+                    ["windows", "area", "area"],
+                    &mask.dims(),
+                    &["windows"],
+                    &[("area", n)]
+                );
+                let [batch] = unpack_shape_contract!(
+                    ["batch" * "windows"],
+                    &[bw],
+                    &["batch"],
+                    &[("windows", windows)]
+                );
                 let mask = mask.clone().cast(dtype).reshape([1, windows, 1, n, n]);
-                (scores.reshape([bw / windows, windows, heads, n, n]) + mask)
-                    .reshape([bw, heads, n, n])
+                (scores.reshape([batch, windows, heads, n, n]) + mask).reshape([bw, heads, n, n])
             }
             None => scores,
         };
@@ -404,8 +436,21 @@ impl WindowAttention {
             Some(drop) => drop.forward(attn),
             None => attn,
         };
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch_windows", "heads", "area", "area"],
+            &attn.dims(),
+            &[("batch_windows", bw), ("heads", heads), ("area", n)]
+        );
         let y = attn.matmul(v).swap_dims(1, 2).reshape([bw, n, d]);
-        self.c_proj.forward(y)
+        let y = self.c_proj.forward(y);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch_windows", "area", "d_model"],
+            &y.dims(),
+            &[("batch_windows", bw), ("area", n), ("d_model", d)]
+        );
+        y
     }
 
     /// The shifted-window attention over the stage's grid.
@@ -421,17 +466,24 @@ impl WindowAttention {
         &self,
         x: Tensor<3>,
     ) -> Tensor<3> {
-        let [b, l, d] = x.dims();
         let [h, w] = self.grid;
-        assert_eq!(l, h * w, "window attention over a {h}x{w} grid: {l} tokens");
+        let d = self.n_embed();
+        let [b] = unpack_shape_contract!(
+            ["batch", "height" * "width", "d_model"],
+            &x.dims(),
+            &["batch"],
+            &[("height", h), ("width", w), ("d_model", d)]
+        );
+        let l = h * w;
         let [sh, sw] = self.shift.map(|s| s as i64);
         let x = x.reshape([b, h, w, d]);
         let x = match self.shift {
             [0, 0] => x,
             _ => roll_grid(x, [-sh, -sw]),
         };
-        let x = pad_bottom_right(x, window_padding(self.grid, self.window));
-        let [_, hp, wp, _] = x.dims();
+        let pad = window_padding(self.grid, self.window);
+        let [hp, wp] = [h + pad[0], w + pad[1]];
+        let x = pad_bottom_right(x, pad);
         let [wh, ww] = self.window;
         let windows =
             window_partition(x, self.window).reshape([b * (hp / wh) * (wp / ww), wh * ww, d]);

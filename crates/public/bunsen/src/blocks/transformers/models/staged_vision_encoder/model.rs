@@ -383,8 +383,38 @@ impl StagedVisionEncoderModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<2> {
-        self.head
-            .forward(self.pool.forward(self.feature_tokens(images)))
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = self.unpack_images(&images);
+        let logits = self
+            .head
+            .forward(self.pool.forward(self.feature_tokens(images)));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "d_output"],
+            &logits.dims(),
+            &[("batch", batch), ("d_output", self.head.d_output())]
+        );
+        logits
+    }
+
+    /// The batch of `images`, checked against the model's input:
+    /// `[batch, in_channels, height, width]`.
+    #[cfg(any(debug_assertions, test))]
+    fn unpack_images(
+        &self,
+        images: &Tensor<4>,
+    ) -> [usize; 1] {
+        let [height, width] = self.image_size();
+        crate::contracts::unpack_shape_contract!(
+            ["batch", "in_channels", "height", "width"],
+            &images.dims(),
+            &["batch"],
+            &[
+                ("in_channels", self.in_channels()),
+                ("height", height),
+                ("width", width)
+            ]
+        )
     }
 
     /// The last stage's tokens, normed (timm's `forward_features`).
@@ -400,9 +430,26 @@ impl StagedVisionEncoderModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<3> {
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = self.unpack_images(&images);
         let x = self.patch_embed.forward(images);
         let x = self.stages.iter().fold(x, |x, stage| stage.forward(x));
-        self.norm.forward(x)
+        let x = self.norm.forward(x);
+        #[cfg(any(debug_assertions, test))]
+        {
+            let [grid_h, grid_w] = *self.stage_grids().last().expect("a stage");
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch", "grid_h" * "grid_w", "d_features"],
+                &x.dims(),
+                &[
+                    ("batch", batch),
+                    ("grid_h", grid_h),
+                    ("grid_w", grid_w),
+                    ("d_features", self.d_features())
+                ]
+            );
+        }
+        x
     }
 
     /// The pooled features, the classifier's input.
@@ -414,8 +461,18 @@ impl StagedVisionEncoderModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<2> {
-        self.head
-            .pre_logits(self.pool.forward(self.feature_tokens(images)))
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = self.unpack_images(&images);
+        let pooled = self
+            .head
+            .pre_logits(self.pool.forward(self.feature_tokens(images)));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "d_features"],
+            &pooled.dims(),
+            &[("batch", batch), ("d_features", self.d_features())]
+        );
+        pooled
     }
 
     /// Each stage's output as a map, timm's `forward_intermediates` (no final
@@ -433,7 +490,13 @@ impl StagedVisionEncoderModel {
         let mut maps = Vec::with_capacity(self.stages.len());
         for (stage, [h, w]) in self.stages.iter().zip(grids) {
             x = stage.forward(x);
-            let [b, _, d] = x.dims();
+            // The stage's tokens are its grid, row by row.
+            let [b, d] = crate::contracts::unpack_shape_contract!(
+                ["batch", "grid_h" * "grid_w", "width"],
+                &x.dims(),
+                &["batch", "width"],
+                &[("grid_h", h), ("grid_w", w)]
+            );
             maps.push(x.clone().reshape([b, h, w, d]).permute([0, 3, 1, 2]));
         }
         maps

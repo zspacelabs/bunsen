@@ -99,6 +99,12 @@ impl GlobalPool2d {
         &self,
         features: Tensor<4>,
     ) -> Tensor<2> {
+        #[cfg(any(debug_assertions, test))]
+        let [batch, channels] = crate::contracts::unpack_shape_contract!(
+            ["batch", "channels", _, _],
+            &features.dims(),
+            &["batch", "channels"]
+        );
         let avg = |x: Tensor<4>| adaptive_avg_pool2d(x, [1, 1]);
         let max = |x: Tensor<4>| x.max_dim(2).max_dim(3);
         // [B, C', 1, 1] -> [B, C']
@@ -110,7 +116,14 @@ impl GlobalPool2d {
                 Tensor::cat(alloc::vec![avg(features.clone()), max(features)], 1)
             }
         };
-        pooled.flatten(1, 3)
+        let pooled = pooled.flatten(1, 3);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "pooled"],
+            &pooled.dims(),
+            &[("batch", batch), ("pooled", self.pooled_features(channels))]
+        );
+        pooled
     }
 }
 

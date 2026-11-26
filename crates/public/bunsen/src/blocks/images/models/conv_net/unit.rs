@@ -340,6 +340,16 @@ impl ConvShortcut {
         &self,
         input: Tensor<4>,
     ) -> Tensor<4> {
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = {
+            let [_, in_channels, _, _] = self.conv.weight.dims();
+            crate::contracts::unpack_shape_contract!(
+                ["batch", "in_channels", _, _],
+                &input.dims(),
+                &["batch"],
+                &[("in_channels", in_channels)]
+            )
+        };
         let x = match &self.pool {
             Some(pool) => pool.forward(input),
             None => input,
@@ -349,10 +359,20 @@ impl ConvShortcut {
             Some(norm) => norm.forward(x),
             None => x,
         };
-        match &self.act {
+        let x = match &self.act {
             Some(act) => act.forward(x),
             None => x,
-        }
+        };
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "out_channels", _, _],
+            &x.dims(),
+            &[
+                ("batch", batch),
+                ("out_channels", self.conv.weight.dims()[0])
+            ]
+        );
+        x
     }
 }
 

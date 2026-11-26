@@ -317,7 +317,36 @@ impl VisionEncoderModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<2> {
-        self.logits(self.feature_tokens(images))
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = self.unpack_images(&images);
+        let logits = self.logits(self.feature_tokens(images));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "d_output"],
+            &logits.dims(),
+            &[("batch", batch), ("d_output", self.head.d_output())]
+        );
+        logits
+    }
+
+    /// The batch of `images`, checked against the model's input:
+    /// `[batch, in_channels, height, width]`.
+    #[cfg(any(debug_assertions, test))]
+    fn unpack_images(
+        &self,
+        images: &Tensor<4>,
+    ) -> [usize; 1] {
+        let [height, width] = self.image_size();
+        crate::contracts::unpack_shape_contract!(
+            ["batch", "in_channels", "height", "width"],
+            &images.dims(),
+            &["batch"],
+            &[
+                ("in_channels", self.in_channels()),
+                ("height", height),
+                ("width", width)
+            ]
+        )
     }
 
     /// The head's logits of the output tokens: the pool, then the head; for a
@@ -331,6 +360,20 @@ impl VisionEncoderModel {
         &self,
         tokens: Tensor<3>,
     ) -> Tensor<2> {
+        #[cfg(any(debug_assertions, test))]
+        {
+            let [gh, gw] = self.grid();
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch", "n_prefix" + "grid_h" * "grid_w", "d_model"],
+                &tokens.dims(),
+                &[
+                    ("n_prefix", self.n_prefix()),
+                    ("grid_h", gh),
+                    ("grid_w", gw),
+                    ("d_model", self.d_model())
+                ]
+            );
+        }
         if self.head.is_distilled() {
             let token = |i: usize| tokens.clone().slice(s![.., i..i + 1]).squeeze_dim::<2>(1);
             return self.head.forward_distilled(token(0), token(1));
@@ -387,8 +430,18 @@ impl VisionEncoderModel {
         &self,
         images: Tensor<4>,
     ) -> Tensor<2> {
-        self.head
-            .pre_logits(self.pool.forward(self.feature_tokens(images)))
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = self.unpack_images(&images);
+        let pooled = self
+            .head
+            .pre_logits(self.pool.forward(self.feature_tokens(images)));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "d_model"],
+            &pooled.dims(),
+            &[("batch", batch), ("d_model", self.d_model())]
+        );
+        pooled
     }
 
     /// Each layer's output as a map over the patch grid, its prefix tokens
@@ -422,10 +475,16 @@ impl VisionEncoderModel {
         &self,
         tokens: Tensor<3>,
     ) -> Tensor<4> {
-        let [batch, n, d] = tokens.dims();
         let [gh, gw] = self.grid();
+        let n_prefix = self.n_prefix();
+        let [batch, d] = crate::contracts::unpack_shape_contract!(
+            ["batch", "n_prefix" + "grid_h" * "grid_w", "d_model"],
+            &tokens.dims(),
+            &["batch", "d_model"],
+            &[("n_prefix", n_prefix), ("grid_h", gh), ("grid_w", gw)]
+        );
         tokens
-            .slice(s![.., self.n_prefix()..n])
+            .slice(s![.., n_prefix..n_prefix + gh * gw])
             .reshape([batch, gh, gw, d])
             .permute([0, 3, 1, 2])
     }

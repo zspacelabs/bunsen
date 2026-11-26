@@ -151,12 +151,26 @@ impl ConvStemPool {
         &self,
         input: Tensor<4>,
     ) -> Tensor<4> {
-        match self {
+        #[cfg(any(debug_assertions, test))]
+        let [batch, channels] = crate::contracts::unpack_shape_contract!(
+            ["batch", "channels", _, _],
+            &input.dims(),
+            &["batch", "channels"]
+        );
+        let x = match self {
             Self::Max(pool) => pool.forward(input),
             Self::Conv(block) => block.forward(input),
             Self::Avg(pool) => pool.forward(input),
             Self::MaxBlur(pool) => pool.blur.forward(pool.max.forward(input)),
-        }
+        };
+        // A pool keeps the channels.
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "channels", _, _],
+            &x.dims(),
+            &[("batch", batch), ("channels", channels)]
+        );
+        x
     }
 }
 

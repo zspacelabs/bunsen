@@ -24,6 +24,7 @@ use crate::{
         BunsenNormalizationConfig,
     },
     burner::module::ModuleInit,
+    contracts::unpack_shape_contract,
     errors::{
         BunsenError,
         BunsenResult,
@@ -140,16 +141,33 @@ impl PatchMerge {
         &self,
         x: Tensor<3>,
     ) -> Tensor<3> {
-        let [b, l, c] = x.dims();
         let [h, w] = self.grid;
-        assert_eq!(l, h * w, "a patch merge over a {h}x{w} grid: {l} tokens");
-        let x = merge_2x2(x.reshape([b, h, w, c]));
-        let [_, mh, mw, c4] = x.dims();
-        let x = x.reshape([b, mh * mw, c4]);
-        match self.norm_first {
+        // The reduction reads the four merged tokens' channels.
+        let c = self.reduction.weight.dims()[0] / 4;
+        let [b] = unpack_shape_contract!(
+            ["batch", "height" * "width", "d_input"],
+            &x.dims(),
+            &["batch"],
+            &[("height", h), ("width", w), ("d_input", c)]
+        );
+        let [mh, mw] = self.output_grid();
+        let x = merge_2x2(x.reshape([b, h, w, c])).reshape([b, mh * mw, 4 * c]);
+        let y = match self.norm_first {
             true => self.reduction.forward(self.norm.forward(x)),
             false => self.norm.forward(self.reduction.forward(x)),
-        }
+        };
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "half_h" * "half_w", "d_output"],
+            &y.dims(),
+            &[
+                ("batch", b),
+                ("half_h", mh),
+                ("half_w", mw),
+                ("d_output", self.d_output())
+            ]
+        );
+        y
     }
 }
 

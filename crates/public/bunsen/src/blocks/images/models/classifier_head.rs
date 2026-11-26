@@ -133,6 +133,15 @@ impl ClassifierHead {
         self.fc.as_ref().map_or(0, |fc| fc.weight.dims()[1])
     }
 
+    /// The width of what [`forward`](Self::forward) returns: the classes, or
+    /// the features for a headless model.
+    pub fn d_output(&self) -> usize {
+        match self.num_classes() {
+            0 => self.d_features,
+            classes => classes,
+        }
+    }
+
     /// Whether a second classifier reads a distillation token.
     pub fn is_distilled(&self) -> bool {
         self.fc_dist.is_some()
@@ -153,10 +162,24 @@ impl ClassifierHead {
         &self,
         pooled: Tensor<2>,
     ) -> Tensor<2> {
-        match &self.fc_norm {
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = crate::contracts::unpack_shape_contract!(
+            ["batch", "d_features"],
+            &pooled.dims(),
+            &["batch"],
+            &[("d_features", self.d_features)]
+        );
+        let x = match &self.fc_norm {
             Some(norm) => norm.forward(pooled),
             None => pooled,
-        }
+        };
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "d_features"],
+            &x.dims(),
+            &[("batch", batch), ("d_features", self.d_features)]
+        );
+        x
     }
 
     /// `fc`'s logits of `x`, through the dropout; `x` itself with no `fc`.
@@ -198,7 +221,21 @@ impl ClassifierHead {
             !self.is_distilled(),
             "a distilled head's logits read its two tokens: forward_distilled"
         );
-        self.classify(self.fc.as_ref(), self.pre_logits(pooled))
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = crate::contracts::unpack_shape_contract!(
+            ["batch", "d_features"],
+            &pooled.dims(),
+            &["batch"],
+            &[("d_features", self.d_features)]
+        );
+        let logits = self.classify(self.fc.as_ref(), self.pre_logits(pooled));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "d_output"],
+            &logits.dims(),
+            &[("batch", batch), ("d_output", self.d_output())]
+        );
+        logits
     }
 
     /// A distilled head's logits: the mean of the classifier over the class
@@ -224,7 +261,30 @@ impl ClassifierHead {
         let (Some(fc), Some(fc_dist)) = (&self.fc, &self.fc_dist) else {
             panic!("forward_distilled: a distilled head with classifiers");
         };
-        (self.classify(Some(fc), class) + self.classify(Some(fc_dist), dist)) * 0.5
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = {
+            let bindings = [("d_features", self.d_features)];
+            let [batch] = crate::contracts::unpack_shape_contract!(
+                ["batch", "d_features"],
+                &class.dims(),
+                &["batch"],
+                &bindings
+            );
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch", "d_features"],
+                &dist.dims(),
+                &[("batch", batch), ("d_features", self.d_features)]
+            );
+            [batch]
+        };
+        let logits = (self.classify(Some(fc), class) + self.classify(Some(fc_dist), dist)) * 0.5;
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "classes"],
+            &logits.dims(),
+            &[("batch", batch), ("classes", self.num_classes())]
+        );
+        logits
     }
 
     /// The head re-initialized for `num_classes` classes (0: headless), on
