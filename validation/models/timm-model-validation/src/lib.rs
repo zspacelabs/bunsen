@@ -113,6 +113,10 @@ pub const ROWS: &[&str] = &[
     "timm/res2net50_26w_4s.in1k",
     "timm/res2next50.in1k",
     "timm/res2net50d.in1k",
+    "timm/resnest14d.gluon_in1k",
+    "timm/resnest50d.in1k",
+    "timm/resnest50d_4s2x40d.in1k",
+    "timm/resnest50d_1s4x24d.in1k",
     "timm/deit_small_patch16_224.fb_in1k",
     "timm/deit_base_distilled_patch16_224.fb_in1k",
     "timm/deit3_small_patch16_224.fb_in1k",
@@ -336,17 +340,20 @@ pub enum RowKit {
     ResNetV2,
     /// `kits::images::classification::res2net`.
     Res2Net,
+    /// `kits::images::classification::resnest`.
+    ResNeSt,
 }
 
 impl RowKit {
     /// The kit whose factory names `row`: the vit kit's, the deit kit's, the
     /// swin v1 kit's, the swin v2 kit's, the regnet kit's, the resnetv2
-    /// kit's, the res2net kit's, else the resnet kit's.
+    /// kit's, the res2net kit's, the resnest kit's, else the resnet kit's.
     pub fn of(row: &str) -> Self {
         use bunsen::kits::images::classification::{
             deit::pretrained::default_deit_factory,
             regnet::pretrained::default_regnet_factory,
             res2net::pretrained::default_res2net_factory,
+            resnest::pretrained::default_resnest_factory,
             resnetv2::pretrained::default_resnetv2_factory,
             swin::{
                 v1::pretrained::default_swin_v1_factory,
@@ -396,6 +403,12 @@ impl RowKit {
             .is_ok()
         {
             Self::Res2Net
+        } else if default_resnest_factory()
+            .expect("the resnest factory")
+            .lookup(row)
+            .is_ok()
+        {
+            Self::ResNeSt
         } else {
             Self::ResNet
         }
@@ -412,6 +425,7 @@ pub fn resolve_row(
         deit::pretrained::default_deit_factory,
         regnet::pretrained::default_regnet_factory,
         res2net::pretrained::default_res2net_factory,
+        resnest::pretrained::default_resnest_factory,
         resnet::pretrained::default_resnet_factory,
         resnetv2::pretrained::default_resnetv2_factory,
         swin::{
@@ -453,6 +467,10 @@ pub fn resolve_row(
             .expect("the res2net factory")
             .resolve(row, cache)
             .map(|d| d.model),
+        RowKit::ResNeSt => default_resnest_factory()
+            .expect("the resnest factory")
+            .resolve(row, cache)
+            .map(|d| d.model),
     };
     resolved.unwrap_or_else(|e| panic!("resolve {row}: {e:#}"))
 }
@@ -475,6 +493,7 @@ pub fn load_row(
         deit::pretrained::default_deit_factory,
         regnet::pretrained::default_regnet_factory,
         res2net::pretrained::default_res2net_factory,
+        resnest::pretrained::default_resnest_factory,
         resnet::pretrained::default_resnet_factory,
         resnetv2::pretrained::default_resnetv2_factory,
         swin::{
@@ -543,6 +562,14 @@ pub fn load_row(
         RowKit::Res2Net => {
             let construct = default_res2net_factory()
                 .expect("the res2net factory")
+                .load_construct(row, cache, device, policy)
+                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
+            let construct = Arc::unwrap_or_clone(construct);
+            (Box::new(construct.model), construct.card)
+        }
+        RowKit::ResNeSt => {
+            let construct = default_resnest_factory()
+                .expect("the resnest factory")
                 .load_construct(row, cache, device, policy)
                 .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
             let construct = Arc::unwrap_or_clone(construct);

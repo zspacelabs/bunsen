@@ -1,0 +1,204 @@
+# The resnest kit's builds: a probe-contract source of the built-in catalog. The timm hub rows
+# are written by `cargo catalog timm-rows --kit resnest`.
+$description: "The ResNeSt checkpoints bunsen knows by name: timm's hub repos."
+timm:
+  $kind: namespace
+  $merge: update
+  # BEGIN `cargo catalog timm-rows`: generated, don't edit by hand.
+  resnest14d.gluon_in1k:
+    $kind: build
+    $description: "timm's `resnest14d`, its `gluon_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnest14d.gluon_in1k
+    $contract: resnest-classifier
+    $join:
+      - resnest
+    $hub:
+      $repo: timm/resnest14d.gluon_in1k
+      $revision: b4997ec7e30ee4b3ecfb21d2282ef477d73fc19c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnest26d.gluon_in1k:
+    $kind: build
+    $description: "timm's `resnest26d`, its `gluon_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnest26d.gluon_in1k
+    $contract: resnest-classifier
+    $join:
+      - resnest
+    $hub:
+      $repo: timm/resnest26d.gluon_in1k
+      $revision: 6a408c271bcc4b91b1c291dac18b09ca2e638554
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnest50d.in1k:
+    $kind: build
+    $description: "timm's `resnest50d`, its `in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnest50d.in1k
+    $contract: resnest-classifier
+    $join:
+      - resnest
+    $hub:
+      $repo: timm/resnest50d.in1k
+      $revision: 2239b0d822126dee3bc7a5357514de35b8f42092
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnest50d_1s4x24d.in1k:
+    $kind: build
+    $description: "timm's `resnest50d_1s4x24d`, its `in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnest50d_1s4x24d.in1k
+    $contract: resnest-classifier
+    $join:
+      - resnest
+    $hub:
+      $repo: timm/resnest50d_1s4x24d.in1k
+      $revision: bcaf737fc26a7baea451b4cdae4f2c47f8aee648
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnest50d_4s2x40d.in1k:
+    $kind: build
+    $description: "timm's `resnest50d_4s2x40d`, its `in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnest50d_4s2x40d.in1k
+    $contract: resnest-classifier
+    $join:
+      - resnest
+    $hub:
+      $repo: timm/resnest50d_4s2x40d.in1k
+      $revision: cdfec832f0f257ad4373c0b574b7110b6a2022b5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnest101e.in1k:
+    $kind: build
+    $description: "timm's `resnest101e`, its `in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnest101e.in1k
+    $contract: resnest-classifier
+    $join:
+      - resnest
+    $hub:
+      $repo: timm/resnest101e.in1k
+      $revision: 413e271a57554b667337bfc20d2805cdc4c34037
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnest200e.in1k:
+    $kind: build
+    $description: "timm's `resnest200e`, its `in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnest200e.in1k
+    $contract: resnest-classifier
+    $join:
+      - resnest
+    $hub:
+      $repo: timm/resnest200e.in1k
+      $revision: 607f5119b08d5135dc46a219923f7e7906f441d9
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  resnest269e.in1k:
+    $kind: build
+    $description: "timm's `resnest269e`, its `in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/resnest269e.in1k
+    $contract: resnest-classifier
+    $join:
+      - resnest
+    $hub:
+      $repo: timm/resnest269e.in1k
+      $revision: 0da459c4750f6bff08a293d2c5bdb8a3295a18a1
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      # END `cargo catalog timm-rows`.
+resnest:
+  $kind: namespace
+  $facet: family
+  $description: ResNeSt ImageNet classifiers.

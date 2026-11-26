@@ -696,6 +696,30 @@ crates:
         core: false
         dtypes: [f32]
         varies: Res2Net on the deep stem with average-pool shortcuts
+      timm/resnest14d.gluon_in1k:
+        size: small
+        gb: 0.04
+        core: false
+        dtypes: [f32]
+        varies: GluonCV's ResNeSt-14 - radix-2 split attention, the avd pool after the mixer
+      timm/resnest50d.in1k:
+        size: small
+        gb: 0.11
+        core: false
+        dtypes: [f32]
+        varies: ResNeSt-50 - radix-2 split attention on the deep stem
+      timm/resnest50d_4s2x40d.in1k:
+        size: small
+        gb: 0.12
+        core: false
+        dtypes: [f32]
+        varies: radix 4 in 2 groups, the avd pool before the mixer
+      timm/resnest50d_1s4x24d.in1k:
+        size: small
+        gb: 0.1
+        core: false
+        dtypes: [f32]
+        varies: radix 1, a sigmoid gate, in 4 groups, the avd pool before the mixer
       timm/deit_small_patch16_224.fb_in1k:
         size: small
         gb: 0.2
