@@ -79,6 +79,12 @@ impl PackedExperts {
         projected: Tensor<D>,
         hidden: usize,
     ) -> Tensor<D> {
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            [..., 2 * "H"],
+            &projected.dims(),
+            &[("H", hidden)]
+        );
         let gate = projected.clone().slice_dim(D - 1, 0..hidden);
         let up = projected.slice_dim(D - 1, hidden..2 * hidden);
         silu(gate) * up
@@ -202,7 +208,7 @@ fn dense_masked(
     experts: &PackedExperts,
     scope: &WideningScope,
 ) -> Tensor<2> {
-    let [n, w] = x.dims();
+    let [n, w] = unpack_shape_contract!(["N", "W"], &x.dims());
     let (e, h) = (experts.n_experts(), experts.hidden());
     // [E, N, 2H] -> [E, N, H] -> [E, N, W]
     let projected = x
@@ -233,8 +239,8 @@ fn gathered(
     experts: &PackedExperts,
     scope: &WideningScope,
 ) -> Tensor<2> {
-    let [n, w] = x.dims();
-    let k = ids.dims()[1];
+    let [n, w] = unpack_shape_contract!(["N", "W"], &x.dims());
+    let [k] = unpack_shape_contract!(["N", "k"], &ids.dims(), &["k"], &[("N", n)]);
     let h = experts.hidden();
     let flat = ids.reshape([n * k]);
     let gate_up = experts.gate_up.clone().select(0, flat.clone());
@@ -267,8 +273,8 @@ fn bucketed(
     experts: &PackedExperts,
     scope: &WideningScope,
 ) -> Tensor<2> {
-    let [n, w] = x.dims();
-    let k = ids.dims()[1];
+    let [n, w] = unpack_shape_contract!(["N", "W"], &x.dims());
+    let [k] = unpack_shape_contract!(["N", "k"], &ids.dims(), &["k"], &[("N", n)]);
     let (e, h) = (experts.n_experts(), experts.hidden());
     let device = x.device();
 

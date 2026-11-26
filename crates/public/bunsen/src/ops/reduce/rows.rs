@@ -11,6 +11,8 @@ use burn::{
     tensor::DType,
 };
 
+use crate::contracts::unpack_shape_contract;
+
 /// The width of the chunks a row is reduced by: each chunk reduces in
 /// parallel with the others, then the chunks' results reduce.
 pub const ROW_CHUNK: usize = 256;
@@ -18,7 +20,7 @@ pub const ROW_CHUNK: usize = 256;
 /// `[rows, n]` as `[rows, chunks, ROW_CHUNK]` in f32, padded with `-inf` to
 /// whole chunks.
 fn chunked(x: Tensor<2>) -> Tensor<3> {
-    let [rows, n] = x.dims();
+    let [rows, n] = unpack_shape_contract!(["rows", "n"], &x.dims());
     let x = x.cast(DType::F32);
     let chunks = n.div_ceil(ROW_CHUNK);
     let x = pad_neg_inf(x, chunks * ROW_CHUNK);
@@ -30,7 +32,7 @@ fn pad_neg_inf(
     x: Tensor<2>,
     width: usize,
 ) -> Tensor<2> {
-    let [rows, n] = x.dims();
+    let [rows, n] = unpack_shape_contract!(["rows", "n"], &x.dims());
     if width == n {
         return x;
     }
@@ -39,13 +41,20 @@ fn pad_neg_inf(
         f32::NEG_INFINITY,
         (&x.device(), DType::F32),
     );
-    Tensor::cat(vec![x, pad], 1)
+    let x = Tensor::cat(vec![x, pad], 1);
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["rows", "width"],
+        &x.dims(),
+        &[("rows", rows), ("width", width)]
+    );
+    x
 }
 
 /// Each row's argmax, `[rows, 1]`: as burn's `argmax(1)`, the first index
 /// among equal maxima.
 pub fn argmax_rows(x: Tensor<2>) -> Tensor<2, Int> {
-    let [rows, _] = x.dims();
+    let [rows] = unpack_shape_contract!(["rows", "n"], &x.dims(), &["rows"]);
     // The first max within each chunk, then the first chunk among equal
     // chunk maxima: the row's first max.
     let (maxes, within) = chunked(x).max_dim_with_indices(2); // [rows, chunks, 1]
@@ -56,7 +65,7 @@ pub fn argmax_rows(x: Tensor<2>) -> Tensor<2, Int> {
 
 /// Each row's max, `[rows, 1]`, in f32.
 pub fn max_rows(x: Tensor<2>) -> Tensor<2> {
-    let [rows, _] = x.dims();
+    let [rows] = unpack_shape_contract!(["rows", "n"], &x.dims(), &["rows"]);
     chunked(x).max_dim(2).max_dim(1).reshape([rows, 1])
 }
 
@@ -65,7 +74,7 @@ pub fn max_rows(x: Tensor<2>) -> Tensor<2> {
 /// any entry's probability as the whole row's softmax gives it, to the
 /// rounding of the sum's order (by chunks, then across them).
 pub fn softmax_normalizer_rows(x: Tensor<2>) -> (Tensor<2>, Tensor<2>) {
-    let [rows, _] = x.dims();
+    let [rows] = unpack_shape_contract!(["rows", "n"], &x.dims(), &["rows"]);
     let c = chunked(x);
     let max = c.clone().max_dim(2).max_dim(1); // [rows, 1, 1]
     let sum = (c - max.clone()).exp().sum_dim(2).sum_dim(1);
@@ -89,7 +98,7 @@ pub fn topk_rows(
     x: Tensor<2>,
     k: usize,
 ) -> (Tensor<2>, Tensor<2, Int>) {
-    let [rows, _] = x.dims();
+    let [rows] = unpack_shape_contract!(["rows", "n"], &x.dims(), &["rows"]);
     let device = x.device();
     let top = topk_rows_host(x, k);
     (
@@ -132,11 +141,16 @@ pub fn topk_rows_host(
     x: Tensor<2>,
     k: usize,
 ) -> HostTopK {
-    let [rows, n] = x.dims();
+    let [rows, n] = unpack_shape_contract!(["rows", "n"], &x.dims());
     assert!((1..=n).contains(&k), "the top {k} of {n}");
     let device = x.device();
-    let c = chunked(x); // [rows, chunks, ROW_CHUNK]
-    let [_, chunks, _] = c.dims();
+    let c = chunked(x);
+    let [chunks] = unpack_shape_contract!(
+        ["rows", "chunks", "chunk"],
+        &c.dims(),
+        &["chunks"],
+        &[("rows", rows), ("chunk", ROW_CHUNK)]
+    );
     let maxima = read_f32(c.clone().max_dim(2));
     let s = k.min(chunks);
     let mut picked: Vec<i64> = Vec::with_capacity(rows * s);

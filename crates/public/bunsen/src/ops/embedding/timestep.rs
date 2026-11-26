@@ -36,11 +36,12 @@ pub fn timestep_embedding(
     theta: f32,
     device: &Device,
 ) -> Tensor<1> {
+    // A cosine and a sine per frequency.
+    let [half] = crate::contracts::unpack_shape_contract!([2 * "half"], &[channels], &["half"]);
     assert!(
-        channels.is_multiple_of(2) && channels > 0,
+        half > 0,
         "timestep_embedding: channels ({channels}) must be even and positive"
     );
-    let half = channels / 2;
     let angles: Vec<f32> = (0..half)
         .map(|i| t * (-theta.ln() * i as f32 / half as f32).exp())
         .collect();

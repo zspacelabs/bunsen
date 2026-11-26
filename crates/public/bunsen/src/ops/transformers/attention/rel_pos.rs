@@ -38,10 +38,8 @@ pub fn rel_position_table(
     device: &Device,
 ) -> Tensor<3> {
     assert!(seq_len > 0, "rel_position_table: seq_len is zero");
-    assert!(
-        d_model.is_multiple_of(2),
-        "rel_position_table: d_model ({d_model}) is odd"
-    );
+    // A sine and a cosine per frequency.
+    let [_half] = crate::contracts::unpack_shape_contract!([2 * "half"], &[d_model], &["half"]);
     let rows = 2 * seq_len - 1;
     let mut data = Vec::with_capacity(rows * d_model);
     for r in 0..rows {
@@ -74,8 +72,12 @@ pub fn rel_position_table(
 /// # Panics
 /// If the last axis is not `2 * T - 1`.
 pub fn rel_shift(scores: Tensor<4>) -> Tensor<4> {
-    let [batch, heads, t, p] = scores.dims();
-    assert_eq!(p, 2 * t - 1, "rel_shift: positions ({p}) != 2 * {t} - 1");
+    let [batch, heads, t] = crate::contracts::unpack_shape_contract!(
+        ["batch", "heads", "T", 2 * "T" - 1],
+        &scores.dims(),
+        &["batch", "heads", "T"]
+    );
+    let p = 2 * t - 1;
     // Pad one zero column on the left, read the [t, p + 1] block as
     // [p + 1, t] rows, drop the first row, and read the rest back as
     // [t, p]: each row has slid one place further left than the one above.
@@ -86,11 +88,18 @@ pub fn rel_shift(scores: Tensor<4>) -> Tensor<4> {
         ],
         3,
     );
-    padded
+    let shifted = padded
         .reshape([batch, heads, p + 1, t])
         .slice_dim(2, 1..)
         .reshape([batch, heads, t, p])
-        .slice_dim(3, 0..t)
+        .slice_dim(3, 0..t);
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["batch", "heads", "T", "T"],
+        &shifted.dims(),
+        &[("batch", batch), ("heads", heads), ("T", t)]
+    );
+    shifted
 }
 
 #[cfg(test)]

@@ -368,7 +368,10 @@ pub fn drop_block_2d(
         return tensor;
     }
 
-    let [b, c, h, w] = tensor.shape().dims();
+    let [b, c, h, w] = crate::contracts::unpack_shape_contract!(
+        ["batch", "channels", "height", "width"],
+        &tensor.dims()
+    );
     let kernel = options.clipped_kernel([h, w]);
 
     let t_shape = tensor.shape();
@@ -393,7 +396,8 @@ pub fn drop_block_2d(
         let noise: Tensor<4> = noise_cfg.noise(noise_shape, device).cast(dtype);
         let noise = noise * drop_filter;
 
-        tensor * keep_filter.expand(t_shape.clone()) + noise.expand(t_shape)
+        let y = tensor * keep_filter.expand(t_shape.clone()) + noise.expand(t_shape);
+        drop_block_2d_output(y, [b, c, h, w])
     } else {
         // Rescale to normalize to 1.0. The scaled mask is built widened to
         // f32 and narrowed once: when every block drops, the scale
@@ -405,8 +409,25 @@ pub fn drop_block_2d(
             keep_filter * norm_scale.unsqueeze::<4>()
         });
 
-        tensor * scaled_keep.expand(t_shape)
+        drop_block_2d_output(tensor * scaled_keep.expand(t_shape), [b, c, h, w])
     }
+}
+
+/// `y`, checked to be [`drop_block_2d`]'s input shape, `[batch, channels,
+/// height, width]`.
+fn drop_block_2d_output(
+    y: Tensor<4>,
+    [b, c, h, w]: [usize; 4],
+) -> Tensor<4> {
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["batch", "channels", "height", "width"],
+        &y.dims(),
+        &[("batch", b), ("channels", c), ("height", h), ("width", w)]
+    );
+    #[cfg(not(any(debug_assertions, test)))]
+    let _ = [b, c, h, w];
+    y
 }
 
 #[cfg(test)]

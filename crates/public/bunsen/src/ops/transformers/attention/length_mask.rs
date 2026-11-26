@@ -24,9 +24,16 @@ pub fn length_mask(
 ) -> Tensor<2, Bool> {
     let lens: Vec<i64> = lengths.iter().map(|&l| l as i64).collect();
     let lens = Tensor::<1, Int>::from_data(TensorData::new(lens, [lengths.len()]), device);
-    Tensor::<1, Int>::arange(0..time as i64, device)
+    let mask = Tensor::<1, Int>::arange(0..time as i64, device)
         .unsqueeze_dim::<2>(0)
-        .lower(lens.unsqueeze_dim::<2>(1))
+        .lower(lens.unsqueeze_dim::<2>(1));
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["batch", "time"],
+        &mask.dims(),
+        &[("batch", lengths.len()), ("time", time)]
+    );
+    mask
 }
 
 /// `[n, n]`: true where positions `i` and `j` fall in different
@@ -45,10 +52,13 @@ pub fn window_block_mask(
 ) -> Tensor<2, Bool> {
     assert!(window > 0, "window_block_mask: window is 0");
     let block = Tensor::<1, Int>::arange(0..n as i64, device).div_scalar(window as i64);
-    block
+    let mask = block
         .clone()
         .unsqueeze_dim::<2>(1)
-        .not_equal(block.unsqueeze_dim::<2>(0))
+        .not_equal(block.unsqueeze_dim::<2>(0));
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(["n", "n"], &mask.dims(), &[("n", n)]);
+    mask
 }
 
 #[cfg(test)]

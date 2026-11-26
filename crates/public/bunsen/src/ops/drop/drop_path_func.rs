@@ -89,8 +89,10 @@ fn _drop_path_sample<const D: usize>(
 
     let keep_prob = 1.0 - drop_prob;
 
+    // One draw per item of the batch, broadcast over the rest.
+    let [batch] = crate::contracts::unpack_shape_contract!(["batch", ...], &x.dims(), &["batch"]);
     let mut shape = [1; D];
-    shape[0] = x.dims()[0];
+    shape[0] = batch;
 
     let random_tensor = sample(shape, keep_prob, &x.device());
 

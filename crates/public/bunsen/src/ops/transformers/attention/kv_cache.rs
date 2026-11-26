@@ -632,25 +632,33 @@ impl KVCache {
         k: Tensor<4>,
         v: Tensor<4>,
     ) {
-        let [rows, heads, _, head_dim] = k.dims();
-        assert_eq!(
-            k.dims(),
-            v.dims(),
-            "cross-attention keys and values differ in shape"
+        let heads = [("heads", self.num_heads), ("head_dim", self.head_dim)];
+        let [rows, cross_len] = unpack_shape_contract!(
+            ["rows", "heads", "cross_len", "head_dim"],
+            &k.dims(),
+            &["rows", "cross_len"],
+            &heads
+        );
+        crate::contracts::assert_shape_contract!(
+            ["rows", "heads", "cross_len", "head_dim"],
+            &v.dims(),
+            &[
+                ("rows", rows),
+                ("heads", self.num_heads),
+                ("cross_len", cross_len),
+                ("head_dim", self.head_dim)
+            ]
         );
         self.expect_device("cross-attention keys", &k);
         self.expect_device("cross-attention values", &v);
-        assert_eq!(
-            (heads, head_dim),
-            (self.num_heads, self.head_dim),
-            "cross-attention heads and head width are the cache's"
+        assert!(rows > 0, "cross-attention keys of no rows");
+        // Each cross-attention row serves `group` decode rows.
+        let [group] = unpack_shape_contract!(
+            ["group" * "rows"],
+            &[self.batch_size],
+            &["group"],
+            &[("rows", rows)]
         );
-        assert!(
-            rows > 0 && self.batch_size.is_multiple_of(rows),
-            "the cache's batch ({}) is not a whole multiple of the cross-attention rows ({rows})",
-            self.batch_size
-        );
-        let group = self.batch_size / rows;
         let others_set = self
             .cross_keys
             .iter()
@@ -831,15 +839,49 @@ impl KVCache {
         layer: usize,
     ) -> (Tensor<4>, Tensor<4>) {
         let t = self.pos;
-        if self.layer_windows[layer].is_some() {
+        let (k, v, len) = if self.layer_windows[layer].is_some() {
             let held = t - self.window_start[layer];
             let retained = |slot: &Option<Tensor<4>>| {
                 slot.clone()
                     .expect("an allocated cache holds every layer")
                     .slice(s![.., .., ..held])
             };
-            return (retained(&self.keys[layer]), retained(&self.values[layer]));
+            (
+                retained(&self.keys[layer]),
+                retained(&self.values[layer]),
+                held,
+            )
+        } else {
+            let (k, v) = self.full_history(layer, t);
+            (k, v, t)
+        };
+        // A windowed layer holds its window's tail; any other, every
+        // position.
+        #[cfg(any(debug_assertions, test))]
+        for x in [&k, &v] {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["B", "H_kv", "T", "D"],
+                &x.dims(),
+                &[
+                    ("B", self.batch_size),
+                    ("H_kv", self.num_heads),
+                    ("T", len),
+                    ("D", self.head_dim)
+                ]
+            );
         }
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = len;
+        (k, v)
+    }
+
+    /// An unwindowed `layer`'s `(k, v)` through position `t`, from whichever
+    /// storage holds it.
+    fn full_history(
+        &self,
+        layer: usize,
+        t: usize,
+    ) -> (Tensor<4>, Tensor<4>) {
         match &self.cache {
             Some(cache) => (
                 cache
@@ -938,7 +980,8 @@ impl KVCache {
         if let Some(window) = self.layer_windows[layer] {
             return self.write_window(layer, window, t0, k, v);
         }
-        let t1 = t0 + k.dims()[2];
+        let [t_add] = unpack_shape_contract!(["B", "H_kv", "T_add", "D"], &k.dims(), &["T_add"]);
+        let t1 = t0 + t_add;
         match self.storage {
             KVCacheStorage::MultiLayer => self.write_multi_layer(layer, t0, t1, k, v),
             KVCacheStorage::PerLayer => {
@@ -980,7 +1023,7 @@ impl KVCache {
         let held = t0 - start;
         let k = Self::concat(self.keys[layer].take(), held, k);
         let v = Self::concat(self.values[layer].take(), held, v);
-        let len = k.dims()[2];
+        let [len] = unpack_shape_contract!(["B", "H_kv", "T", "D"], &k.dims(), &["T"]);
         let keep = len.min(window - 1);
         self.window_start[layer] = start + (len - keep);
         let tail = |x: &Tensor<4>| x.clone().slice(s![.., .., len - keep..]);
@@ -1002,17 +1045,32 @@ impl KVCache {
         t1: usize,
         x: Tensor<4>,
     ) -> (Tensor<4>, Tensor<4>) {
-        let [batch, heads, _, head_dim] = x.dims();
+        let [batch, heads, head_dim] = unpack_shape_contract!(
+            ["B", "H_kv", "T_add", "D"],
+            &x.dims(),
+            &["B", "H_kv", "D"],
+            &[("T_add", t1 - t0)]
+        );
         let allocate = |len: usize| {
             Tensor::<4>::empty([batch, heads, len, head_dim], &x.device()).cast(x.dtype())
         };
         let buffer = match buffer {
             None if t1 <= self.seq_len => allocate(self.seq_len),
             None => allocate(self.allocation_size(t1)),
-            Some(buffer) if buffer.dims()[2] >= t1 => buffer,
             Some(buffer) => {
-                let held = buffer.dims()[2];
-                allocate(self.allocation_size(t1)).slice_assign(s![.., .., ..held], buffer)
+                // The layer's buffer is the step's rows, heads and width.
+                let [held] = unpack_shape_contract!(
+                    ["B", "H_kv", "held", "D"],
+                    &buffer.dims(),
+                    &["held"],
+                    &[("B", batch), ("H_kv", heads), ("D", head_dim)]
+                );
+                match held >= t1 {
+                    true => buffer,
+                    false => {
+                        allocate(self.allocation_size(t1)).slice_assign(s![.., .., ..held], buffer)
+                    }
+                }
             }
         };
         let buffer = buffer.slice_assign(s![.., .., t0..t1], x);
@@ -1029,7 +1087,18 @@ impl KVCache {
     ) -> Tensor<4> {
         match history {
             Some(history) if t0 > 0 => {
-                let history = if history.dims()[2] > t0 {
+                let [batch, heads, head_dim] = unpack_shape_contract!(
+                    ["B", "H_kv", "T_add", "D"],
+                    &x.dims(),
+                    &["B", "H_kv", "D"]
+                );
+                let [held] = unpack_shape_contract!(
+                    ["B", "H_kv", "held", "D"],
+                    &history.dims(),
+                    &["held"],
+                    &[("B", batch), ("H_kv", heads), ("D", head_dim)]
+                );
+                let history = if held > t0 {
                     history.slice(s![.., .., ..t0])
                 } else {
                     history
@@ -1061,7 +1130,17 @@ impl KVCache {
         };
 
         // Grow the cache if needed.
-        let cached_size = cache.dims()[4];
+        let [cached_size] = unpack_shape_contract!(
+            ["layers", 2, "B", "H_kv", "T", "D"],
+            &cache.dims(),
+            &["T"],
+            &[
+                ("layers", self.num_layers),
+                ("B", self.batch_size),
+                ("H_kv", self.num_heads),
+                ("D", self.head_dim)
+            ]
+        );
         if t1 > cached_size {
             let needed_t = self.allocation_size(t1);
 
@@ -1654,7 +1733,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "not a whole multiple")]
+    #[should_panic(expected = "5 !~ (group*rows) :: No integer solution")]
     fn test_cross_kv_rows_must_divide_the_batch() {
         let device = cpu_device();
         let mut cache = KVCacheConfig::new(5, 2, 4, 4, 1).init(&device);
