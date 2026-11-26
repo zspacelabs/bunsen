@@ -526,6 +526,24 @@ mod timm {
 
     #[test]
     #[serial_test::serial]
+    fn res2net50_26w_4s_in1k() {
+        check_row("timm/res2net50_26w_4s.in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn res2next50_in1k() {
+        check_row("timm/res2next50.in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn res2net50d_in1k() {
+        check_row("timm/res2net50d.in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn deit_small_patch16_224_fb_in1k() {
         check_row("timm/deit_small_patch16_224.fb_in1k");
     }

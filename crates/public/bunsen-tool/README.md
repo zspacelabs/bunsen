@@ -895,6 +895,38 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 * timm/resnetv2_152x4_bit.goog_in21k_ft_in1k: [3.75 GB]
   timm's `resnetv2_152x4_bit`, its `goog_in21k_ft_in1k` weights.
 
+# contract: res2net-classifier
+# A Res2Net image classifier: a timm hub repo's checkpoint (safetensors)
+# and `config.json`.
+# publisher: timm - pytorch-image-models (timm), Ross Wightman's.
+
+* timm/res2net50_14w_8s.in1k: [101.3 MB]
+  timm's `res2net50_14w_8s`, its `in1k` weights.
+
+* timm/res2net50_26w_4s.in1k: [103.8 MB]
+  timm's `res2net50_26w_4s`, its `in1k` weights.
+
+* timm/res2net50_26w_6s.in1k: [149.3 MB]
+  timm's `res2net50_26w_6s`, its `in1k` weights.
+
+* timm/res2net50_26w_8s.in1k: [194.8 MB]
+  timm's `res2net50_26w_8s`, its `in1k` weights.
+
+* timm/res2net50_48w_2s.in1k: [102.2 MB]
+  timm's `res2net50_48w_2s`, its `in1k` weights.
+
+* timm/res2net50d.in1k: [103.9 MB]
+  timm's `res2net50d`, its `in1k` weights.
+
+* timm/res2next50.in1k: [99.7 MB]
+  timm's `res2next50`, its `in1k` weights.
+
+* timm/res2net101_26w_4s.in1k: [182.2 MB]
+  timm's `res2net101_26w_4s`, its `in1k` weights.
+
+* timm/res2net101d.in1k: [182.2 MB]
+  timm's `res2net101d`, its `in1k` weights.
+
 # contract: regnet-classifier
 # A RegNet image classifier, or headless trunk: a timm hub repo's
 # checkpoint (safetensors) and `config.json`.
