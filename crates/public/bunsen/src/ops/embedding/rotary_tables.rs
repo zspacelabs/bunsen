@@ -85,7 +85,15 @@ pub fn inverse_frequency_table(
         .step_by(2)
         .map(|d| -(d as f32) / head_dim as f32)
         .collect();
-    f32_tensor(vec![base as f32], device).powf(f32_tensor(exponents, device))
+    let table = f32_tensor(vec![base as f32], device).powf(f32_tensor(exponents, device));
+    // One frequency per pair of head dimensions.
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["half"],
+        &table.dims(),
+        &[("half", head_dim.div_ceil(2))]
+    );
+    table
 }
 
 /// Computes the positionally shifted frequency table.
@@ -147,8 +155,19 @@ pub fn frequency_table_range(
     positions: core::ops::Range<usize>,
     inv_freq: Tensor<1>,
 ) -> Tensor<2> {
+    let [half] = crate::contracts::unpack_shape_contract!(["half"], &inv_freq.dims());
+    let len = positions.len();
     let t = f32_tensor(positions.map(|p| p as f32).collect(), &inv_freq.device());
-    linalg::outer::<1, 2, _>(t, inv_freq)
+    let table = linalg::outer::<1, 2, _>(t, inv_freq);
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["positions", "half"],
+        &table.dims(),
+        &[("positions", len), ("half", half)]
+    );
+    #[cfg(not(any(debug_assertions, test)))]
+    let _ = (len, half);
+    table
 }
 
 #[cfg(test)]

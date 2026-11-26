@@ -259,6 +259,23 @@ pub fn sdpa_bias(
     dtype: DType,
     device: &Device,
 ) -> Tensor<2> {
+    #[cfg(any(debug_assertions, test))]
+    {
+        if let Some(bias) = &bias {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["l", "s"],
+                &bias.dims(),
+                &[("l", l), ("s", s)]
+            );
+        }
+        if let Some(mask) = &mask {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["l", "s"],
+                &mask.dims(),
+                &[("l", l), ("s", s)]
+            );
+        }
+    }
     let mut attn_bias = Tensor::<2>::zeros([l, s], device).cast(dtype);
     if causal {
         attn_bias = attn_bias.mask_fill(

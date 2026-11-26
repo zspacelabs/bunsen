@@ -17,7 +17,15 @@ pub fn causal_mask(
     device: &Device,
 ) -> Tensor<3, Bool> {
     let total = n_past + seq_len;
-    Tensor::<2, Bool>::tril_mask([seq_len, total], n_past as i64, device).unsqueeze::<3>()
+    let mask =
+        Tensor::<2, Bool>::tril_mask([seq_len, total], n_past as i64, device).unsqueeze::<3>();
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        [1, "seq_len", "n_past" + "seq_len"],
+        &mask.dims(),
+        &[("seq_len", seq_len), ("n_past", n_past)]
+    );
+    mask
 }
 
 /// `[t_q, t_kv]`: true where key `j` is visible to query `i`, for queries
@@ -43,10 +51,17 @@ pub fn causal_window_visible(
         Tensor::<1, Int>::arange((t_kv - t_q) as i64..t_kv as i64, device).unsqueeze_dim::<2>(1);
     let cols = Tensor::<1, Int>::arange(0..t_kv as i64, device).unsqueeze_dim::<2>(0);
     let causal = cols.clone().lower_equal(rows.clone());
-    match window {
+    let visible = match window {
         None => causal,
         Some(w) => causal.bool_and(cols.greater(rows.sub_scalar(w as i64))),
-    }
+    };
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["t_q", "t_kv"],
+        &visible.dims(),
+        &[("t_q", t_q), ("t_kv", t_kv)]
+    );
+    visible
 }
 
 /// `[t, t]`: true where key `j` is visible to query `i` under a two-sided
@@ -68,7 +83,10 @@ pub fn two_sided_window_visible(
     assert!(window != 0, "a sliding window of 0 positions");
     let rows = Tensor::<1, Int>::arange(0..t as i64, device).unsqueeze_dim::<2>(1);
     let cols = Tensor::<1, Int>::arange(0..t as i64, device).unsqueeze_dim::<2>(0);
-    cols.sub(rows).abs().lower_elem(window as i64)
+    let visible = cols.sub(rows).abs().lower_elem(window as i64);
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(["t", "t"], &visible.dims(), &[("t", t)]);
+    visible
 }
 
 #[cfg(test)]

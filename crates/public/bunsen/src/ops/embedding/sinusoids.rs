@@ -32,11 +32,12 @@ pub fn sinusoid_table(
     max_timescale: f32,
     device: &Device,
 ) -> Tensor<2> {
+    // A sine and a cosine per frequency.
+    let [half] = crate::contracts::unpack_shape_contract!([2 * "half"], &[channels], &["half"]);
     assert!(
-        channels.is_multiple_of(2) && channels >= 4,
+        half >= 2,
         "sinusoid_table: channels ({channels}) must be even and at least 4"
     );
-    let half = channels / 2;
     let increment = max_timescale.ln() / (half - 1) as f32;
     let inv: Vec<f32> = (0..half).map(|i| (-increment * i as f32).exp()).collect();
     let mut data = Vec::with_capacity(length * channels);

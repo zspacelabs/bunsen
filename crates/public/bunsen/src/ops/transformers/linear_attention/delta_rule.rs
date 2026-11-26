@@ -145,8 +145,12 @@ impl GatedDeltaRule {
             &["Dv"],
             &[("B", b), ("T", t), ("H", h)]
         );
-        for (name, x) in [("g", &g), ("beta", &beta)] {
-            assert_eq!(x.dims(), [b, t, h], "the rule's `{name}` is [B, T, H]");
+        for x in [&g, &beta] {
+            crate::contracts::assert_shape_contract!(
+                ["B", "T", "H"],
+                &x.dims(),
+                &[("B", b), ("T", t), ("H", h)]
+            );
         }
         let scope = Widening::F32.scope(q.dtype());
         let to = |x: Tensor<4>| scope.widen(x).swap_dims(1, 2);
@@ -205,7 +209,29 @@ impl GatedDeltaRule {
             outputs.push(q_t.matmul(s.clone()));
         }
         let out = p.scope.narrow(Tensor::cat(outputs, 2).swap_dims(1, 2));
+        #[cfg(any(debug_assertions, test))]
+        Self::assert_outputs(dims, &out, &s);
         (out, s)
+    }
+
+    /// The rule's outputs, `[B, T, H, Dv]`, and its state after them,
+    /// `[B, H, Dk, Dv]`.
+    #[cfg(any(debug_assertions, test))]
+    fn assert_outputs(
+        [b, t, h, d_k, d_v]: [usize; 5],
+        out: &Tensor<4>,
+        state: &Tensor<4>,
+    ) {
+        assert_shape_contract_periodically!(
+            ["B", "T", "H", "Dv"],
+            &out.dims(),
+            &[("B", b), ("T", t), ("H", h), ("Dv", d_v)]
+        );
+        assert_shape_contract_periodically!(
+            ["B", "H", "Dk", "Dv"],
+            &state.dims(),
+            &[("B", b), ("H", h), ("Dk", d_k), ("Dv", d_v)]
+        );
     }
 
     /// The rule, [`chunk_size`](Self::chunk_size) positions at a time, from
@@ -241,14 +267,18 @@ impl GatedDeltaRule {
         // Padded to whole chunks with zeros, which neither write nor decay;
         // then `[B, H, n, C, ·]`.
         let chunks4 = |x: Tensor<4>| {
+            let [d] = unpack_shape_contract!(
+                ["B", "H", "T", "D"],
+                &x.dims(),
+                &["D"],
+                &[("B", b), ("H", h), ("T", t)]
+            );
             let x = if pad > 0 {
-                let [_, _, _, d] = x.dims();
                 let zeros = Tensor::zeros([b, h, pad, d], (&device, x.dtype()));
                 Tensor::cat(vec![x, zeros], 2)
             } else {
                 x
             };
-            let [_, _, _, d] = x.dims();
             x.reshape([b, h, n, c, d])
         };
         let chunks3 = |x: Tensor<3>| {
@@ -306,6 +336,8 @@ impl GatedDeltaRule {
                 .slice(s![.., .., ..t, ..])
                 .swap_dims(1, 2),
         );
+        #[cfg(any(debug_assertions, test))]
+        Self::assert_outputs(dims, &out, &s);
         (out, s)
     }
 }
@@ -338,6 +370,11 @@ fn unit_lower_inverse(
     system: Tensor<5>,
     c: usize,
 ) -> Tensor<5> {
+    #[cfg(any(debug_assertions, test))]
+    let shape = {
+        assert_shape_contract_periodically!([..., "C", "C"], &system.dims(), &[("C", c)]);
+        system.dims()
+    };
     let device = system.device();
     let dtype = system.dtype();
     let mut a = system.tril(-1).neg();
@@ -347,7 +384,10 @@ fn unit_lower_inverse(
         let next = row.clone() + (row.swap_dims(3, 4) * sub).sum_dim(3);
         a = a.slice_assign(s![.., .., .., i..=i, ..i], next);
     }
-    a + Tensor::<2>::eye(c, &device).cast(dtype).unsqueeze::<5>()
+    let inverse = a + Tensor::<2>::eye(c, &device).cast(dtype).unsqueeze::<5>();
+    #[cfg(any(debug_assertions, test))]
+    assert_eq!(inverse.dims(), shape, "the inverse is the system's shape");
+    inverse
 }
 
 #[cfg(test)]

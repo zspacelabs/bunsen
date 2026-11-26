@@ -43,7 +43,12 @@ pub fn split_heads(
     mha: &MultiHeadAttention,
     x: Tensor<3>,
 ) -> Tensor<4> {
-    let [batch, seq, _] = x.dims();
+    let [batch, seq] = crate::contracts::unpack_shape_contract!(
+        ["batch", "seq", "heads" * "d_k"],
+        &x.dims(),
+        &["batch", "seq"],
+        &[("heads", mha.n_heads), ("d_k", mha.d_k)]
+    );
     x.reshape([batch, seq, mha.n_heads, mha.d_k])
         .swap_dims(1, 2)
 }
@@ -154,14 +159,50 @@ pub fn attend_q_kv_mask(
     v: Tensor<4>,
     mask: Option<Tensor<3, Bool>>,
 ) -> Tensor<3> {
-    let [batch, _, seq_new, _] = q.dims();
+    let heads = [("heads", mha.n_heads), ("d_k", mha.d_k)];
+    let [batch, seq_new] = crate::contracts::unpack_shape_contract!(
+        ["batch", "heads", "seq_new", "d_k"],
+        &q.dims(),
+        &["batch", "seq_new"],
+        &heads
+    );
+    let [seq_total] = crate::contracts::unpack_shape_contract!(
+        ["batch", "heads", "seq_total", "d_k"],
+        &k.dims(),
+        &["seq_total"],
+        &[("batch", batch), ("heads", mha.n_heads), ("d_k", mha.d_k)]
+    );
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["batch", "heads", "seq_total", "d_k"],
+        &v.dims(),
+        &[
+            ("batch", batch),
+            ("heads", mha.n_heads),
+            ("seq_total", seq_total),
+            ("d_k", mha.d_k)
+        ]
+    );
 
     let scores = q.matmul(k.transpose()).div_scalar((mha.d_k as f32).sqrt());
 
     let scores = match mask {
         Some(mask) => {
-            let [mask_batch, seq_q, seq_k] = mask.dims();
-            scores.mask_fill(mask.reshape([mask_batch, 1, seq_q, seq_k]), mha.min_float)
+            // A mask of one batch row broadcasts over the batch.
+            let [mask_batch] = crate::contracts::unpack_shape_contract!(
+                ["mask_batch", "seq_new", "seq_total"],
+                &mask.dims(),
+                &["mask_batch"],
+                &[("seq_new", seq_new), ("seq_total", seq_total)]
+            );
+            assert!(
+                mask_batch == 1 || mask_batch == batch,
+                "a mask of batch {mask_batch} over a batch of {batch}"
+            );
+            scores.mask_fill(
+                mask.reshape([mask_batch, 1, seq_new, seq_total]),
+                mha.min_float,
+            )
         }
         None => scores,
     };
