@@ -26,6 +26,9 @@
 //!   square kernel. [`get_same_padding`] and [`pad_same`] give TensorFlow-style
 //!   "SAME" padding, which may be asymmetric and is applied to the input rather
 //!   than configured on the layer.
+//! - **Conv variants.** [`conv2d_variant_forward`] runs a [`Conv2d`] as timm's
+//!   variants do: SAME-padded (`Conv2dSame`), weight-standardized
+//!   ([`weight_standardized_conv2d`], `StdConv2d`), or both.
 //! - **Initialization.** [`CONV_INTO_RELU_INITIALIZER`] for a conv layer
 //!   feeding a `ReLU`.
 //! - **Functional convolution.** [`convolve_func_2d`] unfolds every window of a
@@ -47,6 +50,7 @@
 mod causal_stream;
 mod conv_func_2d;
 mod conv_shape;
+mod conv_variants;
 mod midpoint_filter;
 mod same_padding;
 mod weight_std;
@@ -54,6 +58,7 @@ mod weight_std;
 pub use causal_stream::*;
 pub use conv_func_2d::*;
 pub use conv_shape::*;
+pub use conv_variants::*;
 pub use midpoint_filter::*;
 pub use same_padding::*;
 pub use weight_std::*;

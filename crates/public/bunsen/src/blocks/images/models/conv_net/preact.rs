@@ -3,9 +3,12 @@
 use burn::{
     config::Config,
     module::Module,
-    nn::conv::{
-        Conv2d,
-        Conv2dConfig,
+    nn::{
+        PaddingConfig2d,
+        conv::{
+            Conv2d,
+            Conv2dConfig,
+        },
     },
     prelude::Tensor,
     tensor::Device,
@@ -23,7 +26,10 @@ use crate::{
         },
     },
     burner::module::ModuleInit,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// A norm and an activation over a map, no conv: the config of a
@@ -115,6 +121,11 @@ pub struct PreActConvConfig {
     /// none when `None`.
     #[config(default = "None")]
     pub weight_std: Option<f64>,
+
+    /// Whether the conv's input is SAME-padded from its own size first, the
+    /// conv then unpadded (`Valid`; timm's `Conv2dSame`).
+    #[config(default = false)]
+    pub same_pad: bool,
 }
 
 impl PreActConvConfig {
@@ -139,11 +150,19 @@ impl ModuleInit<PreActConv> for PreActConvConfig {
     ///
     /// # Errors
     ///
-    /// As the norm's `try_init`.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a SAME-padded
+    /// conv with padding of its own; as the norm's `try_init`.
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<PreActConv> {
+        if self.same_pad && !matches!(self.conv.padding, PaddingConfig2d::Valid) {
+            return Err(BunsenError::illegal(format!(
+                "PreActConvConfig: a SAME-padded conv pads its input, so its own padding is \
+                 Valid, not {:?}",
+                self.conv.padding
+            )));
+        }
         Ok(PreActConv {
             norm: self
                 .norm
@@ -153,6 +172,7 @@ impl ModuleInit<PreActConv> for PreActConvConfig {
             act: self.act.as_ref().map(|a| a.init(device)),
             conv: self.conv.init(device),
             weight_std: self.weight_std,
+            same_pad: self.same_pad,
         })
     }
 }
@@ -172,6 +192,10 @@ pub struct PreActConv {
     /// The conv's weight standardization `eps`, if any.
     #[module(skip)]
     pub weight_std: Option<f64>,
+
+    /// Whether the conv's input is SAME-padded first.
+    #[module(skip)]
+    pub same_pad: bool,
 }
 
 impl PreActConv {
@@ -223,10 +247,8 @@ impl PreActConv {
             Some(act) => act.forward(x),
             None => x,
         };
-        let x = match self.weight_std {
-            Some(eps) => crate::ops::conv::weight_standardized_conv2d(&self.conv, x, eps),
-            None => self.conv.forward(x),
-        };
+        let x =
+            crate::ops::conv::conv2d_variant_forward(&self.conv, x, self.weight_std, self.same_pad);
         let x = f(x);
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(

@@ -223,11 +223,16 @@ impl ResNetContractConfig {
     ///
     /// # Errors
     ///
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when `channels`
-    /// doesn't give one width per stage;
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for no stages, or
+    /// when `channels` doesn't give one width per stage;
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
     /// replaced stem pool with anti-aliasing.
     pub fn try_to_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
+        if self.layers.is_empty() {
+            return Err(BunsenError::illegal(
+                "ResNetContractConfig: a ResNet has at least one stage",
+            ));
+        }
         if self.channels.len() != self.layers.len() {
             return Err(BunsenError::illegal(format!(
                 "ResNetContractConfig: {} channels for {} stages; one width per stage",
@@ -449,7 +454,7 @@ mod tests {
             .with_channels(vec![])
             .try_init(&device);
         illegal()
-            .message_contains("ConvNetStructureConfig.stages")
+            .message_contains("a ResNet has at least one stage")
             .assert_err(&none);
         let empty: BunsenResult<ConvNetModel> = ResNetContractConfig::new(vec![1, 0], 7)
             .with_channels(vec![8, 16])

@@ -38,6 +38,7 @@ use crate::{
                     ConvStageMeta,
                     ConvStem,
                     ConvStemConfig,
+                    ConvStemPoolConfig,
                     GlobalPool2d,
                     GlobalPool2dConfig,
                     NormAct,
@@ -178,7 +179,10 @@ impl ConvNetMeta for ConvNetStructureConfig {
     fn d_features(&self) -> usize {
         match &self.final_conv {
             Some(ConvFinalConfig::Conv(block)) => block.out_channels(),
-            _ => self.stages.last().map_or(0, ConvChainMeta::out_channels),
+            _ => self
+                .stages
+                .last()
+                .map_or_else(|| self.stem.out_channels(), ConvChainMeta::out_channels),
         }
     }
 
@@ -188,9 +192,10 @@ impl ConvNetMeta for ConvNetStructureConfig {
 }
 
 impl ConvNetStructureConfig {
-    /// Checks the tree: a valid stem, stages that are not empty, each valid,
-    /// the stem chaining into the first stage, each stage into the next, and
-    /// the pooled features into a head that is not distilled.
+    /// Checks the tree: a valid stem, each stage valid (there may be none: a
+    /// stem alone, the hybrid `ViT`'s smallest backbone), the stem chaining
+    /// into the first stage, each stage into the next, and the pooled
+    /// features into a head that is not distilled.
     ///
     /// # Errors
     ///
@@ -200,9 +205,6 @@ impl ConvNetStructureConfig {
     pub fn try_validate(&self) -> BunsenResult<()> {
         const OWNER: &str = "ConvNetStructureConfig";
         self.stem.try_validate().context("the stem")?;
-        if self.stages.is_empty() {
-            return Err(ConstraintError::zero_or_empty(OWNER, "stages").into());
-        }
         for (idx, stage) in self.stages.iter().enumerate() {
             stage
                 .try_validate()
@@ -220,7 +222,10 @@ impl ConvNetStructureConfig {
             ),
         )?;
         if let Some(ConvFinalConfig::Conv(block)) = &self.final_conv {
-            let last = self.stages.last().map_or(0, ConvChainMeta::out_channels);
+            let last = self
+                .stages
+                .last()
+                .map_or_else(|| self.stem.out_channels(), ConvChainMeta::out_channels);
             if block.in_channels() != last {
                 return Err(ConstraintError::new(
                     OWNER,
@@ -260,6 +265,38 @@ impl ConvNetStructureConfig {
             ));
         }
         Ok(())
+    }
+
+    /// The last stage's map size for `[height, width]` images: each of the
+    /// stem's convs' own [output
+    /// resolution](ConvBlock2dMeta::try_output_resolution), then each side
+    /// `ceil(side / stride)` through the stem's pool and the stages, as
+    /// [`ConvChainMeta::stride`] states it.
+    ///
+    /// # Errors
+    ///
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for images a stem
+    /// conv's kernel doesn't fit.
+    pub fn try_feature_size(
+        &self,
+        image_size: [usize; 2],
+    ) -> BunsenResult<[usize; 2]> {
+        let size = self
+            .stem
+            .convs
+            .iter()
+            .try_fold(image_size, |size, conv| conv.try_output_resolution(size))?;
+        let stride = self
+            .stem
+            .pool
+            .as_ref()
+            .map_or(1, ConvStemPoolConfig::stride)
+            * self
+                .stages
+                .iter()
+                .map(ConvChainMeta::stride)
+                .product::<usize>();
+        Ok(size.map(|side| side.div_ceil(stride)))
     }
 }
 
@@ -323,7 +360,10 @@ impl ModuleInit<ConvNetModel> for ConvNetStructureConfig {
                     Ok(match f {
                         ConvFinalConfig::Act(act) => ConvFinal::Act(act.init(device)),
                         ConvFinalConfig::NormAct(norm) => ConvFinal::NormAct(norm.try_init(
-                            self.stages.last().map_or(0, ConvChainMeta::out_channels),
+                            self.stages.last().map_or_else(
+                                || self.stem.out_channels(),
+                                ConvChainMeta::out_channels,
+                            ),
                             device,
                         )?),
                         ConvFinalConfig::Conv(block) => ConvFinal::Conv(block.try_init(device)?),
@@ -378,7 +418,10 @@ impl ConvNetMeta for ConvNetModel {
     fn d_features(&self) -> usize {
         match &self.final_conv {
             Some(ConvFinal::Conv(block)) => block.out_channels(),
-            _ => self.stages.last().map_or(0, ConvChainMeta::out_channels),
+            _ => self
+                .stages
+                .last()
+                .map_or_else(|| self.stem.out_channels(), ConvChainMeta::out_channels),
         }
     }
 

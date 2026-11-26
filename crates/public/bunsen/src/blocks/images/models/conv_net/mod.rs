@@ -74,7 +74,8 @@
 //!
 //! - the unit kind: [`ConvUnitKind`] (basic, bottleneck, and their
 //!   pre-activation forms), each conv optionally weight-standardized
-//!   ([`ConvLayersConfig::weight_std`]);
+//!   ([`ConvLayersConfig::weight_std`]) and SAME-padded
+//!   ([`ConvLayersConfig::same_pad`]);
 //! - a path's conv: [`ResidualConvConfig`] (a conv block, a pre-activation
 //!   conv);
 //! - the shortcut: [`ConvShortcutKind`] (a conv and a norm; an average pool,
@@ -85,7 +86,8 @@
 //!   (squeeze-excite, ECA, `RegNet`'s squeeze-excite of the unit's input), and
 //!   its [`ConvAttentionPlace`];
 //! - the stem's pool: [`ConvStemPoolKind`] / [`ConvStemPoolConfig`] (max,
-//!   average, max then blur, a strided conv, a zero pad then max, none);
+//!   average, max then blur, a strided conv, a zero pad then max, a SAME pad
+//!   then max, none);
 //! - the final layer: [`ConvFinalKind`] / [`ConvFinalConfig`] (an activation, a
 //!   norm and activation, a conv block);
 //! - the global pool: [`GlobalPool2dConfig`] (average, max, their mean, their

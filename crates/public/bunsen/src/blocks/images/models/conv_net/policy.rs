@@ -230,6 +230,11 @@ pub enum ConvStemPoolKind {
     /// its own (`BiT`'s `fixed` stem).
     ZeroPadMax,
 
+    /// A `3x3` max pool of stride 2 over the input SAME-padded from its own
+    /// size with `-inf` (timm's `MaxPool2dSame`, the hybrid `ViT`'s `same`
+    /// stem).
+    SameMax,
+
     /// A `3x3` conv of stride 2 that keeps the channels, its norm and its
     /// activation (`ResNet-RS`'s, timm's `replace_stem_pool`).
     Conv,
@@ -283,6 +288,12 @@ pub struct ConvLayersConfig {
     /// pre-activated input (`RegNetV`'s) or the raw one (`ResNetV2`'s).
     #[config(default = "true")]
     pub pre_identity: bool,
+
+    /// Whether each conv SAME-pads its input from its own size, the conv
+    /// itself unpadded (timm's `Conv2dSame`, and `StdConv2dSame` with
+    /// [`weight_std`](Self::weight_std); the hybrid `ViT`'s backbone).
+    #[config(default = "false")]
+    pub same_pad: bool,
 }
 
 impl Default for ConvLayersConfig {
@@ -292,8 +303,10 @@ impl Default for ConvLayersConfig {
 }
 
 impl ConvLayersConfig {
-    /// A `k x k` conv: no bias, padded to keep the size at stride 1.
+    /// A `k x k` conv: no bias, padded to keep the size at stride 1; under
+    /// [`same_pad`](Self::same_pad), unpadded (its input is padded).
     fn conv2d(
+        &self,
         channels: [usize; 2],
         kernel_size: usize,
         stride: usize,
@@ -303,11 +316,10 @@ impl ConvLayersConfig {
         Conv2dConfig::new(channels, [kernel_size, kernel_size])
             .with_stride([stride, stride])
             .with_dilation([dilation, dilation])
-            .with_padding(build_square_conv2d_padding_config(
-                kernel_size,
-                stride,
-                dilation,
-            ))
+            .with_padding(match self.same_pad {
+                true => PaddingConfig2d::Valid,
+                false => build_square_conv2d_padding_config(kernel_size, stride, dilation),
+            })
             .with_groups(groups)
             .with_bias(false)
     }
@@ -323,17 +335,12 @@ impl ConvLayersConfig {
         groups: usize,
         act: bool,
     ) -> ConvBlock2dConfig {
-        ConvBlock2dConfig::new(Self::conv2d(
-            channels,
-            kernel_size,
-            stride,
-            dilation,
-            groups,
-        ))
-        .with_norm(Some(self.norm.clone()))
-        .with_act(act.then(|| self.act.clone()))
-        .with_weight_std(self.weight_std)
-        .match_norm_features()
+        ConvBlock2dConfig::new(self.conv2d(channels, kernel_size, stride, dilation, groups))
+            .with_norm(Some(self.norm.clone()))
+            .with_act(act.then(|| self.act.clone()))
+            .with_weight_std(self.weight_std)
+            .with_same_pad(self.same_pad)
+            .match_norm_features()
     }
 
     /// A pre-activation conv of these layers: the norm and the activation
@@ -347,14 +354,10 @@ impl ConvLayersConfig {
         groups: usize,
         norm_act: bool,
     ) -> PreActConvConfig {
-        let conv = PreActConvConfig::new(Self::conv2d(
-            channels,
-            kernel_size,
-            stride,
-            dilation,
-            groups,
-        ))
-        .with_weight_std(self.weight_std);
+        let conv =
+            PreActConvConfig::new(self.conv2d(channels, kernel_size, stride, dilation, groups))
+                .with_weight_std(self.weight_std)
+                .with_same_pad(self.same_pad);
         match norm_act {
             true => conv
                 .with_norm(Some(self.norm.clone()))
@@ -448,6 +451,9 @@ impl ConvStemContractConfig {
                 true,
             ))),
             ConvStemPoolKind::ZeroPadMax => Some(ConvStemPoolConfig::ZeroPadMax(
+                MaxPool2dConfig::new([3, 3]).with_strides([2, 2]),
+            )),
+            ConvStemPoolKind::SameMax => Some(ConvStemPoolConfig::SameMax(
                 MaxPool2dConfig::new([3, 3]).with_strides([2, 2]),
             )),
             ConvStemPoolKind::None => None,
