@@ -624,6 +624,42 @@ crates:
         core: false
         dtypes: [f32]
         varies: RegNetZ with a final conv to 1536 features
+      timm/resnetv2_50x1_bit.goog_in21k_ft_in1k:
+        size: small
+        gb: 0.2
+        core: false
+        dtypes: [f32]
+        varies: BiT - weight-standardized convs, group norms, the fixed stem; a fine-tune at 448
+      timm/resnetv2_50x1_bit.goog_in21k:
+        size: small
+        gb: 0.37
+        core: false
+        dtypes: [f32]
+        varies: BiT's ImageNet-21k head (Google's 21k labels)
+      timm/resnetv2_50.a1h_in1k:
+        size: small
+        gb: 0.2
+        core: false
+        dtypes: [f32]
+        varies: timm's ResNetV2 - batch norms, the plain stem
+      timm/resnetv2_18d.ra4_e3600_r224_in1k:
+        size: small
+        gb: 0.15
+        core: false
+        dtypes: [f32]
+        varies: basic pre-activation units on a deep stem, average-pool shortcuts
+      timm/resnetv2_50d_gn.ah_in1k:
+        size: small
+        gb: 0.2
+        core: false
+        dtypes: [f32]
+        varies: group norms on the deep stem
+      timm/resnetv2_50d_evos.ah_in1k:
+        size: small
+        gb: 0.2
+        core: false
+        dtypes: [f32]
+        varies: EvoNorm-S0 on the deep stem
       timm/deit_small_patch16_224.fb_in1k:
         size: small
         gb: 0.2
