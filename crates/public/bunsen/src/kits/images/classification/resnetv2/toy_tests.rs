@@ -1,12 +1,14 @@
 //! The toy models against timm's own `ResNetV2`.
 //!
-//! `testdata/resnetv2/` holds six tiny seeded timm `ResNetV2`s and their
+//! `testdata/resnetv2/` holds eight tiny seeded timm `ResNetV2`s and their
 //! answers, computed in float64 (`tools/gen_resnetv2_toy_fixtures.py`, timm's
 //! `timm.models.resnetv2.ResNetV2`), each four stages of one pre-activation
 //! unit: a `BiT` (weight-standardized convs, 32-group norms, the `fixed`
 //! stem), and the same on odd sizes; batch norms on the plain stem; basic
 //! units on a deep stem with average-pool shortcuts; group norms and
-//! `EvoNorm-S0` on that stem. Each is the [`ResNetV2ContractConfig`] of the
+//! `EvoNorm-S0` on that stem; and the hybrid `ViT`'s backbone (not
+//! pre-activation, every conv and the stem's pool SAME-padded), on even and
+//! odd sizes. Each is the [`ResNetV2ContractConfig`] of the
 //! same knobs. The weights, under timm's names, load through
 //! [`load_resnetv2_tensors`]; each stage output, the pooled features and the
 //! logits are checked against timm's.
@@ -62,6 +64,15 @@ fn deep(
     toy_policy(channels, stem_chs)
         .with_stem_type(ResNetV2Stem::Deep)
         .with_avg_down(true)
+}
+
+/// The hybrid `ViT`'s backbone's knobs (timm's `_resnetv2`), with a head.
+fn hybrid() -> ResNetV2ContractConfig {
+    toy_policy([128, 128, 256, 256], 32)
+        .with_stem_type(ResNetV2Stem::Same)
+        .with_std_conv(Some(BIT_STD_CONV_EPSILON))
+        .with_same_pad(true)
+        .with_preact(false)
 }
 
 /// Every stage, the pooled features and the logits of the toy `name`,
@@ -153,4 +164,17 @@ fn test_evos_toy_is_timms() {
         "toy_evos",
         deep([128, 128, 256, 256], 64).with_norm_layer(ResNetV2Norm::EvoNormS0),
     );
+}
+
+/// The hybrid `ViT`'s backbone on 32x32 images: each stride-2 layer's SAME
+/// pad is uneven, the odd pixel bottom-right.
+#[test]
+fn test_hybrid_toy_is_timms() {
+    check_toy("toy_hybrid", hybrid());
+}
+
+/// The hybrid `ViT`'s backbone on 35x35 images: its SAME pads even.
+#[test]
+fn test_hybrid_odd_toy_is_timms() {
+    check_toy("toy_hybrid_odd", hybrid());
 }

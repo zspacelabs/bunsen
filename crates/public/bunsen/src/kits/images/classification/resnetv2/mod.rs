@@ -23,7 +23,9 @@
 //! the kit has no model type of its own. [`ResNetV2ContractConfig`] is the
 //! policy in timm's terms (the depths and widths, the width factor, the stem,
 //! the conv's weight standardization, the norm, basic or bottleneck units, the
-//! shortcut's pool) and lowers to the conv net's.
+//! shortcut's pool) and lowers to the conv net's. Not pre-activation, with
+//! SAME-padded convs, it is the hybrid `ViT`'s backbone (timm's `_resnetv2`),
+//! which the `vit` kit builds; it has no checkpoints of its own.
 //!
 //! The model's parameter paths are the conv net's own; [`interop`] maps
 //! timm's names onto them

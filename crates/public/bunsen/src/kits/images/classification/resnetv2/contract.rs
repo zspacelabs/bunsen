@@ -58,6 +58,11 @@ pub enum ResNetV2Stem {
     /// (timm's `'fixed'`, `BiT`'s).
     Fixed,
 
+    /// The `7x7` conv, then a `3x3` max pool of stride 2 over the map
+    /// SAME-padded from its own size (timm's `'same'`, the hybrid `ViT`'s
+    /// backbone).
+    Same,
+
     /// Three `3x3` convs, `stem_chs / 2`, `stem_chs / 2`, `stem_chs` wide,
     /// the first of stride 2, then the max pool (timm's `'deep'`).
     Deep,
@@ -87,9 +92,15 @@ pub enum ResNetV2Norm {
 /// identity shortcut the raw input), a final norm and activation, and a
 /// pooled classifier. `BiT` standardizes every conv's weight
 /// ([`std_conv`](Self::std_conv)) and group-normalizes.
+///
+/// Not [`preact`](Self::preact), it is the hybrid `ViT`'s backbone (timm's
+/// `_resnetv2`): a normed stem, post-activation bottlenecks (a `ResNet`'s,
+/// the projection shortcut normed), no final norm, and usually no head; with
+/// no [`layers`](Self::layers), its stem alone.
 #[derive(Config, Debug)]
 pub struct ResNetV2ContractConfig {
-    /// Each stage's units (timm's `layers`).
+    /// Each stage's units (timm's `layers`); none for a stem alone (the
+    /// hybrid `ViT`'s `vit_tiny_r_s16_p8`).
     pub layers: Vec<usize>,
 
     /// The classes; 0 for a headless model.
@@ -118,6 +129,16 @@ pub struct ResNetV2ContractConfig {
     /// `StdConv2d`, `BiT`'s [`BIT_STD_CONV_EPSILON`]); none when `None`.
     #[config(default = "None")]
     pub std_conv: Option<f64>,
+
+    /// Whether each conv SAME-pads its input from its own size (timm's
+    /// `conv_layer` `StdConv2dSame` or `Conv2dSame`; the hybrid `ViT`'s).
+    #[config(default = "false")]
+    pub same_pad: bool,
+
+    /// Pre-activation units, a bare stem and a final norm (timm's `preact`,
+    /// every published `ResNetV2`'s); `false`, the hybrid `ViT`'s backbone.
+    #[config(default = "true")]
+    pub preact: bool,
 
     /// The norm, with its activation (timm's `norm_layer`).
     #[config(default = "ResNetV2Norm::GroupNorm")]
@@ -186,18 +207,32 @@ impl ResNetV2ContractConfig {
     /// # Errors
     ///
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for other than
-    /// one width per stage, or no stages.
+    /// one width per stage, no stages and a pre-activation net (whose stem
+    /// is bare), or basic units on a net that is not pre-activation (timm
+    /// builds its bottlenecks whatever `basic` says).
     pub fn try_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
-        if self.layers.is_empty() || self.layers.len() != self.channels.len() {
+        if self.layers.len() != self.channels.len() {
             return Err(BunsenError::illegal(format!(
                 "ResNetV2ContractConfig: {} stages of layers and {} of channels",
                 self.layers.len(),
                 self.channels.len()
             )));
         }
-        let unit = match self.basic {
-            true => ConvUnitKind::PreBasic,
-            false => ConvUnitKind::PreBottleneck,
+        if self.layers.is_empty() && self.preact {
+            return Err(BunsenError::illegal(
+                "ResNetV2ContractConfig: a pre-activation net of no stages, its stem's conv bare",
+            ));
+        }
+        let unit = match (self.preact, self.basic) {
+            (true, true) => ConvUnitKind::PreBasic,
+            (true, false) => ConvUnitKind::PreBottleneck,
+            (false, false) => ConvUnitKind::Bottleneck,
+            (false, true) => {
+                return Err(BunsenError::illegal(
+                    "ResNetV2ContractConfig: basic units on a net that is not pre-activation; \
+                     timm's are bottlenecks",
+                ));
+            }
         };
         let stages = self
             .layers
@@ -234,10 +269,11 @@ impl ResNetV2ContractConfig {
                 false => ConvShortcutKind::Conv,
             })
             .with_weight_std(self.std_conv)
+            .with_same_pad(self.same_pad)
             .with_pre_identity(false);
         let stem_width = self.stem_width();
         let stem = match self.stem_type {
-            ResNetV2Stem::Plain | ResNetV2Stem::Fixed => {
+            ResNetV2Stem::Plain | ResNetV2Stem::Fixed | ResNetV2Stem::Same => {
                 ConvStemContractConfig::new(vec![stem_width])
             }
             ResNetV2Stem::Deep => {
@@ -247,14 +283,15 @@ impl ResNetV2ContractConfig {
         }
         .with_pool(match self.stem_type {
             ResNetV2Stem::Fixed => ConvStemPoolKind::ZeroPadMax,
+            ResNetV2Stem::Same => ConvStemPoolKind::SameMax,
             ResNetV2Stem::Plain | ResNetV2Stem::Deep => ConvStemPoolKind::Max,
         })
-        .with_last_norm_act(false);
+        .with_last_norm_act(!self.preact);
         Ok(ConvNetContractConfig::new(stem, stages, self.num_classes)
             .with_in_channels(self.in_channels)
             .with_output_stride(self.output_stride)
             .with_layers(layers)
-            .with_final_conv(Some(ConvFinalKind::NormAct))
+            .with_final_conv(self.preact.then_some(ConvFinalKind::NormAct))
             .with_global_pool(self.global_pool)
             .with_drop_rate(self.drop_rate))
     }
@@ -287,6 +324,7 @@ mod tests {
                 ConvChainMeta,
                 ConvNetMeta,
                 ConvNetModel,
+                ConvStemPoolConfig,
             },
         },
         burner::module::ModuleInit,
@@ -354,10 +392,64 @@ mod tests {
         assert_eq!(structure.stages[0].units[0].convs.len(), 2);
     }
 
+    /// The hybrid `ViT`'s backbone (timm's `_resnetv2((3, 4, 9))`): a normed
+    /// stem and its SAME-padded pool, post-activation bottlenecks, every conv
+    /// standardized and SAME-padded, no final norm, no head; with no layers,
+    /// its stem alone.
+    #[test]
+    fn test_hybrid_backbone_lowering() {
+        let r50 = ResNetV2ContractConfig::new(vec![3, 4, 9], 0)
+            .with_channels(vec![256, 512, 1024])
+            .with_stem_type(ResNetV2Stem::Same)
+            .with_std_conv(Some(BIT_STD_CONV_EPSILON))
+            .with_same_pad(true)
+            .with_preact(false);
+        let structure = r50.to_structure();
+        let stem = &structure.stem.convs[0];
+        assert!(stem.norm.is_some() && stem.act.is_some() && stem.same_pad);
+        assert!(matches!(
+            structure.stem.pool,
+            Some(ConvStemPoolConfig::SameMax(_))
+        ));
+        let unit = &structure.stages[1].units[0];
+        assert!(unit.pre.is_none() && unit.act.is_some());
+        let shortcut = &unit.shortcut.as_ref().unwrap().block;
+        assert!(shortcut.norm.is_some() && shortcut.act.is_none() && shortcut.same_pad);
+        assert!(structure.final_conv.is_none());
+        assert_eq!(structure.d_features(), 1024);
+        assert_eq!(structure.try_feature_size([384, 384]).unwrap(), [24, 24]);
+
+        let stem_only = ResNetV2ContractConfig {
+            layers: vec![],
+            channels: vec![],
+            ..r50
+        };
+        let structure = stem_only.to_structure();
+        assert!(structure.stages.is_empty());
+        assert_eq!(structure.d_features(), 64);
+        assert_eq!(structure.try_feature_size([224, 224]).unwrap(), [56, 56]);
+    }
+
     #[test]
     fn test_illegal_policies() {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        let illegal = || ErrorMatcher::kind(BunsenErrorKind::Illegal);
+        illegal()
             .message_contains("3 stages of layers and 4 of channels")
             .assert_err(&ResNetV2ContractConfig::new(vec![3, 4, 6], 1000).try_to_structure());
+        illegal()
+            .message_contains("a pre-activation net of no stages")
+            .assert_err(
+                &ResNetV2ContractConfig::new(vec![], 0)
+                    .with_channels(vec![])
+                    .try_to_structure(),
+            );
+        illegal()
+            .message_contains("basic units on a net that is not pre-activation")
+            .assert_err(
+                &ResNetV2ContractConfig::new(vec![2, 2, 2, 2], 0)
+                    .with_basic(true)
+                    .with_preact(false)
+                    .try_to_structure(),
+            );
     }
 }
