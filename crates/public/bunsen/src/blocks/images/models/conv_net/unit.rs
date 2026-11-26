@@ -376,6 +376,18 @@ impl ConvShortcut {
     }
 }
 
+/// Where a [`ResidualUnit`]'s channel attention applies.
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum ConvAttentionPlace {
+    /// Over the path's output, before the add (`ResNet`'s `se`, after
+    /// `conv3`).
+    Out,
+
+    /// After the mixer (and its anti-aliasing pool), before the convs that
+    /// follow it (`RegNet`'s, before `conv3`).
+    Mixer,
+}
+
 /// A [`ResidualUnit`]'s config: its conv path, which conv is its spatial
 /// mixer, its shortcut, the activation after the add, and its regularizers.
 ///
@@ -405,10 +417,16 @@ pub struct ResidualUnitConfig {
     #[config(default = "None")]
     pub shortcut: Option<ConvShortcutConfig>,
 
-    /// The channel attention over the path's output, before the add (timm's
-    /// `se` slot: squeeze-excite, ECA).
+    /// The channel attention, where [`attn_place`](Self::attn_place) puts it
+    /// (timm's `se` slot: squeeze-excite, ECA).
     #[config(default = "None")]
     pub attn: Option<ChannelAttentionConfig>,
+
+    /// Where the channel attention applies: over the path's output, before
+    /// the add (`ResNet`'s), or after the mixer, before the convs that follow
+    /// it (`RegNet`'s).
+    #[config(default = "ConvAttentionPlace::Out")]
+    pub attn_place: ConvAttentionPlace,
 
     /// The activation after the add.
     #[config(default = "Some(BunsenActivationConfig::Relu)")]
@@ -509,8 +527,14 @@ impl ResidualUnitConfig {
             }
             None => {}
         }
+        let (place, channels) = match self.attn_place {
+            ConvAttentionPlace::Out => ("path out_channels", out_channels),
+            ConvAttentionPlace::Mixer => {
+                ("mixer out_channels", self.convs[self.mixer].out_channels())
+            }
+        };
         if let Some(ChannelAttentionConfig::Se(se)) = &self.attn
-            && se.channels() != out_channels
+            && se.channels() != channels
         {
             return Err(ConstraintError::new(
                 OWNER,
@@ -518,7 +542,7 @@ impl ResidualUnitConfig {
                 Rule::Relation {
                     lhs: ("attn channels".into(), format!("{}", se.channels())),
                     op: "==",
-                    rhs: ("path out_channels".into(), format!("{out_channels}")),
+                    rhs: (place.into(), format!("{channels}")),
                 },
             )
             .into());
@@ -553,6 +577,7 @@ impl ModuleInit<ResidualUnit> for ResidualUnitConfig {
                 .map(|s| s.try_init(device))
                 .transpose()?,
             attn: self.attn.as_ref().map(|a| a.try_init(device)).transpose()?,
+            attn_place: self.attn_place,
             act: self.act.as_ref().map(|a| a.init(device)),
             drop_block: self
                 .drop_block
@@ -580,8 +605,9 @@ fn drop_path_layer(
 /// `act(shortcut(x) + drop_path(attn(path(x))))`, where the path runs
 /// `convs` in order, a drop block follows the mixer's norm and the
 /// anti-aliasing pool its activation, and `attn` is the channel attention,
-/// when there is one. The shortcut is the
-/// identity when there is none. Built by [`ResidualUnitConfig`].
+/// when there is one; under [`ConvAttentionPlace::Mixer`] the attention
+/// follows the mixer (and its pool) inside the path instead. The shortcut is
+/// the identity when there is none. Built by [`ResidualUnitConfig`].
 ///
 /// Implements [`ConvChainMeta`].
 #[derive(Module, Debug)]
@@ -598,8 +624,12 @@ pub struct ResidualUnit {
     /// The shortcut; the identity when none.
     pub shortcut: Option<ConvShortcut>,
 
-    /// The channel attention over the path's output.
+    /// The channel attention.
     pub attn: Option<ChannelAttention>,
+
+    /// Where the channel attention applies.
+    #[module(skip)]
+    pub attn_place: ConvAttentionPlace,
 
     /// The activation after the add.
     pub act: Option<BunsenActivation>,
@@ -670,8 +700,16 @@ impl ResidualUnit {
             {
                 x = aa.forward(x);
             }
+            if idx == self.mixer
+                && self.attn_place == ConvAttentionPlace::Mixer
+                && let Some(attn) = &self.attn
+            {
+                x = attn.forward(x);
+            }
         }
-        if let Some(attn) = &self.attn {
+        if self.attn_place == ConvAttentionPlace::Out
+            && let Some(attn) = &self.attn
+        {
             x = attn.forward(x);
         }
         if let Some(drop_path) = &self.drop_path {

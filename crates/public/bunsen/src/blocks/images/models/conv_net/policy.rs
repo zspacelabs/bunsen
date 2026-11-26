@@ -35,6 +35,7 @@ use crate::{
             models::{
                 classifier_head::ClassifierHeadConfig,
                 conv_net::{
+                    ConvAttentionPlace,
                     ConvChainMeta,
                     ConvNetStructureConfig,
                     ConvShortcutConfig,
@@ -91,7 +92,7 @@ pub enum ConvShortcutKind {
 }
 
 /// A residual unit's channel attention, as a policy names it: sized from the
-/// unit's output channels when lowered.
+/// channels where it applies ([`ConvLayersConfig::attn_place`]) when lowered.
 #[derive(Config, Debug, Copy, PartialEq)]
 pub enum ConvAttentionKind {
     /// Squeeze-and-excitation, its reduction `rd_ratio` of the channels in 8s
@@ -105,6 +106,14 @@ pub enum ConvAttentionKind {
     /// Efficient channel attention, its kernel from the channels
     /// ([`EcaConfig::timm`]): timm's `'eca'`.
     Eca,
+
+    /// Squeeze-and-excitation whose reduction is `round(in_channels *
+    /// se_ratio)` of the *unit's input* channels (ties to even, as Python's
+    /// `round`), its activation the layers': `RegNet`'s `SEModule`.
+    SeFromInput {
+        /// The reduction's share of the unit's input channels.
+        se_ratio: f64,
+    },
 }
 
 impl ConvAttentionKind {
@@ -113,17 +122,36 @@ impl ConvAttentionKind {
         rd_ratio: 1.0 / 16.0,
     };
 
-    /// The attention over `channels`.
+    /// The attention over `channels`, in a unit of `in_channels` input
+    /// channels and `act` activations.
     pub fn to_config(
         self,
         channels: usize,
+        in_channels: usize,
+        act: &BunsenActivationConfig,
     ) -> ChannelAttentionConfig {
         match self {
             Self::Se { rd_ratio } => {
                 ChannelAttentionConfig::Se(SqueezeExciteConfig::timm(channels, rd_ratio))
             }
             Self::Eca => ChannelAttentionConfig::Eca(EcaConfig::timm(channels)),
+            Self::SeFromInput { se_ratio } => ChannelAttentionConfig::Se(
+                SqueezeExciteConfig::new(channels, round_ties_even(in_channels as f64 * se_ratio))
+                    .with_act(act.clone()),
+            ),
         }
+    }
+}
+
+/// `x`, non-negative, rounded to the nearest integer, ties to even (Python's
+/// `round`), without `std`'s float functions.
+pub(super) fn round_ties_even(x: f64) -> usize {
+    let floor = x as usize;
+    let frac = x - floor as f64;
+    if frac > 0.5 || (frac == 0.5 && floor % 2 == 1) {
+        floor + 1
+    } else {
+        floor
     }
 }
 
@@ -191,10 +219,14 @@ pub struct ConvLayersConfig {
     #[config(default = "ConvShortcutKind::Conv")]
     pub shortcut: ConvShortcutKind,
 
-    /// Each unit's channel attention, over its path's output; none when
-    /// `None`.
+    /// Each unit's channel attention; none when `None`.
     #[config(default = "None")]
     pub attn: Option<ConvAttentionKind>,
+
+    /// Where each unit's channel attention applies: over its path's output
+    /// (`ResNet`'s), or after its mixer (`RegNet`'s).
+    #[config(default = "ConvAttentionPlace::Out")]
+    pub attn_place: ConvAttentionPlace,
 
     /// Each striding unit's anti-aliased downsampling; none when `None`.
     #[config(default = "None")]
@@ -420,7 +452,14 @@ impl ConvStageContractConfig {
             mixer,
             aa,
             shortcut,
-            attn: layers.attn.map(|kind| kind.to_config(width)),
+            attn: layers.attn.map(|kind| {
+                let channels = match layers.attn_place {
+                    ConvAttentionPlace::Out => width,
+                    ConvAttentionPlace::Mixer => mid,
+                };
+                kind.to_config(channels, in_channels, &layers.act)
+            }),
+            attn_place: layers.attn_place,
             act: Some(layers.act.clone()),
             drop_block: None,
             drop_path_prob: 0.0,
