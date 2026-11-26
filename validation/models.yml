@@ -720,6 +720,24 @@ crates:
         core: false
         dtypes: [f32]
         varies: radix 1, a sigmoid gate, in 4 groups, the avd pool before the mixer
+      timm/skresnet18.ra_in1k:
+        size: small
+        gb: 0.05
+        core: false
+        dtypes: [f32]
+        varies: SKNet's selective kernel as a basic block's first conv, its input split
+      timm/skresnet34.ra_in1k:
+        size: small
+        gb: 0.09
+        core: false
+        dtypes: [f32]
+        varies: the selective kernel at 34 layers
+      timm/skresnext50_32x4d.ra_in1k:
+        size: small
+        gb: 0.11
+        core: false
+        dtypes: [f32]
+        varies: the selective kernel as a grouped bottleneck's mixer, each path reading all input
       timm/deit_small_patch16_224.fb_in1k:
         size: small
         gb: 0.2

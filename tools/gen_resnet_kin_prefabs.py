@@ -1,6 +1,5 @@
 """Generate the ResNet kin kits' prefabs from timm: every architecture with hub weights of
-`res2net.py` and `resnest.py` (and the other `ResNet`-with-its-own-block files, as their kits
-land).
+`res2net.py`, `resnest.py` and `sknet.py`, each timm's `ResNet` with a block of its own.
 
 Run with a Python that has timm (and torch):
 
@@ -26,7 +25,7 @@ import pathlib
 
 import timm
 import torch
-from timm.models import _registry, res2net, resnest
+from timm.models import _registry, res2net, resnest, sknet
 
 KITS = pathlib.Path(__file__).resolve().parent.parent.joinpath(
     "crates/public/bunsen/src/kits/images/classification"
@@ -141,6 +140,60 @@ def lower_resnest(kwargs):
     return f"Self::resnest({args}){suffix}", notes
 
 
+def lower_sknet(kwargs):
+    """`(expression, notes)`: an `SKNet` prefab; or a `str`, the kwarg the contract lacks."""
+    kw = dict(kwargs)
+    block = kw.pop("block")
+    if block not in ("SelectiveKernelBasic", "SelectiveKernelBottleneck"):
+        return f"block={block}"
+    bottleneck = block == "SelectiveKernelBottleneck"
+    layers = kw.pop("layers")
+    kw.pop("zero_init_last", None)  # training only
+    args = dict(kw.pop("block_args", {}))
+    sk = dict(args.pop("sk_kwargs", {}))
+    if args:
+        return ", ".join(f"block_args.{k}={v}" for k, v in sorted(args.items()))
+    rd_ratio = sk.pop("rd_ratio", 1 / 16)
+    rd_divisor = sk.pop("rd_divisor", 8)
+    split_input = sk.pop("split_input", True)
+    kernels = list(sk.pop("kernel_size", [3, 5]) or [3, 5])
+    keep_3x3 = sk.pop("keep_3x3", True)
+    if sk:
+        return ", ".join(f"sk_kwargs.{k}={v}" for k, v in sorted(sk.items()))
+    notes = []
+    lowered = lower_resnet(kw, notes)
+    if isinstance(lowered, str):
+        return lowered
+    suffix, base_width, cardinality = lowered
+    head = "bottlenecks" if bottleneck else "basic blocks"
+    if (cardinality, base_width) != (1, 64):
+        head += f" of {cardinality} groups of {base_width} per 64 planes"
+    head += f", an attention of {rd_ratio!r} of the channels in {rd_divisor}s"
+    head += ", the input split across the paths" if split_input else ""
+    notes.insert(0, head)
+    if kw:
+        return ", ".join(f"{k}={v}" for k, v in sorted(kw.items()))
+    params = (
+        f"vec!{list(layers)}, {str(bottleneck).lower()}, {base_width}, {cardinality}, {rd_ratio!r}, "
+        f"{rd_divisor}, {str(split_input).lower()}"
+    )
+    if kernels != [3, 5]:
+        suffix += f".with_kernel_size({kernels})"
+    if not keep_3x3:
+        suffix += ".with_keep_3x3(false)"
+    return f"Self::sknet({params}){suffix}", notes
+
+
+def out_channels(module):
+    """A block conv's output channels: a plain conv's, a `ConvNormAct`'s conv's, or a selective
+    kernel's."""
+    if isinstance(module, torch.nn.Conv2d):
+        return module.out_channels
+    if hasattr(module, "conv"):
+        return module.conv.out_channels
+    return module.out_channels
+
+
 def stages(model):
     """The stem's conv widths, and each stage's `(depth, width, first 1x1's width)`."""
     if isinstance(model.conv1, torch.nn.Sequential):
@@ -152,9 +205,7 @@ def stages(model):
         blocks = list(layer)
         first = blocks[0]
         last = first.conv3 if hasattr(first, "conv3") else first.conv2
-        width = last.out_channels if isinstance(last, torch.nn.Conv2d) else last.conv.out_channels
-        conv1 = first.conv1 if isinstance(first.conv1, torch.nn.Conv2d) else first.conv1.conv
-        out.append((len(blocks), width, conv1.out_channels))
+        out.append((len(blocks), out_channels(last), out_channels(first.conv1)))
     return stem, out
 
 
@@ -162,6 +213,7 @@ def stages(model):
 FAMILIES = {
     "res2net": (res2net, lower_res2net, "`Res2Net`"),
     "resnest": (resnest, lower_resnest, "`ResNeSt`"),
+    "sknet": (sknet, lower_sknet, "`SKNet`"),
 }
 
 

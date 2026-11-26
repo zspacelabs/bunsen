@@ -956,6 +956,20 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 * timm/resnest269e.in1k: [446.0 MB]
   timm's `resnest269e`, its `in1k` weights.
 
+# contract: sknet-classifier
+# A SKNet image classifier: a timm hub repo's checkpoint (safetensors) and
+# `config.json`.
+# publisher: timm - pytorch-image-models (timm), Ross Wightman's.
+
+* timm/skresnet18.ra_in1k: [48.7 MB]
+  timm's `skresnet18`, its `ra_in1k` weights.
+
+* timm/skresnet34.ra_in1k: [90.0 MB]
+  timm's `skresnet34`, its `ra_in1k` weights.
+
+* timm/skresnext50_32x4d.ra_in1k: [111.1 MB]
+  timm's `skresnext50_32x4d`, its `ra_in1k` weights.
+
 # contract: regnet-classifier
 # A RegNet image classifier, or headless trunk: a timm hub repo's
 # checkpoint (safetensors) and `config.json`.
