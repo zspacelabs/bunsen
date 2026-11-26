@@ -76,21 +76,35 @@ impl ResNetConstructConfig {
     }
 
     /// The config `model` is built from: the explicit one, else the
-    /// geometry the build states.
+    /// geometry the build states, else its loaded timm `config.json`'s.
     ///
     /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when the stated
+    /// geometry doesn't read as a config (never replaced by a `config.json`);
+    /// as [`resnet_contract_config`](super::super::interop::timm::resnet_contract_config);
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause ([`Rule::Missing`] on `config`), when there
-    /// is neither: a given checkpoint needs [`with_config`](Self::with_config).
+    /// is none: a given checkpoint needs [`with_config`](Self::with_config).
     pub fn config_for(
         &self,
         model: &BuildRef,
+        loaded: Option<&LoadedResourceSet>,
     ) -> BunsenResult<ResNetContractConfig> {
+        use crate::{
+            data::builds::CONFIG,
+            kits::images::{
+                classification::resnet::interop::timm::resnet_contract_config,
+                support::interop::timm::timm_model_config_from_path,
+            },
+        };
         if let Some(config) = &self.config {
             return Ok(config.clone());
         }
         if let Some(config) = model.stated(GEOMETRY)? {
             return Ok(config);
+        }
+        if let Some(timm) = loaded.and_then(|l| l.get(CONFIG)) {
+            return resnet_contract_config(&timm_model_config_from_path(&timm.path)?);
         }
         Err(BunsenError::from(ConstraintError::new(
             "ResNetConstructConfig",
@@ -126,26 +140,14 @@ impl ConstructInit for ResNetConstructConfig {
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<ImageModelConstruct<ConvNetModel>>> {
         use crate::{
-            data::{
-                builds::CONFIG,
-                resources::SAFETENSORS,
-            },
-            kits::images::{
-                classification::resnet::interop::{
-                    timm,
-                    torchvision,
-                },
-                support::interop::timm::timm_model_config_from_path,
+            data::resources::SAFETENSORS,
+            kits::images::classification::resnet::interop::{
+                timm,
+                torchvision,
             },
         };
 
-        let config = match (self.config_for(model), loaded.get(CONFIG)) {
-            (Ok(config), _) => config,
-            (Err(_), Some(timm_config)) => {
-                timm::resnet_contract_config(&timm_model_config_from_path(&timm_config.path)?)?
-            }
-            (Err(missing), None) => return Err(missing),
-        };
+        let config = self.config_for(model, Some(loaded))?;
         let card = ImageModelCard::try_from_build(model, loaded)?
             .try_for_classes(config.num_classes)
             .with_context(|| format!("{}'s labels", model.id()))?;
@@ -282,14 +284,14 @@ mod tests {
         let named = named.model;
         let resnet50 = ResNetContractConfig::expect_prefab("resnet50");
         assert_eq!(
-            format!("{:?}", hook.config_for(&named).unwrap()),
+            format!("{:?}", hook.config_for(&named, None).unwrap()),
             format!("{resnet50:?}")
         );
 
         let resnet18 = ResNetContractConfig::expect_prefab("resnet18");
         let explicit = hook.clone().with_config(resnet18.clone());
         assert_eq!(
-            format!("{:?}", explicit.config_for(&named).unwrap()),
+            format!("{:?}", explicit.config_for(&named, None).unwrap()),
             format!("{resnet18:?}"),
             "an explicit config wins over the prefab"
         );
@@ -309,9 +311,23 @@ mod tests {
                 }))
                 .frame_contains("with_config")
         };
-        missing_config(&[BunsenErrorKind::Illegal]).assert_err(&hook.config_for(&given));
+        missing_config(&[BunsenErrorKind::Illegal]).assert_err(&hook.config_for(&given, None));
+
+        // A stated geometry that doesn't read as a config is an error, which a
+        // timm `config.json` never replaces.
+        let mut bad = named.clone();
+        if let BuildRef::Named { build, .. } = &mut bad {
+            build
+                .args
+                .get_mut(GEOMETRY)
+                .expect("a stated geometry")
+                .value = serde_json::json!({"layers": "not a list"});
+        }
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("doesn't read as its config")
+            .assert_err(&hook.config_for(&bad, None));
         assert_eq!(
-            format!("{:?}", explicit.config_for(&given).unwrap()),
+            format!("{:?}", explicit.config_for(&given, None).unwrap()),
             format!("{resnet18:?}")
         );
 

@@ -280,7 +280,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
     }
     let cache = ResourceCache::new(ResourceCacheOptions::default())?;
     let mut model_ref = factory.resolve(&args.pretrained, &cache)?;
-    let stated = model_ref.config.config_for(&model_ref.model)?;
+    let stated = model_ref.config.config_for(&model_ref.model, None)?;
     let resnet_prefab = ResNetContractConfig::find_prefab(|p| {
         serde_json::to_value(&stated).is_ok_and(|g| same_geometry(&g, p))
     })
