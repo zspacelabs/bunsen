@@ -484,6 +484,55 @@ crates:
         dtypes: [f32]
         varies: OpenAI's CLIP image tower, in CLIP's own layout (a pytorch_model.bin with the text
           tower) - timm's conversion
+      timm/flexivit_small.1200ep_in1k:
+        size: small
+        gb: 0.19
+        core: false
+        dtypes: [f32]
+        varies: FlexiViT - the position embedding over the patches alone, at 240
+      timm/vit_little_patch16_reg1_gap_256.sbb_in12k:
+        size: small
+        gb: 0.2
+        core: false
+        dtypes: [f32]
+        varies: timm's sbb sets - no class token, a register token, the mean pool, layer scale, an
+          ImageNet-12k head
+      timm/vit_small_patch14_reg4_dinov2.lvd142m:
+        size: small
+        gb: 0.19
+        core: false
+        dtypes: [f32]
+        varies: DINOv2 with registers - a headless tower at 518, layer scale
+      timm/vit_xsmall_patch16_clip_224.tinyclip_yfcc15m:
+        size: small
+        gb: 0.13
+        core: false
+        dtypes: [f32]
+        varies: TinyCLIP - a small CLIP image tower and its 512-wide projection
+      timm/vit_base_patch32_siglip_gap_256.v2_webli:
+        size: small
+        gb: 0.45
+        core: false
+        dtypes: [f32]
+        varies: SigLIP 2's gap towers - no class token, the mean pool, tanh GELU, headless
+      timm/vit_base_patch16_radio_v3.c_radio:
+        size: small
+        gb: 0.45
+        core: false
+        dtypes: [f32]
+        varies: C-RADIO - no final norm, seven registers, headless at 512
+      timm/eva_large_patch14_196.in22k_ft_in1k:
+        size: medium
+        gb: 1.32
+        core: false
+        dtypes: [f32]
+        varies: EVA's ViT-tree rows - a mean-pooled ViT-L/14 at 196
+      timm/vit_base_patch16_rpn_224.sw_in1k:
+        size: small
+        gb: 0.45
+        core: false
+        dtypes: [f32]
+        varies: res-post-norm blocks (ResPostBlock)
       timm/deit_small_patch16_224.fb_in1k:
         size: small
         gb: 0.2
