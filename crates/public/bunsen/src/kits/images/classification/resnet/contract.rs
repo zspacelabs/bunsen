@@ -282,6 +282,12 @@ impl ResNetContractConfig {
             (false, None) => ConvStemPoolKind::Max,
             (false, Some(ConvAaKind::Avg)) => ConvStemPoolKind::Avg,
             (false, Some(ConvAaKind::Blur)) => ConvStemPoolKind::MaxBlur,
+            (false, Some(ConvAaKind::Avd)) => {
+                return Err(BunsenError::unsupported(
+                    "ResNetContractConfig: ResNeSt's avd as a ResNet's anti-aliasing (it has \
+                     no stem pool of its own)",
+                ));
+            }
         });
         let shortcut = if self.avg_down {
             ConvShortcutKind::AvgConv

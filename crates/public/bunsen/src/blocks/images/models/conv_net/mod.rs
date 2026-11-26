@@ -79,7 +79,8 @@
 //! - a path's conv: [`ResidualConvConfig`] (a conv block, a pre-activation
 //!   conv, a spatial mixer of [`mixers`](crate::blocks::images::mixers));
 //! - the mixer: [`ConvMixerKind`] (a conv; `Res2Net`'s scale split, whose
-//!   branches are `convs.{k}` inside the mixer's conv);
+//!   branches are `convs.{k}` inside the mixer's conv; `ResNeSt`'s split
+//!   attention, `conv`, `fc1`, `fc2`);
 //! - the shortcut: [`ConvShortcutKind`] (a conv and a norm; an average pool,
 //!   then a conv and a norm; none, and no residual), lowering to one
 //!   [`ConvShortcutConfig`], an optional pool before a conv block;

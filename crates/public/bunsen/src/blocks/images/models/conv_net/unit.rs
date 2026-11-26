@@ -60,6 +60,8 @@ use crate::{
             mixers::{
                 Res2Conv,
                 Res2ConvConfig,
+                SplitAttn,
+                SplitAttnConfig,
             },
         },
         norm::BunsenNormalization,
@@ -98,8 +100,11 @@ pub trait ConvChainMeta {
 /// A seam: each kind is a module of its own. Built: a conv block
 /// ([`ConvBlock2dConfig`]), a pre-activation conv ([`PreActConvConfig`]),
 /// and the spatial mixers of [`mixers`](crate::blocks::images::mixers)
-/// (`Res2Net`'s scale split, [`Res2ConvConfig`]).
+/// (`Res2Net`'s scale split, [`Res2ConvConfig`]; `ResNeSt`'s split
+/// attention, [`SplitAttnConfig`]).
 #[derive(Config, Debug)]
+// A few per unit: the variants' size gap costs nothing worth a box.
+#[allow(clippy::large_enum_variant)]
 pub enum ResidualConvConfig {
     /// A conv, norm and activation.
     Block(ConvBlock2dConfig),
@@ -109,6 +114,15 @@ pub enum ResidualConvConfig {
 
     /// `Res2Net`'s scale split.
     Res2(Res2ConvConfig),
+
+    /// `ResNeSt`'s split attention.
+    SplitAttn(SplitAttnConfig),
+}
+
+impl From<SplitAttnConfig> for ResidualConvConfig {
+    fn from(config: SplitAttnConfig) -> Self {
+        Self::SplitAttn(config)
+    }
 }
 
 impl From<Res2ConvConfig> for ResidualConvConfig {
@@ -135,6 +149,7 @@ impl ConvChainMeta for ResidualConvConfig {
             Self::Block(config) => config.in_channels(),
             Self::PreAct(config) => config.in_channels(),
             Self::Res2(config) => config.channels(),
+            Self::SplitAttn(config) => config.in_channels(),
         }
     }
 
@@ -143,6 +158,7 @@ impl ConvChainMeta for ResidualConvConfig {
             Self::Block(config) => config.out_channels(),
             Self::PreAct(config) => config.out_channels(),
             Self::Res2(config) => config.channels(),
+            Self::SplitAttn(config) => config.out_channels(),
         }
     }
 
@@ -151,6 +167,7 @@ impl ConvChainMeta for ResidualConvConfig {
             Self::Block(config) => config.stride()[0],
             Self::PreAct(config) => config.stride(),
             Self::Res2(config) => config.stride(),
+            Self::SplitAttn(config) => config.stride(),
         }
     }
 }
@@ -164,6 +181,7 @@ impl ModuleInit<ResidualConv> for ResidualConvConfig {
             Self::Block(config) => ResidualConv::Block(config.try_init(device)?),
             Self::PreAct(config) => ResidualConv::PreAct(config.try_init(device)?),
             Self::Res2(config) => ResidualConv::Res2(config.try_init(device)?),
+            Self::SplitAttn(config) => ResidualConv::SplitAttn(config.try_init(device)?),
         })
     }
 }
@@ -173,6 +191,8 @@ impl ModuleInit<ResidualConv> for ResidualConvConfig {
 /// The variant is not part of a parameter's path: a block's conv weight is
 /// `convs.{k}.conv.weight`.
 #[derive(Module, Debug)]
+// A few per unit: the variants' size gap costs nothing worth a box.
+#[allow(clippy::large_enum_variant)]
 pub enum ResidualConv {
     /// A conv, norm and activation.
     Block(ConvBlock2d),
@@ -182,6 +202,9 @@ pub enum ResidualConv {
 
     /// `Res2Net`'s scale split.
     Res2(Res2Conv),
+
+    /// `ResNeSt`'s split attention.
+    SplitAttn(SplitAttn),
 }
 
 impl ConvChainMeta for ResidualConv {
@@ -190,6 +213,7 @@ impl ConvChainMeta for ResidualConv {
             Self::Block(block) => block.in_channels(),
             Self::PreAct(conv) => conv.in_channels(),
             Self::Res2(res2) => res2.channels(),
+            Self::SplitAttn(attn) => attn.in_channels(),
         }
     }
 
@@ -198,6 +222,7 @@ impl ConvChainMeta for ResidualConv {
             Self::Block(block) => block.out_channels(),
             Self::PreAct(conv) => conv.out_channels(),
             Self::Res2(res2) => res2.channels(),
+            Self::SplitAttn(attn) => attn.out_channels(),
         }
     }
 
@@ -206,6 +231,7 @@ impl ConvChainMeta for ResidualConv {
             Self::Block(block) => block.stride()[0],
             Self::PreAct(conv) => conv.stride(),
             Self::Res2(res2) => res2.stride(),
+            Self::SplitAttn(attn) => attn.stride(),
         }
     }
 }
@@ -215,7 +241,8 @@ impl ResidualConv {
     /// after its norm and before its activation
     /// ([`ConvBlock2d::map_forward`]); for a pre-activation conv, on its
     /// output ([`PreActConv::map_forward`]); for a scale split, on its
-    /// concatenated output ([`Res2Conv::map_forward`]).
+    /// concatenated output ([`Res2Conv::map_forward`]); for a split attention,
+    /// after its conv's norm ([`SplitAttn::map_forward`]).
     ///
     /// # Arguments
     ///
@@ -237,6 +264,7 @@ impl ResidualConv {
             Self::Block(block) => block.map_forward(input, f),
             Self::PreAct(conv) => conv.map_forward(input, f),
             Self::Res2(res2) => res2.map_forward(input, f),
+            Self::SplitAttn(attn) => attn.map_forward(input, f),
         }
     }
 
@@ -496,9 +524,15 @@ pub struct ResidualUnitConfig {
     pub pre_identity: bool,
 
     /// The anti-aliased downsampling after the mixer's activation, which then
-    /// takes the stride from the mixer (timm's `aa`).
+    /// takes the stride from the mixer (timm's `aa`); before the mixer under
+    /// [`aa_first`](Self::aa_first).
     #[config(default = "None")]
     pub aa: Option<AntiAliasConfig>,
+
+    /// Whether [`aa`](Self::aa) goes before the mixer (`ResNeSt`'s
+    /// `avd_first`).
+    #[config(default = "false")]
+    pub aa_first: bool,
 
     /// The shortcut, when the path changes the channels or the size; else the
     /// identity.
@@ -672,6 +706,7 @@ impl ModuleInit<ResidualUnit> for ResidualUnitConfig {
             residual: self.residual,
             pre_identity: self.pre_identity,
             aa: self.aa.as_ref().map(|aa| aa.try_init(device)).transpose()?,
+            aa_first: self.aa_first,
             shortcut: self
                 .shortcut
                 .as_ref()
@@ -730,8 +765,12 @@ pub struct ResidualUnit {
     /// Whether an identity shortcut reads the pre-activated input.
     pub pre_identity: bool,
 
-    /// The anti-aliased downsampling after the mixer.
+    /// The anti-aliased downsampling after the mixer, or before it.
     pub aa: Option<AntiAlias>,
+
+    /// Whether `aa` goes before the mixer.
+    #[module(skip)]
+    pub aa_first: bool,
 
     /// The shortcut; the identity when none.
     pub shortcut: Option<ConvShortcut>,
@@ -809,6 +848,12 @@ impl ResidualUnit {
 
         let mut x = input;
         for (idx, conv) in self.convs.iter().enumerate() {
+            if idx == self.mixer
+                && self.aa_first
+                && let Some(aa) = &self.aa
+            {
+                x = aa.forward(x);
+            }
             x = match &self.drop_block {
                 Some(drop_block) if idx == self.mixer => {
                     conv.map_forward(x, |x| drop_block.forward(x))
@@ -816,6 +861,7 @@ impl ResidualUnit {
                 _ => conv.forward(x),
             };
             if idx == self.mixer
+                && !self.aa_first
                 && let Some(aa) = &self.aa
             {
                 x = aa.forward(x);
