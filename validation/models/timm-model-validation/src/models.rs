@@ -412,6 +412,42 @@ mod timm {
 
     #[test]
     #[serial_test::serial]
+    fn regnetx_002_pycls_in1k() {
+        check_row("timm/regnetx_002.pycls_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn regnety_032_ra_in1k() {
+        check_row("timm/regnety_032.ra_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn regnety_008_tv_tv2_in1k() {
+        check_row("timm/regnety_008_tv.tv2_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn regnety_120_sw_in12k() {
+        check_row("timm/regnety_120.sw_in12k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn regnety_320_seer() {
+        check_row("timm/regnety_320.seer");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn regnety_160_swag_ft_in1k() {
+        check_row("timm/regnety_160.swag_ft_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn deit_small_patch16_224_fb_in1k() {
         check_row("timm/deit_small_patch16_224.fb_in1k");
     }
