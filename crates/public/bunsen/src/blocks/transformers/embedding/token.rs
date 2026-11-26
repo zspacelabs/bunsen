@@ -160,6 +160,8 @@ impl TokenEmbedding {
         &self,
         ids: Tensor<2, Int>,
     ) -> Tensor<3> {
+        #[cfg(any(debug_assertions, test))]
+        let [batch, seq] = crate::contracts::unpack_shape_contract!(["batch", "seq"], &ids.dims());
         let x = burn::tensor::module::embedding(self.weight.val(), ids);
         let x = match self.norm_eps {
             Some(eps) => RmsNormOptions::default().with_eps(eps as f32).norm(x),
@@ -169,10 +171,17 @@ impl TokenEmbedding {
             Some(norm) => norm.forward(x),
             None => x,
         };
-        match self.applied_scale() {
+        let x = match self.applied_scale() {
             Some(scale) => x.mul_scalar(scale),
             None => x,
-        }
+        };
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "seq", "d_model"],
+            &x.dims(),
+            &[("batch", batch), ("seq", seq), ("d_model", self.d_model())]
+        );
+        x
     }
 }
 

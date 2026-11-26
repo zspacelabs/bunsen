@@ -90,7 +90,11 @@ impl AttnResRoutes {
         bank: &[Tensor<3>],
         i: usize,
     ) -> Tensor<3> {
-        let d_model = self.queries.dims()[1];
+        let [d_model] = crate::contracts::unpack_shape_contract!(
+            ["sources", "d_model"],
+            &self.queries.dims(),
+            &["d_model"]
+        );
         let query = self.queries.val().slice(s![i..i + 1]).reshape([d_model]);
         attn_res_route(bank, query, self.key_eps as f32)
     }

@@ -228,11 +228,32 @@ impl DepthDecoder {
         r_emb: &RotarySet,
         kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
+        // A projection's input width, or the stack's without one.
+        let d_in = self
+            .input_proj
+            .as_ref()
+            .map_or_else(|| self.stack.d_model(), |proj| proj.weight.dims()[0]);
+        #[cfg(any(debug_assertions, test))]
+        let [b, t] = crate::contracts::unpack_shape_contract!(
+            ["B", "T", "D_in"],
+            &rows.dims(),
+            &["B", "T"],
+            &[("D_in", d_in)]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = d_in;
         let rows = match &self.input_proj {
             Some(proj) => proj.forward(rows),
             None => rows,
         };
-        self.stack.forward_hidden(rows, r_emb, kv_cache)
+        let hidden = self.stack.forward_hidden(rows, r_emb, kv_cache);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "T", "D"],
+            &hidden.dims(),
+            &[("B", b), ("T", t), ("D", self.stack.d_model())]
+        );
+        hidden
     }
 
     /// Codebook `k`'s logits, by its head: `[B, T, D]` to `[B, T, V]`, in
@@ -245,7 +266,24 @@ impl DepthDecoder {
         k: usize,
         hidden: Tensor<3>,
     ) -> Tensor<3> {
-        let logits = self.heads[self.index(k)].forward(hidden);
+        let head = &self.heads[self.index(k)];
+        let [_, vocab] = head.weight.dims();
+        #[cfg(any(debug_assertions, test))]
+        let [b, t] = crate::contracts::unpack_shape_contract!(
+            ["B", "T", "D"],
+            &hidden.dims(),
+            &["B", "T"],
+            &[("D", self.stack.d_model())]
+        );
+        let logits = head.forward(hidden);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "T", "V"],
+            &logits.dims(),
+            &[("B", b), ("T", t), ("V", vocab)]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = vocab;
         match self.logits_dtype {
             Some(dtype) => logits.cast(dtype),
             None => logits,

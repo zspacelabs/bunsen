@@ -169,6 +169,25 @@ impl RotaryDirection {
         cos: Tensor<4>,
         sin: Tensor<4>,
     ) -> (Tensor<4>, Tensor<4>) {
+        // The halves agree; the angles broadcast over the batch and heads.
+        #[cfg(any(debug_assertions, test))]
+        {
+            let [b, t, h, half] =
+                crate::contracts::unpack_shape_contract!(["B", "T", "H", "half"], &x1.dims());
+            let bindings = [("B", b), ("T", t), ("H", h), ("half", half)];
+            crate::contracts::assert_shape_contract_periodically!(
+                ["B", "T", "H", "half"],
+                &x2.dims(),
+                &bindings
+            );
+            for angle in [&cos, &sin] {
+                crate::contracts::assert_shape_contract_periodically!(
+                    [_, "T", _, "half"],
+                    &angle.dims(),
+                    &[("T", t), ("half", half)]
+                );
+            }
+        }
         match self {
             Self::Reverse => (
                 x1.clone() * cos.clone() + x2.clone() * sin.clone(),
@@ -207,20 +226,24 @@ impl RotaryPairLayout {
         self,
         span: Tensor<4>,
     ) -> (Tensor<4>, Tensor<4>) {
-        let [b, t, h, r] = span.dims();
+        let [b, t, h, half] = crate::contracts::unpack_shape_contract!(
+            ["B", "T", "H", 2 * "half"],
+            &span.dims(),
+            &["B", "T", "H", "half"]
+        );
         match self {
             Self::Halves => {
-                let x1 = span.clone().slice_dim(3, s![..r / 2]);
-                let x2 = span.slice_dim(3, s![r / 2..]);
+                let x1 = span.clone().slice_dim(3, s![..half]);
+                let x2 = span.slice_dim(3, s![half..]);
                 (x1, x2)
             }
             Self::Interleaved => {
-                let pairs = span.reshape([b, t, h, r / 2, 2]);
+                let pairs = span.reshape([b, t, h, half, 2]);
                 let x1 = pairs
                     .clone()
                     .slice_dim(4, s![0..1])
-                    .reshape([b, t, h, r / 2]);
-                let x2 = pairs.slice_dim(4, s![1..2]).reshape([b, t, h, r / 2]);
+                    .reshape([b, t, h, half]);
+                let x2 = pairs.slice_dim(4, s![1..2]).reshape([b, t, h, half]);
                 (x1, x2)
             }
         }
@@ -233,12 +256,17 @@ impl RotaryPairLayout {
         y1: Tensor<4>,
         y2: Tensor<4>,
     ) -> Tensor<4> {
+        let [b, t, h, half] =
+            crate::contracts::unpack_shape_contract!(["B", "T", "H", "half"], &y1.dims());
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "T", "H", "half"],
+            &y2.dims(),
+            &[("B", b), ("T", t), ("H", h), ("half", half)]
+        );
         match self {
             Self::Halves => Tensor::cat(vec![y1, y2], 3),
-            Self::Interleaved => {
-                let [b, t, h, half] = y1.dims();
-                Tensor::stack::<5>(vec![y1, y2], 4).reshape([b, t, h, 2 * half])
-            }
+            Self::Interleaved => Tensor::stack::<5>(vec![y1, y2], 4).reshape([b, t, h, 2 * half]),
         }
     }
 }

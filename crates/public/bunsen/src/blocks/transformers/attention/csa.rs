@@ -684,13 +684,22 @@ impl CausalSelfAttention {
         device: &Device,
     ) -> Option<Tensor<2, Bool>> {
         let window = self.sliding_window.filter(|&w| w < t);
-        match self.mask {
+        let visible = match self.mask {
             AttentionMask::Causal => window.map(|w| causal_window_visible(t, t, Some(w), device)),
             AttentionMask::Bidirectional => window.map(|w| two_sided_window_visible(t, w, device)),
             AttentionMask::Blocks { window } => {
                 (window < t).then(|| window_block_mask(t, window, device).bool_not())
             }
+        };
+        #[cfg(any(debug_assertions, test))]
+        if let Some(visible) = &visible {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["queries", "keys"],
+                &visible.dims(),
+                &[("queries", t), ("keys", t)]
+            );
         }
+        visible
     }
 
     /// The attention weights an uncached [`forward`](Self::forward) of

@@ -44,6 +44,7 @@ use crate::{
         },
     },
     burner::module::ModuleInit,
+    contracts::unpack_shape_contract,
 };
 
 /// Config for a [`ResidualSublayer`]'s norms: each slot's norm, sized to the
@@ -214,7 +215,13 @@ impl<M: Module> ResidualSublayer<M> {
         let r = Self::apply(&self.post, r);
         let r = match &self.scale {
             Some(scale) => {
-                let width = scale.dims()[0];
+                let [width] = unpack_shape_contract!(["width"], &scale.dims());
+                #[cfg(any(debug_assertions, test))]
+                crate::contracts::assert_shape_contract_periodically!(
+                    [..., "width"],
+                    &r.dims(),
+                    &[("width", width)]
+                );
                 let mut shape = [1; D];
                 shape[D - 1] = width;
                 r * scale.val().reshape(shape)
@@ -234,7 +241,28 @@ impl<M: Module> ResidualSublayer<M> {
         x: Tensor<D>,
         f: impl FnOnce(&M, Tensor<D>) -> Tensor<D>,
     ) -> Tensor<D> {
-        self.finish(f(&self.branch, self.branch_input(x)))
+        #[cfg(any(debug_assertions, test))]
+        let shape = x.dims();
+        let r = f(&self.branch, self.branch_input(x));
+        #[cfg(any(debug_assertions, test))]
+        Self::assert_residual_fits(&shape, &r);
+        self.finish(r)
+    }
+
+    /// A branch's residual has its stream's shape exactly: an add would
+    /// broadcast a residual of the wrong length (`[B, 1, D]` over `[B, T,
+    /// D]`) without an error. A rank-generic shape has no contract pattern,
+    /// so the shapes are compared whole.
+    #[cfg(any(debug_assertions, test))]
+    fn assert_residual_fits<const D: usize>(
+        stream: &[usize; D],
+        residual: &Tensor<D>,
+    ) {
+        assert_eq!(
+            &residual.dims(),
+            stream,
+            "a sublayer's residual is not its stream's shape"
+        );
     }
 
     /// The residual update: `out(x + γ ⊙ post(r))`, with `x` first through
@@ -247,8 +275,11 @@ impl<M: Module> ResidualSublayer<M> {
         f: impl FnOnce(&M, Tensor<D>) -> O,
     ) -> O::Updated {
         let x = Self::apply(&self.input, x);
-        f(&self.branch, self.branch_input(x.clone()))
-            .into_updated(|residual| Self::apply(&self.out, x + self.finish(residual)))
+        f(&self.branch, self.branch_input(x.clone())).into_updated(|residual| {
+            #[cfg(any(debug_assertions, test))]
+            Self::assert_residual_fits(&x.dims(), &residual);
+            Self::apply(&self.out, x + self.finish(residual))
+        })
     }
 }
 

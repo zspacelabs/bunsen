@@ -897,13 +897,38 @@ impl DecoderStack {
         x: Tensor<3>,
         lengths: Option<&[usize]>,
     ) -> Tensor<3> {
-        let time = x.dims()[1];
+        let (r_emb, sides) = self.encoder_inputs(&x, lengths);
+        self.forward_with(x, &r_emb, None, sides)
+    }
+
+    /// An encoder's rotary tables over `x`'s time, and its keys masked by
+    /// each item's length.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, time, d_model]`.
+    /// * `lengths` - `batch` lengths, or `None`.
+    fn encoder_inputs(
+        &self,
+        x: &Tensor<3>,
+        lengths: Option<&[usize]>,
+    ) -> (RotarySet, DecoderStackSides) {
+        let [batch, time] = crate::contracts::unpack_shape_contract!(
+            ["batch", "time", "d_model"],
+            &x.dims(),
+            &["batch", "time"],
+            &[("d_model", self.d_model())]
+        );
         let device = x.device();
-        let key_valid = lengths.map(|lengths| length_mask(lengths, time, &device));
-        self.forward_with(
-            x,
-            &self.rotary(time, &device),
-            None,
+        let key_valid = lengths.map(|lengths| {
+            crate::contracts::assert_shape_contract!(
+                ["batch"],
+                &[lengths.len()],
+                &[("batch", batch)]
+            );
+            length_mask(lengths, time, &device)
+        });
+        (
+            self.rotary(time, &device),
             DecoderStackSides {
                 key_valid,
                 ..Default::default()
@@ -935,21 +960,24 @@ impl DecoderStack {
             self.routes.is_none(),
             "a stack with attention-residual routes has no per-layer stream"
         );
-        let time = x.dims()[1];
-        let device = x.device();
-        let key_valid = lengths.map(|lengths| length_mask(lengths, time, &device));
+        let (r_emb, sides) = self.encoder_inputs(&x, lengths);
+        #[cfg(any(debug_assertions, test))]
+        let shape = x.dims();
         let mut states = Vec::with_capacity(self.layers.len());
-        let y = self.forward_tapped(
-            x,
-            &self.rotary(time, &device),
-            None,
-            None,
-            DecoderStackSides {
-                key_valid,
-                ..Default::default()
-            },
-            Some(&mut states),
-        );
+        let y = self.forward_tapped(x, &r_emb, None, None, sides, Some(&mut states));
+        // Every layer's output is the stream's shape.
+        #[cfg(any(debug_assertions, test))]
+        for state in &states {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch", "time", "d_model"],
+                &state.dims(),
+                &[
+                    ("batch", shape[0]),
+                    ("time", shape[1]),
+                    ("d_model", shape[2])
+                ]
+            );
+        }
         (y, states)
     }
 
