@@ -1,6 +1,6 @@
 """Generate the resnetv2 kit's toy fixtures: tiny seeded timm `ResNetV2`s and their answers.
 
-Six toys, each timm's own `timm.models.resnetv2.ResNetV2`, four stages of one unit, 10 classes:
+Eight toys, each timm's own `timm.models.resnetv2.ResNetV2`, four stages of one unit, 10 classes:
 
 - `toy_bit`: a `BiT`'s knobs: weight-standardized convs (`StdConv2d`, eps 1e-8), 32-group norms
   (`GroupNormAct`), the `fixed` stem (a bare `7x7` conv, then a zero pad and an unpadded max
@@ -14,7 +14,12 @@ Six toys, each timm's own `timm.models.resnetv2.ResNetV2`, four stages of one un
 - `toy_gn_deep`: group norms on the deep stem with average-pool shortcuts, plain convs, as
   `resnetv2_50d_gn`;
 - `toy_evos`: `EvoNorm2dS0` (its activation its own) on the deep stem with average-pool shortcuts,
-  as `resnetv2_50d_evos`, on 64x64 images.
+  as `resnetv2_50d_evos`, on 64x64 images;
+- `toy_hybrid`: the hybrid ViT's backbone (`vision_transformer_hybrid._resnetv2`): `preact=False`
+  (`Bottleneck`s, a normed stem and shortcuts, no final norm), the `same` stem (a SAME-padded max
+  pool) and `StdConv2dSame` (eps 1e-8), 32-group norms, on 32x32 images: every stride-2 layer's
+  SAME pad is uneven there, the odd pixel bottom-right;
+- `toy_hybrid_odd`: `toy_hybrid` on 35x35 images, where the pads are even.
 
 The toy test builds each as bunsen's `ResNetV2ContractConfig` of the same knobs.
 
@@ -40,7 +45,14 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from functools import partial  # noqa: E402
 
 import torch  # noqa: E402
-from timm.layers import BatchNormAct2d, EvoNorm2dS0, GroupNormAct, StdConv2d, create_conv2d  # noqa: E402
+from timm.layers import (  # noqa: E402
+    BatchNormAct2d,
+    EvoNorm2dS0,
+    GroupNormAct,
+    StdConv2d,
+    StdConv2dSame,
+    create_conv2d,
+)
 from timm.models.resnetv2 import ResNetV2  # noqa: E402
 
 from toy_fixture import (  # noqa: E402
@@ -63,6 +75,14 @@ BIT = dict(
     norm_layer=partial(GroupNormAct, num_groups=32),
 )
 DEEP = dict(stem_type="deep", avg_down=True, conv_layer=create_conv2d)
+HYBRID = dict(
+    channels=(128, 128, 256, 256),
+    stem_chs=32,
+    stem_type="same",
+    preact=False,
+    conv_layer=partial(StdConv2dSame, eps=1e-8),
+    norm_layer=partial(GroupNormAct, num_groups=32),
+)
 
 # Each toy's seed is its position here: a new toy goes at the end.
 TOYS = {
@@ -79,12 +99,14 @@ TOYS = {
         DEEP, channels=(128, 128, 256, 256), stem_chs=64, norm_layer=partial(GroupNormAct, num_groups=32),
     ),
     "toy_evos": dict(DEEP, channels=(128, 128, 256, 256), stem_chs=64, norm_layer=EvoNorm2dS0),
+    "toy_hybrid": dict(HYBRID),
+    "toy_hybrid_odd": dict(HYBRID),
 }
 
 # The image side of each toy: odd sizes for `toy_bit_odd`; for `toy_evos`, 64, so its last
 # stage is 2x2: on a 1x1 map each 8-channel group's deviation is over 8 values, so ill-conditioned
 # that timm's own float32 is 7.5e-4 from its float64 there.
-SIZES = {"toy_bit_odd": 36, "toy_evos": 64}
+SIZES = {"toy_bit_odd": 36, "toy_evos": 64, "toy_hybrid_odd": 35}
 
 
 def norm_names(model: torch.nn.Module) -> set:

@@ -14,7 +14,8 @@ use crate::{
 
 /// Loads tensors named as timm's `ResNetV2` state dict into `model`:
 /// [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to) under
-/// [`resnetv2_rekey`] of the model's head.
+/// [`resnetv2_rekey`] of the model's head, pre-activation unless no unit
+/// normalizes its input (the hybrid `ViT`'s backbone).
 ///
 /// # Errors
 /// As [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to), when the
@@ -23,7 +24,12 @@ pub fn load_resnetv2_tensors(
     model: &mut ConvNetModel,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    resnetv2_rekey(model.num_classes(), model.d_features()).apply_to(model, tensors)
+    let preact = model
+        .stages
+        .iter()
+        .flat_map(|stage| &stage.units)
+        .any(|unit| unit.pre.is_some());
+    resnetv2_rekey(model.num_classes(), model.d_features(), preact).apply_to(model, tensors)
 }
 
 /// The model of `loaded`'s timm safetensors checkpoint (its `checkpoint`),
