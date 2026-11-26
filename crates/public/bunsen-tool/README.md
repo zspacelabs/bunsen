@@ -1232,6 +1232,30 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 * timm/aimv2_3b_patch14_448.apple_pt: [10.89 GB]
   timm's `aimv2_3b_patch14_448`, its `apple_pt` weights.
 
+* timm/beit3_base_patch16_224.in22k_ft_in1k: [347.4 MB]
+  timm's `beit3_base_patch16_224`, its `in22k_ft_in1k` weights.
+
+* timm/beit3_base_patch16_224.indomain_in22k_ft_in1k: [347.4 MB]
+  timm's `beit3_base_patch16_224`, its `indomain_in22k_ft_in1k` weights.
+
+* timm/beit3_base_patch16_224.indomain_pt: [343.6 MB]
+  timm's `beit3_base_patch16_224`, its `indomain_pt` weights.
+
+* timm/beit3_base_patch16_224.pt: [343.6 MB]
+  timm's `beit3_base_patch16_224`, its `pt` weights.
+
+* timm/beit3_large_patch16_224.in22k_ft_in1k: [1.22 GB]
+  timm's `beit3_large_patch16_224`, its `in22k_ft_in1k` weights.
+
+* timm/beit3_large_patch16_224.indomain_in22k_ft_in1k: [1.22 GB]
+  timm's `beit3_large_patch16_224`, its `indomain_in22k_ft_in1k` weights.
+
+* timm/beit3_large_patch16_224.indomain_pt: [1.21 GB]
+  timm's `beit3_large_patch16_224`, its `indomain_pt` weights.
+
+* timm/beit3_large_patch16_224.pt: [1.21 GB]
+  timm's `beit3_large_patch16_224`, its `pt` weights.
+
 * timm/eva_large_patch14_196.in22k_ft_in1k: [1.22 GB]
   timm's `eva_large_patch14_196`, its `in22k_ft_in1k` weights.
 

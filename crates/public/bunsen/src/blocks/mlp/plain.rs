@@ -17,9 +17,15 @@ use burn::{
 };
 
 use crate::{
-    blocks::activation::{
-        BunsenActivation,
-        BunsenActivationConfig,
+    blocks::{
+        activation::{
+            BunsenActivation,
+            BunsenActivationConfig,
+        },
+        norm::{
+            BunsenNormalization,
+            BunsenNormalizationConfig,
+        },
     },
     burner::module::{
         InputDTypes,
@@ -73,6 +79,13 @@ pub struct BunsenMlpConfig {
     /// `timm`'s `Mlp` drops); 0 is none.
     #[config(default = 0.0)]
     pub dropout: f64,
+
+    /// A norm on the hidden width, after the activation's dropout and before
+    /// `linear2`, sized to `d_hidden` whatever feature count it names
+    /// (`BEiT3`'s sub-LN, timm's `Mlp` with a `norm_layer`); `None` builds
+    /// none.
+    #[config(default = "None")]
+    pub hidden_norm: Option<BunsenNormalizationConfig>,
 }
 
 impl BunsenMlpConfig {
@@ -126,6 +139,11 @@ impl ModuleInit<BunsenMlp> for BunsenMlpConfig {
                 .with_bias(self.down_bias())
                 .init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
+            hidden_norm: self
+                .hidden_norm
+                .clone()
+                .map(|n| n.with_num_features(self.d_hidden).try_init(device))
+                .transpose()?,
         })
     }
 }
@@ -149,6 +167,10 @@ pub struct BunsenMlp {
 
     /// The dropout.
     pub dropout: Dropout,
+
+    /// The norm on the hidden width before `linear2`, if any
+    /// ([`BunsenMlpConfig::hidden_norm`]).
+    pub hidden_norm: Option<BunsenNormalization>,
 }
 
 impl BunsenMlpMeta for BunsenMlp {
@@ -186,8 +208,14 @@ impl BunsenMlp {
             &x.dims(),
             &[("in", self.d_input())]
         );
-        let x = self.act.forward(self.linear1.forward(x));
-        let x = self.linear2.forward(self.dropout.forward(x));
+        let x = self
+            .dropout
+            .forward(self.act.forward(self.linear1.forward(x)));
+        let x = match &self.hidden_norm {
+            Some(norm) => norm.forward(x),
+            None => x,
+        };
+        let x = self.linear2.forward(x);
         crate::contracts::assert_shape_contract_periodically!(
             [..., "out"],
             &x.dims(),

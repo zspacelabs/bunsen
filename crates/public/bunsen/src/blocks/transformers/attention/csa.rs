@@ -209,6 +209,12 @@ pub struct CausalSelfAttentionConfig {
     #[config(default = "None")]
     pub output_gate: Option<AttentionOutputGate>,
 
+    /// A norm on the attention's output, after the gate and before the output
+    /// projection, sized to `n_head * head_dim` whatever feature count it
+    /// names (`BEiT3`'s sub-LN, timm's `scale_norm`); `None` builds none.
+    #[config(default = "None")]
+    pub output_norm: Option<BunsenNormalizationConfig>,
+
     /// A learned gain per query head, `[H]`, on the queries after the
     /// QK-norm, applied as its absolute value: `q_h · |g_h|` (ZONOS3's
     /// `temp`). It scales head `h`'s scores by `|g_h|`, so a norm that pins
@@ -412,6 +418,11 @@ impl CausalSelfAttentionConfig {
             c_k: linear(self.n_embed, self.n_kv_head * head_dim, self.key_bias()),
             k_norm: norm(),
             c_v: linear(self.n_embed, self.n_kv_head * head_dim, self.qkv_bias),
+            output_norm: self
+                .output_norm
+                .clone()
+                .map(|n| n.with_num_features(self.n_head * head_dim).try_init(device))
+                .transpose()?,
             c_proj: linear(self.n_head * head_dim, self.n_embed, self.output_bias),
             score_scale: self.score_scale,
             attn_softcap: self.attn_softcap,
@@ -505,6 +516,10 @@ pub struct CausalSelfAttention {
 
     /// Value Linear.
     pub c_v: Linear,
+
+    /// The norm before the output projection, if any
+    /// ([`CausalSelfAttentionConfig::output_norm`]).
+    pub output_norm: Option<BunsenNormalization>,
 
     /// Output Projection Linear.
     pub c_proj: Linear,
@@ -882,6 +897,10 @@ impl CausalSelfAttention {
                 .reshape([b, t_q, h * d])
             }
             _ => y,
+        };
+        let y = match &self.output_norm {
+            Some(norm) => norm.forward(y),
+            None => y,
         };
 
         let y = self.c_proj.forward(y);

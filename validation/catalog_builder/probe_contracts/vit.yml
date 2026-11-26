@@ -3103,6 +3103,190 @@ timm:
       $kind: resource
       $file: config.json
       $format: json
+  beit3_base_patch16_224.in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `beit3_base_patch16_224`, its `in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_base_patch16_224.in22k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/beit3_base_patch16_224.in22k_ft_in1k
+      $revision: 1152d2f1c49139fd92f2d9b0c9ac90728668cdc8
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  beit3_base_patch16_224.indomain_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `beit3_base_patch16_224`, its `indomain_in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_base_patch16_224.indomain_in22k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/beit3_base_patch16_224.indomain_in22k_ft_in1k
+      $revision: 586009054eac8a4e4e5a5578e109a5dd73fcdd9c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  beit3_base_patch16_224.indomain_pt:
+    $kind: build
+    $description: "timm's `beit3_base_patch16_224`, its `indomain_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_base_patch16_224.indomain_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/beit3_base_patch16_224.indomain_pt
+      $revision: 5a29a3872859f80c7aa24d6d986be077b21ada43
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  beit3_base_patch16_224.pt:
+    $kind: build
+    $description: "timm's `beit3_base_patch16_224`, its `pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_base_patch16_224.pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/beit3_base_patch16_224.pt
+      $revision: 3f7c97970b89fe097cd16830feac53ec31f1e062
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  beit3_large_patch16_224.in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `beit3_large_patch16_224`, its `in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_large_patch16_224.in22k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/beit3_large_patch16_224.in22k_ft_in1k
+      $revision: 23a1cd6cefbd2a1b8b2e478f1f5fd86e02893a1a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  beit3_large_patch16_224.indomain_in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `beit3_large_patch16_224`, its `indomain_in22k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_large_patch16_224.indomain_in22k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/beit3_large_patch16_224.indomain_in22k_ft_in1k
+      $revision: 6ebe325430f7d66fb24e27b501fbb5010062d732
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  beit3_large_patch16_224.indomain_pt:
+    $kind: build
+    $description: "timm's `beit3_large_patch16_224`, its `indomain_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_large_patch16_224.indomain_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/beit3_large_patch16_224.indomain_pt
+      $revision: 2f2254facf6a75f655f4d472f4008c1e8e2ea555
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  beit3_large_patch16_224.pt:
+    $kind: build
+    $description: "timm's `beit3_large_patch16_224`, its `pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_large_patch16_224.pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/beit3_large_patch16_224.pt
+      $revision: 5cfd11bfb162c4c5703de19e2005cebe7e23f5d0
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
   eva_large_patch14_196.in22k_ft_in1k:
     $kind: build
     $description: "timm's `eva_large_patch14_196`, its `in22k_ft_in1k` weights."

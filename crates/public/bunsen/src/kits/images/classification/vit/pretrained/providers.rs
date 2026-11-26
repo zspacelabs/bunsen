@@ -66,7 +66,7 @@ mod tests {
     fn test_every_row_is_a_pinned_timm_repo() {
         let factory = super::super::default_vit_factory().unwrap();
         let rows = factory.list();
-        assert_eq!(rows.len(), 286);
+        assert_eq!(rows.len(), 294);
         let architectures = ViTContractConfig::prefab_names();
         let mut by_labels: BTreeMap<String, usize> = BTreeMap::new();
         for (_, row) in &rows {
@@ -92,9 +92,9 @@ mod tests {
         assert_eq!(
             by_labels,
             BTreeMap::from([
-                (String::new(), 172),
+                (String::new(), 176),
                 ("imagenet/synsets-12k".into(), 14),
-                ("imagenet/synsets-1k".into(), 88),
+                ("imagenet/synsets-1k".into(), 92),
                 ("imagenet/synsets-21k-goog".into(), 11),
                 ("imagenet/synsets-21k-miil".into(), 1),
             ])

@@ -24,13 +24,14 @@ use super::*;
 
 /// How far bunsen's float32 (on wgpu) may be from timm's float64, per
 /// value: `|bunsen - timm| <= ABS + REL * |timm|`. Measured on the rows
-/// (2026-11-26): at most 1.1e-4 on an `ImageNet`-1k logit
-/// (`eva_large_patch14_196.in22k_ft_in1k`, 24 layers; a `ResNet`'s at most
-/// 3.4e-5) and 2.7e-4 on an `ImageNet`-12k one, whose logits are larger
-/// (`resnetaa50d.sw_in12k`); 1.9e-4 on a feature (`flexivit_small.1200ep_in1k`;
-/// a `ResNet`'s at most 2.6e-5). `ABS` is twice timm's own float32 error there:
-/// timm's float32 is 9.3e-5 from its float64 on that row's features, on the
-/// CPU, and a GPU sums in another order.
+/// (2026-11-26): at most 2.7e-4 on an `ImageNet`-1k logit
+/// (`beit3_base_patch16_224.in22k_ft_in1k`, where timm's own float32 is
+/// 1.2e-4 from its float64; a `ResNet`'s at most 3.4e-5) and 2.7e-4 on an
+/// `ImageNet`-12k one, whose logits are larger (`resnetaa50d.sw_in12k`);
+/// 1.9e-4 on a feature (`flexivit_small.1200ep_in1k`; a `ResNet`'s at most
+/// 2.6e-5). `ABS` is twice timm's own float32 error there: timm's float32 is
+/// 9.3e-5 from its float64 on that row's features, on the CPU, and a GPU sums
+/// in another order.
 const ABS: f32 = 2e-4;
 /// See [`ABS`].
 const REL: f32 = 1e-4;
@@ -401,6 +402,12 @@ mod timm {
     #[serial_test::serial]
     fn vit_giant_patch14_dinov2_lvd142m() {
         check_row("timm/vit_giant_patch14_dinov2.lvd142m");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn beit3_base_patch16_224_in22k_ft_in1k() {
+        check_row("timm/beit3_base_patch16_224.in22k_ft_in1k");
     }
 
     #[test]

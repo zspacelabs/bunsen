@@ -1,6 +1,6 @@
 //! The toy models against timm's own `VisionTransformer`.
 //!
-//! `testdata/vit/` holds eighteen tiny seeded timm `VisionTransformer`s and
+//! `testdata/vit/` holds nineteen tiny seeded timm `VisionTransformer`s and
 //! their answers, computed in float64 (`tools/gen_vit_toy_fixtures.py`), each
 //! on 16x16 images in 4x4 patches, 16 wide, two layers of two heads: timm's
 //! defaults (the class token's pool); the patch tokens' mean and their
@@ -12,8 +12,8 @@
 //! class token's pool and the mean's; 18x18 images, the pixels past the last
 //! whole patch dropped; the attention pool, with no class token and with
 //! one; `AIMv2`'s `SwiGLU`, RMS norms, normed patch embedding and missing
-//! biases; and a packed `SwiGLU`. Each is the [`ViTContractConfig`] of the same
-//! knobs. The
+//! biases; a packed `SwiGLU`; and `BEiT3`'s sub-LN norms. Each is the
+//! [`ViTContractConfig`] of the same knobs. The
 //! weights, under timm's names, load through [`load_vit_tensors`]; each
 //! layer's map, the output tokens, the pooled features and the logits are
 //! checked against timm's.
@@ -297,6 +297,20 @@ fn test_glu_toy_is_timms() {
             .with_mlp_layer(ViTMlpLayer::SwiGluPacked)
             .with_activation(BunsenActivationConfig::Silu)
             .with_layer_scale(true),
+    );
+}
+
+/// `BEiT3`'s sub-LN: a norm before the attention's output projection and one
+/// on the MLP's hidden width, epsilon 1e-5, the mean pool.
+#[test]
+fn test_beit3_toy_is_timms() {
+    check_toy(
+        "toy_beit3",
+        toy_policy()
+            .with_scale_attn_norm(true)
+            .with_scale_mlp_norm(true)
+            .with_norm_epsilon(1e-5)
+            .with_global_pool(TokenPoolConfig::Avg),
     );
 }
 

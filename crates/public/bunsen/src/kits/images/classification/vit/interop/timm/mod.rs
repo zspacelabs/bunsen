@@ -170,6 +170,7 @@ pub fn vit_gated_rekey() -> Rekey {
 /// | a block's `attn.q`, `attn.k`, `attn.v`, `attn.proj` | its `attn.c_q`, `attn.c_k`, `attn.c_v`, `attn.c_proj` |
 /// | a block's `ls1.gamma`, `ls2.gamma` | its `attn_layer_scale`, `mlp_layer_scale` |
 /// | a block's `mlp.fc1`, `mlp.fc2` | its `mlp.linear1`, `mlp.linear2` |
+/// | a block's `attn.norm`, `mlp.norm` (`BEiT3`'s sub-LN) | its `attn.output_norm`, `mlp.hidden_norm` |
 /// | `norm` | `stack.norm` |
 /// | `fc_norm`, `head` | `head.fc_norm`, `head.fc` |
 /// | `attn_pool.latent`, `attn_pool.norm` | `pool.latent.latent`, `pool.latent.norm` |
@@ -199,6 +200,8 @@ fn vit_rekey_with(mlp: &[(&str, &str)]) -> Rekey {
         .rename("attn.k.", "attn.c_k.")
         .rename("attn.v.", "attn.c_v.")
         .rename("attn.proj.", "attn.c_proj.")
+        .rename("attn.norm.", "attn.output_norm.")
+        .rename("mlp.norm.", "mlp.hidden_norm.")
         .exact("ls1.gamma", "attn_layer_scale")
         .exact("ls2.gamma", "mlp_layer_scale");
     let block = mlp

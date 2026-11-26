@@ -509,6 +509,30 @@ impl ViTContractConfig {
             .with_fc_norm(Some(false))
     }
 
+    /// The `beit3_base_patch16_224` prefab: `BEiT3-B/16` at 224 pixels: 12
+    /// layers, 768 wide, 12 heads; norm epsilon 1e-05, a norm before the
+    /// attention's output projection, a norm on the MLP's hidden width,
+    /// average-pooled.
+    pub fn beit3_base_patch16_224() -> Self {
+        Self::vit(224, 16, 768, 12, 12)
+            .with_norm_epsilon(1e-05)
+            .with_scale_attn_norm(true)
+            .with_scale_mlp_norm(true)
+            .with_global_pool(TokenPoolConfig::Avg)
+    }
+
+    /// The `beit3_large_patch16_224` prefab: `BEiT3-L/16` at 224 pixels: 24
+    /// layers, 1024 wide, 16 heads; norm epsilon 1e-05, a norm before the
+    /// attention's output projection, a norm on the MLP's hidden width,
+    /// average-pooled.
+    pub fn beit3_large_patch16_224() -> Self {
+        Self::vit(224, 16, 1024, 24, 16)
+            .with_norm_epsilon(1e-05)
+            .with_scale_attn_norm(true)
+            .with_scale_mlp_norm(true)
+            .with_global_pool(TokenPoolConfig::Avg)
+    }
+
     /// The `eva_large_patch14_196` prefab: `EVA-L/14` at 196 pixels: 24 layers,
     /// 1024 wide, 16 heads; average-pooled.
     pub fn eva_large_patch14_196() -> Self {
@@ -1382,7 +1406,7 @@ impl ViTContractConfig {
 /// [`ViTContractConfig`] of 1000 classes for every architecture of timm's
 /// `vision_transformer.py` with hub weights that the kit builds, from
 /// `vit_tiny_patch16_224` and the CLIP image towers to the `SigLIP`, `DINOv2`,
-/// sbb, C-RADIO and `AIMv2` ones.
+/// sbb, C-RADIO, `AIMv2` and `BEiT3` ones.
 ///
 /// A prefab has no weights, and its size is the architecture's: a timm row
 /// takes the classes and the size from its `config.json`.
@@ -1468,6 +1492,8 @@ impl Prefabs for ViTContractConfig {
         ("aimv2_3b_patch14_224", Self::aimv2_3b_patch14_224),
         ("aimv2_3b_patch14_336", Self::aimv2_3b_patch14_336),
         ("aimv2_3b_patch14_448", Self::aimv2_3b_patch14_448),
+        ("beit3_base_patch16_224", Self::beit3_base_patch16_224),
+        ("beit3_large_patch16_224", Self::beit3_large_patch16_224),
         ("eva_large_patch14_196", Self::eva_large_patch14_196),
         ("eva_large_patch14_336", Self::eva_large_patch14_336),
         ("flexivit_small", Self::flexivit_small),
@@ -1784,6 +1810,6 @@ mod tests {
                 assert_eq!(config.image_size, size, "{name}");
             }
         }
-        assert_eq!(ViTContractConfig::prefab_names().len(), 132);
+        assert_eq!(ViTContractConfig::prefab_names().len(), 134);
     }
 }
