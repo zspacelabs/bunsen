@@ -3,11 +3,24 @@ use alloc::{
     vec::Vec,
 };
 
-use burn::prelude::Tensor;
+use burn::{
+    nn::conv::Conv2dConfig,
+    prelude::Tensor,
+};
 
 use super::*;
 use crate::{
-    blocks::conv::ConvBlock2dMeta,
+    blocks::{
+        activation::BunsenActivationConfig,
+        conv::{
+            ConvBlock2dConfig,
+            ConvBlock2dMeta,
+        },
+        images::attention::{
+            ChannelAttentionConfig,
+            SqueezeExciteConfig,
+        },
+    },
     burner::module::{
         ModuleInit,
         ToStructureConfig,
@@ -486,4 +499,100 @@ fn test_drop_block_schedules_reject_one_stage() {
 fn test_drop_block_schedule_panics_on_one_stage() {
     let model: ConvNetModel = resnet_like(&[2], 8, ConvUnitKind::Basic).init(&cpu_device());
     let _ = model.with_stochastic_drop_block(0.1);
+}
+
+/// `RegNet`'s attention: a squeeze-excite after the mixer, over the mixer's
+/// channels, its reduction `round(in * se_ratio)` of the unit's input and its
+/// activation the layers'.
+#[test]
+fn test_mixer_attention_lowers_as_regnets() {
+    let mut policy = ConvNetContractConfig::new(
+        ConvStemContractConfig::new(vec![8])
+            .with_kernel_size(3)
+            .with_pool(ConvStemPoolKind::None),
+        vec![ConvStageContractConfig::new(
+            2,
+            ConvUnitKind::Bottleneck,
+            24,
+            24,
+        )],
+        5,
+    );
+    policy.layers = ConvLayersConfig::new()
+        .with_act(BunsenActivationConfig::Silu)
+        .with_attn(Some(ConvAttentionKind::SeFromInput { se_ratio: 0.25 }))
+        .with_attn_place(ConvAttentionPlace::Mixer);
+    let structure = policy.to_structure();
+    for (unit, rd) in structure.stages[0].units.iter().zip([2, 6]) {
+        assert_eq!(unit.attn_place, ConvAttentionPlace::Mixer);
+        let Some(ChannelAttentionConfig::Se(se)) = &unit.attn else {
+            panic!("a squeeze-excite");
+        };
+        assert_eq!((se.channels, se.rd_channels), (24, rd));
+        assert!(matches!(se.act, BunsenActivationConfig::Silu));
+    }
+
+    let mut wrong = structure.stages[0].units[0].clone();
+    wrong.attn = Some(ChannelAttentionConfig::Se(SqueezeExciteConfig::new(8, 2)));
+    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        .message_contains("mixer out_channels")
+        .assert_err(&wrong.try_validate());
+}
+
+/// A unit's attention after the mixer is the path run with the attention
+/// between the mixer and the last conv.
+#[test]
+fn test_mixer_attention_forward() {
+    let device = cpu_device();
+    let unit: ResidualUnit = ResidualUnitConfig::new(
+        vec![
+            ConvBlock2dConfig::new(Conv2dConfig::new([4, 6], [1, 1]))
+                .with_norm(None)
+                .with_act(Some(BunsenActivationConfig::Relu))
+                .into(),
+            ConvBlock2dConfig::new(
+                Conv2dConfig::new([6, 6], [3, 3])
+                    .with_padding(burn::nn::PaddingConfig2d::Explicit(1, 1, 1, 1)),
+            )
+            .with_norm(None)
+            .with_act(Some(BunsenActivationConfig::Relu))
+            .into(),
+            ConvBlock2dConfig::new(Conv2dConfig::new([6, 4], [1, 1]))
+                .with_norm(None)
+                .into(),
+        ],
+        1,
+    )
+    .with_attn(Some(ChannelAttentionConfig::Se(SqueezeExciteConfig::new(
+        6, 2,
+    ))))
+    .with_attn_place(ConvAttentionPlace::Mixer)
+    .init(&device);
+    let x = crate::support::testing::seeded_tensor::<4>(
+        7,
+        [2, 4, 5, 5],
+        burn::tensor::Distribution::Default,
+        &device,
+    );
+    let mut path = x.clone();
+    for (idx, conv) in unit.convs.iter().enumerate() {
+        path = conv.forward(path);
+        if idx == 1 {
+            path = unit.attn.as_ref().unwrap().forward(path);
+        }
+    }
+    let want = burn::tensor::activation::relu(path + x.clone());
+    crate::support::testing::assert_tensors_close(
+        &unit.forward(x),
+        &want,
+        burn::tensor::Tolerance::default(),
+    );
+}
+
+/// `round(x)` ties to even, as Python's.
+#[test]
+fn test_round_ties_even() {
+    for (x, want) in [(0.5, 0), (1.5, 2), (2.5, 2), (2.25, 2), (2.75, 3), (8.0, 8)] {
+        assert_eq!(super::policy::round_ties_even(x), want, "{x}");
+    }
 }

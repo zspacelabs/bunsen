@@ -37,11 +37,12 @@
 //!
 //! Every unit kind ([`ConvUnitKind`]) is one [`ResidualUnit`]: a path of
 //! [`ResidualConv`]s, one of them the spatial mixer (the conv that strides;
-//! a drop block follows its norm), a channel attention over the path's output
-//! when the policy names one, a [`ConvShortcut`] when the path changes the
-//! channels or the size, and an activation after the add. The path's
-//! last conv has none of its own. A basic unit's path is two `3x3` convs, the
-//! first the mixer; a bottleneck's a `1x1`, a `3x3` mixer and a `1x1`.
+//! a drop block follows its norm), a channel attention when the policy names
+//! one (over the path's output, or after the mixer: [`ConvAttentionPlace`]), a
+//! [`ConvShortcut`] when the path changes the channels or the size, and an
+//! activation after the add. The path's last conv has none of its own. A basic
+//! unit's path is two `3x3` convs, the first the mixer; a bottleneck's a `1x1`,
+//! a `3x3` mixer and a `1x1`.
 //!
 //! ## Parameter paths
 //!
@@ -71,7 +72,8 @@
 //!   optional pool before a conv block;
 //! - the channel attention: [`ConvAttentionKind`] /
 //!   [`ChannelAttentionConfig`](crate::blocks::images::attention::ChannelAttentionConfig)
-//!   (squeeze-excite, ECA);
+//!   (squeeze-excite, ECA, `RegNet`'s squeeze-excite of the unit's input), and
+//!   its [`ConvAttentionPlace`];
 //! - the stem's pool: [`ConvStemPoolKind`] / [`ConvStemPoolConfig`] (max,
 //!   none);
 //! - the global pool: [`GlobalPool2dConfig`] (average, max, their mean, their
