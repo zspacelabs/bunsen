@@ -7,19 +7,24 @@
 //! features, both default. Fetching a checkpoint needs `fetch`.
 //!
 //! The geometries are [`ViTContractConfig`](super::ViTContractConfig)'s
-//! prefabs: 25 by timm's architecture names, each with 1000 classes at its
-//! name's size. The checkpoints are 99 rows, the built-in catalog's builds
+//! prefabs: 101 by timm's architecture names, generated from timm's own
+//! entrypoints, each with 1000 classes at its architecture's size. The
+//! checkpoints are 242 rows, the built-in catalog's builds
 //! of [`VIT_CATALOG_CONTRACT`] in its `timm` namespace, written by the
 //! catalog builder's `timm-rows`: every timm hub repo of a prefab's
 //! architecture (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`): its
 //! `model.safetensors`, or an older repo's `pytorch_model.bin` (three
 //! `OpenAI` CLIP towers, in CLIP's own layout), each pinned at a
 //! revision: `AugReg`'s, the original `ViT` paper's, SAM's, DINO's, MAE's,
-//! MIIL's, and the CLIP towers of LAION, `DataComp`, `MetaCLIP`, DFN and
-//! `OpenAI`, with timm's fine-tunes of them. A row whose head has an
+//! MIIL's, the CLIP towers of LAION, `DataComp`, `MetaCLIP`, DFN, `TinyCLIP`
+//! and `OpenAI`, with timm's fine-tunes of them, `FlexiViT`'s, EVA's,
+//! `DINOv2`'s and its registers', `TIPSv2`'s, timm's sbb sets, the `gap`
+//! towers of `SigLIP` and `SigLIP` 2, and C-RADIO's. A row whose head has an
 //! `ImageNet` label set's class count binds those labels (1k, 12k, 21k
 //! Google's, 21k MIIL's); the headless towers, the CLIP projections and the
-//! iNaturalist heads bind none.
+//! iNaturalist heads bind none. A row's license is its card's; a card
+//! naming its own license (DFN's Apple license, C-RADIO's NVIDIA one) says
+//! `other`, its repo linked as the row's origin.
 //!
 //! Any timm hub repo of a prefab's architecture
 //! (`hf:timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`) loads as its

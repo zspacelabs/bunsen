@@ -21,7 +21,7 @@
 //!   ([`VisionEncoderModel`](crate::blocks::transformers::models::vision_encoder::VisionEncoderModel)).
 //!   101 prefabs, generated from timm's `vision_transformer.py` (from
 //!   `vit_tiny_patch16_224` and the CLIP image towers to the `SigLIP`,
-//!   `DINOv2`, sbb and C-RADIO archs), and 99 pretrained rows, timm's hub
+//!   `DINOv2`, sbb and C-RADIO archs), and 242 pretrained rows, timm's hub
 //!   repos, loaded by name through
 //!   [`default_vit_factory`](vit::pretrained::default_vit_factory).
 //! - [`deit`]: `DeiT` and `DeiT` III, `ViT`s built the same way, the distilled

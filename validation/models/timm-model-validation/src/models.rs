@@ -24,12 +24,14 @@ use super::*;
 
 /// How far bunsen's float32 (on wgpu) may be from timm's float64, per
 /// value: `|bunsen - timm| <= ABS + REL * |timm|`. Measured on the rows
-/// (2026-11-25): at most 6.2e-5 on an `ImageNet`-1k logit
-/// (`deit3_small_patch16_224.fb_in1k`; a `ResNet`'s at most 3.4e-5) and 2.7e-4
-/// on an `ImageNet`-12k one, whose logits are larger (`resnetaa50d.sw_in12k`);
-/// 1.8e-4 on a feature, DINO's, whose features are
-/// larger (`vit_small_patch16_224.dino`; a `ResNet`'s at most 2.6e-5).
-const ABS: f32 = 1e-4;
+/// (2026-11-26): at most 1.1e-4 on an `ImageNet`-1k logit
+/// (`eva_large_patch14_196.in22k_ft_in1k`, 24 layers; a `ResNet`'s at most
+/// 3.4e-5) and 2.7e-4 on an `ImageNet`-12k one, whose logits are larger
+/// (`resnetaa50d.sw_in12k`); 1.9e-4 on a feature (`flexivit_small.1200ep_in1k`;
+/// a `ResNet`'s at most 2.6e-5). `ABS` is twice timm's own float32 error there:
+/// timm's float32 is 9.3e-5 from its float64 on that row's features, on the
+/// CPU, and a GPU sums in another order.
+const ABS: f32 = 2e-4;
 /// See [`ABS`].
 const REL: f32 = 1e-4;
 
@@ -327,6 +329,54 @@ mod timm {
     #[serial_test::serial]
     fn vit_base_patch32_clip_224_openai() {
         check_row("timm/vit_base_patch32_clip_224.openai");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn flexivit_small_1200ep_in1k() {
+        check_row("timm/flexivit_small.1200ep_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_little_patch16_reg1_gap_256_sbb_in12k() {
+        check_row("timm/vit_little_patch16_reg1_gap_256.sbb_in12k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_small_patch14_reg4_dinov2_lvd142m() {
+        check_row("timm/vit_small_patch14_reg4_dinov2.lvd142m");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_xsmall_patch16_clip_224_tinyclip_yfcc15m() {
+        check_row("timm/vit_xsmall_patch16_clip_224.tinyclip_yfcc15m");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_base_patch32_siglip_gap_256_v2_webli() {
+        check_row("timm/vit_base_patch32_siglip_gap_256.v2_webli");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_base_patch16_radio_v3_c_radio() {
+        check_row("timm/vit_base_patch16_radio_v3.c_radio");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn eva_large_patch14_196_in22k_ft_in1k() {
+        check_row("timm/eva_large_patch14_196.in22k_ft_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_base_patch16_rpn_224_sw_in1k() {
+        check_row("timm/vit_base_patch16_rpn_224.sw_in1k");
     }
 
     #[test]

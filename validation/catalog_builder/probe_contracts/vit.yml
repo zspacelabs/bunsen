@@ -1109,6 +1109,94 @@ timm:
       $kind: resource
       $file: config.json
       $format: json
+  vit_xsmall_patch16_clip_224.tinyclip_yfcc15m:
+    $kind: build
+    $description: "timm's `vit_xsmall_patch16_clip_224`, its `tinyclip_yfcc15m` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/vit_xsmall_patch16_clip_224.tinyclip_yfcc15m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_xsmall_patch16_clip_224.tinyclip_yfcc15m
+      $revision: b922ae7a33ddc43b61821a43c9770a96f08bb408
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_medium_patch32_clip_224.tinyclip_laion400m:
+    $kind: build
+    $description: "timm's `vit_medium_patch32_clip_224`, its `tinyclip_laion400m` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/vit_medium_patch32_clip_224.tinyclip_laion400m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_medium_patch32_clip_224.tinyclip_laion400m
+      $revision: a63295e33a7f3672b8fd90bc6cbbcf8da175395d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_medium_patch16_clip_224.tinyclip_yfcc15m:
+    $kind: build
+    $description: "timm's `vit_medium_patch16_clip_224`, its `tinyclip_yfcc15m` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/vit_medium_patch16_clip_224.tinyclip_yfcc15m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_medium_patch16_clip_224.tinyclip_yfcc15m
+      $revision: 28f44f9209ae3b66cce24922b0c158a134b4554c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_betwixt_patch32_clip_224.tinyclip_laion400m:
+    $kind: build
+    $description: "timm's `vit_betwixt_patch32_clip_224`, its `tinyclip_laion400m` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/vit_betwixt_patch32_clip_224.tinyclip_laion400m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_betwixt_patch32_clip_224.tinyclip_laion400m
+      $revision: 0b2b2b125bef359312a5397f96335f120d39321e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
   vit_base_patch32_clip_224.datacompxl:
     $kind: build
     $description: "timm's `vit_base_patch32_clip_224`, its `datacompxl` weights."
@@ -1313,6 +1401,28 @@ timm:
       $kind: resource
       $file: config.json
       $format: json
+  vit_base_patch32_clip_256.datacompxl:
+    $kind: build
+    $description: "timm's `vit_base_patch32_clip_256`, its `datacompxl` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch32_clip_256.datacompxl
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch32_clip_256.datacompxl
+      $revision: 8d57ad699b214998a56f945a081cf72189137b73
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
   vit_base_patch32_clip_384.laion2b_ft_in12k_in1k:
     $kind: build
     $description: "timm's `vit_base_patch32_clip_384`, its `laion2b_ft_in12k_in1k` weights."
@@ -1348,6 +1458,30 @@ timm:
     $hub:
       $repo: timm/vit_base_patch32_clip_384.openai_ft_in12k_in1k
       $revision: db08cfaf98a1f56d5f56a5184a73d91a4f9cd8c2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch32_clip_448.laion2b_ft_in12k_in1k:
+    $kind: build
+    $description: "timm's `vit_base_patch32_clip_448`, its `laion2b_ft_in12k_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch32_clip_448.laion2b_ft_in12k_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch32_clip_448.laion2b_ft_in12k_in1k
+      $revision: c2b95b054ef3c7637f8d3155f1642d343600d423
     $resources:
       checkpoint: checkpoint
       config: config
@@ -2293,6 +2427,3130 @@ timm:
       config: config
       labels: /imagenet/synsets-1k
       label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_224.dfn5b:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_224`, its `dfn5b` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_224.dfn5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_224.dfn5b
+      $revision: f578dd8feffd415d1dd999618fe2fc55ed262d78
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_224.laion2b:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_224`, its `laion2b` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_224.laion2b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_224.laion2b
+      $revision: b8441fa3f968a5e469c166176ee82f8ce8dbc4eb
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_224.laion2b_ft_in12k:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_224`, its `laion2b_ft_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_224.laion2b_ft_in12k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_224.laion2b_ft_in12k
+      $revision: e3bbfa7eb1efc241fd3a3ebc0e5dc4716614fdde
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_224.laion2b_ft_in12k_in1k:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_224`, its `laion2b_ft_in12k_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_224.laion2b_ft_in12k_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_224.laion2b_ft_in12k_in1k
+      $revision: 4b8616fc2294ad368dd6292062bbd4ab1bb36f4c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_224.laion2b_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_224`, its `laion2b_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_224.laion2b_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_224.laion2b_ft_in1k
+      $revision: 7c0d9450f698678df643d9214fbcccdd88abf177
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_224.metaclip2_worldwide:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_224`, its `metaclip2_worldwide` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_224.metaclip2_worldwide
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_224.metaclip2_worldwide
+      $revision: dda0415d5da9b312d21d9c244b7c5de375c17ea0
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_224.metaclip_2pt5b:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_224`, its `metaclip_2pt5b` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_224.metaclip_2pt5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_224.metaclip_2pt5b
+      $revision: 28cc5adb1d99fec4d4e1f60272187807942d333e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_224.metaclip_altogether:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_224`, its `metaclip_altogether` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_224.metaclip_altogether
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_224.metaclip_altogether
+      $revision: 79ca86b54e97d41bd9f555bbb272bb1dcaa11f75
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_336.laion2b_ft_in12k_in1k:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_336`, its `laion2b_ft_in12k_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_336.laion2b_ft_in12k_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_336.laion2b_ft_in12k_in1k
+      $revision: 25e9fb139c51e2b23bdcafff205f93218369cb75
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_378.dfn5b:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_378`, its `dfn5b` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_378.dfn5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_378.dfn5b
+      $revision: ae5cf5b82fdef1db1128b946ef3635ec99b5660a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_378.metaclip2_worldwide:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_378`, its `metaclip2_worldwide` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_378.metaclip2_worldwide
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_378.metaclip2_worldwide
+      $revision: 5cae0bba64b4633ad3c3329925f3544e6cce9a2a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_giant_patch14_clip_224.laion2b:
+    $kind: build
+    $description: "timm's `vit_giant_patch14_clip_224`, its `laion2b` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_giant_patch14_clip_224.laion2b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_giant_patch14_clip_224.laion2b
+      $revision: 31cdc735f1174b7040abc870cb568f52861bfb8e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_gigantic_patch14_clip_224.laion2b:
+    $kind: build
+    $description: "timm's `vit_gigantic_patch14_clip_224`, its `laion2b` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_gigantic_patch14_clip_224.laion2b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_gigantic_patch14_clip_224.laion2b
+      $revision: 074c3d783ac850f5278e682bd85e1a0212e90753
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_gigantic_patch14_clip_224.metaclip2_worldwide:
+    $kind: build
+    $description: "timm's `vit_gigantic_patch14_clip_224`, its `metaclip2_worldwide` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/vit_gigantic_patch14_clip_224.metaclip2_worldwide
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_gigantic_patch14_clip_224.metaclip2_worldwide
+      $revision: e85b88ebaea5d5a01632a0e11e69978de3b9a817
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_gigantic_patch14_clip_224.metaclip_2pt5b:
+    $kind: build
+    $description: "timm's `vit_gigantic_patch14_clip_224`, its `metaclip_2pt5b` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/vit_gigantic_patch14_clip_224.metaclip_2pt5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_gigantic_patch14_clip_224.metaclip_2pt5b
+      $revision: 2b4a234e9e22a182b34d372c6cf6f02f44182a30
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_gigantic_patch14_clip_378.metaclip2_worldwide:
+    $kind: build
+    $description: "timm's `vit_gigantic_patch14_clip_378`, its `metaclip2_worldwide` weights."
+    $license: cc-by-nc-4.0
+    $origin: https://huggingface.co/timm/vit_gigantic_patch14_clip_378.metaclip2_worldwide
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_gigantic_patch14_clip_378.metaclip2_worldwide
+      $revision: 93d4360cb4bd1dc22a37069097a0e4ff7876753e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  eva_large_patch14_196.in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `eva_large_patch14_196`, its `in22k_ft_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/eva_large_patch14_196.in22k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/eva_large_patch14_196.in22k_ft_in1k
+      $revision: a0c2f565d829e5f6b9a4a8e5989062469c650fe2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  eva_large_patch14_196.in22k_ft_in22k_in1k:
+    $kind: build
+    $description: "timm's `eva_large_patch14_196`, its `in22k_ft_in22k_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/eva_large_patch14_196.in22k_ft_in22k_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/eva_large_patch14_196.in22k_ft_in22k_in1k
+      $revision: b2ef4bd239c14610783773be679c29e25d7c273c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  eva_large_patch14_336.in22k_ft_in1k:
+    $kind: build
+    $description: "timm's `eva_large_patch14_336`, its `in22k_ft_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/eva_large_patch14_336.in22k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/eva_large_patch14_336.in22k_ft_in1k
+      $revision: 995c0be866d229753c3099ac9c3e8b19c829c55b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  eva_large_patch14_336.in22k_ft_in22k_in1k:
+    $kind: build
+    $description: "timm's `eva_large_patch14_336`, its `in22k_ft_in22k_in1k` weights."
+    $license: mit
+    $origin: https://huggingface.co/timm/eva_large_patch14_336.in22k_ft_in22k_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/eva_large_patch14_336.in22k_ft_in22k_in1k
+      $revision: e1d9242c0efa6dd766c03a3d0ae9c14f58cb71a2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_small.1200ep_in1k:
+    $kind: build
+    $description: "timm's `flexivit_small`, its `1200ep_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_small.1200ep_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_small.1200ep_in1k
+      $revision: 6770e6fd9d473a2ecf126cda59b9fd98d69b9d57
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_small.300ep_in1k:
+    $kind: build
+    $description: "timm's `flexivit_small`, its `300ep_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_small.300ep_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_small.300ep_in1k
+      $revision: 6e7fa6a720a7caddbee9b3b40d6172025faf19b5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_small.600ep_in1k:
+    $kind: build
+    $description: "timm's `flexivit_small`, its `600ep_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_small.600ep_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_small.600ep_in1k
+      $revision: 3c4bb0a16bc4bcabf8522761953f4b2e06f99998
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_base.1000ep_in21k:
+    $kind: build
+    $description: "timm's `flexivit_base`, its `1000ep_in21k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_base.1000ep_in21k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_base.1000ep_in21k
+      $revision: dcf3f4993f8a02a485aeddc70d6b4b29a3197734
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-21k-goog
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_base.1200ep_in1k:
+    $kind: build
+    $description: "timm's `flexivit_base`, its `1200ep_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_base.1200ep_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_base.1200ep_in1k
+      $revision: 04c2f514d2fd5fb3de3d8f39069e9971b15012a0
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_base.300ep_in1k:
+    $kind: build
+    $description: "timm's `flexivit_base`, its `300ep_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_base.300ep_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_base.300ep_in1k
+      $revision: acde4e796e6e44165e7609b86a3ff515a637870d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_base.300ep_in21k:
+    $kind: build
+    $description: "timm's `flexivit_base`, its `300ep_in21k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_base.300ep_in21k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_base.300ep_in21k
+      $revision: 4ff678d923f5a749cb2e7806103a917fb0899b39
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-21k-goog
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_base.600ep_in1k:
+    $kind: build
+    $description: "timm's `flexivit_base`, its `600ep_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_base.600ep_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_base.600ep_in1k
+      $revision: 903a3c03b4eaa780502d849709733a77e4a05d19
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_base.patch16_in21k:
+    $kind: build
+    $description: "timm's `flexivit_base`, its `patch16_in21k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_base.patch16_in21k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_base.patch16_in21k
+      $revision: bde5320169fcf3ec1ab7710f1eacc5c459c6bd46
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-21k-goog
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_base.patch30_in21k:
+    $kind: build
+    $description: "timm's `flexivit_base`, its `patch30_in21k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_base.patch30_in21k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_base.patch30_in21k
+      $revision: 64ab0bbdfda33767b425e552a2d9cc31bd8b1ceb
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-21k-goog
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_large.1200ep_in1k:
+    $kind: build
+    $description: "timm's `flexivit_large`, its `1200ep_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_large.1200ep_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_large.1200ep_in1k
+      $revision: 584d2f3f745452e8e43a97695b4ed306562ceeb7
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_large.300ep_in1k:
+    $kind: build
+    $description: "timm's `flexivit_large`, its `300ep_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_large.300ep_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_large.300ep_in1k
+      $revision: 596b23a703c9027b714f5a44c38b7f220928561b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  flexivit_large.600ep_in1k:
+    $kind: build
+    $description: "timm's `flexivit_large`, its `600ep_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/flexivit_large.600ep_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/flexivit_large.600ep_in1k
+      $revision: d5a952a3be4d485086952f18ea2bc01b10156cbd
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch32_clip_quickgelu_224.laion400m_e32:
+    $kind: build
+    $description: "timm's `vit_base_patch32_clip_quickgelu_224`, its `laion400m_e32` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch32_clip_quickgelu_224.laion400m_e32
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch32_clip_quickgelu_224.laion400m_e32
+      $revision: 13c7a7ab5f2eafeda99e47a14de8b8ad20ea1d83
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch32_clip_quickgelu_224.metaclip_2pt5b:
+    $kind: build
+    $description: "timm's `vit_base_patch32_clip_quickgelu_224`, its `metaclip_2pt5b` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch32_clip_quickgelu_224.metaclip_2pt5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch32_clip_quickgelu_224.metaclip_2pt5b
+      $revision: 69ab2f41e58e64e8463e0b5d5b495b3bdff2d232
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch32_clip_quickgelu_224.metaclip_400m:
+    $kind: build
+    $description: "timm's `vit_base_patch32_clip_quickgelu_224`, its `metaclip_400m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch32_clip_quickgelu_224.metaclip_400m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch32_clip_quickgelu_224.metaclip_400m
+      $revision: a6964321961725c5a073f3b658b0cd32a8ec1a96
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_clip_quickgelu_224.metaclip_2pt5b:
+    $kind: build
+    $description: "timm's `vit_base_patch16_clip_quickgelu_224`, its `metaclip_2pt5b` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_clip_quickgelu_224.metaclip_2pt5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_clip_quickgelu_224.metaclip_2pt5b
+      $revision: 0fd5bacdcab633fdcf3646824032c79d5e2cb52d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_clip_quickgelu_224.metaclip_400m:
+    $kind: build
+    $description: "timm's `vit_base_patch16_clip_quickgelu_224`, its `metaclip_400m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_clip_quickgelu_224.metaclip_400m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_clip_quickgelu_224.metaclip_400m
+      $revision: 83f292b9a599ef63f9144d42b2225ab14136ec7b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch14_clip_quickgelu_224.dfn2b:
+    $kind: build
+    $description: "timm's `vit_large_patch14_clip_quickgelu_224`, its `dfn2b` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_large_patch14_clip_quickgelu_224.dfn2b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch14_clip_quickgelu_224.dfn2b
+      $revision: e82b33fdc6d847c6929cab881b8f83cc71de355b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch14_clip_quickgelu_224.metaclip_2pt5b:
+    $kind: build
+    $description: "timm's `vit_large_patch14_clip_quickgelu_224`, its `metaclip_2pt5b` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch14_clip_quickgelu_224.metaclip_2pt5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch14_clip_quickgelu_224.metaclip_2pt5b
+      $revision: 43d80ee5998eb5a90beba75a6f61c5e06c802d14
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch14_clip_quickgelu_224.metaclip_400m:
+    $kind: build
+    $description: "timm's `vit_large_patch14_clip_quickgelu_224`, its `metaclip_400m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch14_clip_quickgelu_224.metaclip_400m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch14_clip_quickgelu_224.metaclip_400m
+      $revision: c1c3816f12c44b6fb7222f2660d4fed418016513
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch14_clip_quickgelu_336.openai:
+    $kind: build
+    $description: "timm's `vit_large_patch14_clip_quickgelu_336`, its `openai` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch14_clip_quickgelu_336.openai
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch14_clip_quickgelu_336.openai
+      $revision: 8c48d3aa5324667d65f4fd2ea358339e23fa618c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_quickgelu_224.dfn5b:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_quickgelu_224`, its `dfn5b` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_quickgelu_224.dfn5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_quickgelu_224.dfn5b
+      $revision: 7a32182d503a1d85fd1197757c30165caadc164f
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_quickgelu_224.metaclip2_worldwide:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_quickgelu_224`, its `metaclip2_worldwide` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_quickgelu_224.metaclip2_worldwide
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_quickgelu_224.metaclip2_worldwide
+      $revision: 2b665cc4e10f00c2dd14b184b9e11c598555dce2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_quickgelu_224.metaclip_2pt5b:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_quickgelu_224`, its `metaclip_2pt5b` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_quickgelu_224.metaclip_2pt5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_quickgelu_224.metaclip_2pt5b
+      $revision: 1e945796b72a6d2eecd1f4dbb901b2ddf72e1f56
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch14_clip_quickgelu_378.dfn5b:
+    $kind: build
+    $description: "timm's `vit_huge_patch14_clip_quickgelu_378`, its `dfn5b` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_huge_patch14_clip_quickgelu_378.dfn5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch14_clip_quickgelu_378.dfn5b
+      $revision: e0dabe72444b59f15582eb140c7d7a06fc106d3b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_gigantic_patch14_clip_quickgelu_224.metaclip_2pt5b:
+    $kind: build
+    $description: "timm's `vit_gigantic_patch14_clip_quickgelu_224`, its `metaclip_2pt5b` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_gigantic_patch14_clip_quickgelu_224.metaclip_2pt5b
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_gigantic_patch14_clip_quickgelu_224.metaclip_2pt5b
+      $revision: 59293f4220e65339c31430dbb0b30e223c086cd2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_small_patch14_dinov2.lvd142m:
+    $kind: build
+    $description: "timm's `vit_small_patch14_dinov2`, its `lvd142m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_small_patch14_dinov2.lvd142m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_small_patch14_dinov2.lvd142m
+      $revision: 4610ca143709d58a633b6397a74412c2c3842454
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch14_dinov2.lvd142m:
+    $kind: build
+    $description: "timm's `vit_base_patch14_dinov2`, its `lvd142m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch14_dinov2.lvd142m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch14_dinov2.lvd142m
+      $revision: 4685c99dabffe5affac90bd99dbffd25801ae58d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch14_dinov2.lvd142m:
+    $kind: build
+    $description: "timm's `vit_large_patch14_dinov2`, its `lvd142m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch14_dinov2.lvd142m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch14_dinov2.lvd142m
+      $revision: 4741e1cafbf45415e77074bb0cb42dba76c8684a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_medium_patch16_gap_240.sw_in12k:
+    $kind: build
+    $description: "timm's `vit_medium_patch16_gap_240`, its `sw_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_medium_patch16_gap_240.sw_in12k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_medium_patch16_gap_240.sw_in12k
+      $revision: 40c794827e08c9e1c579261a53d96ddb2542fb90
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_medium_patch16_gap_256.sw_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_medium_patch16_gap_256`, its `sw_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_medium_patch16_gap_256.sw_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_medium_patch16_gap_256.sw_in12k_ft_in1k
+      $revision: 6abc9111fb0aa25edb05cc6b8f36bb1a73239348
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_medium_patch16_gap_384.sw_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_medium_patch16_gap_384`, its `sw_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_medium_patch16_gap_384.sw_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_medium_patch16_gap_384.sw_in12k_ft_in1k
+      $revision: 3a5e244f690b42bb7ad5b49c653f16fa291e76cc
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_radio_v3.c_radio:
+    $kind: build
+    $description: "timm's `vit_base_patch16_radio_v3`, its `c_radio` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_base_patch16_radio_v3.c_radio
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_radio_v3.c_radio
+      $revision: 02b002a3cc87482cb4bb9d5df18d5c54660dc4f8
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch16_radio_v3.c_radio:
+    $kind: build
+    $description: "timm's `vit_large_patch16_radio_v3`, its `c_radio` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_large_patch16_radio_v3.c_radio
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch16_radio_v3.c_radio
+      $revision: d322f426e04d2d4f2631d0f17ed7cd6f17246881
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch16_radio_v3.c_radio:
+    $kind: build
+    $description: "timm's `vit_huge_patch16_radio_v3`, its `c_radio` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_huge_patch16_radio_v3.c_radio
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch16_radio_v3.c_radio
+      $revision: 8bbb3f04f2ed29f29810ead5f9d0013f80146db0
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_giant_patch16_radio_v3.c_radio:
+    $kind: build
+    $description: "timm's `vit_giant_patch16_radio_v3`, its `c_radio` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_giant_patch16_radio_v3.c_radio
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_giant_patch16_radio_v3.c_radio
+      $revision: af0e94b6ff4fa407f2af0ce3ef0f52a72987aa5a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch16_radio_v4.c_radio:
+    $kind: build
+    $description: "timm's `vit_so400m_patch16_radio_v4`, its `c_radio` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_so400m_patch16_radio_v4.c_radio
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch16_radio_v4.c_radio
+      $revision: 778c69d0e095d02b18defc1b3d082b011a9d8fb7
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_huge_patch16_radio_v4.c_radio:
+    $kind: build
+    $description: "timm's `vit_huge_patch16_radio_v4`, its `c_radio` weights."
+    $license: other
+    $origin: https://huggingface.co/timm/vit_huge_patch16_radio_v4.c_radio
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_huge_patch16_radio_v4.c_radio
+      $revision: e6ffe4dd20f1297bd90e1f083c4721dd5f74b847
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_wee_patch16_reg1_gap_256.sbb_in1k:
+    $kind: build
+    $description: "timm's `vit_wee_patch16_reg1_gap_256`, its `sbb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_wee_patch16_reg1_gap_256.sbb_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_wee_patch16_reg1_gap_256.sbb_in1k
+      $revision: f4f063738d9ff32f9428f1ef12b5de22f57b572d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_little_patch16_reg1_gap_256.sbb_in12k:
+    $kind: build
+    $description: "timm's `vit_little_patch16_reg1_gap_256`, its `sbb_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_little_patch16_reg1_gap_256.sbb_in12k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_little_patch16_reg1_gap_256.sbb_in12k
+      $revision: 8c2c9d1149d0d69ed400b8e22e5665d97f949ffe
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_little_patch16_reg1_gap_256.sbb_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_little_patch16_reg1_gap_256`, its `sbb_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_little_patch16_reg1_gap_256.sbb_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_little_patch16_reg1_gap_256.sbb_in12k_ft_in1k
+      $revision: 78edbabd1436021671f1ce6f0c70b307f76a5356
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_medium_patch16_reg1_gap_256.sbb_in1k:
+    $kind: build
+    $description: "timm's `vit_medium_patch16_reg1_gap_256`, its `sbb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_medium_patch16_reg1_gap_256.sbb_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_medium_patch16_reg1_gap_256.sbb_in1k
+      $revision: 8c4a8e77520aaf65c1d8a243022422754618a9b4
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_betwixt_patch16_reg1_gap_256.sbb_in1k:
+    $kind: build
+    $description: "timm's `vit_betwixt_patch16_reg1_gap_256`, its `sbb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_betwixt_patch16_reg1_gap_256.sbb_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_betwixt_patch16_reg1_gap_256.sbb_in1k
+      $revision: b70f75dbfedf6f2767452d3235838fa150eb6ed9
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so150m2_patch16_reg1_gap_256.sbb_e200_in12k:
+    $kind: build
+    $description: "timm's `vit_so150m2_patch16_reg1_gap_256`, its `sbb_e200_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so150m2_patch16_reg1_gap_256.sbb_e200_in12k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so150m2_patch16_reg1_gap_256.sbb_e200_in12k
+      $revision: 2eb8feafef0b69563c56a8c28fdcc781af178111
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so150m2_patch16_reg1_gap_256.sbb_e200_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_so150m2_patch16_reg1_gap_256`, its `sbb_e200_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so150m2_patch16_reg1_gap_256.sbb_e200_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so150m2_patch16_reg1_gap_256.sbb_e200_in12k_ft_in1k
+      $revision: 0229ab67a41e0dc2c377ec86d9e0bc06ecdcdd8e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so150m2_patch16_reg1_gap_384.sbb_e200_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_so150m2_patch16_reg1_gap_384`, its `sbb_e200_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so150m2_patch16_reg1_gap_384.sbb_e200_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so150m2_patch16_reg1_gap_384.sbb_e200_in12k_ft_in1k
+      $revision: 2c70a30f6fbb9bd7c35eecf9ddb6cba5f41f6a65
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so150m2_patch16_reg1_gap_448.sbb_e200_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_so150m2_patch16_reg1_gap_448`, its `sbb_e200_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so150m2_patch16_reg1_gap_448.sbb_e200_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so150m2_patch16_reg1_gap_448.sbb_e200_in12k_ft_in1k
+      $revision: eb52296ca7e501ce519ca86941525d3773d15d6c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch14_reg1_tipsv2.webli:
+    $kind: build
+    $description: "timm's `vit_base_patch14_reg1_tipsv2`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch14_reg1_tipsv2.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch14_reg1_tipsv2.webli
+      $revision: 85ea5ee34f6e0fb867e8161465d735097cc11189
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch14_reg1_tipsv2.webli:
+    $kind: build
+    $description: "timm's `vit_large_patch14_reg1_tipsv2`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch14_reg1_tipsv2.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch14_reg1_tipsv2.webli
+      $revision: 9a77d8a26bab265b0c293b1823e448babcc07f23
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_reg1_tipsv2.webli:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_reg1_tipsv2`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_reg1_tipsv2.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_reg1_tipsv2.webli
+      $revision: 5cb140ebd7e7f75ed12d319204195e985e607752
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_small_patch14_reg4_dinov2.lvd142m:
+    $kind: build
+    $description: "timm's `vit_small_patch14_reg4_dinov2`, its `lvd142m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_small_patch14_reg4_dinov2.lvd142m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_small_patch14_reg4_dinov2.lvd142m
+      $revision: c04b5193082a8d5b0c4856c7937384a48136c5de
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch14_reg4_dinov2.lvd142m:
+    $kind: build
+    $description: "timm's `vit_base_patch14_reg4_dinov2`, its `lvd142m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch14_reg4_dinov2.lvd142m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch14_reg4_dinov2.lvd142m
+      $revision: 3b06466a5548c52b8b98822e1390987695fcbf82
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch14_reg4_dinov2.lvd142m:
+    $kind: build
+    $description: "timm's `vit_large_patch14_reg4_dinov2`, its `lvd142m` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch14_reg4_dinov2.lvd142m
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch14_reg4_dinov2.lvd142m
+      $revision: f3c408e77602bb412aa65fb03dfa0d5f95cb3832
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_little_patch16_reg4_gap_256.sbb_in1k:
+    $kind: build
+    $description: "timm's `vit_little_patch16_reg4_gap_256`, its `sbb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_little_patch16_reg4_gap_256.sbb_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_little_patch16_reg4_gap_256.sbb_in1k
+      $revision: 933907dcb0abf67c7f5a314f64a8b7c3b69a427c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_medium_patch16_reg4_gap_256.sbb_in12k:
+    $kind: build
+    $description: "timm's `vit_medium_patch16_reg4_gap_256`, its `sbb_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_medium_patch16_reg4_gap_256.sbb_in12k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_medium_patch16_reg4_gap_256.sbb_in12k
+      $revision: c19a45026826dccddbb24ebfe04fed16354d6621
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_medium_patch16_reg4_gap_256.sbb_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_medium_patch16_reg4_gap_256`, its `sbb_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_medium_patch16_reg4_gap_256.sbb_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_medium_patch16_reg4_gap_256.sbb_in12k_ft_in1k
+      $revision: b5586c6c6ead2b6ad0ab9a829bbbc46f0c520bb1
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_medium_patch16_reg4_gap_256.sbb_in1k:
+    $kind: build
+    $description: "timm's `vit_medium_patch16_reg4_gap_256`, its `sbb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_medium_patch16_reg4_gap_256.sbb_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_medium_patch16_reg4_gap_256.sbb_in1k
+      $revision: c892aaaf9dd640e4cdceb3505af6f315e5e442aa
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_mediumd_patch16_reg4_gap_256.sbb2_e200_in12k:
+    $kind: build
+    $description: "timm's `vit_mediumd_patch16_reg4_gap_256`, its `sbb2_e200_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_mediumd_patch16_reg4_gap_256.sbb2_e200_in12k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_mediumd_patch16_reg4_gap_256.sbb2_e200_in12k
+      $revision: ff44d09e711acba2ddcfa77672bdd1e0364cde46
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_mediumd_patch16_reg4_gap_256.sbb2_e200_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_mediumd_patch16_reg4_gap_256`, its `sbb2_e200_in12k_ft_in1k`
+      weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_mediumd_patch16_reg4_gap_256.sbb2_e200_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_mediumd_patch16_reg4_gap_256.sbb2_e200_in12k_ft_in1k
+      $revision: bb3042b5170eb3362031d9e40af0223505c378a6
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_mediumd_patch16_reg4_gap_256.sbb_in12k:
+    $kind: build
+    $description: "timm's `vit_mediumd_patch16_reg4_gap_256`, its `sbb_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_mediumd_patch16_reg4_gap_256.sbb_in12k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_mediumd_patch16_reg4_gap_256.sbb_in12k
+      $revision: 3d9b4fd35b7ed622ff6e8e2c6c52c4f34e9f017b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_mediumd_patch16_reg4_gap_256.sbb_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_mediumd_patch16_reg4_gap_256`, its `sbb_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_mediumd_patch16_reg4_gap_256.sbb_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_mediumd_patch16_reg4_gap_256.sbb_in12k_ft_in1k
+      $revision: d7dc72c3059d8d14e8c16d90130785126c8da16e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_mediumd_patch16_reg4_gap_384.sbb2_e200_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_mediumd_patch16_reg4_gap_384`, its `sbb2_e200_in12k_ft_in1k`
+      weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_mediumd_patch16_reg4_gap_384.sbb2_e200_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_mediumd_patch16_reg4_gap_384.sbb2_e200_in12k_ft_in1k
+      $revision: 16f2801d2fa0437fb58bed27480ffafab517d238
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_betwixt_patch16_reg4_gap_256.sbb2_e200_in12k:
+    $kind: build
+    $description: "timm's `vit_betwixt_patch16_reg4_gap_256`, its `sbb2_e200_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_betwixt_patch16_reg4_gap_256.sbb2_e200_in12k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_betwixt_patch16_reg4_gap_256.sbb2_e200_in12k
+      $revision: 123ff5ccc0fba8100a609f9a25ad93383fbebb11
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_betwixt_patch16_reg4_gap_256.sbb2_e200_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_betwixt_patch16_reg4_gap_256`, its `sbb2_e200_in12k_ft_in1k`
+      weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_betwixt_patch16_reg4_gap_256.sbb2_e200_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_betwixt_patch16_reg4_gap_256.sbb2_e200_in12k_ft_in1k
+      $revision: b64f66ad625be3bc6af17a3d2a8900bb88f8f5d5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_betwixt_patch16_reg4_gap_256.sbb_in12k:
+    $kind: build
+    $description: "timm's `vit_betwixt_patch16_reg4_gap_256`, its `sbb_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_betwixt_patch16_reg4_gap_256.sbb_in12k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_betwixt_patch16_reg4_gap_256.sbb_in12k
+      $revision: af75d20891d72700decb8196e88e86befb4a2364
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_betwixt_patch16_reg4_gap_256.sbb_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_betwixt_patch16_reg4_gap_256`, its `sbb_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_betwixt_patch16_reg4_gap_256.sbb_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_betwixt_patch16_reg4_gap_256.sbb_in12k_ft_in1k
+      $revision: a73d49d5a76f8f580c13cbc48fbf24e52179251a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_betwixt_patch16_reg4_gap_256.sbb_in1k:
+    $kind: build
+    $description: "timm's `vit_betwixt_patch16_reg4_gap_256`, its `sbb_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_betwixt_patch16_reg4_gap_256.sbb_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_betwixt_patch16_reg4_gap_256.sbb_in1k
+      $revision: 173f034b4af5961257d8f1ac20b60540f23246e1
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_betwixt_patch16_reg4_gap_384.sbb2_e200_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_betwixt_patch16_reg4_gap_384`, its `sbb2_e200_in12k_ft_in1k`
+      weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_betwixt_patch16_reg4_gap_384.sbb2_e200_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_betwixt_patch16_reg4_gap_384.sbb2_e200_in12k_ft_in1k
+      $revision: 094a7bc88b26be0aa62eefaa8e43bb6d892a8b5a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so150m_patch16_reg4_gap_256.sbb_e250_in12k:
+    $kind: build
+    $description: "timm's `vit_so150m_patch16_reg4_gap_256`, its `sbb_e250_in12k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so150m_patch16_reg4_gap_256.sbb_e250_in12k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so150m_patch16_reg4_gap_256.sbb_e250_in12k
+      $revision: 40e6e90bad0572eaaf934d9014f0bd34ce15d93a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-12k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so150m_patch16_reg4_gap_256.sbb_e250_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_so150m_patch16_reg4_gap_256`, its `sbb_e250_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so150m_patch16_reg4_gap_256.sbb_e250_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so150m_patch16_reg4_gap_256.sbb_e250_in12k_ft_in1k
+      $revision: d3180a1e4e76115da15ddc6cab4e0657b586dd58
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so150m_patch16_reg4_gap_384.sbb_e250_in12k_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_so150m_patch16_reg4_gap_384`, its `sbb_e250_in12k_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so150m_patch16_reg4_gap_384.sbb_e250_in12k_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so150m_patch16_reg4_gap_384.sbb_e250_in12k_ft_in1k
+      $revision: c4444a1f08eb5b7b260ef7abefc0d8728684befb
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_rpn_224.sw_in1k:
+    $kind: build
+    $description: "timm's `vit_base_patch16_rpn_224`, its `sw_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_rpn_224.sw_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_rpn_224.sw_in1k
+      $revision: 4ca644387949cab94c97d97178ce2f14a1e8bb17
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch32_siglip_gap_256.v2_webli:
+    $kind: build
+    $description: "timm's `vit_base_patch32_siglip_gap_256`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch32_siglip_gap_256.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch32_siglip_gap_256.v2_webli
+      $revision: 74e2a52e00861b67de65df66363e59f341cadb9a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_siglip_gap_224.v2_webli:
+    $kind: build
+    $description: "timm's `vit_base_patch16_siglip_gap_224`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_siglip_gap_224.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_siglip_gap_224.v2_webli
+      $revision: 018d135b8145bd8e6767a39fc06ff43d1c0e5882
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_siglip_gap_224.webli:
+    $kind: build
+    $description: "timm's `vit_base_patch16_siglip_gap_224`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_siglip_gap_224.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_siglip_gap_224.webli
+      $revision: e63fc4a2f14b9f80cbb291367ae5080d6d4a9dd5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_siglip_gap_256.v2_webli:
+    $kind: build
+    $description: "timm's `vit_base_patch16_siglip_gap_256`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_siglip_gap_256.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_siglip_gap_256.v2_webli
+      $revision: 8d09c6bf920b3f56e9bbafeb9cb96465decb34ba
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_siglip_gap_256.webli:
+    $kind: build
+    $description: "timm's `vit_base_patch16_siglip_gap_256`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_siglip_gap_256.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_siglip_gap_256.webli
+      $revision: a0042d4a15d56a128836bc879d4a3a1c36420c61
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_siglip_gap_256.webli_i18n:
+    $kind: build
+    $description: "timm's `vit_base_patch16_siglip_gap_256`, its `webli_i18n` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_siglip_gap_256.webli_i18n
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_siglip_gap_256.webli_i18n
+      $revision: 071bb37da39a7f612e11417d89f7080a9dabf51e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_siglip_gap_384.v2_webli:
+    $kind: build
+    $description: "timm's `vit_base_patch16_siglip_gap_384`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_siglip_gap_384.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_siglip_gap_384.v2_webli
+      $revision: 38ceeaccc91c9ad79ce5a8164f419f14a60f146a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_siglip_gap_384.webli:
+    $kind: build
+    $description: "timm's `vit_base_patch16_siglip_gap_384`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_siglip_gap_384.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_siglip_gap_384.webli
+      $revision: a778d2fbd3f15bc19d8e46c5db27df004a0b652b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_siglip_gap_512.v2_webli:
+    $kind: build
+    $description: "timm's `vit_base_patch16_siglip_gap_512`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_siglip_gap_512.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_siglip_gap_512.v2_webli
+      $revision: 31d40babf26122efca2746b41bdde02b5db95b1e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_base_patch16_siglip_gap_512.webli:
+    $kind: build
+    $description: "timm's `vit_base_patch16_siglip_gap_512`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_patch16_siglip_gap_512.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_base_patch16_siglip_gap_512.webli
+      $revision: f09fd6eed82d0ac29af4bb3a9e484cb561542d61
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch16_siglip_gap_256.v2_webli:
+    $kind: build
+    $description: "timm's `vit_large_patch16_siglip_gap_256`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch16_siglip_gap_256.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch16_siglip_gap_256.v2_webli
+      $revision: abb1d6f3807a2ce8854f0f1281f836aed49251d2
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch16_siglip_gap_256.webli:
+    $kind: build
+    $description: "timm's `vit_large_patch16_siglip_gap_256`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch16_siglip_gap_256.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch16_siglip_gap_256.webli
+      $revision: efd96573eea100e798abbfd10c571525dec9887d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch16_siglip_gap_384.v2_webli:
+    $kind: build
+    $description: "timm's `vit_large_patch16_siglip_gap_384`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch16_siglip_gap_384.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch16_siglip_gap_384.v2_webli
+      $revision: 091e8653020799d396f4821666abb165cba6b51d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch16_siglip_gap_384.webli:
+    $kind: build
+    $description: "timm's `vit_large_patch16_siglip_gap_384`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch16_siglip_gap_384.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch16_siglip_gap_384.webli
+      $revision: 22d3c31105acbfbeb5c0f329bad494d82de6bdc1
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_large_patch16_siglip_gap_512.v2_webli:
+    $kind: build
+    $description: "timm's `vit_large_patch16_siglip_gap_512`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_patch16_siglip_gap_512.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_large_patch16_siglip_gap_512.v2_webli
+      $revision: 0c4721239f683898fe3ba9ee1dc767981b749988
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch16_siglip_gap_256.v2_webli:
+    $kind: build
+    $description: "timm's `vit_so400m_patch16_siglip_gap_256`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch16_siglip_gap_256.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch16_siglip_gap_256.v2_webli
+      $revision: 41ecc6c5b1ecb24501211a5bf4787c9fdbed3880
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch16_siglip_gap_256.webli_i18n:
+    $kind: build
+    $description: "timm's `vit_so400m_patch16_siglip_gap_256`, its `webli_i18n` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch16_siglip_gap_256.webli_i18n
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch16_siglip_gap_256.webli_i18n
+      $revision: e64de0b494a4e5b534e64751d7f87061943e8d33
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch16_siglip_gap_384.v2_webli:
+    $kind: build
+    $description: "timm's `vit_so400m_patch16_siglip_gap_384`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch16_siglip_gap_384.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch16_siglip_gap_384.v2_webli
+      $revision: c66e9a3d0396c20c2957bf5351c949841bbf75a9
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch16_siglip_gap_512.v2_webli:
+    $kind: build
+    $description: "timm's `vit_so400m_patch16_siglip_gap_512`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch16_siglip_gap_512.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch16_siglip_gap_512.v2_webli
+      $revision: f8f38554dd1465c0510755d5acd3f2da139f8390
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_224.pali2_10b_pt:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_224`, its `pali2_10b_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_224.pali2_10b_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_224.pali2_10b_pt
+      $revision: f48992a37d8dbd6d7e96416dcbd05a060a28dec0
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_224.pali2_3b_pt:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_224`, its `pali2_3b_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_224.pali2_3b_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_224.pali2_3b_pt
+      $revision: 42c9ab660a5173c7caa2fe54b651d90224e80df4
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_224.pali_mix:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_224`, its `pali_mix` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_224.pali_mix
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_224.pali_mix
+      $revision: a3f4db2be74d67131cc34988643b14a5269bb3d8
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_224.pali_pt:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_224`, its `pali_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_224.pali_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_224.pali_pt
+      $revision: d40f22304a5c6af3367f6230ff8a21c1c5b344ad
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_224.v2_webli:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_224`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_224.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_224.v2_webli
+      $revision: 40a84a704ecd0686f305a85dcd292d1d550ab016
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_224.webli:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_224`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_224.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_224.webli
+      $revision: ebfbc4b2a8642ebf87581fc5a8d6ecf185bbc913
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_378.v2_webli:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_378`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_378.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_378.v2_webli
+      $revision: 7245d053b3c9746853986bd6a2c42c33b66e15f1
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_378.webli:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_378`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_378.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_378.webli
+      $revision: 984a4ccdb8e42eaec3ceccfecb1029cd97d14b85
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_378.webli_ft_in1k:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_378`, its `webli_ft_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_378.webli_ft_in1k
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_378.webli_ft_in1k
+      $revision: 0821f219e6cff91a6967a24aea0ee08e45c56531
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_384.webli:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_384`, its `webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_384.webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_384.webli
+      $revision: 67f1f67cb4e77f514ff950ee4305582b29de0c0c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_448.pali2_10b_docci:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_448`, its `pali2_10b_docci` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_448.pali2_10b_docci
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_448.pali2_10b_docci
+      $revision: 6d66273d151369f02a26d9c97e19260ee1b3839a
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_448.pali2_10b_pt:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_448`, its `pali2_10b_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_448.pali2_10b_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_448.pali2_10b_pt
+      $revision: 937c6dd87076ba6469b213c026dd3d7bea097643
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_448.pali2_3b_docci:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_448`, its `pali2_3b_docci` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_448.pali2_3b_docci
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_448.pali2_3b_docci
+      $revision: 99e455e836248eaa0e3b2d976acd582c9a9dade5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_448.pali2_3b_pt:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_448`, its `pali2_3b_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_448.pali2_3b_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_448.pali2_3b_pt
+      $revision: d5ba7d4f049f9a8ddba787433313b73be08c4696
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_448.pali_mix:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_448`, its `pali_mix` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_448.pali_mix
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_448.pali_mix
+      $revision: 47884456a5722aace5b02a959cd7f6e8563ef31d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_448.pali_ocrvqa:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_448`, its `pali_ocrvqa` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_448.pali_ocrvqa
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_448.pali_ocrvqa
+      $revision: 914ec143ab8302c27004476c0559ee7002ff1b68
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_448.pali_pt:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_448`, its `pali_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_448.pali_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_448.pali_pt
+      $revision: 977824afcf88b808163ed57f48abe7043c415e2d
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_448.pali_refcoco_seg:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_448`, its `pali_refcoco_seg` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_448.pali_refcoco_seg
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_448.pali_refcoco_seg
+      $revision: 7005ef3795f43de293450361362c29fe8593a091
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_896.pali2_10b_pt:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_896`, its `pali2_10b_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_896.pali2_10b_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_896.pali2_10b_pt
+      $revision: f011a66bc4e348bd2ec5bfd1548a90187b444754
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_896.pali2_3b_pt:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_896`, its `pali2_3b_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_896.pali2_3b_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_896.pali2_3b_pt
+      $revision: 22f1adb766425c65ef5abd1c4841903ec9ce6754
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_896.pali_ocrvqa:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_896`, its `pali_ocrvqa` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_896.pali_ocrvqa
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_896.pali_ocrvqa
+      $revision: 09c8b510fed3b92ece5ab62ada3e9c26d3f8660e
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_896.pali_pt:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_896`, its `pali_pt` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_896.pali_pt
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_896.pali_pt
+      $revision: 385aca9004fbd4bb4cbdd3e4c25d29d9cb559569
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_so400m_patch14_siglip_gap_896.pali_refcoco_seg:
+    $kind: build
+    $description: "timm's `vit_so400m_patch14_siglip_gap_896`, its `pali_refcoco_seg` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_so400m_patch14_siglip_gap_896.pali_refcoco_seg
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_so400m_patch14_siglip_gap_896.pali_refcoco_seg
+      $revision: e770b1e2793e8095e3571274a1941b970b9dca0b
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_giantopt_patch16_siglip_gap_256.v2_webli:
+    $kind: build
+    $description: "timm's `vit_giantopt_patch16_siglip_gap_256`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_giantopt_patch16_siglip_gap_256.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_giantopt_patch16_siglip_gap_256.v2_webli
+      $revision: 0687c741f07f97327bca25f4ca749d80c46da252
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  vit_giantopt_patch16_siglip_gap_384.v2_webli:
+    $kind: build
+    $description: "timm's `vit_giantopt_patch16_siglip_gap_384`, its `v2_webli` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_giantopt_patch16_siglip_gap_384.v2_webli
+    $contract: vit-classifier
+    $join:
+      - vit
+    $hub:
+      $repo: timm/vit_giantopt_patch16_siglip_gap_384.v2_webli
+      $revision: 543ad108e653cfd7b8c570a1926cce2b25410e1c
+    $resources:
+      checkpoint: checkpoint
+      config: config
     checkpoint:
       $kind: resource
       $file: model.safetensors

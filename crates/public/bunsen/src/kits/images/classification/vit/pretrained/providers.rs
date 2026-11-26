@@ -60,13 +60,13 @@ mod tests {
 
     /// Every row is a timm hub repo of a prefab's architecture, pinned: its
     /// checkpoint and its `config.json`. A row with labels names them too;
-    /// the headless towers, the CLIP projections and the iNaturalist heads
-    /// have none.
+    /// the headless towers (DINOv2's, SigLIP's, C-RADIO's), the CLIP
+    /// projections and the iNaturalist heads have none.
     #[test]
     fn test_every_row_is_a_pinned_timm_repo() {
         let factory = super::super::default_vit_factory().unwrap();
         let rows = factory.list();
-        assert_eq!(rows.len(), 99);
+        assert_eq!(rows.len(), 242);
         let architectures = ViTContractConfig::prefab_names();
         let mut by_labels: BTreeMap<String, usize> = BTreeMap::new();
         for (_, row) in &rows {
@@ -92,10 +92,10 @@ mod tests {
         assert_eq!(
             by_labels,
             BTreeMap::from([
-                (String::new(), 40),
-                ("imagenet/synsets-12k".into(), 4),
-                ("imagenet/synsets-1k".into(), 47),
-                ("imagenet/synsets-21k-goog".into(), 7),
+                (String::new(), 129),
+                ("imagenet/synsets-12k".into(), 14),
+                ("imagenet/synsets-1k".into(), 87),
+                ("imagenet/synsets-21k-goog".into(), 11),
                 ("imagenet/synsets-21k-miil".into(), 1),
             ])
         );

@@ -963,6 +963,18 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 * timm/vit_base_patch16_224_miil.in21k_ft_in1k: [346.9 MB]
   timm's `vit_base_patch16_224_miil`, its `in21k_ft_in1k` weights.
 
+* timm/vit_xsmall_patch16_clip_224.tinyclip_yfcc15m: [33.1 MB]
+  timm's `vit_xsmall_patch16_clip_224`, its `tinyclip_yfcc15m` weights.
+
+* timm/vit_medium_patch32_clip_224.tinyclip_laion400m: [158.8 MB]
+  timm's `vit_medium_patch32_clip_224`, its `tinyclip_laion400m` weights.
+
+* timm/vit_medium_patch16_clip_224.tinyclip_yfcc15m: [154.4 MB]
+  timm's `vit_medium_patch16_clip_224`, its `tinyclip_yfcc15m` weights.
+
+* timm/vit_betwixt_patch32_clip_224.tinyclip_laion400m: [245.7 MB]
+  timm's `vit_betwixt_patch32_clip_224`, its `tinyclip_laion400m` weights.
+
 * timm/vit_base_patch32_clip_224.datacompxl: [351.4 MB]
   timm's `vit_base_patch32_clip_224`, its `datacompxl` weights.
 
@@ -990,11 +1002,17 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 * timm/vit_base_patch32_clip_224.openai_ft_in1k: [353.7 MB]
   timm's `vit_base_patch32_clip_224`, its `openai_ft_in1k` weights.
 
+* timm/vit_base_patch32_clip_256.datacompxl: [351.5 MB]
+  timm's `vit_base_patch32_clip_256`, its `datacompxl` weights.
+
 * timm/vit_base_patch32_clip_384.laion2b_ft_in12k_in1k: [354.0 MB]
   timm's `vit_base_patch32_clip_384`, its `laion2b_ft_in12k_in1k` weights.
 
 * timm/vit_base_patch32_clip_384.openai_ft_in12k_in1k: [354.0 MB]
   timm's `vit_base_patch32_clip_384`, its `openai_ft_in12k_in1k` weights.
+
+* timm/vit_base_patch32_clip_448.laion2b_ft_in12k_in1k: [354.1 MB]
+  timm's `vit_base_patch32_clip_448`, its `laion2b_ft_in12k_in1k` weights.
 
 * timm/vit_base_patch16_clip_224.datacompxl: [344.8 MB]
   timm's `vit_base_patch16_clip_224`, its `datacompxl` weights.
@@ -1121,6 +1139,445 @@ presets (the default starred) and aliases; each command's `list` adds licences a
 
 * timm/vit_large_patch14_clip_336.openai_ft_in12k_in1k: [1.22 GB]
   timm's `vit_large_patch14_clip_336`, its `openai_ft_in12k_in1k` weights.
+
+* timm/vit_huge_patch14_clip_224.dfn5b: [2.53 GB]
+  timm's `vit_huge_patch14_clip_224`, its `dfn5b` weights.
+
+* timm/vit_huge_patch14_clip_224.laion2b: [2.53 GB]
+  timm's `vit_huge_patch14_clip_224`, its `laion2b` weights.
+
+* timm/vit_huge_patch14_clip_224.laion2b_ft_in12k: [2.58 GB]
+  timm's `vit_huge_patch14_clip_224`, its `laion2b_ft_in12k` weights.
+
+* timm/vit_huge_patch14_clip_224.laion2b_ft_in12k_in1k: [2.53 GB]
+  timm's `vit_huge_patch14_clip_224`, its `laion2b_ft_in12k_in1k` weights.
+
+* timm/vit_huge_patch14_clip_224.laion2b_ft_in1k: [2.53 GB]
+  timm's `vit_huge_patch14_clip_224`, its `laion2b_ft_in1k` weights.
+
+* timm/vit_huge_patch14_clip_224.metaclip2_worldwide: [2.53 GB]
+  timm's `vit_huge_patch14_clip_224`, its `metaclip2_worldwide` weights.
+
+* timm/vit_huge_patch14_clip_224.metaclip_2pt5b: [2.53 GB]
+  timm's `vit_huge_patch14_clip_224`, its `metaclip_2pt5b` weights.
+
+* timm/vit_huge_patch14_clip_224.metaclip_altogether: [2.53 GB]
+  timm's `vit_huge_patch14_clip_224`, its `metaclip_altogether` weights.
+
+* timm/vit_huge_patch14_clip_336.laion2b_ft_in12k_in1k: [2.53 GB]
+  timm's `vit_huge_patch14_clip_336`, its `laion2b_ft_in12k_in1k` weights.
+
+* timm/vit_huge_patch14_clip_378.dfn5b: [2.53 GB]
+  timm's `vit_huge_patch14_clip_378`, its `dfn5b` weights.
+
+* timm/vit_huge_patch14_clip_378.metaclip2_worldwide: [2.53 GB]
+  timm's `vit_huge_patch14_clip_378`, its `metaclip2_worldwide` weights.
+
+* timm/vit_giant_patch14_clip_224.laion2b: [4.05 GB]
+  timm's `vit_giant_patch14_clip_224`, its `laion2b` weights.
+
+* timm/vit_gigantic_patch14_clip_224.laion2b: [7.38 GB]
+  timm's `vit_gigantic_patch14_clip_224`, its `laion2b` weights.
+
+* timm/vit_gigantic_patch14_clip_224.metaclip2_worldwide: [7.38 GB]
+  timm's `vit_gigantic_patch14_clip_224`, its `metaclip2_worldwide`
+  weights.
+
+* timm/vit_gigantic_patch14_clip_224.metaclip_2pt5b: [7.38 GB]
+  timm's `vit_gigantic_patch14_clip_224`, its `metaclip_2pt5b` weights.
+
+* timm/vit_gigantic_patch14_clip_378.metaclip2_worldwide: [7.38 GB]
+  timm's `vit_gigantic_patch14_clip_378`, its `metaclip2_worldwide`
+  weights.
+
+* timm/eva_large_patch14_196.in22k_ft_in1k: [1.22 GB]
+  timm's `eva_large_patch14_196`, its `in22k_ft_in1k` weights.
+
+* timm/eva_large_patch14_196.in22k_ft_in22k_in1k: [1.22 GB]
+  timm's `eva_large_patch14_196`, its `in22k_ft_in22k_in1k` weights.
+
+* timm/eva_large_patch14_336.in22k_ft_in1k: [1.22 GB]
+  timm's `eva_large_patch14_336`, its `in22k_ft_in1k` weights.
+
+* timm/eva_large_patch14_336.in22k_ft_in22k_in1k: [1.22 GB]
+  timm's `eva_large_patch14_336`, its `in22k_ft_in22k_in1k` weights.
+
+* timm/flexivit_small.1200ep_in1k: [89.0 MB]
+  timm's `flexivit_small`, its `1200ep_in1k` weights.
+
+* timm/flexivit_small.300ep_in1k: [89.0 MB]
+  timm's `flexivit_small`, its `300ep_in1k` weights.
+
+* timm/flexivit_small.600ep_in1k: [89.0 MB]
+  timm's `flexivit_small`, its `600ep_in1k` weights.
+
+* timm/flexivit_base.1000ep_in21k: [411.4 MB]
+  timm's `flexivit_base`, its `1000ep_in21k` weights.
+
+* timm/flexivit_base.1200ep_in1k: [347.1 MB]
+  timm's `flexivit_base`, its `1200ep_in1k` weights.
+
+* timm/flexivit_base.300ep_in1k: [347.1 MB]
+  timm's `flexivit_base`, its `300ep_in1k` weights.
+
+* timm/flexivit_base.300ep_in21k: [411.4 MB]
+  timm's `flexivit_base`, its `300ep_in21k` weights.
+
+* timm/flexivit_base.600ep_in1k: [347.1 MB]
+  timm's `flexivit_base`, its `600ep_in1k` weights.
+
+* timm/flexivit_base.patch16_in21k: [411.4 MB]
+  timm's `flexivit_base`, its `patch16_in21k` weights.
+
+* timm/flexivit_base.patch30_in21k: [411.4 MB]
+  timm's `flexivit_base`, its `patch30_in21k` weights.
+
+* timm/flexivit_large.1200ep_in1k: [1.22 GB]
+  timm's `flexivit_large`, its `1200ep_in1k` weights.
+
+* timm/flexivit_large.300ep_in1k: [1.22 GB]
+  timm's `flexivit_large`, its `300ep_in1k` weights.
+
+* timm/flexivit_large.600ep_in1k: [1.22 GB]
+  timm's `flexivit_large`, its `600ep_in1k` weights.
+
+* timm/vit_base_patch32_clip_quickgelu_224.laion400m_e32: [351.4 MB]
+  timm's `vit_base_patch32_clip_quickgelu_224`, its `laion400m_e32`
+  weights.
+
+* timm/vit_base_patch32_clip_quickgelu_224.metaclip_2pt5b: [351.4 MB]
+  timm's `vit_base_patch32_clip_quickgelu_224`, its `metaclip_2pt5b`
+  weights.
+
+* timm/vit_base_patch32_clip_quickgelu_224.metaclip_400m: [351.4 MB]
+  timm's `vit_base_patch32_clip_quickgelu_224`, its `metaclip_400m`
+  weights.
+
+* timm/vit_base_patch16_clip_quickgelu_224.metaclip_2pt5b: [344.8 MB]
+  timm's `vit_base_patch16_clip_quickgelu_224`, its `metaclip_2pt5b`
+  weights.
+
+* timm/vit_base_patch16_clip_quickgelu_224.metaclip_400m: [344.8 MB]
+  timm's `vit_base_patch16_clip_quickgelu_224`, its `metaclip_400m`
+  weights.
+
+* timm/vit_large_patch14_clip_quickgelu_224.dfn2b: [1.22 GB]
+  timm's `vit_large_patch14_clip_quickgelu_224`, its `dfn2b` weights.
+
+* timm/vit_large_patch14_clip_quickgelu_224.metaclip_2pt5b: [1.22 GB]
+  timm's `vit_large_patch14_clip_quickgelu_224`, its `metaclip_2pt5b`
+  weights.
+
+* timm/vit_large_patch14_clip_quickgelu_224.metaclip_400m: [1.22 GB]
+  timm's `vit_large_patch14_clip_quickgelu_224`, its `metaclip_400m`
+  weights.
+
+* timm/vit_large_patch14_clip_quickgelu_336.openai: [1.22 GB]
+  timm's `vit_large_patch14_clip_quickgelu_336`, its `openai` weights.
+
+* timm/vit_huge_patch14_clip_quickgelu_224.dfn5b: [2.53 GB]
+  timm's `vit_huge_patch14_clip_quickgelu_224`, its `dfn5b` weights.
+
+* timm/vit_huge_patch14_clip_quickgelu_224.metaclip2_worldwide: [2.53 GB]
+  timm's `vit_huge_patch14_clip_quickgelu_224`, its `metaclip2_worldwide`
+  weights.
+
+* timm/vit_huge_patch14_clip_quickgelu_224.metaclip_2pt5b: [2.53 GB]
+  timm's `vit_huge_patch14_clip_quickgelu_224`, its `metaclip_2pt5b`
+  weights.
+
+* timm/vit_huge_patch14_clip_quickgelu_378.dfn5b: [2.53 GB]
+  timm's `vit_huge_patch14_clip_quickgelu_378`, its `dfn5b` weights.
+
+* timm/vit_gigantic_patch14_clip_quickgelu_224.metaclip_2pt5b: [7.38 GB]
+  timm's `vit_gigantic_patch14_clip_quickgelu_224`, its `metaclip_2pt5b`
+  weights.
+
+* timm/vit_small_patch14_dinov2.lvd142m: [88.2 MB]
+  timm's `vit_small_patch14_dinov2`, its `lvd142m` weights.
+
+* timm/vit_base_patch14_dinov2.lvd142m: [346.3 MB]
+  timm's `vit_base_patch14_dinov2`, its `lvd142m` weights.
+
+* timm/vit_large_patch14_dinov2.lvd142m: [1.22 GB]
+  timm's `vit_large_patch14_dinov2`, its `lvd142m` weights.
+
+* timm/vit_medium_patch16_gap_240.sw_in12k: [178.5 MB]
+  timm's `vit_medium_patch16_gap_240`, its `sw_in12k` weights.
+
+* timm/vit_medium_patch16_gap_256.sw_in12k_ft_in1k: [156.2 MB]
+  timm's `vit_medium_patch16_gap_256`, its `sw_in12k_ft_in1k` weights.
+
+* timm/vit_medium_patch16_gap_384.sw_in12k_ft_in1k: [156.9 MB]
+  timm's `vit_medium_patch16_gap_384`, its `sw_in12k_ft_in1k` weights.
+
+* timm/vit_base_patch16_radio_v3.c_radio: [345.8 MB]
+  timm's `vit_base_patch16_radio_v3`, its `c_radio` weights.
+
+* timm/vit_large_patch16_radio_v3.c_radio: [1.22 GB]
+  timm's `vit_large_patch16_radio_v3`, its `c_radio` weights.
+
+* timm/vit_huge_patch16_radio_v3.c_radio: [2.53 GB]
+  timm's `vit_huge_patch16_radio_v3`, its `c_radio` weights.
+
+* timm/vit_giant_patch16_radio_v3.c_radio: [4.54 GB]
+  timm's `vit_giant_patch16_radio_v3`, its `c_radio` weights.
+
+* timm/vit_so400m_patch16_radio_v4.c_radio: [1.65 GB]
+  timm's `vit_so400m_patch16_radio_v4`, its `c_radio` weights.
+
+* timm/vit_huge_patch16_radio_v4.c_radio: [2.53 GB]
+  timm's `vit_huge_patch16_radio_v4`, its `c_radio` weights.
+
+* timm/vit_wee_patch16_reg1_gap_256.sbb_in1k: [54.5 MB]
+  timm's `vit_wee_patch16_reg1_gap_256`, its `sbb_in1k` weights.
+
+* timm/vit_little_patch16_reg1_gap_256.sbb_in12k: [104.8 MB]
+  timm's `vit_little_patch16_reg1_gap_256`, its `sbb_in12k` weights.
+
+* timm/vit_little_patch16_reg1_gap_256.sbb_in12k_ft_in1k: [90.8 MB]
+  timm's `vit_little_patch16_reg1_gap_256`, its `sbb_in12k_ft_in1k`
+  weights.
+
+* timm/vit_medium_patch16_reg1_gap_256.sbb_in1k: [156.3 MB]
+  timm's `vit_medium_patch16_reg1_gap_256`, its `sbb_in1k` weights.
+
+* timm/vit_betwixt_patch16_reg1_gap_256.sbb_in1k: [242.4 MB]
+  timm's `vit_betwixt_patch16_reg1_gap_256`, its `sbb_in1k` weights.
+
+* timm/vit_so150m2_patch16_reg1_gap_256.sbb_e200_in12k: [581.2 MB]
+  timm's `vit_so150m2_patch16_reg1_gap_256`, its `sbb_e200_in12k` weights.
+
+* timm/vit_so150m2_patch16_reg1_gap_256.sbb_e200_in12k_ft_in1k: [545.0 MB]
+  timm's `vit_so150m2_patch16_reg1_gap_256`, its `sbb_e200_in12k_ft_in1k`
+  weights.
+
+* timm/vit_so150m2_patch16_reg1_gap_384.sbb_e200_in12k_ft_in1k: [546.1 MB]
+  timm's `vit_so150m2_patch16_reg1_gap_384`, its `sbb_e200_in12k_ft_in1k`
+  weights.
+
+* timm/vit_so150m2_patch16_reg1_gap_448.sbb_e200_in12k_ft_in1k: [546.8 MB]
+  timm's `vit_so150m2_patch16_reg1_gap_448`, its `sbb_e200_in12k_ft_in1k`
+  weights.
+
+* timm/vit_base_patch14_reg1_tipsv2.webli: [345.3 MB]
+  timm's `vit_base_patch14_reg1_tipsv2`, its `webli` weights.
+
+* timm/vit_large_patch14_reg1_tipsv2.webli: [1.22 GB]
+  timm's `vit_large_patch14_reg1_tipsv2`, its `webli` weights.
+
+* timm/vit_so400m_patch14_reg1_tipsv2.webli: [1.65 GB]
+  timm's `vit_so400m_patch14_reg1_tipsv2`, its `webli` weights.
+
+* timm/vit_small_patch14_reg4_dinov2.lvd142m: [88.2 MB]
+  timm's `vit_small_patch14_reg4_dinov2`, its `lvd142m` weights.
+
+* timm/vit_base_patch14_reg4_dinov2.lvd142m: [346.3 MB]
+  timm's `vit_base_patch14_reg4_dinov2`, its `lvd142m` weights.
+
+* timm/vit_large_patch14_reg4_dinov2.lvd142m: [1.22 GB]
+  timm's `vit_large_patch14_reg4_dinov2`, its `lvd142m` weights.
+
+* timm/vit_little_patch16_reg4_gap_256.sbb_in1k: [90.8 MB]
+  timm's `vit_little_patch16_reg4_gap_256`, its `sbb_in1k` weights.
+
+* timm/vit_medium_patch16_reg4_gap_256.sbb_in12k: [178.6 MB]
+  timm's `vit_medium_patch16_reg4_gap_256`, its `sbb_in12k` weights.
+
+* timm/vit_medium_patch16_reg4_gap_256.sbb_in12k_ft_in1k: [156.3 MB]
+  timm's `vit_medium_patch16_reg4_gap_256`, its `sbb_in12k_ft_in1k`
+  weights.
+
+* timm/vit_medium_patch16_reg4_gap_256.sbb_in1k: [156.3 MB]
+  timm's `vit_medium_patch16_reg4_gap_256`, its `sbb_in1k` weights.
+
+* timm/vit_mediumd_patch16_reg4_gap_256.sbb2_e200_in12k: [279.5 MB]
+  timm's `vit_mediumd_patch16_reg4_gap_256`, its `sbb2_e200_in12k` weights.
+
+* timm/vit_mediumd_patch16_reg4_gap_256.sbb2_e200_in12k_ft_in1k: [257.2 MB]
+  timm's `vit_mediumd_patch16_reg4_gap_256`, its `sbb2_e200_in12k_ft_in1k`
+  weights.
+
+* timm/vit_mediumd_patch16_reg4_gap_256.sbb_in12k: [279.5 MB]
+  timm's `vit_mediumd_patch16_reg4_gap_256`, its `sbb_in12k` weights.
+
+* timm/vit_mediumd_patch16_reg4_gap_256.sbb_in12k_ft_in1k: [257.2 MB]
+  timm's `vit_mediumd_patch16_reg4_gap_256`, its `sbb_in12k_ft_in1k`
+  weights.
+
+* timm/vit_mediumd_patch16_reg4_gap_384.sbb2_e200_in12k_ft_in1k: [257.9 MB]
+  timm's `vit_mediumd_patch16_reg4_gap_384`, its `sbb2_e200_in12k_ft_in1k`
+  weights.
+
+* timm/vit_betwixt_patch16_reg4_gap_256.sbb2_e200_in12k: [270.2 MB]
+  timm's `vit_betwixt_patch16_reg4_gap_256`, its `sbb2_e200_in12k` weights.
+
+* timm/vit_betwixt_patch16_reg4_gap_256.sbb2_e200_in12k_ft_in1k: [242.4 MB]
+  timm's `vit_betwixt_patch16_reg4_gap_256`, its `sbb2_e200_in12k_ft_in1k`
+  weights.
+
+* timm/vit_betwixt_patch16_reg4_gap_256.sbb_in12k: [270.2 MB]
+  timm's `vit_betwixt_patch16_reg4_gap_256`, its `sbb_in12k` weights.
+
+* timm/vit_betwixt_patch16_reg4_gap_256.sbb_in12k_ft_in1k: [242.4 MB]
+  timm's `vit_betwixt_patch16_reg4_gap_256`, its `sbb_in12k_ft_in1k`
+  weights.
+
+* timm/vit_betwixt_patch16_reg4_gap_256.sbb_in1k: [242.4 MB]
+  timm's `vit_betwixt_patch16_reg4_gap_256`, its `sbb_in1k` weights.
+
+* timm/vit_betwixt_patch16_reg4_gap_384.sbb2_e200_in12k_ft_in1k: [243.2 MB]
+  timm's `vit_betwixt_patch16_reg4_gap_384`, its `sbb2_e200_in12k_ft_in1k`
+  weights.
+
+* timm/vit_so150m_patch16_reg4_gap_256.sbb_e250_in12k: [576.2 MB]
+  timm's `vit_so150m_patch16_reg4_gap_256`, its `sbb_e250_in12k` weights.
+
+* timm/vit_so150m_patch16_reg4_gap_256.sbb_e250_in12k_ft_in1k: [537.3 MB]
+  timm's `vit_so150m_patch16_reg4_gap_256`, its `sbb_e250_in12k_ft_in1k`
+  weights.
+
+* timm/vit_so150m_patch16_reg4_gap_384.sbb_e250_in12k_ft_in1k: [538.4 MB]
+  timm's `vit_so150m_patch16_reg4_gap_384`, its `sbb_e250_in12k_ft_in1k`
+  weights.
+
+* timm/vit_base_patch16_rpn_224.sw_in1k: [346.9 MB]
+  timm's `vit_base_patch16_rpn_224`, its `sw_in1k` weights.
+
+* timm/vit_base_patch32_siglip_gap_256.v2_webli: [349.9 MB]
+  timm's `vit_base_patch32_siglip_gap_256`, its `v2_webli` weights.
+
+* timm/vit_base_patch16_siglip_gap_224.v2_webli: [343.2 MB]
+  timm's `vit_base_patch16_siglip_gap_224`, its `v2_webli` weights.
+
+* timm/vit_base_patch16_siglip_gap_224.webli: [343.2 MB]
+  timm's `vit_base_patch16_siglip_gap_224`, its `webli` weights.
+
+* timm/vit_base_patch16_siglip_gap_256.v2_webli: [343.4 MB]
+  timm's `vit_base_patch16_siglip_gap_256`, its `v2_webli` weights.
+
+* timm/vit_base_patch16_siglip_gap_256.webli: [343.4 MB]
+  timm's `vit_base_patch16_siglip_gap_256`, its `webli` weights.
+
+* timm/vit_base_patch16_siglip_gap_256.webli_i18n: [343.4 MB]
+  timm's `vit_base_patch16_siglip_gap_256`, its `webli_i18n` weights.
+
+* timm/vit_base_patch16_siglip_gap_384.v2_webli: [344.4 MB]
+  timm's `vit_base_patch16_siglip_gap_384`, its `v2_webli` weights.
+
+* timm/vit_base_patch16_siglip_gap_384.webli: [344.4 MB]
+  timm's `vit_base_patch16_siglip_gap_384`, its `webli` weights.
+
+* timm/vit_base_patch16_siglip_gap_512.v2_webli: [345.7 MB]
+  timm's `vit_base_patch16_siglip_gap_512`, its `v2_webli` weights.
+
+* timm/vit_base_patch16_siglip_gap_512.webli: [345.7 MB]
+  timm's `vit_base_patch16_siglip_gap_512`, its `webli` weights.
+
+* timm/vit_large_patch16_siglip_gap_256.v2_webli: [1.21 GB]
+  timm's `vit_large_patch16_siglip_gap_256`, its `v2_webli` weights.
+
+* timm/vit_large_patch16_siglip_gap_256.webli: [1.21 GB]
+  timm's `vit_large_patch16_siglip_gap_256`, its `webli` weights.
+
+* timm/vit_large_patch16_siglip_gap_384.v2_webli: [1.21 GB]
+  timm's `vit_large_patch16_siglip_gap_384`, its `v2_webli` weights.
+
+* timm/vit_large_patch16_siglip_gap_384.webli: [1.21 GB]
+  timm's `vit_large_patch16_siglip_gap_384`, its `webli` weights.
+
+* timm/vit_large_patch16_siglip_gap_512.v2_webli: [1.22 GB]
+  timm's `vit_large_patch16_siglip_gap_512`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch16_siglip_gap_256.v2_webli: [1.65 GB]
+  timm's `vit_so400m_patch16_siglip_gap_256`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch16_siglip_gap_256.webli_i18n: [1.65 GB]
+  timm's `vit_so400m_patch16_siglip_gap_256`, its `webli_i18n` weights.
+
+* timm/vit_so400m_patch16_siglip_gap_384.v2_webli: [1.65 GB]
+  timm's `vit_so400m_patch16_siglip_gap_384`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch16_siglip_gap_512.v2_webli: [1.65 GB]
+  timm's `vit_so400m_patch16_siglip_gap_512`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_224.pali2_10b_pt: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_224`, its `pali2_10b_pt` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_224.pali2_3b_pt: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_224`, its `pali2_3b_pt` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_224.pali_mix: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_224`, its `pali_mix` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_224.pali_pt: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_224`, its `pali_pt` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_224.v2_webli: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_224`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_224.webli: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_224`, its `webli` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_378.v2_webli: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_378`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_378.webli: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_378`, its `webli` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_378.webli_ft_in1k: [1.66 GB]
+  timm's `vit_so400m_patch14_siglip_gap_378`, its `webli_ft_in1k` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_384.webli: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_384`, its `webli` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_448.pali2_10b_docci: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_448`, its `pali2_10b_docci`
+  weights.
+
+* timm/vit_so400m_patch14_siglip_gap_448.pali2_10b_pt: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_448`, its `pali2_10b_pt` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_448.pali2_3b_docci: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_448`, its `pali2_3b_docci` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_448.pali2_3b_pt: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_448`, its `pali2_3b_pt` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_448.pali_mix: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_448`, its `pali_mix` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_448.pali_ocrvqa: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_448`, its `pali_ocrvqa` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_448.pali_pt: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_448`, its `pali_pt` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_448.pali_refcoco_seg: [1.65 GB]
+  timm's `vit_so400m_patch14_siglip_gap_448`, its `pali_refcoco_seg`
+  weights.
+
+* timm/vit_so400m_patch14_siglip_gap_896.pali2_10b_pt: [1.67 GB]
+  timm's `vit_so400m_patch14_siglip_gap_896`, its `pali2_10b_pt` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_896.pali2_3b_pt: [1.67 GB]
+  timm's `vit_so400m_patch14_siglip_gap_896`, its `pali2_3b_pt` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_896.pali_ocrvqa: [1.67 GB]
+  timm's `vit_so400m_patch14_siglip_gap_896`, its `pali_ocrvqa` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_896.pali_pt: [1.67 GB]
+  timm's `vit_so400m_patch14_siglip_gap_896`, its `pali_pt` weights.
+
+* timm/vit_so400m_patch14_siglip_gap_896.pali_refcoco_seg: [1.67 GB]
+  timm's `vit_so400m_patch14_siglip_gap_896`, its `pali_refcoco_seg`
+  weights.
+
+* timm/vit_giantopt_patch16_siglip_gap_256.v2_webli: [4.54 GB]
+  timm's `vit_giantopt_patch16_siglip_gap_256`, its `v2_webli` weights.
+
+* timm/vit_giantopt_patch16_siglip_gap_384.v2_webli: [4.54 GB]
+  timm's `vit_giantopt_patch16_siglip_gap_384`, its `v2_webli` weights.
 
 # contract: deit-classifier
 # A DeiT image classifier: a timm hub repo's checkpoint (safetensors, or an
