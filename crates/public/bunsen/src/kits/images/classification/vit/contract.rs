@@ -144,6 +144,16 @@ pub struct ViTContractConfig {
     #[config(default = "false")]
     pub embed_norm: bool,
 
+    /// Whether the attention normalizes its output before the output
+    /// projection (timm's `scale_attn_norm`, `BEiT3`'s sub-LN).
+    #[config(default = "false")]
+    pub scale_attn_norm: bool,
+
+    /// Whether the MLP normalizes its hidden width before `fc2` (timm's
+    /// `scale_mlp_norm`, `BEiT3`'s sub-LN); a plain MLP's only.
+    #[config(default = "false")]
+    pub scale_mlp_norm: bool,
+
     /// Whether a class token leads the sequence.
     #[config(default = "true")]
     pub class_token: bool,
@@ -260,6 +270,7 @@ impl ViTContractConfig {
             ViTMlpLayer::Mlp => BunsenMlpConfig::new(d, hidden, d)
                 .with_activation(act.clone())
                 .with_bias(self.proj_bias)
+                .with_hidden_norm(self.scale_mlp_norm.then(|| self.norm()))
                 .into(),
             ViTMlpLayer::SwiGlu => gated(hidden),
             ViTMlpLayer::SwiGluPacked => gated(hidden / 2),
@@ -302,8 +313,10 @@ impl ToStructureConfig for ViTContractConfig {
     ///   [`qkv_bias`](Self::qkv_bias) says and an output bias as
     ///   [`proj_bias`](Self::proj_bias) says; the
     ///   [`mlp_layer`](Self::mlp_layer)'s MLP of
-    ///   [`mlp_hidden`](Self::mlp_hidden), biased as `proj_bias` says; every
-    ///   norm of [`norm_layer`](Self::norm_layer)'s kind; layer scale as
+    ///   [`mlp_hidden`](Self::mlp_hidden), biased as `proj_bias` says; the
+    ///   inner norms [`scale_attn_norm`](Self::scale_attn_norm) and
+    ///   [`scale_mlp_norm`](Self::scale_mlp_norm) say; every norm of
+    ///   [`norm_layer`](Self::norm_layer)'s kind; layer scale as
     ///   [`layer_scale`](Self::layer_scale) says; the norms where
     ///   [`norm_placement`](Self::norm_placement) puts them; an input norm
     ///   under `pre_norm`; the final norm, as
@@ -317,7 +330,7 @@ impl ToStructureConfig for ViTContractConfig {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for images
     /// smaller than a patch, a width the heads don't divide, a
     /// class-token pool with no class token, a packed `SwiGLU` of an odd
-    /// hidden width, or zero layers.
+    /// hidden width, a hidden norm on a gated MLP, or zero layers.
     fn try_to_structure(&self) -> BunsenResult<VisionEncoderStructureConfig> {
         let (d, heads, p) = (self.embed_dim, self.num_heads, self.patch_size);
         let patch_embed = PatchEmbedConfig::new([self.image_size; 2], p, self.in_channels, d)
@@ -336,6 +349,13 @@ impl ToStructureConfig for ViTContractConfig {
             return Err(BunsenError::illegal(
                 "ViTContractConfig: the class-token pool needs a class token",
             ));
+        }
+        if self.scale_mlp_norm && self.mlp_layer != ViTMlpLayer::Mlp {
+            return Err(BunsenError::illegal(format!(
+                "ViTContractConfig: the MLP's hidden norm (scale_mlp_norm) is a plain MLP's, not \
+                 {:?}'s",
+                self.mlp_layer
+            )));
         }
         if self.mlp_layer == ViTMlpLayer::SwiGluPacked && !self.mlp_hidden().is_multiple_of(2) {
             return Err(BunsenError::illegal(format!(
@@ -357,6 +377,7 @@ impl ToStructureConfig for ViTContractConfig {
                     .with_norm(None)
                     .with_qkv_bias(self.qkv_bias)
                     .with_output_bias(self.proj_bias)
+                    .with_output_norm(self.scale_attn_norm.then(|| self.norm()))
                     .with_mask(AttentionMask::Bidirectional)
                     .into(),
                 self.block_mlp(),

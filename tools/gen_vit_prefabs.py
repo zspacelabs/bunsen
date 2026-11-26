@@ -207,6 +207,12 @@ def lower(arch, kwargs, image_size):
         expr += ".with_layer_scale(true)"
         notes.append("layer scale")
 
+    if kw.pop("scale_attn_norm", False):
+        expr += ".with_scale_attn_norm(true)"
+        notes.append("a norm before the attention's output projection")
+    if kw.pop("scale_mlp_norm", False):
+        expr += ".with_scale_mlp_norm(true)"
+        notes.append("a norm on the MLP's hidden width")
     if not kw.pop("final_norm", True):
         expr += ".with_final_norm(false)"
         notes.append("no final norm")

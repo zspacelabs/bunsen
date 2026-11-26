@@ -557,6 +557,13 @@ crates:
         core: false
         dtypes: [f32]
         varies: the giant DINOv2 - a packed SwiGLU MLP, 40 layers at 518, headless
+      timm/beit3_base_patch16_224.in22k_ft_in1k:
+        size: small
+        gb: 0.45
+        core: false
+        dtypes: [f32]
+        varies: BEiT3's sub-LN - norms before the attention's output projection and on the MLP's
+          hidden width
       timm/deit_small_patch16_224.fb_in1k:
         size: small
         gb: 0.2

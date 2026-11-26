@@ -4318,6 +4318,262 @@ timm:
         - $hub:
             $repo: timm/aimv2_3b_patch14_448.apple_pt
             $revision: dbd02fe9a5ae18e3804485cd2154af74cdff64a9
+  beit3_base_patch16_224.in22k_ft_in1k:
+    $kind: build
+    $description: timm's `beit3_base_patch16_224`, its `in22k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_base_patch16_224.in22k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: b92ae42496e0aca5efaaf38ff71abbb1728904f7c4fa6fb9c0a3f8944f019919
+      $size: 346657840
+      $sources:
+        - $hub:
+            $repo: timm/beit3_base_patch16_224.in22k_ft_in1k
+            $revision: 1152d2f1c49139fd92f2d9b0c9ac90728668cdc8
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 6835cbe1ab517c926daf701cd6acf143783317f8b20d624abc5cd26469ae1293
+      $size: 592
+      $sources:
+        - $hub:
+            $repo: timm/beit3_base_patch16_224.in22k_ft_in1k
+            $revision: 1152d2f1c49139fd92f2d9b0c9ac90728668cdc8
+  beit3_base_patch16_224.indomain_in22k_ft_in1k:
+    $kind: build
+    $description: timm's `beit3_base_patch16_224`, its `indomain_in22k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_base_patch16_224.indomain_in22k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: bfc5c261f0086b68d3f9e29075aaa290ffb0c0f2a02916903899cbc7e5cc09da
+      $size: 346657840
+      $sources:
+        - $hub:
+            $repo: timm/beit3_base_patch16_224.indomain_in22k_ft_in1k
+            $revision: 586009054eac8a4e4e5a5578e109a5dd73fcdd9c
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 0a71d3eb32256227be7e0d7f730661c9556df8f13f40e34c6d2709f7617e77e6
+      $size: 601
+      $sources:
+        - $hub:
+            $repo: timm/beit3_base_patch16_224.indomain_in22k_ft_in1k
+            $revision: 586009054eac8a4e4e5a5578e109a5dd73fcdd9c
+  beit3_base_patch16_224.indomain_pt:
+    $kind: build
+    $description: timm's `beit3_base_patch16_224`, its `indomain_pt` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_base_patch16_224.indomain_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 1451b9a9871bfa636c45dd03612598754960d92fec6c0acbc802c3d97872e62b
+      $size: 343581672
+      $sources:
+        - $hub:
+            $repo: timm/beit3_base_patch16_224.indomain_pt
+            $revision: 5a29a3872859f80c7aa24d6d986be077b21ada43
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 2ecab7eae543d648db65a3a75995a6fb1357165c0288afcf85acfd7aa15b04ab
+      $size: 584
+      $sources:
+        - $hub:
+            $repo: timm/beit3_base_patch16_224.indomain_pt
+            $revision: 5a29a3872859f80c7aa24d6d986be077b21ada43
+  beit3_base_patch16_224.pt:
+    $kind: build
+    $description: timm's `beit3_base_patch16_224`, its `pt` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_base_patch16_224.pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: ff06b61d58210de08234f4744b781c4b68071647ec1207aba56f9f9f80c2a774
+      $size: 343581672
+      $sources:
+        - $hub:
+            $repo: timm/beit3_base_patch16_224.pt
+            $revision: 3f7c97970b89fe097cd16830feac53ec31f1e062
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: f093774ca017c7c244527cb53e56704769c91b1ace143f7c0e7e07fd6461d7e9
+      $size: 575
+      $sources:
+        - $hub:
+            $repo: timm/beit3_base_patch16_224.pt
+            $revision: 3f7c97970b89fe097cd16830feac53ec31f1e062
+  beit3_large_patch16_224.in22k_ft_in1k:
+    $kind: build
+    $description: timm's `beit3_large_patch16_224`, its `in22k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_large_patch16_224.in22k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: f8c596d900581d1ad86bac7d3267861b6614685683883b4ece35cf4da7cc8e6c
+      $size: 1218326864
+      $sources:
+        - $hub:
+            $repo: timm/beit3_large_patch16_224.in22k_ft_in1k
+            $revision: 23a1cd6cefbd2a1b8b2e478f1f5fd86e02893a1a
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: ec20c1b6c757e8b3cb80bfbdcb37260e7377914e42a32a8b66f043a26f1bd11d
+      $size: 594
+      $sources:
+        - $hub:
+            $repo: timm/beit3_large_patch16_224.in22k_ft_in1k
+            $revision: 23a1cd6cefbd2a1b8b2e478f1f5fd86e02893a1a
+  beit3_large_patch16_224.indomain_in22k_ft_in1k:
+    $kind: build
+    $description: timm's `beit3_large_patch16_224`, its `indomain_in22k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_large_patch16_224.indomain_in22k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 9350aa5755bd173ca60929e62307b5c9080a29cdea4fc2dcaf8ff9f4ab794902
+      $size: 1218326864
+      $sources:
+        - $hub:
+            $repo: timm/beit3_large_patch16_224.indomain_in22k_ft_in1k
+            $revision: 6ebe325430f7d66fb24e27b501fbb5010062d732
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 079a0850f1d7cf9e2e1a325e767bea22b538bbc4193b30eb649fdb23798abfb4
+      $size: 603
+      $sources:
+        - $hub:
+            $repo: timm/beit3_large_patch16_224.indomain_in22k_ft_in1k
+            $revision: 6ebe325430f7d66fb24e27b501fbb5010062d732
+  beit3_large_patch16_224.indomain_pt:
+    $kind: build
+    $description: timm's `beit3_large_patch16_224`, its `indomain_pt` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_large_patch16_224.indomain_pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 5d001e61c420c1898937c3437d5bb4ec3327fbcbca0de63224d18dd641c4000d
+      $size: 1214226696
+      $sources:
+        - $hub:
+            $repo: timm/beit3_large_patch16_224.indomain_pt
+            $revision: 2f2254facf6a75f655f4d472f4008c1e8e2ea555
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 1c62287224a1ac2bd2ca1f6a112249898a0927d3fb8f5a6261eddc20297f41d2
+      $size: 586
+      $sources:
+        - $hub:
+            $repo: timm/beit3_large_patch16_224.indomain_pt
+            $revision: 2f2254facf6a75f655f4d472f4008c1e8e2ea555
+  beit3_large_patch16_224.pt:
+    $kind: build
+    $description: timm's `beit3_large_patch16_224`, its `pt` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/beit3_large_patch16_224.pt
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 9c5ac38fa40ce8b986e66aadc4a682cd6eaae3d4e1d6d476b0989eec925ec804
+      $size: 1214226696
+      $sources:
+        - $hub:
+            $repo: timm/beit3_large_patch16_224.pt
+            $revision: 5cfd11bfb162c4c5703de19e2005cebe7e23f5d0
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: b8bf690d75ad0c94b7ad5b0ebbddc304174f7e55d7b56ed2f6b67ce7a26adf7a
+      $size: 577
+      $sources:
+        - $hub:
+            $repo: timm/beit3_large_patch16_224.pt
+            $revision: 5cfd11bfb162c4c5703de19e2005cebe7e23f5d0
   eva_large_patch14_196.in22k_ft_in1k:
     $kind: build
     $description: timm's `eva_large_patch14_196`, its `in22k_ft_in1k` weights.

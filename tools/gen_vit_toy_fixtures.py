@@ -1,6 +1,6 @@
 """Generate the vit kit's toy fixtures: tiny seeded timm `VisionTransformer`s and their answers.
 
-Seventeen toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on 16x16
+Eighteen toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on 16x16
 images in 4x4 patches (a 4x4 grid), 16 wide, two layers of two heads, 10 classes:
 
 - `toy_token`: timm's defaults: a class token, its pool, layer norms of epsilon 1e-6, a
@@ -33,7 +33,10 @@ images in 4x4 patches (a 4x4 grid), 16 wide, two layers of two heads, 10 classes
 - `toy_aimv2`: AIMv2's knobs: a `SwiGLU` MLP (`fc1_g`, `fc1_x`), RMS norms of epsilon 1e-5, a
   normed patch embedding, no `qkv`, output or MLP biases, `SiLU`, no class token, the mean pool;
 - `toy_glu`: a packed `SwiGLU` (`GluMlp`, its gate first, `gate_last=False`) with layer scale,
-  as the giant DINOv2.
+  as the giant DINOv2;
+- `toy_beit3`: BEiT3's sub-LN, a norm before the attention's output projection and one on
+  the MLP's hidden width (`scale_attn_norm`, `scale_mlp_norm`), its norms of epsilon 1e-5, the
+  mean pool.
 
 The toy test builds each as bunsen's `ViTContractConfig`.
 
@@ -114,6 +117,12 @@ TOYS = {
         mlp_layer=partial(GluMlp, act_layer=torch.nn.SiLU, gate_last=False),
         act_layer=torch.nn.SiLU,
         init_values=1e-5,
+    ),
+    "toy_beit3": dict(
+        scale_attn_norm=True,
+        scale_mlp_norm=True,
+        norm_layer=partial(torch.nn.LayerNorm, eps=1e-5),
+        global_pool="avg",
     ),
 }
 

@@ -12,14 +12,14 @@
 //! `DINOv2` adds register tokens and layer scale, `SigLIP`'s `gap` towers drop
 //! the class token for the mean, and its `map` towers pool by a learned query's
 //! attention; C-RADIO drops the final norm; `AIMv2` takes a `SwiGLU` MLP, RMS
-//! norms and no biases.
+//! norms and no biases; `BEiT3` normalizes inside its attention and its MLP.
 //!
 //! [`pretrained`] turns names into loaded models.
-//! [`ViTContractConfig`]'s prefabs name the 132 geometries, by timm's
+//! [`ViTContractConfig`]'s prefabs name the 134 geometries, by timm's
 //! architecture names, generated from timm's own entrypoints
 //! (`tools/gen_vit_prefabs.py`), and
 //! [`default_vit_factory`](pretrained::default_vit_factory) is the index of
-//! 286 timm hub repos (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), and
+//! 294 timm hub repos (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), and
 //! loads any other of the prefabs' architectures as `hf:timm/<repo>`.
 //!
 //! # The model
@@ -50,7 +50,7 @@
 //! * the hybrid stems (`vit_base_r50_s16_384`), the parallel blocks
 //!   (`ParallelScalingBlock`, `DiffParallelScalingBlock`) and differential
 //!   attention
-//! * QK-norm, and `BEiT3`'s inner norms
+//! * QK-norm
 
 pub mod pretrained;
 
