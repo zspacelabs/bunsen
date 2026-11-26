@@ -9,7 +9,7 @@
 //! The geometries are [`ViTContractConfig`](super::ViTContractConfig)'s
 //! prefabs: 142 by timm's architecture names, generated from timm's own
 //! entrypoints, each with 1000 classes at its architecture's size. The
-//! checkpoints are 294 rows, the built-in catalog's builds
+//! checkpoints are 305 rows, the built-in catalog's builds
 //! of [`VIT_CATALOG_CONTRACT`] in its `timm` namespace, written by the
 //! catalog builder's `timm-rows`: every timm hub repo of a prefab's
 //! architecture (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`): its

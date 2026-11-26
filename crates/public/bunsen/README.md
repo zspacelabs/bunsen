@@ -1653,6 +1653,39 @@ run them.
 * timm/vit_medium_patch16_gap_384.sw_in12k_ft_in1k: [156.9 MB]
   timm's `vit_medium_patch16_gap_384`, its `sw_in12k_ft_in1k` weights.
 
+* timm/vit_tiny_r_s16_p8_224.augreg_in21k: [42.4 MB]
+  timm's `vit_tiny_r_s16_p8_224`, its `augreg_in21k` weights.
+
+* timm/vit_tiny_r_s16_p8_224.augreg_in21k_ft_in1k: [26.1 MB]
+  timm's `vit_tiny_r_s16_p8_224`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_tiny_r_s16_p8_384.augreg_in21k_ft_in1k: [26.2 MB]
+  timm's `vit_tiny_r_s16_p8_384`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_small_r26_s32_224.augreg_in21k: [178.8 MB]
+  timm's `vit_small_r26_s32_224`, its `augreg_in21k` weights.
+
+* timm/vit_small_r26_s32_224.augreg_in21k_ft_in1k: [146.5 MB]
+  timm's `vit_small_r26_s32_224`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_small_r26_s32_384.augreg_in21k_ft_in1k: [146.7 MB]
+  timm's `vit_small_r26_s32_384`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_base_r50_s16_224.orig_in21k: [391.6 MB]
+  timm's `vit_base_r50_s16_224`, its `orig_in21k` weights.
+
+* timm/vit_base_r50_s16_384.orig_in21k_ft_in1k: [396.6 MB]
+  timm's `vit_base_r50_s16_384`, its `orig_in21k_ft_in1k` weights.
+
+* timm/vit_large_r50_s32_224.augreg_in21k: [1.40 GB]
+  timm's `vit_large_r50_s32_224`, its `augreg_in21k` weights.
+
+* timm/vit_large_r50_s32_224.augreg_in21k_ft_in1k: [1.32 GB]
+  timm's `vit_large_r50_s32_224`, its `augreg_in21k_ft_in1k` weights.
+
+* timm/vit_large_r50_s32_384.augreg_in21k_ft_in1k: [1.32 GB]
+  timm's `vit_large_r50_s32_384`, its `augreg_in21k_ft_in1k` weights.
+
 * timm/vit_base_patch16_radio_v3.c_radio: [345.8 MB]
   timm's `vit_base_patch16_radio_v3`, its `c_radio` weights.
 

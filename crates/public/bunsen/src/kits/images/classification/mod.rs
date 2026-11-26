@@ -22,7 +22,7 @@
 //!   142 prefabs, generated from timm's `vision_transformer.py` and
 //!   `vision_transformer_hybrid.py` (from `vit_tiny_patch16_224` and the CLIP
 //!   image towers to the `SigLIP`, `DINOv2`, sbb, C-RADIO, `AIMv2` and `BEiT3`
-//!   archs, and the hybrids on a `ResNetV2`), and 294 pretrained rows, timm's
+//!   archs, and the hybrids on a `ResNetV2`), and 305 pretrained rows, timm's
 //!   hub repos, loaded by name through
 //!   [`default_vit_factory`](vit::pretrained::default_vit_factory).
 //! - [`deit`]: `DeiT` and `DeiT` III, `ViT`s built the same way, the distilled

@@ -5794,6 +5794,367 @@ timm:
         - $hub:
             $repo: timm/vit_medium_patch16_gap_384.sw_in12k_ft_in1k
             $revision: 3a5e244f690b42bb7ad5b49c653f16fa291e76cc
+  vit_tiny_r_s16_p8_224.augreg_in21k:
+    $kind: build
+    $description: timm's `vit_tiny_r_s16_p8_224`, its `augreg_in21k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_tiny_r_s16_p8_224.augreg_in21k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-21k-goog
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 9d5117adbb8812b6fdef650b089777a8dd3d5afc380fb15ab3409a30f49b960e
+      $size: 41455594
+      $sources:
+        - $hub:
+            $repo: timm/vit_tiny_r_s16_p8_224.augreg_in21k
+            $revision: 1dab192f94b52866ba078ee87399a90dc01aac54
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 7aa91510577bcfad6e3f7f081719f7864740a69607573d1ebfe5a2bb9c62fb48
+      $size: 590
+      $sources:
+        - $hub:
+            $repo: timm/vit_tiny_r_s16_p8_224.augreg_in21k
+            $revision: 1dab192f94b52866ba078ee87399a90dc01aac54
+  vit_tiny_r_s16_p8_224.augreg_in21k_ft_in1k:
+    $kind: build
+    $description: timm's `vit_tiny_r_s16_p8_224`, its `augreg_in21k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_tiny_r_s16_p8_224.augreg_in21k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: dcd4d5a40ca72ad0d8ee1ecccb353558e7c6f3f7081432cd59263e2f02c2bc84
+      $size: 25364794
+      $sources:
+        - $hub:
+            $repo: timm/vit_tiny_r_s16_p8_224.augreg_in21k_ft_in1k
+            $revision: ba085cf584fa2b6b12e96d698aedc0fe6c0eacc7
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 09dbd871f5ee082cab414ed5d29085245db7032f003a75196127c24991aa9a56
+      $size: 596
+      $sources:
+        - $hub:
+            $repo: timm/vit_tiny_r_s16_p8_224.augreg_in21k_ft_in1k
+            $revision: ba085cf584fa2b6b12e96d698aedc0fe6c0eacc7
+  vit_tiny_r_s16_p8_384.augreg_in21k_ft_in1k:
+    $kind: build
+    $description: timm's `vit_tiny_r_s16_p8_384`, its `augreg_in21k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_tiny_r_s16_p8_384.augreg_in21k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: bb9e6256e0adb2308f91709c962131ed4e6f5fb7a1633f28c9525ad3c7ee3b26
+      $size: 25437756
+      $sources:
+        - $hub:
+            $repo: timm/vit_tiny_r_s16_p8_384.augreg_in21k_ft_in1k
+            $revision: ff3bb7feaed767002e4762ec317561a58c9be571
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 353cbb85a275e7a648e14c7b4991fa9ad0d0109522ac295607fdd93d578b959b
+      $size: 596
+      $sources:
+        - $hub:
+            $repo: timm/vit_tiny_r_s16_p8_384.augreg_in21k_ft_in1k
+            $revision: ff3bb7feaed767002e4762ec317561a58c9be571
+  vit_small_r26_s32_224.augreg_in21k:
+    $kind: build
+    $description: timm's `vit_small_r26_s32_224`, its `augreg_in21k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_small_r26_s32_224.augreg_in21k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-21k-goog
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 642780d1c82203731c55869065dd3770ab45b1c6aefb4b4d1205442246e888dd
+      $size: 177850506
+      $sources:
+        - $hub:
+            $repo: timm/vit_small_r26_s32_224.augreg_in21k
+            $revision: 46f3b345673d3fadfcfca37d493decd69ffad29e
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: ef71e443e8125c845d64c1f31c5b8a9328a71e6e67a9dfbbb4ce21c048c87fe5
+      $size: 595
+      $sources:
+        - $hub:
+            $repo: timm/vit_small_r26_s32_224.augreg_in21k
+            $revision: 46f3b345673d3fadfcfca37d493decd69ffad29e
+  vit_small_r26_s32_224.augreg_in21k_ft_in1k:
+    $kind: build
+    $description: timm's `vit_small_r26_s32_224`, its `augreg_in21k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_small_r26_s32_224.augreg_in21k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 75235ecba61bd14392599ce26a6896b3c6081412f0f1212ca2115d1f5822b98d
+      $size: 145752166
+      $sources:
+        - $hub:
+            $repo: timm/vit_small_r26_s32_224.augreg_in21k_ft_in1k
+            $revision: 192ae0b613d377a340326e587ee6296a115a6c5d
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 75862a46f2ed5f20c5f921ee66b6f98ba3c07576ccc0ab5acb62db07200342d1
+      $size: 601
+      $sources:
+        - $hub:
+            $repo: timm/vit_small_r26_s32_224.augreg_in21k_ft_in1k
+            $revision: 192ae0b613d377a340326e587ee6296a115a6c5d
+  vit_small_r26_s32_384.augreg_in21k_ft_in1k:
+    $kind: build
+    $description: timm's `vit_small_r26_s32_384`, its `augreg_in21k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_small_r26_s32_384.augreg_in21k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 944711a5b08bcc8a8c0756e37bcdd8035c95d43af8cdc6ca29a0ba0e88ff90db
+      $size: 145898080
+      $sources:
+        - $hub:
+            $repo: timm/vit_small_r26_s32_384.augreg_in21k_ft_in1k
+            $revision: f3a12e25364a5b058379c9185075801c243368f6
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 157dd98dee46f386dbb86cf6c4632cdc8bc0d94167fb3aa7efe380f39bd4dc53
+      $size: 601
+      $sources:
+        - $hub:
+            $repo: timm/vit_small_r26_s32_384.augreg_in21k_ft_in1k
+            $revision: f3a12e25364a5b058379c9185075801c243368f6
+  vit_base_r50_s16_224.orig_in21k:
+    $kind: build
+    $description: timm's `vit_base_r50_s16_224`, its `orig_in21k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_r50_s16_224.orig_in21k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: a03ec9cf78476304ef12edb58ef42c72f159c16d35a3cfd2277fae7a061af813
+      $size: 391593616
+      $sources:
+        - $hub:
+            $repo: timm/vit_base_r50_s16_224.orig_in21k
+            $revision: f8a432f48978c1a676f62d61c1f5a4f9eef52d08
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 8d4434e79ff3b16f4542ca9e7c4b72ce3d99068bd240fff23d2fb91a00e49573
+      $size: 585
+      $sources:
+        - $hub:
+            $repo: timm/vit_base_r50_s16_224.orig_in21k
+            $revision: f8a432f48978c1a676f62d61c1f5a4f9eef52d08
+  vit_base_r50_s16_384.orig_in21k_ft_in1k:
+    $kind: build
+    $description: timm's `vit_base_r50_s16_384`, its `orig_in21k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_base_r50_s16_384.orig_in21k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: eb51f2ac063973dd303025a041ebcf6d99dd4a19dd64a807ec9bfdf6f1d888da
+      $size: 395837146
+      $sources:
+        - $hub:
+            $repo: timm/vit_base_r50_s16_384.orig_in21k_ft_in1k
+            $revision: a70725585df76110a6e3b755d470ab0eba97933a
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 8f78a839aa9792045e184abdf7a59dcc81de7f4b71cdc5c6e1dfaaa52dc73dbc
+      $size: 599
+      $sources:
+        - $hub:
+            $repo: timm/vit_base_r50_s16_384.orig_in21k_ft_in1k
+            $revision: a70725585df76110a6e3b755d470ab0eba97933a
+  vit_large_r50_s32_224.augreg_in21k:
+    $kind: build
+    $description: timm's `vit_large_r50_s32_224`, its `augreg_in21k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_r50_s32_224.augreg_in21k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-21k-goog
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: ba6e9998fb8ec49585ff49c42bbb9f7739c6e6f80b3ef271184e8040edac932b
+      $size: 1401483842
+      $sources:
+        - $hub:
+            $repo: timm/vit_large_r50_s32_224.augreg_in21k
+            $revision: 0fef8880558352e20c02cd99aed7b9900aa48c41
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 25536b769be75674659bb73f06a846f0fa3bbe4a60f59593315cfdb9d63a2083
+      $size: 596
+      $sources:
+        - $hub:
+            $repo: timm/vit_large_r50_s32_224.augreg_in21k
+            $revision: 0fef8880558352e20c02cd99aed7b9900aa48c41
+  vit_large_r50_s32_224.augreg_in21k_ft_in1k:
+    $kind: build
+    $description: timm's `vit_large_r50_s32_224`, its `augreg_in21k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_r50_s32_224.augreg_in21k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: 26fd29776a748d2175fd8959f4a692fddc5aaf3e802f16d8b4b01e269285f360
+      $size: 1316027538
+      $sources:
+        - $hub:
+            $repo: timm/vit_large_r50_s32_224.augreg_in21k_ft_in1k
+            $revision: 9685a6d29feb49b17f2e5dce0444a07e2b507255
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 1f31cd1789216b63449bd800e3322babfe0fa3f577f82824f0756bf4d3861426
+      $size: 602
+      $sources:
+        - $hub:
+            $repo: timm/vit_large_r50_s32_224.augreg_in21k_ft_in1k
+            $revision: 9685a6d29feb49b17f2e5dce0444a07e2b507255
+  vit_large_r50_s32_384.augreg_in21k_ft_in1k:
+    $kind: build
+    $description: timm's `vit_large_r50_s32_384`, its `augreg_in21k_ft_in1k` weights.
+    $join:
+      - vit
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/vit_large_r50_s32_384.augreg_in21k_ft_in1k
+    $contract: vit-classifier
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      label_names: /imagenet/lemmas
+      labels: /imagenet/synsets-1k
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $sha256: a7390305df735b32a5086d049969f2210ad970da9f998417abfe026f3ec5455d
+      $size: 1316416660
+      $sources:
+        - $hub:
+            $repo: timm/vit_large_r50_s32_384.augreg_in21k_ft_in1k
+            $revision: 92573754e5d08c14087f915f923d2fbdf1d89f82
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 8bc26eb310a166aedef9073fc6d3976dff1d3ed4c697178220ab7f0f49e7e630
+      $size: 602
+      $sources:
+        - $hub:
+            $repo: timm/vit_large_r50_s32_384.augreg_in21k_ft_in1k
+            $revision: 92573754e5d08c14087f915f923d2fbdf1d89f82
   vit_base_patch16_radio_v3.c_radio:
     $kind: build
     $description: timm's `vit_base_patch16_radio_v3`, its `c_radio` weights.

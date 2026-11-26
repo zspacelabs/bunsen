@@ -412,6 +412,24 @@ mod timm {
 
     #[test]
     #[serial_test::serial]
+    fn vit_small_r26_s32_224_augreg_in21k_ft_in1k() {
+        check_row("timm/vit_small_r26_s32_224.augreg_in21k_ft_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_base_r50_s16_384_orig_in21k_ft_in1k() {
+        check_row("timm/vit_base_r50_s16_384.orig_in21k_ft_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_tiny_r_s16_p8_224_augreg_in21k() {
+        check_row("timm/vit_tiny_r_s16_p8_224.augreg_in21k");
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn regnetx_002_pycls_in1k() {
         check_row("timm/regnetx_002.pycls_in1k");
     }
