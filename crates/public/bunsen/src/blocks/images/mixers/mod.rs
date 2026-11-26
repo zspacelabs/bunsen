@@ -10,6 +10,9 @@
 //! - [`SplitAttn`]: `ResNeSt`'s split attention ([arXiv:2004.08955](https://arxiv.org/abs/2004.08955);
 //!   timm's `SplitAttn`). A grouped conv widens to `radix` splits, and an
 //!   attention over their sum weighs them per channel.
+//! - [`SelectiveKernel`]: `SKNet`'s selective kernel ([arXiv:1903.06586](https://arxiv.org/abs/1903.06586);
+//!   timm's `SelectiveKernel`). Paths of two receptive fields, and an attention
+//!   over their sum that weighs them per channel.
 //!
 //! Each keeps its upstream's parameter names where the conv net's
 //! conventions allow (`convs.{k}.conv`, `convs.{k}.norm`), and is a kind of
@@ -19,7 +22,9 @@
 //! [`ConvMixerKind`](crate::blocks::images::models::conv_net::ConvMixerKind).
 
 mod res2;
+mod selective_kernel;
 mod split_attn;
 
 pub use res2::*;
+pub use selective_kernel::*;
 pub use split_attn::*;

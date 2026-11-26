@@ -34,6 +34,7 @@ use crate::{
             },
             mixers::{
                 Res2ConvConfig,
+                SelectiveKernelConfig,
                 SplitAttnConfig,
             },
             models::{
@@ -237,6 +238,25 @@ pub enum ConvMixerKind {
         /// The attention width's divisor (timm's `rd_divisor`, 8).
         rd_divisor: usize,
     },
+
+    /// `SKNet`'s selective kernel ([`SelectiveKernelConfig::timm`]; a basic
+    /// unit's first conv, a bottleneck's `3x3`): a path per kernel, the
+    /// layers' norm and activation, an attention `rd_ratio` of the channels in
+    /// `rd_divisor`s.
+    SelectiveKernel {
+        /// The paths' kernels (timm's `kernel_size`, `[3, 5]`).
+        kernel_size: [usize; 2],
+        /// Whether each kernel is kept `3x3` and dilated to its reach instead
+        /// (timm's `keep_3x3`).
+        keep_3x3: bool,
+        /// The attention width's share of the channels (timm's `rd_ratio`,
+        /// 1/16).
+        rd_ratio: f64,
+        /// The attention width's divisor (timm's `rd_divisor`, 8).
+        rd_divisor: usize,
+        /// Whether the input splits across the paths (timm's `split_input`).
+        split_input: bool,
+    },
 }
 
 /// The layer a policy puts between the last stage and the pool: what a
@@ -435,6 +455,44 @@ impl ConvLayersConfig {
                     .with_hierarchical(!is_first)
                     .with_pool((is_first && scale > 1).then(|| Res2ConvConfig::timm_pool(stride)))
                     .into())
+            }
+            ConvMixerKind::SelectiveKernel {
+                kernel_size: kernels,
+                keep_3x3,
+                rd_ratio,
+                rd_divisor,
+                split_input,
+            } => {
+                if kernels.iter().any(|&k| k < 3 || k % 2 == 0)
+                    || rd_divisor == 0
+                    || rd_ratio <= 0.0
+                {
+                    return Err(BunsenError::illegal(format!(
+                        "a selective kernel of kernels {kernels:?}, its attention {rd_ratio} of the \
+                         channels in {rd_divisor}s: its kernels are odd and at least 3"
+                    )));
+                }
+                if split_input && !channels[0].is_multiple_of(kernels.len()) {
+                    return Err(BunsenError::illegal(format!(
+                        "a selective kernel's {} input channels split across {} paths",
+                        channels[0],
+                        kernels.len()
+                    )));
+                }
+                Ok(SelectiveKernelConfig::timm(
+                    channels,
+                    kernels,
+                    keep_3x3,
+                    stride,
+                    dilation,
+                    groups,
+                    rd_ratio,
+                    rd_divisor,
+                    split_input,
+                    self.norm.clone(),
+                    self.act.clone(),
+                )
+                .into())
             }
             ConvMixerKind::SplitAttn {
                 radix,
@@ -645,13 +703,19 @@ impl ConvStageContractConfig {
         );
         let reshapes = stride != 1 || in_channels != width;
         if layers.mixer != ConvMixerKind::Conv {
-            if self.unit != ConvUnitKind::Bottleneck {
+            let selective = matches!(layers.mixer, ConvMixerKind::SelectiveKernel { .. });
+            let holds = match self.unit {
+                ConvUnitKind::Bottleneck => true,
+                ConvUnitKind::Basic => selective,
+                ConvUnitKind::PreBasic | ConvUnitKind::PreBottleneck => false,
+            };
+            if !holds {
                 return Err(BunsenError::unsupported(format!(
-                    "a {:?} mixer in a {:?} unit: it is a bottleneck's",
+                    "a {:?} mixer in a {:?} unit",
                     layers.mixer, self.unit
                 )));
             }
-            if aa.is_some() && matches!(layers.mixer, ConvMixerKind::Res2 { .. }) {
+            if aa.is_some() && !matches!(layers.mixer, ConvMixerKind::SplitAttn { .. }) {
                 return Err(BunsenError::unsupported(format!(
                     "a {:?} mixer with anti-aliasing",
                     layers.mixer
@@ -661,16 +725,14 @@ impl ConvStageContractConfig {
         let (convs, mixer): (Vec<ResidualConvConfig>, usize) = match self.unit {
             ConvUnitKind::Basic => (
                 alloc::vec![
-                    layers
-                        .conv(
-                            [in_channels, mid],
-                            k,
-                            mixer_stride,
-                            first_dilation,
-                            groups,
-                            true
-                        )
-                        .into(),
+                    layers.try_mixer(
+                        [in_channels, mid],
+                        k,
+                        mixer_stride,
+                        first_dilation,
+                        groups,
+                        reshapes
+                    )?,
                     layers
                         .conv([mid, width], k, 1, dilation, groups, false)
                         .into(),
