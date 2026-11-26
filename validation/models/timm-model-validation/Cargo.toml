@@ -1,6 +1,6 @@
 [package]
 name = "timm-model-validation"
-description = "Validates bunsen's timm image families (ResNet, ViT, DeiT) against timm itself, on ImageNet's validation images pulled at run time. Fetches its model assets and the images; hosts none."
+description = "Validates bunsen's timm image families (ResNet, ViT, DeiT, Swin V2) against timm itself, on ImageNet's validation images pulled at run time. Fetches its model assets and the images; hosts none."
 publish = false
 
 authors.workspace = true

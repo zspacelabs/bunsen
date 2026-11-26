@@ -6,7 +6,17 @@
 //! neighbourhoods of patches, halving the grid and doubling the width. The
 //! cost of attention then grows with the image's area, not its square.
 //!
-//! - [`v2`]: Swin Transformer V2, the only version here. There is no V1.
+//! Each version is the generic
+//! [`StagedVisionEncoderModel`](crate::blocks::transformers::models::staged_vision_encoder::StagedVisionEncoderModel),
+//! its blocks
+//! [`WindowAttention`](crate::blocks::transformers::attention::window::WindowAttention)
+//! mixers; a kit is its policy, its prefabs and timm's checkpoints.
+//!
+//! - [`v2`]: Swin Transformer V2.
 
-pub mod ops;
+pub mod interop;
 pub mod v2;
+
+mod common;
+
+pub use common::SWIN_NORM_EPSILON;

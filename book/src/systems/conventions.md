@@ -165,9 +165,9 @@ The crate's Stacked families show the variations:
   one block config per layer, which a kit with its own per-layer rules
   (nanochat's window pattern and value embeddings) builds directly.
 - **Swin Transformer V2** has a fallible lowering.
-  [`SwinTransformerV2ContractConfig`](bunsen::kits::images::classification::swin::v2::SwinTransformerV2ContractConfig)
-  checks that its stages fit the input and the window, so `try_init` on a
-  bad policy returns an error instead of panicking.
+  [`SwinV2ContractConfig`](bunsen::kits::images::classification::swin::v2::SwinV2ContractConfig)
+  checks that each stage's heads divide its width, so `try_init` on a bad
+  policy returns an error instead of panicking.
 
 ## Choosing, and promoting
 

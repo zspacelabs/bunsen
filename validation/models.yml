@@ -503,6 +503,26 @@ crates:
         core: false
         dtypes: [f32]
         varies: DeiT III - the position embedding over the patches alone, layer scale
+      timm/swinv2_tiny_window8_256.ms_in1k:
+        size: small
+        gb: 0.11
+        core: false
+        dtypes: [f32]
+        varies: Swin V2 - shifted-window cosine attention, the continuous position bias, res-post
+          norms, patch merges between stages
+      timm/swinv2_tiny_window16_256.ms_in1k:
+        size: small
+        gb: 0.12
+        core: false
+        dtypes: [f32]
+        varies: Swin V2 in a window the last stage's grid shrinks, which then does not shift
+      timm/swinv2_base_window12to16_192to256.ms_in22k_ft_in1k:
+        size: small
+        gb: 0.36
+        core: false
+        dtypes: [f32]
+        varies: Swin V2 fine-tuned in larger windows - the position bias scaled by the 12x12
+          (last stage 6x6) windows it was pretrained in
       torchvision/resnet18:
         size: small
         gb: 0.15

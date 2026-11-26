@@ -1,87 +1,98 @@
 //! # Swin Transformer V2
 //!
 //! Swin Transformer V2 ([arXiv:2111.09883](https://arxiv.org/abs/2111.09883)),
-//! after Microsoft's [reference
-//! implementation](https://github.com/microsoft/Swin-Transformer/blob/main/models/swin_transformer_v2.py).
-//! V2 changes V1's block to train stably at larger sizes: scaled cosine
-//! attention with a learned logit scale, a continuous relative position
-//! bias computed by a small MLP over log-spaced offsets, and a norm after
-//! each residual branch rather than before it. [`blocks`] has the parts.
+//! with the checkpoints `timm` publishes. V2 changes V1's block to train
+//! stably at larger sizes: scaled cosine attention with a learned logit
+//! scale, a continuous relative position bias computed by a small MLP over
+//! log-spaced offsets (scaled by the window the weights were pretrained at),
+//! and a norm after each residual branch rather than before it. The width,
+//! the depths and heads, the window and the image size name the variant:
+//! `swinv2_tiny_window8_256` to `swinv2_large_window12to24_192to384`.
 //!
-//! # Lifecycle
+//! [`pretrained`] turns names into loaded models.
+//! [`SwinV2ContractConfig`]'s prefabs name the 12 geometries, by timm's
+//! architecture names, and
+//! [`default_swin_v2_factory`](pretrained::default_swin_v2_factory) is the
+//! index of the timm hub repos (`timm/swinv2_tiny_window8_256.ms_in1k`), and
+//! loads any other of the prefabs' architectures as `hf:timm/<repo>`.
 //!
-//! Swin is a [Stacked
-//! config](crate::burner::module::ModuleInit#stacked-config) whose
-//! lowering can fail:
+//! # The model
 //!
-//! 1. [`SwinTransformerV2ContractConfig`] is the policy: the image size, patch
-//!    size, channels, classes and embedding width, one [`LayerConfig`] (block
-//!    depth and head count) per stage, the window size, and the dropout rates.
-//! 2. [`try_to_structure`](crate::burner::module::ToStructureConfig::try_to_structure)
-//!    checks that the stages fit the image and the window, and resolves each
-//!    stage's grid, width and per-block drop-path rates into a
-//!    [`SwinTransformerV2StructureConfig`]. A policy whose stages do not fit is a
-//!    [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error that says
-//!    why, not a panic.
-//! 3. `init` builds the [`SwinTransformerV2`]: from the structure, or from the
-//!    policy in one step through the blanket
-//!    [`ModuleInit`](crate::burner::module::ModuleInit), whose `try_init`
-//!    returns the same error.
-//! 4. [`forward`](SwinTransformerV2::forward) maps an image batch to
-//!    classification logits.
+//! A Swin V2 is the generic staged vision encoder,
+//! [`StagedVisionEncoderModel`](crate::blocks::transformers::models::staged_vision_encoder::StagedVisionEncoderModel):
+//! the kit has no model type of its own. [`SwinV2ContractConfig`] is the
+//! policy in timm's terms (the image and patch sizes, the width, the depths
+//! and heads, the window and the pretraining windows, the MLP ratio, the
+//! `qkv` bias, the pool, the training regularizers) and lowers to the
+//! generic structure, its blocks
+//! [`WindowAttention`](crate::blocks::transformers::attention::window::WindowAttention)
+//! mixers in res-post-norm decoder blocks; `init` builds the model through
+//! it. A policy whose stages don't fit is an
+//! [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error, not a panic.
 //!
-//! [`SwinTransformerV2Meta`] answers the same questions of all three.
+//! The model's parameter paths are the staged encoder's own; the family's
+//! [`interop`](super::interop) maps timm's names onto them
+//! ([`swin_rekey`](super::interop::timm::swin_rekey)), and [`interop`]
+//! reads a timm `config.json`.
 //!
-//! What fits: stage `i` of `n` runs on a grid of `input/(patch_size*2^i)`
-//! patches per side, `d_embed*2^i` wide. The last stage's grid must be a
-//! non-zero multiple of the window size, and must scale back up to the
-//! input exactly, so each side of the image is
-//! `k*window_size*2^(n-1)*patch_size` for a whole `k`.
+//! # Compatibility
 //!
-//! Swin has no prefabs and no pretrained weights, and nothing reads
-//! upstream's checkpoints: the kit builds models to train.
-//! `examples/swin_tiny` trains one on CINIC-10.
+//! The kit aims for parity with `timm`'s `swin_transformer_v2.py`. Missing
+//! today:
+//!
+//! * running at another size than the model's (`set_input_size`,
+//!   `dynamic_img_size`), and a rectangular image or window
+//! * `always_partition`, and the per-stage window sizes
+//! * the original Microsoft checkpoints' layout (merges at the end of a stage,
+//!   `head.weight`), which timm's `checkpoint_filter_fn` converts
 //!
 //! # Example
 //!
 //! ```rust
 //! use bunsen::{
+//!     blocks::transformers::models::staged_vision_encoder::{
+//!         StagedVisionEncoderMeta,
+//!         StagedVisionEncoderModel,
+//!     },
 //!     burner::module::{
 //!         ModuleInit,
 //!         ToStructureConfig,
 //!     },
-//!     kits::images::classification::swin::v2::{
-//!         LayerConfig,
-//!         SwinTransformerV2,
-//!         SwinTransformerV2ContractConfig,
-//!         SwinTransformerV2Meta,
-//!     },
+//!     kits::images::classification::swin::v2::SwinV2ContractConfig,
 //!     support::testing::cpu_device,
 //! };
 //!
 //! let device = cpu_device();
 //!
-//! // A 256x256 RGB image in 4x4 patches: a 64x64 grid, then 32x32 after
-//! // one merge, which the 8x8 window divides.
-//! let policy = SwinTransformerV2ContractConfig::new(
-//!     [256, 256],
-//!     4,
-//!     3,
-//!     10,
-//!     96,
-//!     vec![LayerConfig::new(2, 3), LayerConfig::new(2, 6)],
-//! )
-//! .with_window_size(8)
-//! .with_attn_drop_rate(0.2)
-//! .with_drop_rate(0.2);
+//! // 32x32 RGB images in 4x4 patches: an 8x8 grid, then 4x4 after the
+//! // merge, in 4x4 windows; 10 classes.
+//! let policy =
+//!     SwinV2ContractConfig::new(32, 16, vec![2, 2], vec![2, 4], 4, 10)
+//!         .with_attn_drop_rate(0.1)
+//!         .with_drop_path_rate(0.1);
 //!
-//! let swin_model: SwinTransformerV2 = policy.init(&device);
-//! assert_eq!(swin_model.num_classes(), 10);
+//! let model: StagedVisionEncoderModel = policy.init(&device);
+//! assert_eq!(model.num_classes(), 10);
+//! assert_eq!(model.stage_grids(), [[8, 8], [4, 4]]);
 //!
-//! // A 7x7 window does not divide the last grid: an error, not a panic.
-//! assert!(policy.with_window_size(7).try_to_structure().is_err());
+//! // Three heads don't divide a stage 16 wide: an error, not a panic.
+//! assert!(
+//!     SwinV2ContractConfig {
+//!         num_heads: vec![3, 4],
+//!         ..policy
+//!     }
+//!     .try_to_structure()
+//!     .is_err()
+//! );
 //! ```
 
-pub mod blocks;
+pub mod pretrained;
 
-pub use blocks::swin_model::*;
+pub mod interop;
+
+mod contract;
+
+#[cfg(all(test, feature = "store"))]
+mod toy_tests;
+
+pub use contract::*;

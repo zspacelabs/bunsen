@@ -81,6 +81,9 @@ pub const ROWS: &[&str] = &[
     "timm/deit_small_patch16_224.fb_in1k",
     "timm/deit_base_distilled_patch16_224.fb_in1k",
     "timm/deit3_small_patch16_224.fb_in1k",
+    "timm/swinv2_tiny_window8_256.ms_in1k",
+    "timm/swinv2_tiny_window16_256.ms_in1k",
+    "timm/swinv2_base_window12to16_192to256.ms_in22k_ft_in1k",
 ];
 
 /// How many validation images a fixture covers: the first of the shard.
@@ -285,14 +288,17 @@ pub enum RowKit {
     ViT,
     /// `kits::images::classification::deit`.
     DeiT,
+    /// `kits::images::classification::swin::v2`.
+    SwinV2,
 }
 
 impl RowKit {
-    /// The kit whose factory names `row`: the vit kit's, the deit kit's,
-    /// else the resnet kit's.
+    /// The kit whose factory names `row`: the vit kit's, the deit kit's, the
+    /// swin v2 kit's, else the resnet kit's.
     pub fn of(row: &str) -> Self {
         use bunsen::kits::images::classification::{
             deit::pretrained::default_deit_factory,
+            swin::v2::pretrained::default_swin_v2_factory,
             vit::pretrained::default_vit_factory,
         };
         if default_vit_factory()
@@ -307,6 +313,12 @@ impl RowKit {
             .is_ok()
         {
             Self::DeiT
+        } else if default_swin_v2_factory()
+            .expect("the swin v2 factory")
+            .lookup(row)
+            .is_ok()
+        {
+            Self::SwinV2
         } else {
             Self::ResNet
         }
@@ -322,6 +334,7 @@ pub fn resolve_row(
     use bunsen::kits::images::classification::{
         deit::pretrained::default_deit_factory,
         resnet::pretrained::default_resnet_factory,
+        swin::v2::pretrained::default_swin_v2_factory,
         vit::pretrained::default_vit_factory,
     };
     let resolved = match RowKit::of(row) {
@@ -335,6 +348,10 @@ pub fn resolve_row(
             .map(|d| d.model),
         RowKit::DeiT => default_deit_factory()
             .expect("the deit factory")
+            .resolve(row, cache)
+            .map(|d| d.model),
+        RowKit::SwinV2 => default_swin_v2_factory()
+            .expect("the swin v2 factory")
             .resolve(row, cache)
             .map(|d| d.model),
     };
@@ -358,6 +375,7 @@ pub fn load_row(
     use bunsen::kits::images::classification::{
         deit::pretrained::default_deit_factory,
         resnet::pretrained::default_resnet_factory,
+        swin::v2::pretrained::default_swin_v2_factory,
         vit::pretrained::default_vit_factory,
     };
     match RowKit::of(row) {
@@ -380,6 +398,14 @@ pub fn load_row(
         RowKit::DeiT => {
             let construct = default_deit_factory()
                 .expect("the deit factory")
+                .load_construct(row, cache, device, policy)
+                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
+            let construct = Arc::unwrap_or_clone(construct);
+            (Box::new(construct.model), construct.card)
+        }
+        RowKit::SwinV2 => {
+            let construct = default_swin_v2_factory()
+                .expect("the swin v2 factory")
                 .load_construct(row, cache, device, policy)
                 .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
             let construct = Arc::unwrap_or_clone(construct);
