@@ -922,6 +922,35 @@ run them.
 * timm/res2net101d.in1k: [182.2 MB]
   timm's `res2net101d`, its `in1k` weights.
 
+# contract: resnest-classifier
+# A ResNeSt image classifier: a timm hub repo's checkpoint (safetensors)
+# and `config.json`.
+# publisher: timm - pytorch-image-models (timm), Ross Wightman's.
+
+* timm/resnest14d.gluon_in1k: [43.3 MB]
+  timm's `resnest14d`, its `gluon_in1k` weights.
+
+* timm/resnest26d.gluon_in1k: [69.2 MB]
+  timm's `resnest26d`, its `gluon_in1k` weights.
+
+* timm/resnest50d.in1k: [111.0 MB]
+  timm's `resnest50d`, its `in1k` weights.
+
+* timm/resnest50d_1s4x24d.in1k: [103.8 MB]
+  timm's `resnest50d_1s4x24d`, its `in1k` weights.
+
+* timm/resnest50d_4s2x40d.in1k: [122.8 MB]
+  timm's `resnest50d_4s2x40d`, its `in1k` weights.
+
+* timm/resnest101e.in1k: [194.5 MB]
+  timm's `resnest101e`, its `in1k` weights.
+
+* timm/resnest200e.in1k: [282.6 MB]
+  timm's `resnest200e`, its `in1k` weights.
+
+* timm/resnest269e.in1k: [446.0 MB]
+  timm's `resnest269e`, its `in1k` weights.
+
 # contract: regnet-classifier
 # A RegNet image classifier, or headless trunk: a timm hub repo's
 # checkpoint (safetensors) and `config.json`.

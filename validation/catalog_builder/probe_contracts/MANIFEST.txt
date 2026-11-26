@@ -10,6 +10,7 @@ resnet.yml kits
 regnet.yml kits
 resnetv2.yml kits
 res2net.yml kits
+resnest.yml kits
 vit.yml kits
 deit.yml kits
 swin-v1.yml kits

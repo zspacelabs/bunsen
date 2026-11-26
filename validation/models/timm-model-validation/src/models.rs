@@ -544,6 +544,30 @@ mod timm {
 
     #[test]
     #[serial_test::serial]
+    fn resnest14d_gluon_in1k() {
+        check_row("timm/resnest14d.gluon_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnest50d_in1k() {
+        check_row("timm/resnest50d.in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnest50d_4s2x40d_in1k() {
+        check_row("timm/resnest50d_4s2x40d.in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn resnest50d_1s4x24d_in1k() {
+        check_row("timm/resnest50d_1s4x24d.in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn deit_small_patch16_224_fb_in1k() {
         check_row("timm/deit_small_patch16_224.fb_in1k");
     }

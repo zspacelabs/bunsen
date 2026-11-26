@@ -37,6 +37,10 @@
 //!   a scale split, built as the generic conv net; prefabs and timm's hub
 //!   repos, loaded by name through
 //!   [`default_res2net_factory`](res2net::pretrained::default_res2net_factory).
+//! - [`resnest`]: `ResNeSt`, `ResNet`s whose bottlenecks mix by a split
+//!   attention, built as the generic conv net; prefabs and timm's hub repos,
+//!   loaded by name through
+//!   [`default_resnest_factory`](resnest::pretrained::default_resnest_factory).
 //! - [`resnetv2`]: the pre-activation `ResNetV2` and `BiT`, built as the
 //!   generic conv net; prefabs and timm's hub repos, loaded by name through
 //!   [`default_resnetv2_factory`](resnetv2::pretrained::default_resnetv2_factory).
@@ -47,6 +51,7 @@ pub mod deit;
 pub mod driver;
 pub mod regnet;
 pub mod res2net;
+pub mod resnest;
 pub mod resnet;
 pub mod resnetv2;
 pub mod swin;

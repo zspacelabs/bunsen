@@ -1,5 +1,6 @@
 """Generate the ResNet kin kits' prefabs from timm: every architecture with hub weights of
-`res2net.py` (and the other `ResNet`-with-its-own-block files, as their kits land).
+`res2net.py` and `resnest.py` (and the other `ResNet`-with-its-own-block files, as their kits
+land).
 
 Run with a Python that has timm (and torch):
 
@@ -25,7 +26,7 @@ import pathlib
 
 import timm
 import torch
-from timm.models import _registry, res2net
+from timm.models import _registry, res2net, resnest
 
 KITS = pathlib.Path(__file__).resolve().parent.parent.joinpath(
     "crates/public/bunsen/src/kits/images/classification"
@@ -110,6 +111,36 @@ def lower_res2net(kwargs):
     return f"Self::res2net(vec!{list(layers)}, {base_width}, {cardinality}, {scale}){suffix}", notes
 
 
+def lower_resnest(kwargs):
+    """`(expression, notes)`: a `ResNeSt` prefab; or a `str`, the kwarg the contract lacks."""
+    kw = dict(kwargs)
+    if kw.pop("block") != "ResNestBottleneck":
+        return "block (not ResNestBottleneck)"
+    layers = kw.pop("layers")
+    block = dict(kw.pop("block_args", {}))
+    radix = block.pop("radix", 1)
+    if not block.pop("avd", False):
+        return "block_args.avd=False"
+    avd_first = block.pop("avd_first", False)
+    if block:
+        return ", ".join(f"block_args.{k}={v}" for k, v in sorted(block.items()))
+    notes = []
+    lowered = lower_resnet(kw, notes)
+    if isinstance(lowered, str):
+        return lowered
+    suffix, base_width, cardinality = lowered
+    head = f"radix {radix}"
+    if (cardinality, base_width) != (1, 64):
+        head += f", {cardinality} groups of {base_width} per 64 planes"
+    if avd_first:
+        head += ", the `avd` pool before the mixer"
+    notes.insert(0, head)
+    if kw:
+        return ", ".join(f"{k}={v}" for k, v in sorted(kw.items()))
+    args = f"vec!{list(layers)}, {base_width}, {cardinality}, {radix}, {str(avd_first).lower()}"
+    return f"Self::resnest({args}){suffix}", notes
+
+
 def stages(model):
     """The stem's conv widths, and each stage's `(depth, width, first 1x1's width)`."""
     if isinstance(model.conv1, torch.nn.Sequential):
@@ -130,6 +161,7 @@ def stages(model):
 # Each kit: its timm module, its lowering, and its label for an architecture's doc.
 FAMILIES = {
     "res2net": (res2net, lower_res2net, "`Res2Net`"),
+    "resnest": (resnest, lower_resnest, "`ResNeSt`"),
 }
 
 
