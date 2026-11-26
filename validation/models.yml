@@ -564,6 +564,42 @@ crates:
         dtypes: [f32]
         varies: BEiT3's sub-LN - norms before the attention's output projection and on the MLP's
           hidden width
+      timm/regnetx_002.pycls_in1k:
+        size: small
+        gb: 0.11
+        core: false
+        dtypes: [f32]
+        varies: pycls's RegNetX - grouped mixers, no squeeze-excite
+      timm/regnety_032.ra_in1k:
+        size: small
+        gb: 0.18
+        core: false
+        dtypes: [f32]
+        varies: timm's RegNetY - the squeeze-excite after the mixer
+      timm/regnety_008_tv.tv2_in1k:
+        size: small
+        gb: 0.13
+        core: false
+        dtypes: [f32]
+        varies: torchvision's v2 weights on a _tv arch - group_min_ratio's rounding
+      timm/regnety_120.sw_in12k:
+        size: small
+        gb: 0.4
+        core: false
+        dtypes: [f32]
+        varies: an ImageNet-12k head
+      timm/regnety_320.seer:
+        size: small
+        gb: 0.67
+        core: false
+        dtypes: [f32]
+        varies: a headless SEER trunk - the pooled features are the output
+      timm/regnety_160.swag_ft_in1k:
+        size: small
+        gb: 0.43
+        core: false
+        dtypes: [f32]
+        varies: SWAG's fine-tune at 384
       timm/deit_small_patch16_224.fb_in1k:
         size: small
         gb: 0.2

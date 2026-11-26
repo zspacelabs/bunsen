@@ -91,6 +91,12 @@ pub const ROWS: &[&str] = &[
     "timm/aimv2_large_patch14_224.apple_pt",
     "timm/vit_giant_patch14_dinov2.lvd142m",
     "timm/beit3_base_patch16_224.in22k_ft_in1k",
+    "timm/regnetx_002.pycls_in1k",
+    "timm/regnety_032.ra_in1k",
+    "timm/regnety_008_tv.tv2_in1k",
+    "timm/regnety_120.sw_in12k",
+    "timm/regnety_320.seer",
+    "timm/regnety_160.swag_ft_in1k",
     "timm/deit_small_patch16_224.fb_in1k",
     "timm/deit_base_distilled_patch16_224.fb_in1k",
     "timm/deit3_small_patch16_224.fb_in1k",
@@ -308,14 +314,18 @@ pub enum RowKit {
     SwinV1,
     /// `kits::images::classification::swin::v2`.
     SwinV2,
+    /// `kits::images::classification::regnet`.
+    RegNet,
 }
 
 impl RowKit {
     /// The kit whose factory names `row`: the vit kit's, the deit kit's, the
-    /// swin v1 kit's, the swin v2 kit's, else the resnet kit's.
+    /// swin v1 kit's, the swin v2 kit's, the regnet kit's, else the resnet
+    /// kit's.
     pub fn of(row: &str) -> Self {
         use bunsen::kits::images::classification::{
             deit::pretrained::default_deit_factory,
+            regnet::pretrained::default_regnet_factory,
             swin::{
                 v1::pretrained::default_swin_v1_factory,
                 v2::pretrained::default_swin_v2_factory,
@@ -346,6 +356,12 @@ impl RowKit {
             .is_ok()
         {
             Self::SwinV2
+        } else if default_regnet_factory()
+            .expect("the regnet factory")
+            .lookup(row)
+            .is_ok()
+        {
+            Self::RegNet
         } else {
             Self::ResNet
         }
@@ -360,6 +376,7 @@ pub fn resolve_row(
 ) -> bunsen::data::builds::BuildRef {
     use bunsen::kits::images::classification::{
         deit::pretrained::default_deit_factory,
+        regnet::pretrained::default_regnet_factory,
         resnet::pretrained::default_resnet_factory,
         swin::{
             v1::pretrained::default_swin_v1_factory,
@@ -388,6 +405,10 @@ pub fn resolve_row(
             .expect("the swin v2 factory")
             .resolve(row, cache)
             .map(|d| d.model),
+        RowKit::RegNet => default_regnet_factory()
+            .expect("the regnet factory")
+            .resolve(row, cache)
+            .map(|d| d.model),
     };
     resolved.unwrap_or_else(|e| panic!("resolve {row}: {e:#}"))
 }
@@ -408,6 +429,7 @@ pub fn load_row(
 
     use bunsen::kits::images::classification::{
         deit::pretrained::default_deit_factory,
+        regnet::pretrained::default_regnet_factory,
         resnet::pretrained::default_resnet_factory,
         swin::{
             v1::pretrained::default_swin_v1_factory,
@@ -451,6 +473,14 @@ pub fn load_row(
         RowKit::SwinV2 => {
             let construct = default_swin_v2_factory()
                 .expect("the swin v2 factory")
+                .load_construct(row, cache, device, policy)
+                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
+            let construct = Arc::unwrap_or_clone(construct);
+            (Box::new(construct.model), construct.card)
+        }
+        RowKit::RegNet => {
+            let construct = default_regnet_factory()
+                .expect("the regnet factory")
                 .load_construct(row, cache, device, policy)
                 .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
             let construct = Arc::unwrap_or_clone(construct);
