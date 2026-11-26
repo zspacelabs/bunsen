@@ -40,6 +40,8 @@ use crate::{
                     ConvStemConfig,
                     GlobalPool2d,
                     GlobalPool2dConfig,
+                    NormAct,
+                    NormActConfig,
                 },
             },
         },
@@ -85,6 +87,10 @@ pub enum ConvFinalConfig {
     /// net's: `RegNetV`'s, `RegNetZ`'s).
     Act(BunsenActivationConfig),
 
+    /// A norm and an activation, sized to the last stage (a pre-activation
+    /// net's last norm, `ResNetV2`'s).
+    NormAct(NormActConfig),
+
     /// A conv block, widening the features (`RegNetZ`'s `num_features`, a
     /// `1x1` conv, a norm and an activation).
     Conv(ConvBlock2dConfig),
@@ -99,6 +105,9 @@ pub enum ConvFinalConfig {
 pub enum ConvFinal {
     /// An activation.
     Act(BunsenActivation),
+
+    /// A norm and an activation.
+    NormAct(NormAct),
 
     /// A conv block.
     Conv(ConvBlock2d),
@@ -121,6 +130,7 @@ impl ConvFinal {
     ) -> Tensor<4> {
         match self {
             Self::Act(act) => act.forward(x),
+            Self::NormAct(norm) => norm.forward(x),
             Self::Conv(block) => block.forward(x),
         }
     }
@@ -312,6 +322,10 @@ impl ModuleInit<ConvNetModel> for ConvNetStructureConfig {
                 .map(|f| -> BunsenResult<ConvFinal> {
                     Ok(match f {
                         ConvFinalConfig::Act(act) => ConvFinal::Act(act.init(device)),
+                        ConvFinalConfig::NormAct(norm) => ConvFinal::NormAct(norm.try_init(
+                            self.stages.last().map_or(0, ConvChainMeta::out_channels),
+                            device,
+                        )?),
                         ConvFinalConfig::Conv(block) => ConvFinal::Conv(block.try_init(device)?),
                     })
                 })

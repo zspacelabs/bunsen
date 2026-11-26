@@ -49,9 +49,11 @@ mod conv_func_2d;
 mod conv_shape;
 mod midpoint_filter;
 mod same_padding;
+mod weight_std;
 
 pub use causal_stream::*;
 pub use conv_func_2d::*;
 pub use conv_shape::*;
 pub use midpoint_filter::*;
 pub use same_padding::*;
+pub use weight_std::*;

@@ -5,10 +5,12 @@
 //! ([`Identity`](BunsenNormalization::Identity),
 //! [`Batch`](BunsenNormalization::Batch),
 //! [`Group`](BunsenNormalization::Group),
-//! [`Layer`](BunsenNormalization::Layer), [`Rms`](BunsenNormalization::Rms)),
-//! each burn's layer, behind one seam that bunsen owns. A block that takes a
-//! norm takes a [`BunsenNormalizationConfig`], so a norm's dtype handling, and
-//! later kinds, are bunsen's to change without waiting on burn's releases.
+//! [`Layer`](BunsenNormalization::Layer), [`Rms`](BunsenNormalization::Rms),
+//! [`EvoS0`](BunsenNormalization::EvoS0)), each burn's layer (or, for
+//! `EvoNorm-S0`, [`EvoNormS0`], bunsen's), behind one seam that bunsen owns. A
+//! block that takes a norm takes a [`BunsenNormalizationConfig`], so a norm's
+//! dtype handling, and later kinds, are bunsen's to change without waiting on
+//! burn's releases.
 //!
 //! - **Half inputs compute in f32.** [`Rms`](BunsenNormalization::Rms)
 //!   normalizes an f16 or bf16 input in f32 and narrows it before the gain, as
@@ -37,10 +39,12 @@
 //! loaders skip enum variants, so a loaded tensor's path names no variant
 //! either way.
 
+mod evo_norm;
 mod gated_norm;
 mod layer_norm;
 mod normalization;
 
+pub use evo_norm::*;
 pub use gated_norm::*;
 pub use layer_norm::*;
 pub use normalization::*;

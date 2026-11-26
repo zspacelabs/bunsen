@@ -44,7 +44,7 @@ fn resnet_like(
     unit: ConvUnitKind,
 ) -> ConvNetContractConfig {
     let expansion = match unit {
-        ConvUnitKind::Basic => 1,
+        ConvUnitKind::Basic | ConvUnitKind::PreBasic => 1,
         ConvUnitKind::Bottleneck | ConvUnitKind::PreBottleneck => 4,
     };
     let stages = depths
@@ -609,7 +609,7 @@ fn test_preact_and_unshortcut_units() {
         ConvStemContractConfig::new(vec![8])
             .with_kernel_size(3)
             .with_pool(ConvStemPoolKind::None)
-            .with_norm_act(false),
+            .with_last_norm_act(false),
         stages,
         5,
     )
@@ -656,4 +656,60 @@ fn test_preact_and_unshortcut_units() {
     ErrorMatcher::kind(BunsenErrorKind::Illegal)
         .message_contains("a unit with no residual has no shortcut")
         .assert_err(&wrong.try_validate());
+}
+
+/// `ResNetV2`'s pieces: a pre-activation basic unit (a bare first conv, the
+/// second after its norm) whose identity shortcut reads the raw input under
+/// `pre_identity: false`; the zero-padded stem pool; a final norm-act; weight
+/// standardization on every conv.
+#[test]
+fn test_resnetv2_pieces() {
+    let mut policy = ConvNetContractConfig::new(
+        ConvStemContractConfig::new(vec![8])
+            .with_pool(ConvStemPoolKind::ZeroPadMax)
+            .with_last_norm_act(false),
+        vec![ConvStageContractConfig::new(2, ConvUnitKind::PreBasic, 8, 8).with_stride(1)],
+        5,
+    )
+    .with_final_conv(Some(ConvFinalKind::NormAct));
+    policy.layers.pre_identity = false;
+    policy.layers.weight_std = Some(1e-8);
+    let structure = policy.to_structure();
+    assert!(matches!(
+        structure.stem.pool,
+        Some(ConvStemPoolConfig::ZeroPadMax(_))
+    ));
+    assert_eq!(structure.stem.convs[0].weight_std, Some(1e-8));
+    let unit = &structure.stages[0].units[0];
+    assert!(unit.pre.is_some() && unit.shortcut.is_none() && !unit.pre_identity);
+    assert_eq!(unit.mixer, 0);
+    let ResidualConvConfig::PreAct(first) = &unit.convs[0] else {
+        panic!("a pre-activation conv");
+    };
+    assert!(first.norm.is_none() && first.weight_std == Some(1e-8));
+    assert!(matches!(
+        structure.final_conv,
+        Some(ConvFinalConfig::NormAct(_))
+    ));
+
+    // The identity reads the raw input: with every conv zeroed, the unit is
+    // its input.
+    let device = cpu_device();
+    let unit: ResidualUnit = unit.init(&device);
+    let mut zeroed = unit.clone();
+    for conv in &mut zeroed.convs {
+        if let ResidualConv::PreAct(conv) = conv {
+            conv.conv.weight = conv.conv.weight.clone().map(|w| w.zeros_like());
+            conv.weight_std = None;
+        }
+    }
+    let x = Tensor::<4>::random([1, 8, 4, 4], burn::tensor::Distribution::Default, &device);
+    zeroed
+        .forward(x.clone())
+        .into_data()
+        .assert_eq(&x.into_data(), true);
+
+    let model: ConvNetModel = structure.init(&device);
+    let images = Tensor::<4>::zeros([1, 3, 16, 16], &device);
+    assert_eq!(model.forward(images).dims(), [1, 5]);
 }

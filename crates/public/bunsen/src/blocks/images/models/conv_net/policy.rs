@@ -82,6 +82,11 @@ pub enum ConvUnitKind {
     /// expand, `in -> mid -> mid -> width` (`ResNet`'s `Bottleneck`).
     Bottleneck,
 
+    /// [`Basic`](Self::Basic)'s two convs, pre-activated as
+    /// [`PreBottleneck`](Self::PreBottleneck) is (timm's `PreActBasic`,
+    /// `ResNetV2`'s).
+    PreBasic,
+
     /// [`Bottleneck`](Self::Bottleneck)'s convs, pre-activated: the unit's
     /// input normalized and activated once, read by the path and the
     /// shortcut, then each later conv after its own norm and activation; no
@@ -196,6 +201,10 @@ pub enum ConvFinalKind {
     /// net's).
     Act,
 
+    /// The layers' norm and activation (a pre-activation net's last norm,
+    /// `ResNetV2`'s `norm`).
+    NormAct,
+
     /// A `1x1` conv to `width` channels, the layers' norm and activation
     /// (`RegNetZ`'s `num_features`).
     Conv {
@@ -216,6 +225,10 @@ pub enum ConvStemPoolKind {
     /// A `3x3` max pool, stride 1, padding 1, then a `3x3` blur of stride 2
     /// (a blur-anti-aliased `ResNet`'s).
     MaxBlur,
+
+    /// A zero pad of 1, then a `3x3` max pool of stride 2 and no padding of
+    /// its own (`BiT`'s `fixed` stem).
+    ZeroPadMax,
 
     /// A `3x3` conv of stride 2 that keeps the channels, its norm and its
     /// activation (`ResNet-RS`'s, timm's `replace_stem_pool`).
@@ -260,6 +273,16 @@ pub struct ConvLayersConfig {
     /// this says.
     #[config(default = "true")]
     pub out_act: bool,
+
+    /// Each conv's weight standardization, by this `eps` (timm's
+    /// `StdConv2d`, `BiT`'s 1e-8); none when `None`.
+    #[config(default = "None")]
+    pub weight_std: Option<f64>,
+
+    /// Whether a pre-activation unit's identity shortcut reads the
+    /// pre-activated input (`RegNetV`'s) or the raw one (`ResNetV2`'s).
+    #[config(default = "true")]
+    pub pre_identity: bool,
 }
 
 impl Default for ConvLayersConfig {
@@ -309,6 +332,7 @@ impl ConvLayersConfig {
         ))
         .with_norm(Some(self.norm.clone()))
         .with_act(act.then(|| self.act.clone()))
+        .with_weight_std(self.weight_std)
         .match_norm_features()
     }
 
@@ -329,7 +353,8 @@ impl ConvLayersConfig {
             stride,
             dilation,
             groups,
-        ));
+        ))
+        .with_weight_std(self.weight_std);
         match norm_act {
             true => conv
                 .with_norm(Some(self.norm.clone()))
@@ -358,11 +383,12 @@ pub struct ConvStemContractConfig {
     #[config(default = "ConvStemPoolKind::Max")]
     pub pool: ConvStemPoolKind,
 
-    /// Whether each conv has its norm and activation: `false`, bare convs,
-    /// for a pre-activation net, whose first unit normalizes its input
-    /// (`RegNetV`'s stem).
+    /// Whether the last conv has its norm and activation: `false`, a bare
+    /// last conv, for a pre-activation net, whose first unit normalizes its
+    /// input (`RegNetV`'s and `ResNetV2`'s stems; a deep stem's earlier convs
+    /// keep theirs).
     #[config(default = "true")]
-    pub norm_act: bool,
+    pub last_norm_act: bool,
 }
 
 impl ConvStemContractConfig {
@@ -389,7 +415,7 @@ impl ConvStemContractConfig {
             .map(|(idx, &width)| {
                 let stride = if idx == 0 { self.stride } else { 1 };
                 let mut conv = layers.conv([channels, width], self.kernel_size, stride, 1, 1, true);
-                if !self.norm_act {
+                if !self.last_norm_act && idx + 1 == self.widths.len() {
                     conv = conv.with_norm(None).with_act(None);
                 }
                 conv.conv = conv
@@ -421,6 +447,9 @@ impl ConvStemContractConfig {
                 1,
                 true,
             ))),
+            ConvStemPoolKind::ZeroPadMax => Some(ConvStemPoolConfig::ZeroPadMax(
+                MaxPool2dConfig::new([3, 3]).with_strides([2, 2]),
+            )),
             ConvStemPoolKind::None => None,
         };
         Ok(ConvStemConfig { convs, pool })
@@ -483,7 +512,10 @@ impl ConvStageContractConfig {
             .filter(|_| stride == 2 || first_dilation != dilation)
             .map(|kind| kind.to_config(stride));
         let mixer_stride = if aa.is_some() { 1 } else { stride };
-        let preact = self.unit == ConvUnitKind::PreBottleneck;
+        let preact = matches!(
+            self.unit,
+            ConvUnitKind::PreBasic | ConvUnitKind::PreBottleneck
+        );
         let (convs, mixer): (Vec<ResidualConvConfig>, usize) = match self.unit {
             ConvUnitKind::Basic => (
                 alloc::vec![
@@ -514,6 +546,24 @@ impl ConvStageContractConfig {
                 1,
             ),
             // The unit's `pre` normalizes the input; each later conv its own.
+            ConvUnitKind::PreBasic => (
+                alloc::vec![
+                    layers
+                        .pre_conv(
+                            [in_channels, mid],
+                            k,
+                            mixer_stride,
+                            first_dilation,
+                            groups,
+                            false
+                        )
+                        .into(),
+                    layers
+                        .pre_conv([mid, width], k, 1, dilation, groups, true)
+                        .into(),
+                ],
+                0,
+            ),
             ConvUnitKind::PreBottleneck => (
                 alloc::vec![
                     layers
@@ -553,6 +603,7 @@ impl ConvStageContractConfig {
                 NormActConfig::new(layers.norm.clone()).with_act(Some(layers.act.clone()))
             }),
             residual,
+            pre_identity: layers.pre_identity,
             aa,
             shortcut,
             attn: layers.attn.map(|kind| {
@@ -668,6 +719,10 @@ impl ToStructureConfig for ConvNetContractConfig {
         }
         let final_conv = self.final_conv.map(|kind| match kind {
             ConvFinalKind::Act => ConvFinalConfig::Act(self.layers.act.clone()),
+            ConvFinalKind::NormAct => ConvFinalConfig::NormAct(
+                NormActConfig::new(self.layers.norm.clone())
+                    .with_act(Some(self.layers.act.clone())),
+            ),
             ConvFinalKind::Conv { width } => {
                 ConvFinalConfig::Conv(self.layers.conv([channels, width], 1, 1, 1, 1, true))
             }
