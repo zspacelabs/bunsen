@@ -127,11 +127,22 @@ def lower(arch, kwargs, image_size):
     pre_norm = kw.pop("pre_norm", False)
     norm_layer = kw.pop("norm_layer", None)
     eps = None
+    rms = False
     if norm_layer is not None:
-        if norm_layer.get("partial") != "LayerNorm" or set(norm_layer) - {"partial", "eps"}:
+        if norm_layer.get("partial") not in ("LayerNorm", "RmsNorm") or set(norm_layer) - {"partial", "eps"}:
             return f"norm_layer={norm_layer}"
         eps = norm_layer.get("eps")
-    if pre_norm and eps == 1e-5:
+        rms = norm_layer["partial"] == "RmsNorm"
+    if rms:
+        expr += ".with_norm_layer(ViTNormLayer::RmsNorm)"
+        notes.append("RMS norms")
+    embed_norm = kw.pop("embed_norm_layer", None)
+    if embed_norm is not None:
+        if embed_norm != norm_layer:
+            return f"embed_norm_layer={embed_norm} (not norm_layer)"
+        expr += ".with_embed_norm(true)"
+        notes.append("a normed patch embedding")
+    if pre_norm and eps == 1e-5 and not rms:
         expr += ".with_clip()"
         notes.append("CLIP's pre-norm image tower")
     else:
@@ -145,13 +156,30 @@ def lower(arch, kwargs, image_size):
     if not kw.pop("qkv_bias", True):
         expr += ".with_qkv_bias(false)"
         notes.append("MIIL's, with no `qkv` bias" if arch.endswith("_miil") else "no `qkv` bias")
+    if not kw.pop("proj_bias", True):
+        expr += ".with_proj_bias(false)"
+        notes.append("no output or MLP biases")
+    mlp = kw.pop("mlp_layer", None)
+    if mlp == "SwiGLU":
+        expr += ".with_mlp_layer(ViTMlpLayer::SwiGlu)"
+        notes.append("a `SwiGLU` MLP")
+    elif mlp == {"partial": "GluMlp", "act_layer": "SiLU", "gate_last": False}:
+        expr += ".with_mlp_layer(ViTMlpLayer::SwiGluPacked)"
+        notes.append("a packed `SwiGLU` MLP")
+    elif mlp is not None:
+        return f"mlp_layer={mlp}"
     ratio = kw.pop("mlp_ratio", 4.0)
     if float(ratio) != 4.0:
         expr += f".with_mlp_ratio({float(ratio)!r})"
         notes.append(f"an MLP ratio of {float(ratio)!r}")
     act = kw.pop("act_layer", None)
     if act is not None:
-        acts = {"gelu_tanh": ("GeluApproximate", "tanh GELU"), "quick_gelu": ("QuickGelu", "`QuickGELU`")}
+        acts = {
+            "gelu_tanh": ("GeluApproximate", "tanh GELU"),
+            "quick_gelu": ("QuickGelu", "`QuickGELU`"),
+            "silu": ("Silu", "`SiLU`"),
+            "SiLU": ("Silu", "`SiLU`"),
+        }
         if act not in acts:
             return f"act_layer={act}"
         expr += f".with_activation(BunsenActivationConfig::{acts[act][0]})"

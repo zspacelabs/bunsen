@@ -8,7 +8,8 @@
 //! - **Conversion:** [`vit_contract_config`], a timm `config.json` as the
 //!   [`ViTContractConfig`] it builds.
 //! - **Names:** [`vit_row_splits`] (the fused `qkv`, split) and [`vit_rekey`],
-//!   onto the model's canonical names.
+//!   onto the model's canonical names; for a gated MLP's model,
+//!   [`vit_gated_row_splits`] and [`vit_gated_rekey`].
 //! - **Loading** (feature `store`): `load_vit_tensors`; with `cache`,
 //!   `load_vit`, a resource set's checkpoint into a model it builds, and
 //!   `load_vit_into`, into one a family built.
@@ -113,6 +114,47 @@ pub fn vit_row_splits() -> [TensorLoadRowSplit; 4] {
     ]
 }
 
+/// [`vit_row_splits`], with a packed `SwiGLU`'s `fc1`, `[2 h, d]` (and its
+/// bias), split by rows into its gate and its input, `fc1_g` and `fc1_x` (the
+/// gate first, as timm's `SwiGLUPacked` takes it): the splits of a model
+/// whose MLP is gated, where a `SwiGLU`'s `fc1_g` and `fc1_x` come apart
+/// already.
+pub fn vit_gated_row_splits() -> [TensorLoadRowSplit; 6] {
+    let [qkv_weight, qkv_bias, kv_weight, kv_bias] = vit_row_splits();
+    [
+        qkv_weight,
+        qkv_bias,
+        kv_weight,
+        kv_bias,
+        TensorLoadRowSplit::equal(
+            ".mlp.fc1.weight",
+            [".mlp.fc1_g.weight", ".mlp.fc1_x.weight"],
+        ),
+        TensorLoadRowSplit::equal(".mlp.fc1.bias", [".mlp.fc1_g.bias", ".mlp.fc1_x.bias"]),
+    ]
+}
+
+/// [`vit_rekey`] for a model whose MLP is gated (`AIMv2`'s `SwiGLU`, the
+/// giant `DINOv2`'s packed one, after [`vit_gated_row_splits`]): a block's
+/// `mlp.fc1_g`, `mlp.fc1_x` and `mlp.fc2` are its `mlp.gate_proj`,
+/// `mlp.up_proj` and `mlp.down_proj`.
+///
+/// ```rust
+/// use bunsen::kits::images::classification::vit::interop::timm::vit_gated_rekey;
+///
+/// assert_eq!(
+///     vit_gated_rekey().apply("blocks.3.mlp.fc2.weight").as_deref(),
+///     Some("stack.layers.3.mlp.down_proj.weight")
+/// );
+/// ```
+pub fn vit_gated_rekey() -> Rekey {
+    vit_rekey_with(&[
+        ("mlp.fc1_g.", "mlp.gate_proj."),
+        ("mlp.fc1_x.", "mlp.up_proj."),
+        ("mlp.fc2.", "mlp.down_proj."),
+    ])
+}
+
 /// timm's `VisionTransformer` names, after [`vit_row_splits`], onto a
 /// [`VisionEncoderModel`](crate::blocks::transformers::models::vision_encoder::VisionEncoderModel)'s
 /// canonical ones.
@@ -145,6 +187,11 @@ pub fn vit_row_splits() -> [TensorLoadRowSplit; 4] {
 /// );
 /// ```
 pub fn vit_rekey() -> Rekey {
+    vit_rekey_with(&[("mlp.fc1.", "mlp.linear1."), ("mlp.fc2.", "mlp.linear2.")])
+}
+
+/// [`vit_rekey`], a block's MLP renamed by `mlp`'s `(timm, bunsen)` prefixes.
+fn vit_rekey_with(mlp: &[(&str, &str)]) -> Rekey {
     let block = Rekey::keep_rest()
         .rename("norm1.", "attn_norm.")
         .rename("norm2.", "mlp_norm.")
@@ -153,9 +200,10 @@ pub fn vit_rekey() -> Rekey {
         .rename("attn.v.", "attn.c_v.")
         .rename("attn.proj.", "attn.c_proj.")
         .exact("ls1.gamma", "attn_layer_scale")
-        .exact("ls2.gamma", "mlp_layer_scale")
-        .rename("mlp.fc1.", "mlp.linear1.")
-        .rename("mlp.fc2.", "mlp.linear2.");
+        .exact("ls2.gamma", "mlp_layer_scale");
+    let block = mlp
+        .iter()
+        .fold(block, |block, &(from, to)| block.rename(from, to));
     let attn_pool = Rekey::keep_rest()
         .rename("q.", "attn.query.")
         .rename("k.", "attn.key.")

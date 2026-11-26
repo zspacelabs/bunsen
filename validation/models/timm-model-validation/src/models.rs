@@ -393,6 +393,18 @@ mod timm {
 
     #[test]
     #[serial_test::serial]
+    fn aimv2_large_patch14_224_apple_pt() {
+        check_row("timm/aimv2_large_patch14_224.apple_pt");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_giant_patch14_dinov2_lvd142m() {
+        check_row("timm/vit_giant_patch14_dinov2.lvd142m");
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn deit_small_patch16_224_fb_in1k() {
         check_row("timm/deit_small_patch16_224.fb_in1k");
     }

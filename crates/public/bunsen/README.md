@@ -1185,6 +1185,48 @@ run them.
   timm's `vit_gigantic_patch14_clip_378`, its `metaclip2_worldwide`
   weights.
 
+* timm/aimv2_large_patch14_224.apple_pt: [1.24 GB]
+  timm's `aimv2_large_patch14_224`, its `apple_pt` weights.
+
+* timm/aimv2_large_patch14_224.apple_pt_dist: [1.24 GB]
+  timm's `aimv2_large_patch14_224`, its `apple_pt_dist` weights.
+
+* timm/aimv2_large_patch14_336.apple_pt: [1.24 GB]
+  timm's `aimv2_large_patch14_336`, its `apple_pt` weights.
+
+* timm/aimv2_large_patch14_336.apple_pt_dist: [1.24 GB]
+  timm's `aimv2_large_patch14_336`, its `apple_pt_dist` weights.
+
+* timm/aimv2_large_patch14_448.apple_pt: [1.24 GB]
+  timm's `aimv2_large_patch14_448`, its `apple_pt` weights.
+
+* timm/aimv2_huge_patch14_224.apple_pt: [2.72 GB]
+  timm's `aimv2_huge_patch14_224`, its `apple_pt` weights.
+
+* timm/aimv2_huge_patch14_336.apple_pt: [2.73 GB]
+  timm's `aimv2_huge_patch14_336`, its `apple_pt` weights.
+
+* timm/aimv2_huge_patch14_448.apple_pt: [2.73 GB]
+  timm's `aimv2_huge_patch14_448`, its `apple_pt` weights.
+
+* timm/aimv2_1b_patch14_224.apple_pt: [4.94 GB]
+  timm's `aimv2_1b_patch14_224`, its `apple_pt` weights.
+
+* timm/aimv2_1b_patch14_336.apple_pt: [4.94 GB]
+  timm's `aimv2_1b_patch14_336`, its `apple_pt` weights.
+
+* timm/aimv2_1b_patch14_448.apple_pt: [4.95 GB]
+  timm's `aimv2_1b_patch14_448`, its `apple_pt` weights.
+
+* timm/aimv2_3b_patch14_224.apple_pt: [10.88 GB]
+  timm's `aimv2_3b_patch14_224`, its `apple_pt` weights.
+
+* timm/aimv2_3b_patch14_336.apple_pt: [10.89 GB]
+  timm's `aimv2_3b_patch14_336`, its `apple_pt` weights.
+
+* timm/aimv2_3b_patch14_448.apple_pt: [10.89 GB]
+  timm's `aimv2_3b_patch14_448`, its `apple_pt` weights.
+
 * timm/eva_large_patch14_196.in22k_ft_in1k: [1.22 GB]
   timm's `eva_large_patch14_196`, its `in22k_ft_in1k` weights.
 
@@ -1297,6 +1339,9 @@ run them.
 * timm/vit_large_patch14_dinov2.lvd142m: [1.22 GB]
   timm's `vit_large_patch14_dinov2`, its `lvd142m` weights.
 
+* timm/vit_giant_patch14_dinov2.lvd142m: [4.55 GB]
+  timm's `vit_giant_patch14_dinov2`, its `lvd142m` weights.
+
 * timm/vit_medium_patch16_gap_240.sw_in12k: [178.5 MB]
   timm's `vit_medium_patch16_gap_240`, its `sw_in12k` weights.
 
@@ -1364,6 +1409,9 @@ run them.
 * timm/vit_so400m_patch14_reg1_tipsv2.webli: [1.65 GB]
   timm's `vit_so400m_patch14_reg1_tipsv2`, its `webli` weights.
 
+* timm/vit_giant_patch14_reg1_tipsv2.webli: [4.54 GB]
+  timm's `vit_giant_patch14_reg1_tipsv2`, its `webli` weights.
+
 * timm/vit_small_patch14_reg4_dinov2.lvd142m: [88.2 MB]
   timm's `vit_small_patch14_reg4_dinov2`, its `lvd142m` weights.
 
@@ -1372,6 +1420,9 @@ run them.
 
 * timm/vit_large_patch14_reg4_dinov2.lvd142m: [1.22 GB]
   timm's `vit_large_patch14_reg4_dinov2`, its `lvd142m` weights.
+
+* timm/vit_giant_patch14_reg4_dinov2.lvd142m: [4.55 GB]
+  timm's `vit_giant_patch14_reg4_dinov2`, its `lvd142m` weights.
 
 * timm/vit_little_patch16_reg4_gap_256.sbb_in1k: [90.8 MB]
   timm's `vit_little_patch16_reg4_gap_256`, its `sbb_in1k` weights.

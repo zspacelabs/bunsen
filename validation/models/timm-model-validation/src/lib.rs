@@ -88,6 +88,8 @@ pub const ROWS: &[&str] = &[
     "timm/vit_base_patch16_rpn_224.sw_in1k",
     "timm/vit_base_patch16_siglip_224.webli",
     "timm/vit_base_patch32_siglip_256.v2_webli",
+    "timm/aimv2_large_patch14_224.apple_pt",
+    "timm/vit_giant_patch14_dinov2.lvd142m",
     "timm/deit_small_patch16_224.fb_in1k",
     "timm/deit_base_distilled_patch16_224.fb_in1k",
     "timm/deit3_small_patch16_224.fb_in1k",

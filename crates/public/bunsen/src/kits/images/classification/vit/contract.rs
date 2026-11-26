@@ -2,7 +2,10 @@
 
 use alloc::format;
 
-use burn::config::Config;
+use burn::{
+    config::Config,
+    nn::RmsNormConfig,
+};
 
 use crate::{
     blocks::{
@@ -14,7 +17,10 @@ use crate::{
                 prefix_tokens::PrefixTokensConfig,
             },
         },
-        mlp::BunsenMlpConfig,
+        mlp::{
+            BunsenGatedMlpConfig,
+            BunsenMlpConfig,
+        },
         norm::{
             BunsenLayerNormConfig,
             BunsenNormalizationConfig,
@@ -30,6 +36,7 @@ use crate::{
                 stack::UniformStackConfig,
             },
             embedding::RotaryEmbeddingConfig,
+            mlp::TransformerFeedForwardConfig,
             models::vision_encoder::{
                 TokenPoolConfig,
                 VisionEncoderStructureConfig,
@@ -51,6 +58,32 @@ pub const VIT_NORM_EPSILON: f64 = 1e-6;
 /// CLIP's layer norm epsilon (`nn.LayerNorm`'s default), which timm's CLIP
 /// archs keep.
 pub const CLIP_NORM_EPSILON: f64 = 1e-5;
+
+/// A `ViT` block's MLP, timm's `mlp_layer`.
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum ViTMlpLayer {
+    /// timm's `Mlp`: `fc2(act(fc1(x)))`.
+    Mlp,
+
+    /// timm's `SwiGLU`: `fc2(act(fc1_g(x)) * fc1_x(x))`, the gate and the
+    /// input in two projections of the hidden width (`AIMv2`'s).
+    SwiGlu,
+
+    /// timm's `SwiGLUPacked` (`GluMlp`, its gate first): the gate and the
+    /// input in one `fc1`, each half its rows, so the hidden width is half
+    /// [`mlp_hidden`](ViTContractConfig::mlp_hidden) (the giant `DINOv2`'s).
+    SwiGluPacked,
+}
+
+/// A `ViT`'s norms, timm's `norm_layer`.
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum ViTNormLayer {
+    /// timm's `LayerNorm`.
+    LayerNorm,
+
+    /// timm's `RmsNorm` (`AIMv2`'s).
+    RmsNorm,
+}
 
 /// A `ViT`'s policy: timm's `VisionTransformer` knobs, by their names where
 /// bunsen keeps them, lowering to the generic
@@ -91,6 +124,25 @@ pub struct ViTContractConfig {
     /// Whether the attention's `qkv` projection has a bias.
     #[config(default = "true")]
     pub qkv_bias: bool,
+
+    /// Whether the attention's output projection and the MLP's projections
+    /// have biases (timm's `proj_bias`).
+    #[config(default = "true")]
+    pub proj_bias: bool,
+
+    /// The blocks' MLP (timm's `mlp_layer`).
+    #[config(default = "ViTMlpLayer::Mlp")]
+    pub mlp_layer: ViTMlpLayer,
+
+    /// The norms' kind (timm's `norm_layer`), every norm's: the blocks', the
+    /// final one, the pool's and the patch embedding's.
+    #[config(default = "ViTNormLayer::LayerNorm")]
+    pub norm_layer: ViTNormLayer,
+
+    /// Whether each patch token is normalized (timm's `embed_norm_layer`, of
+    /// the model's norm kind).
+    #[config(default = "false")]
+    pub embed_norm: bool,
 
     /// Whether a class token leads the sequence.
     #[config(default = "true")]
@@ -185,19 +237,45 @@ impl ViTContractConfig {
         (self.embed_dim as f64 * self.mlp_ratio) as usize
     }
 
-    /// An MLP of the model's: `embed_dim` to
-    /// [`mlp_hidden`](Self::mlp_hidden) and back, biased, of its activation.
-    fn mlp(&self) -> BunsenMlpConfig {
+    /// The attention pool's MLP: timm's `Mlp`, `embed_dim` to
+    /// [`mlp_hidden`](Self::mlp_hidden) and back, biased, of the model's
+    /// activation, whatever the blocks' MLP.
+    fn pool_mlp(&self) -> BunsenMlpConfig {
         BunsenMlpConfig::new(self.embed_dim, self.mlp_hidden(), self.embed_dim)
             .with_activation(self.activation.clone())
             .with_bias(true)
     }
 
-    /// A layer norm of the model's epsilon.
+    /// A block's MLP: [`mlp_layer`](Self::mlp_layer)'s, biased under
+    /// [`proj_bias`](Self::proj_bias), of the model's activation.
+    fn block_mlp(&self) -> TransformerFeedForwardConfig {
+        let (d, hidden, act) = (self.embed_dim, self.mlp_hidden(), self.activation.clone());
+        let gated = |d_ff| {
+            BunsenGatedMlpConfig::new(d, d_ff)
+                .with_bias(self.proj_bias)
+                .with_activation(act.clone())
+                .into()
+        };
+        match self.mlp_layer {
+            ViTMlpLayer::Mlp => BunsenMlpConfig::new(d, hidden, d)
+                .with_activation(act.clone())
+                .with_bias(self.proj_bias)
+                .into(),
+            ViTMlpLayer::SwiGlu => gated(hidden),
+            ViTMlpLayer::SwiGluPacked => gated(hidden / 2),
+        }
+    }
+
+    /// A norm of the model's kind and epsilon.
     fn norm(&self) -> BunsenNormalizationConfig {
-        BunsenNormalizationConfig::Layer(
-            BunsenLayerNormConfig::new(self.embed_dim).with_epsilon(self.norm_epsilon),
-        )
+        match self.norm_layer {
+            ViTNormLayer::LayerNorm => BunsenNormalizationConfig::Layer(
+                BunsenLayerNormConfig::new(self.embed_dim).with_epsilon(self.norm_epsilon),
+            ),
+            ViTNormLayer::RmsNorm => BunsenNormalizationConfig::Rms(
+                RmsNormConfig::new(self.embed_dim).with_epsilon(self.norm_epsilon),
+            ),
+        }
     }
 
     /// The prefix tokens' config.
@@ -216,13 +294,16 @@ impl ToStructureConfig for ViTContractConfig {
     /// The vision encoder of this `ViT`:
     ///
     /// - a patch embedding of `patch_size` patches, the pixels past the last
-    ///   whole patch dropped, with no norm, biased but under
-    ///   [`pre_norm`](Self::pre_norm);
+    ///   whole patch dropped, normed under [`embed_norm`](Self::embed_norm),
+    ///   biased but under [`pre_norm`](Self::pre_norm);
     /// - the class and register tokens, and the position embedding;
-    /// - `depth` pre-norm layers: attention over every token, `num_heads` heads
-    ///   of `embed_dim / num_heads`, a fused-`qkv` bias as
-    ///   [`qkv_bias`](Self::qkv_bias) says and an output bias; an MLP of
-    ///   [`mlp_hidden`](Self::mlp_hidden) with biases; layer scale as
+    /// - `depth` layers: attention over every token, `num_heads` heads of
+    ///   `embed_dim / num_heads`, a fused-`qkv` bias as
+    ///   [`qkv_bias`](Self::qkv_bias) says and an output bias as
+    ///   [`proj_bias`](Self::proj_bias) says; the
+    ///   [`mlp_layer`](Self::mlp_layer)'s MLP of
+    ///   [`mlp_hidden`](Self::mlp_hidden), biased as `proj_bias` says; every
+    ///   norm of [`norm_layer`](Self::norm_layer)'s kind; layer scale as
     ///   [`layer_scale`](Self::layer_scale) says; the norms where
     ///   [`norm_placement`](Self::norm_placement) puts them; an input norm
     ///   under `pre_norm`; the final norm, as
@@ -235,11 +316,13 @@ impl ToStructureConfig for ViTContractConfig {
     ///
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for images
     /// smaller than a patch, a width the heads don't divide, a
-    /// class-token pool with no class token, or zero layers.
+    /// class-token pool with no class token, a packed `SwiGLU` of an odd
+    /// hidden width, or zero layers.
     fn try_to_structure(&self) -> BunsenResult<VisionEncoderStructureConfig> {
         let (d, heads, p) = (self.embed_dim, self.num_heads, self.patch_size);
         let patch_embed = PatchEmbedConfig::new([self.image_size; 2], p, self.in_channels, d)
             .with_bias(!self.pre_norm)
+            .with_norm(self.embed_norm.then(|| self.norm()))
             .with_allow_remainder(true);
         patch_embed
             .try_validate()
@@ -254,6 +337,12 @@ impl ToStructureConfig for ViTContractConfig {
                 "ViTContractConfig: the class-token pool needs a class token",
             ));
         }
+        if self.mlp_layer == ViTMlpLayer::SwiGluPacked && !self.mlp_hidden().is_multiple_of(2) {
+            return Err(BunsenError::illegal(format!(
+                "ViTContractConfig: a packed SwiGLU halves its hidden width, {}",
+                self.mlp_hidden()
+            )));
+        }
         if self.depth == 0 {
             return Err(BunsenError::illegal(
                 "ViTContractConfig: a ViT has at least one layer",
@@ -267,10 +356,10 @@ impl ToStructureConfig for ViTContractConfig {
                 CausalSelfAttentionConfig::new(heads, heads, d)
                     .with_norm(None)
                     .with_qkv_bias(self.qkv_bias)
-                    .with_output_bias(true)
+                    .with_output_bias(self.proj_bias)
                     .with_mask(AttentionMask::Bidirectional)
                     .into(),
-                self.mlp().into(),
+                self.block_mlp(),
             )
             .with_norm(self.norm())
             .with_norm_placement(self.norm_placement)
@@ -283,7 +372,7 @@ impl ToStructureConfig for ViTContractConfig {
         );
         stack.input_norm = self.pre_norm.then(|| self.norm());
         let latent_pool = (self.global_pool == TokenPoolConfig::Map)
-            .then(|| LatentAttentionPoolConfig::new(d, heads, self.mlp(), self.norm()));
+            .then(|| LatentAttentionPoolConfig::new(d, heads, self.pool_mlp(), self.norm()));
         Ok(VisionEncoderStructureConfig::new(
             patch_embed,
             tokens,

@@ -16,7 +16,11 @@ use crate::{
         PrefabTable,
         Prefabs,
     },
-    kits::images::classification::vit::ViTContractConfig,
+    kits::images::classification::vit::{
+        ViTContractConfig,
+        ViTMlpLayer,
+        ViTNormLayer,
+    },
 };
 
 impl ViTContractConfig {
@@ -265,6 +269,246 @@ impl ViTContractConfig {
             .with_mlp_ratio(4.923076923076923)
     }
 
+    /// The `aimv2_large_patch14_224` prefab: `AIMv2-L/14` at 224 pixels: 24
+    /// layers, 1024 wide, 8 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.75, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_large_patch14_224() -> Self {
+        Self::vit(224, 14, 1024, 24, 8)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.75)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_large_patch14_336` prefab: `AIMv2-L/14` at 336 pixels: 24
+    /// layers, 1024 wide, 8 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.75, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_large_patch14_336() -> Self {
+        Self::vit(336, 14, 1024, 24, 8)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.75)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_large_patch14_448` prefab: `AIMv2-L/14` at 448 pixels: 24
+    /// layers, 1024 wide, 8 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.75, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_large_patch14_448() -> Self {
+        Self::vit(448, 14, 1024, 24, 8)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.75)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_huge_patch14_224` prefab: `AIMv2-H/14` at 224 pixels: 24
+    /// layers, 1536 wide, 12 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.6667, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_huge_patch14_224() -> Self {
+        Self::vit(224, 14, 1536, 24, 12)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.6667)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_huge_patch14_336` prefab: `AIMv2-H/14` at 336 pixels: 24
+    /// layers, 1536 wide, 12 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.6667, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_huge_patch14_336() -> Self {
+        Self::vit(336, 14, 1536, 24, 12)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.6667)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_huge_patch14_448` prefab: `AIMv2-H/14` at 448 pixels: 24
+    /// layers, 1536 wide, 12 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.6667, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_huge_patch14_448() -> Self {
+        Self::vit(448, 14, 1536, 24, 12)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.6667)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_1b_patch14_224` prefab: `AIMv2-1b/14` at 224 pixels: 24
+    /// layers, 2048 wide, 16 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.75, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_1b_patch14_224() -> Self {
+        Self::vit(224, 14, 2048, 24, 16)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.75)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_1b_patch14_336` prefab: `AIMv2-1b/14` at 336 pixels: 24
+    /// layers, 2048 wide, 16 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.75, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_1b_patch14_336() -> Self {
+        Self::vit(336, 14, 2048, 24, 16)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.75)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_1b_patch14_448` prefab: `AIMv2-1b/14` at 448 pixels: 24
+    /// layers, 2048 wide, 16 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.75, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_1b_patch14_448() -> Self {
+        Self::vit(448, 14, 2048, 24, 16)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.75)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_3b_patch14_224` prefab: `AIMv2-3b/14` at 224 pixels: 24
+    /// layers, 3072 wide, 24 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.6667, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_3b_patch14_224() -> Self {
+        Self::vit(224, 14, 3072, 24, 24)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.6667)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_3b_patch14_336` prefab: `AIMv2-3b/14` at 336 pixels: 24
+    /// layers, 3072 wide, 24 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.6667, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_3b_patch14_336() -> Self {
+        Self::vit(336, 14, 3072, 24, 24)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.6667)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
+    /// The `aimv2_3b_patch14_448` prefab: `AIMv2-3b/14` at 448 pixels: 24
+    /// layers, 3072 wide, 24 heads; RMS norms, a normed patch embedding, norm
+    /// epsilon 1e-05, no `qkv` bias, no output or MLP biases, a `SwiGLU` MLP,
+    /// an MLP ratio of 2.6667, `SiLU`, no class token, average-pooled, its norm
+    /// before the pool.
+    pub fn aimv2_3b_patch14_448() -> Self {
+        Self::vit(448, 14, 3072, 24, 24)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_embed_norm(true)
+            .with_norm_epsilon(1e-05)
+            .with_qkv_bias(false)
+            .with_proj_bias(false)
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.6667)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false))
+    }
+
     /// The `eva_large_patch14_196` prefab: `EVA-L/14` at 196 pixels: 24 layers,
     /// 1024 wide, 16 heads; average-pooled.
     pub fn eva_large_patch14_196() -> Self {
@@ -375,6 +619,17 @@ impl ViTContractConfig {
     /// layers, 1024 wide, 16 heads; layer scale.
     pub fn vit_large_patch14_dinov2() -> Self {
         Self::vit(518, 14, 1024, 24, 16).with_layer_scale(true)
+    }
+
+    /// The `vit_giant_patch14_dinov2` prefab: `ViT-g/14` at 518 pixels: 40
+    /// layers, 1536 wide, 24 heads; a packed `SwiGLU` MLP, an MLP ratio of
+    /// 5.33334, `SiLU`, layer scale.
+    pub fn vit_giant_patch14_dinov2() -> Self {
+        Self::vit(518, 14, 1536, 40, 24)
+            .with_mlp_layer(ViTMlpLayer::SwiGluPacked)
+            .with_mlp_ratio(5.33334)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_layer_scale(true)
     }
 
     /// The `vit_medium_patch16_gap_240` prefab: `ViT-M/16` at 240 pixels: 12
@@ -604,6 +859,20 @@ impl ViTContractConfig {
             .with_layer_scale(true)
     }
 
+    /// The `vit_giant_patch14_reg1_tipsv2` prefab: `ViT-g/14` at 448 pixels: 40
+    /// layers, 1536 wide, 24 heads; a packed `SwiGLU` MLP, an MLP ratio of
+    /// 5.33334, `SiLU`, 1 register token, the position embedding over the
+    /// patches alone, layer scale.
+    pub fn vit_giant_patch14_reg1_tipsv2() -> Self {
+        Self::vit(448, 14, 1536, 40, 24)
+            .with_mlp_layer(ViTMlpLayer::SwiGluPacked)
+            .with_mlp_ratio(5.33334)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_reg_tokens(1)
+            .with_no_embed_class(true)
+            .with_layer_scale(true)
+    }
+
     /// The `vit_small_patch14_reg4_dinov2` prefab: `ViT-S/14` at 518 pixels: 12
     /// layers, 384 wide, 6 heads; 4 register tokens, the position embedding
     /// over the patches alone, layer scale.
@@ -629,6 +898,20 @@ impl ViTContractConfig {
     /// over the patches alone, layer scale.
     pub fn vit_large_patch14_reg4_dinov2() -> Self {
         Self::vit(518, 14, 1024, 24, 16)
+            .with_reg_tokens(4)
+            .with_no_embed_class(true)
+            .with_layer_scale(true)
+    }
+
+    /// The `vit_giant_patch14_reg4_dinov2` prefab: `ViT-g/14` at 518 pixels: 40
+    /// layers, 1536 wide, 24 heads; a packed `SwiGLU` MLP, an MLP ratio of
+    /// 5.33334, `SiLU`, 4 register tokens, the position embedding over the
+    /// patches alone, layer scale.
+    pub fn vit_giant_patch14_reg4_dinov2() -> Self {
+        Self::vit(518, 14, 1536, 40, 24)
+            .with_mlp_layer(ViTMlpLayer::SwiGluPacked)
+            .with_mlp_ratio(5.33334)
+            .with_activation(BunsenActivationConfig::Silu)
             .with_reg_tokens(4)
             .with_no_embed_class(true)
             .with_layer_scale(true)
@@ -1099,7 +1382,7 @@ impl ViTContractConfig {
 /// [`ViTContractConfig`] of 1000 classes for every architecture of timm's
 /// `vision_transformer.py` with hub weights that the kit builds, from
 /// `vit_tiny_patch16_224` and the CLIP image towers to the `SigLIP`, `DINOv2`,
-/// sbb and C-RADIO ones.
+/// sbb, C-RADIO and `AIMv2` ones.
 ///
 /// A prefab has no weights, and its size is the architecture's: a timm row
 /// takes the classes and the size from its `config.json`.
@@ -1173,6 +1456,18 @@ impl Prefabs for ViTContractConfig {
             "vit_gigantic_patch14_clip_378",
             Self::vit_gigantic_patch14_clip_378,
         ),
+        ("aimv2_large_patch14_224", Self::aimv2_large_patch14_224),
+        ("aimv2_large_patch14_336", Self::aimv2_large_patch14_336),
+        ("aimv2_large_patch14_448", Self::aimv2_large_patch14_448),
+        ("aimv2_huge_patch14_224", Self::aimv2_huge_patch14_224),
+        ("aimv2_huge_patch14_336", Self::aimv2_huge_patch14_336),
+        ("aimv2_huge_patch14_448", Self::aimv2_huge_patch14_448),
+        ("aimv2_1b_patch14_224", Self::aimv2_1b_patch14_224),
+        ("aimv2_1b_patch14_336", Self::aimv2_1b_patch14_336),
+        ("aimv2_1b_patch14_448", Self::aimv2_1b_patch14_448),
+        ("aimv2_3b_patch14_224", Self::aimv2_3b_patch14_224),
+        ("aimv2_3b_patch14_336", Self::aimv2_3b_patch14_336),
+        ("aimv2_3b_patch14_448", Self::aimv2_3b_patch14_448),
         ("eva_large_patch14_196", Self::eva_large_patch14_196),
         ("eva_large_patch14_336", Self::eva_large_patch14_336),
         ("flexivit_small", Self::flexivit_small),
@@ -1209,6 +1504,7 @@ impl Prefabs for ViTContractConfig {
         ("vit_small_patch14_dinov2", Self::vit_small_patch14_dinov2),
         ("vit_base_patch14_dinov2", Self::vit_base_patch14_dinov2),
         ("vit_large_patch14_dinov2", Self::vit_large_patch14_dinov2),
+        ("vit_giant_patch14_dinov2", Self::vit_giant_patch14_dinov2),
         (
             "vit_medium_patch16_gap_240",
             Self::vit_medium_patch16_gap_240,
@@ -1277,6 +1573,10 @@ impl Prefabs for ViTContractConfig {
             Self::vit_so400m_patch14_reg1_tipsv2,
         ),
         (
+            "vit_giant_patch14_reg1_tipsv2",
+            Self::vit_giant_patch14_reg1_tipsv2,
+        ),
+        (
             "vit_small_patch14_reg4_dinov2",
             Self::vit_small_patch14_reg4_dinov2,
         ),
@@ -1287,6 +1587,10 @@ impl Prefabs for ViTContractConfig {
         (
             "vit_large_patch14_reg4_dinov2",
             Self::vit_large_patch14_reg4_dinov2,
+        ),
+        (
+            "vit_giant_patch14_reg4_dinov2",
+            Self::vit_giant_patch14_reg4_dinov2,
         ),
         (
             "vit_little_patch16_reg4_gap_256",
@@ -1480,6 +1784,6 @@ mod tests {
                 assert_eq!(config.image_size, size, "{name}");
             }
         }
-        assert_eq!(ViTContractConfig::prefab_names().len(), 117);
+        assert_eq!(ViTContractConfig::prefab_names().len(), 132);
     }
 }

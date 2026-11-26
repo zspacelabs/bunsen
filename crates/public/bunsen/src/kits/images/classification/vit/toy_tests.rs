@@ -1,6 +1,6 @@
 //! The toy models against timm's own `VisionTransformer`.
 //!
-//! `testdata/vit/` holds sixteen tiny seeded timm `VisionTransformer`s and
+//! `testdata/vit/` holds eighteen tiny seeded timm `VisionTransformer`s and
 //! their answers, computed in float64 (`tools/gen_vit_toy_fixtures.py`), each
 //! on 16x16 images in 4x4 patches, 16 wide, two layers of two heads: timm's
 //! defaults (the class token's pool); the patch tokens' mean and their
@@ -10,8 +10,9 @@
 //! classifier; CLIP's pre-norm with a projection head, its weights in
 //! `OpenAI` CLIP's own layout; res-post-norm blocks; no final norm, with the
 //! class token's pool and the mean's; 18x18 images, the pixels past the last
-//! whole patch dropped; and the attention pool, with no class token and with
-//! one. Each is the [`ViTContractConfig`] of the same
+//! whole patch dropped; the attention pool, with no class token and with
+//! one; `AIMv2`'s `SwiGLU`, RMS norms, normed patch embedding and missing
+//! biases; and a packed `SwiGLU`. Each is the [`ViTContractConfig`] of the same
 //! knobs. The
 //! weights, under timm's names, load through [`load_vit_tensors`]; each
 //! layer's map, the output tokens, the pooled features and the logits are
@@ -23,6 +24,8 @@ use burn::prelude::*;
 
 use super::{
     ViTContractConfig,
+    ViTMlpLayer,
+    ViTNormLayer,
     interop::timm::load_vit_tensors,
 };
 use crate::{
@@ -259,6 +262,41 @@ fn test_map_cls_toy_is_timms() {
     check_toy(
         "toy_map_cls",
         toy_policy().with_global_pool(TokenPoolConfig::Map),
+    );
+}
+
+/// `AIMv2`'s knobs: a `SwiGLU` MLP, RMS norms of epsilon 1e-5, a normed patch
+/// embedding, no `qkv`, output or MLP biases, `SiLU`, no class token, the
+/// mean pool with its norm before it.
+#[test]
+fn test_aimv2_toy_is_timms() {
+    check_toy(
+        "toy_aimv2",
+        toy_policy()
+            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_ratio(2.75)
+            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm_epsilon(1e-5)
+            .with_embed_norm(true)
+            .with_proj_bias(false)
+            .with_qkv_bias(false)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Avg)
+            .with_fc_norm(Some(false)),
+    );
+}
+
+/// A packed `SwiGLU` (one `fc1`, its gate first) with layer scale: the giant
+/// `DINOv2`'s knobs.
+#[test]
+fn test_glu_toy_is_timms() {
+    check_toy(
+        "toy_glu",
+        toy_policy()
+            .with_mlp_layer(ViTMlpLayer::SwiGluPacked)
+            .with_activation(BunsenActivationConfig::Silu)
+            .with_layer_scale(true),
     );
 }
 

@@ -545,6 +545,18 @@ crates:
         core: false
         dtypes: [f32]
         varies: SigLIP 2's attention pool, with tanh GELU, headless
+      timm/aimv2_large_patch14_224.apple_pt:
+        size: medium
+        gb: 1.34
+        core: false
+        dtypes: [f32]
+        varies: AIMv2 - a SwiGLU MLP, RMS norms, a normed patch embedding, no biases, headless
+      timm/vit_giant_patch14_dinov2.lvd142m:
+        size: medium
+        gb: 4.65
+        core: false
+        dtypes: [f32]
+        varies: the giant DINOv2 - a packed SwiGLU MLP, 40 layers at 518, headless
       timm/deit_small_patch16_224.fb_in1k:
         size: small
         gb: 0.2
