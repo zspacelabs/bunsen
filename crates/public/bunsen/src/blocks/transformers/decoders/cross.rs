@@ -212,6 +212,23 @@ impl CrossDecoderBlock {
         xa: Tensor<3>,
         mask: Option<Tensor<3, Bool>>,
     ) -> CrossDecoderRecord {
+        #[cfg(any(debug_assertions, test))]
+        let [batch, seq, frames] = {
+            let d_model = self.attn.branch.d_model;
+            let [batch, seq] = crate::contracts::unpack_shape_contract!(
+                ["batch", "seq", "d_model"],
+                &x.dims(),
+                &["batch", "seq"],
+                &[("d_model", d_model)]
+            );
+            let [frames] = crate::contracts::unpack_shape_contract!(
+                ["batch", "frames", "d_model"],
+                &xa.dims(),
+                &["frames"],
+                &[("batch", batch), ("d_model", d_model)]
+            );
+            [batch, seq, frames]
+        };
         let x = self
             .attn
             .residual_update_with(x, |attn, z| self_attn(attn, z, mask).context);
@@ -222,6 +239,28 @@ impl CrossDecoderBlock {
 
         let x = self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z));
 
+        #[cfg(any(debug_assertions, test))]
+        {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch", "seq", "d_model"],
+                &x.dims(),
+                &[
+                    ("batch", batch),
+                    ("seq", seq),
+                    ("d_model", self.attn.branch.d_model)
+                ]
+            );
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch", "heads", "seq", "frames"],
+                &ca_weights.dims(),
+                &[
+                    ("batch", batch),
+                    ("heads", self.cross_attn.branch.n_heads),
+                    ("seq", seq),
+                    ("frames", frames)
+                ]
+            );
+        }
         CrossDecoderRecord {
             output: x,
             ca_weights,
@@ -257,6 +296,13 @@ impl CrossDecoderBlock {
         cache: &mut KVCache,
         layer: usize,
     ) -> Tensor<3> {
+        #[cfg(any(debug_assertions, test))]
+        let [batch, seq_new] = crate::contracts::unpack_shape_contract!(
+            ["batch", "seq_new", "d_model"],
+            &x.dims(),
+            &["batch", "seq_new"],
+            &[("d_model", self.attn.branch.d_model)]
+        );
         let x = self.attn.residual_update_with(x, |attn, z| {
             self_attn_w_kv_cache(attn, z, mask, cache, layer)
         });
@@ -264,7 +310,18 @@ impl CrossDecoderBlock {
             .cross_attn
             .residual_update_with(x, |attn, z| cross_attn_w_kv_cache(attn, z, cache, layer));
 
-        self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z))
+        let y = self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "seq_new", "d_model"],
+            &y.dims(),
+            &[
+                ("batch", batch),
+                ("seq_new", seq_new),
+                ("d_model", self.attn.branch.d_model)
+            ]
+        );
+        y
     }
 
     /// Projects the encoder output into this block's cross-attention keys and

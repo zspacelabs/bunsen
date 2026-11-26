@@ -138,15 +138,49 @@ impl ProjectedDecoderStack {
         &self,
         x: Tensor<3>,
     ) -> Tensor<3> {
-        let t = x.dims()[1];
+        let [b, t] = self.unpack_input(&x);
         let x = self.input_proj.forward(x);
         let x = self
             .stack
             .forward_hidden(x.clone(), &self.stack.rotary(t, &x.device()), None);
-        match &self.output_proj {
+        self.project_out(x, b, t)
+    }
+
+    /// The batch and length of `x`, checked against the input width:
+    /// `[B, T, C_in]`.
+    fn unpack_input(
+        &self,
+        x: &Tensor<3>,
+    ) -> [usize; 2] {
+        crate::contracts::unpack_shape_contract!(
+            ["B", "T", "C_in"],
+            &x.dims(),
+            &["B", "T"],
+            &[("C_in", self.input_width())]
+        )
+    }
+
+    /// The stack's output through the output projection, if any: `[B, T,
+    /// C_out]`.
+    fn project_out(
+        &self,
+        x: Tensor<3>,
+        b: usize,
+        t: usize,
+    ) -> Tensor<3> {
+        let y = match &self.output_proj {
             Some(proj) => proj.forward(x),
             None => x,
-        }
+        };
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "T", "C_out"],
+            &y.dims(),
+            &[("B", b), ("T", t), ("C_out", self.output_width())]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (b, t);
+        y
     }
 
     /// `[B, T, C_in]` to `[B, T, C_out]` at positions `start..start + T`,
@@ -161,15 +195,12 @@ impl ProjectedDecoderStack {
         x: Tensor<3>,
         cache: &mut KVCache,
     ) -> Tensor<3> {
-        let [_, t, _] = x.dims();
+        let [b, t] = self.unpack_input(&x);
         let start = cache.pos();
         let x = self.input_proj.forward(x);
         let r_emb = self.stack.rotary_range(start..start + t, &x.device());
         let x = self.stack.forward_hidden(x, &r_emb, Some(cache));
-        match &self.output_proj {
-            Some(proj) => proj.forward(x),
-            None => x,
-        }
+        self.project_out(x, b, t)
     }
 }
 

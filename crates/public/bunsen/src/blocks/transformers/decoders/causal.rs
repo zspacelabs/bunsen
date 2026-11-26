@@ -428,12 +428,27 @@ impl CausalDecoderBlock {
     ) -> Tensor<3> {
         #[cfg(any(debug_assertions, test))]
         crate::burner::module::assert_input_dtype(self, input.dtype(), "causal decoder block");
+        #[cfg(any(debug_assertions, test))]
+        let [b, t] = crate::contracts::unpack_shape_contract!(
+            ["B", "T", "D"],
+            &input.dims(),
+            &["B", "T"],
+            &[("D", self.n_embed())]
+        );
         let DecoderSideInputs { cond, attn } = sides;
         let x = self.attn.residual_update_with(input, |mixer, z| {
             Self::run_mixer(mixer, z, r_emb, kv_cache, linear, attn)
         });
-        self.mlp
-            .residual_update_with(x, |mlp, h| self.run_mlp(mlp, h, cond))
+        let y = self
+            .mlp
+            .residual_update_with(x, |mlp, h| self.run_mlp(mlp, h, cond));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "T", "D"],
+            &y.dims(),
+            &[("B", b), ("T", t), ("D", self.n_embed())]
+        );
+        y
     }
 
     /// The token mixer's update, without the add: `post(mixer(pre(x)))`, `x`
@@ -462,9 +477,23 @@ impl CausalDecoderBlock {
         linear: Option<&mut DeltaNetCache>,
         sides: AttentionSides,
     ) -> Tensor<3> {
-        self.attn.residual(x, |mixer, z| {
+        #[cfg(any(debug_assertions, test))]
+        let [b, t] = crate::contracts::unpack_shape_contract!(
+            ["B", "T", "D"],
+            &x.dims(),
+            &["B", "T"],
+            &[("D", self.n_embed())]
+        );
+        let r = self.attn.residual(x, |mixer, z| {
             Self::run_mixer(mixer, z, r_emb, kv_cache, linear, sides)
-        })
+        });
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "T", "D"],
+            &r.dims(),
+            &[("B", b), ("T", t), ("D", self.n_embed())]
+        );
+        r
     }
 
     /// The feed-forward's update, without the add: `post(mlp(pre(x)))`,
@@ -486,7 +515,21 @@ impl CausalDecoderBlock {
         x: Tensor<3>,
         cond: Option<Tensor<3>>,
     ) -> Tensor<3> {
-        self.mlp.residual(x, |mlp, h| self.run_mlp(mlp, h, cond))
+        #[cfg(any(debug_assertions, test))]
+        let [b, t] = crate::contracts::unpack_shape_contract!(
+            ["B", "T", "D"],
+            &x.dims(),
+            &["B", "T"],
+            &[("D", self.n_embed())]
+        );
+        let r = self.mlp.residual(x, |mlp, h| self.run_mlp(mlp, h, cond));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "T", "D"],
+            &r.dims(),
+            &[("B", b), ("T", t), ("D", self.n_embed())]
+        );
+        r
     }
 
     /// The token mixer on its normalized input `z`, through the cache of its
