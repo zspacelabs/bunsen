@@ -875,3 +875,35 @@ fn test_split_attn_mixer_and_avd() {
         assert_eq!(model.forward(images).dims(), [1, 7]);
     }
 }
+
+/// `SKNet`'s mixer: a basic unit's first conv, a bottleneck's `3x3`, as the
+/// selective kernel; its input split across the paths or not.
+#[test]
+fn test_selective_kernel_mixer() {
+    let device = cpu_device();
+    for (unit, idx, split_input) in [
+        (ConvUnitKind::Basic, 0, true),
+        (ConvUnitKind::Bottleneck, 1, false),
+    ] {
+        let mut policy = resnet_like(&[1, 1], 16, unit);
+        policy.layers.mixer = ConvMixerKind::SelectiveKernel {
+            kernel_size: [3, 5],
+            keep_3x3: true,
+            rd_ratio: 0.125,
+            rd_divisor: 16,
+            split_input,
+        };
+        let structure = policy.to_structure();
+        let strided = &structure.stages[1].units[0];
+        let ResidualConvConfig::SelectiveKernel(sk) = &strided.convs[idx] else {
+            panic!("{unit:?}: a selective kernel");
+        };
+        assert_eq!(
+            (sk.stride(), sk.paths.len(), sk.split_input),
+            (2, 2, split_input)
+        );
+        let model: ConvNetModel = structure.init(&device);
+        let images = Tensor::<4>::random([1, 3, 33, 33], Distribution::Default, &device);
+        assert_eq!(model.forward(images).dims(), [1, 7], "{unit:?}");
+    }
+}

@@ -60,6 +60,8 @@ use crate::{
             mixers::{
                 Res2Conv,
                 Res2ConvConfig,
+                SelectiveKernel,
+                SelectiveKernelConfig,
                 SplitAttn,
                 SplitAttnConfig,
             },
@@ -101,7 +103,8 @@ pub trait ConvChainMeta {
 /// ([`ConvBlock2dConfig`]), a pre-activation conv ([`PreActConvConfig`]),
 /// and the spatial mixers of [`mixers`](crate::blocks::images::mixers)
 /// (`Res2Net`'s scale split, [`Res2ConvConfig`]; `ResNeSt`'s split
-/// attention, [`SplitAttnConfig`]).
+/// attention, [`SplitAttnConfig`]; `SKNet`'s selective kernel,
+/// [`SelectiveKernelConfig`]).
 #[derive(Config, Debug)]
 // A few per unit: the variants' size gap costs nothing worth a box.
 #[allow(clippy::large_enum_variant)]
@@ -117,6 +120,15 @@ pub enum ResidualConvConfig {
 
     /// `ResNeSt`'s split attention.
     SplitAttn(SplitAttnConfig),
+
+    /// `SKNet`'s selective kernel.
+    SelectiveKernel(SelectiveKernelConfig),
+}
+
+impl From<SelectiveKernelConfig> for ResidualConvConfig {
+    fn from(config: SelectiveKernelConfig) -> Self {
+        Self::SelectiveKernel(config)
+    }
 }
 
 impl From<SplitAttnConfig> for ResidualConvConfig {
@@ -150,6 +162,7 @@ impl ConvChainMeta for ResidualConvConfig {
             Self::PreAct(config) => config.in_channels(),
             Self::Res2(config) => config.channels(),
             Self::SplitAttn(config) => config.in_channels(),
+            Self::SelectiveKernel(config) => config.in_channels(),
         }
     }
 
@@ -159,6 +172,7 @@ impl ConvChainMeta for ResidualConvConfig {
             Self::PreAct(config) => config.out_channels(),
             Self::Res2(config) => config.channels(),
             Self::SplitAttn(config) => config.out_channels(),
+            Self::SelectiveKernel(config) => config.out_channels(),
         }
     }
 
@@ -168,6 +182,7 @@ impl ConvChainMeta for ResidualConvConfig {
             Self::PreAct(config) => config.stride(),
             Self::Res2(config) => config.stride(),
             Self::SplitAttn(config) => config.stride(),
+            Self::SelectiveKernel(config) => config.stride(),
         }
     }
 }
@@ -182,6 +197,9 @@ impl ModuleInit<ResidualConv> for ResidualConvConfig {
             Self::PreAct(config) => ResidualConv::PreAct(config.try_init(device)?),
             Self::Res2(config) => ResidualConv::Res2(config.try_init(device)?),
             Self::SplitAttn(config) => ResidualConv::SplitAttn(config.try_init(device)?),
+            Self::SelectiveKernel(config) => {
+                ResidualConv::SelectiveKernel(config.try_init(device)?)
+            }
         })
     }
 }
@@ -205,6 +223,9 @@ pub enum ResidualConv {
 
     /// `ResNeSt`'s split attention.
     SplitAttn(SplitAttn),
+
+    /// `SKNet`'s selective kernel.
+    SelectiveKernel(SelectiveKernel),
 }
 
 impl ConvChainMeta for ResidualConv {
@@ -214,6 +235,7 @@ impl ConvChainMeta for ResidualConv {
             Self::PreAct(conv) => conv.in_channels(),
             Self::Res2(res2) => res2.channels(),
             Self::SplitAttn(attn) => attn.in_channels(),
+            Self::SelectiveKernel(sk) => sk.in_channels(),
         }
     }
 
@@ -223,6 +245,7 @@ impl ConvChainMeta for ResidualConv {
             Self::PreAct(conv) => conv.out_channels(),
             Self::Res2(res2) => res2.channels(),
             Self::SplitAttn(attn) => attn.out_channels(),
+            Self::SelectiveKernel(sk) => sk.out_channels(),
         }
     }
 
@@ -232,6 +255,7 @@ impl ConvChainMeta for ResidualConv {
             Self::PreAct(conv) => conv.stride(),
             Self::Res2(res2) => res2.stride(),
             Self::SplitAttn(attn) => attn.stride(),
+            Self::SelectiveKernel(sk) => sk.stride(),
         }
     }
 }
@@ -242,7 +266,8 @@ impl ResidualConv {
     /// ([`ConvBlock2d::map_forward`]); for a pre-activation conv, on its
     /// output ([`PreActConv::map_forward`]); for a scale split, on its
     /// concatenated output ([`Res2Conv::map_forward`]); for a split attention,
-    /// after its conv's norm ([`SplitAttn::map_forward`]).
+    /// after its conv's norm ([`SplitAttn::map_forward`]); for a selective
+    /// kernel, on its output ([`SelectiveKernel::map_forward`]).
     ///
     /// # Arguments
     ///
@@ -265,6 +290,7 @@ impl ResidualConv {
             Self::PreAct(conv) => conv.map_forward(input, f),
             Self::Res2(res2) => res2.map_forward(input, f),
             Self::SplitAttn(attn) => attn.map_forward(input, f),
+            Self::SelectiveKernel(sk) => sk.map_forward(input, f),
         }
     }
 
