@@ -13,9 +13,11 @@
 //! the class token for the mean, and its `map` towers pool by a learned query's
 //! attention; C-RADIO drops the final norm; `AIMv2` takes a `SwiGLU` MLP, RMS
 //! norms and no biases; `BEiT3` normalizes inside its attention and its MLP.
+//! The hybrids (timm's `vision_transformer_hybrid.py`, `R50+ViT-B/16`) run
+//! the images through a `ResNetV2` first and cut its map in patches.
 //!
 //! [`pretrained`] turns names into loaded models.
-//! [`ViTContractConfig`]'s prefabs name the 134 geometries, by timm's
+//! [`ViTContractConfig`]'s prefabs name the 142 geometries, by timm's
 //! architecture names, generated from timm's own entrypoints
 //! (`tools/gen_vit_prefabs.py`), and
 //! [`default_vit_factory`](pretrained::default_vit_factory) is the index of
@@ -31,8 +33,8 @@
 //! the MLP ratio, the `qkv` bias, the class and register tokens, the position
 //! embedding's reach, CLIP's pre-norm, the head's pool and norm, layer scale,
 //! the blocks' norm placement, the final norm, the MLP's and the norms'
-//! kinds, the projections' biases, the norms' epsilon, the activation) and
-//! lowers to the generic structure;
+//! kinds, the projections' biases, the norms' epsilon, the activation, a
+//! hybrid's backbone) and lowers to the generic structure;
 //! `init` builds the model through it.
 //!
 //! The model's parameter paths are the vision encoder's own; [`interop`]
@@ -41,13 +43,14 @@
 //!
 //! # Compatibility
 //!
-//! The kit aims for parity with `timm`'s `vision_transformer.py`. Missing
-//! today:
+//! The kit aims for parity with `timm`'s `vision_transformer.py` and
+//! `vision_transformer_hybrid.py`. Missing today:
 //!
 //! * the `prr` pool
 //! * running at another size than the position embedding's
 //!   (`resample_abs_pos_embed`, `dynamic_img_size`)
-//! * the hybrid stems (`vit_base_r50_s16_384`), the parallel blocks
+//! * the hybrids on timm's `ResNet`s (`vit_small_resnet26d_224`, untrained) and
+//!   `MobileCLIP`'s (`vit_base_mci_224`), the parallel blocks
 //!   (`ParallelScalingBlock`, `DiffParallelScalingBlock`) and differential
 //!   attention
 //! * QK-norm

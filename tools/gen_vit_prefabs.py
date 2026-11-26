@@ -1,4 +1,4 @@
-"""Generate the vit kit's prefabs from timm: every `vision_transformer.py` architecture with hub weights.
+"""Generate the vit kit's prefabs from timm: every `vision_transformer.py` and `vision_transformer_hybrid.py` architecture with hub weights.
 
 Run with a Python that has timm (and torch):
 
@@ -10,7 +10,8 @@ on the meta device while the script records the constructor kwargs its entrypoin
 (`build_model_with_cfg`), and the image size it ends up with (timm fills that in from the default
 tag's input size). Each kwarg maps onto a `ViTContractConfig` knob; an architecture with a kwarg
 the contract has no knob for is skipped, and the script names the kwarg. A few are left out on
-purpose (`OUT`).
+purpose (`OUT`). A hybrid's backbone (its `HybridEmbed`) is read from the built model: timm's
+non-preact `ResNetV2` of `_resnetv2`, checked knob by knob, becomes `with_resnetv2_backbone`.
 
 The prefab functions and the prefab table are written between the `gen_vit_prefabs` markers in
 `crates/public/bunsen/src/kits/images/classification/vit/pretrained/prefabs.rs`; everything else
@@ -25,7 +26,10 @@ import re
 import timm
 import torch
 from timm.models import _registry
-from timm.models import vision_transformer
+from timm.layers import GroupNormAct, StdConv2dSame
+from timm.layers.pool2d_same import MaxPool2dSame
+from timm.models import vision_transformer, vision_transformer_hybrid
+from timm.models.resnetv2 import Bottleneck, ResNetV2
 
 PREFABS = pathlib.Path(__file__).resolve().parent.parent.joinpath(
     "crates/public/bunsen/src/kits/images/classification/vit/pretrained/prefabs.rs"
@@ -38,7 +42,10 @@ OUT = {
     "block_fn:DiffParallelScalingBlock": "parallel blocks: a new forward path for one trainer's runs ([par_bound])",
     "dynamic_img_size": "a position embedding resampled per input: waits for resampling",
     "test": "timm's test fixtures",
+    "backbone:ConvStem": "MobileCLIP's ConvStem backbone: [hy_mci]",
 }
+
+MODULES = ("vision_transformer", "vision_transformer_hybrid")
 
 # The families whose order the table keeps first; the rest follow by name.
 FAMILY_ORDER = ["vit", "vit_miil", "vit_clip"]
@@ -75,7 +82,7 @@ def record():
         {
             name.split(".")[0]
             for name in timm.list_pretrained()
-            if _registry._model_to_module.get(name.split(".")[0]) == "vision_transformer"
+            if _registry._model_to_module.get(name.split(".")[0]) in MODULES
             and getattr(timm.get_pretrained_cfg(name), "hf_hub_id", None)
         }
     )
@@ -88,16 +95,50 @@ def record():
         return build(cls, variant, pretrained, **kwargs)
 
     vision_transformer.build_model_with_cfg = spy
+    vision_transformer_hybrid.build_model_with_cfg = spy
     out = {}
     for arch in archs:
         with torch.device("meta"):
             model = timm.create_model(arch, pretrained=False)
         size = tuple(model.patch_embed.img_size)
         assert size[0] == size[1], (arch, size)
-        assert model.patch_embed.proj.in_channels == 3, arch
-        out[arch] = (seen[arch], size[0])
+        kwargs = seen[arch]
+        if hasattr(model.patch_embed, "backbone"):
+            kwargs = dict(kwargs, embed_layer=backbone_of(model.patch_embed.backbone))
+        else:
+            assert model.patch_embed.proj.in_channels == 3, arch
+        out[arch] = (kwargs, size[0])
     vision_transformer.build_model_with_cfg = build
+    vision_transformer_hybrid.build_model_with_cfg = build
     return out
+
+
+def backbone_of(backbone):
+    """A hybrid's backbone as `("ResNetV2", layers)`, timm's `_resnetv2(layers)`; or `(name, None)`, one
+    the contract doesn't build, or a `ResNetV2` with a knob other than `_resnetv2`'s."""
+    stem = backbone.stem if isinstance(backbone, ResNetV2) else backbone
+    if not isinstance(backbone, (ResNetV2, torch.nn.Sequential)) or not hasattr(stem, "conv"):
+        return (type(backbone).__name__, None)
+    convs = [m for m in backbone.modules() if isinstance(m, torch.nn.Conv2d)]
+    norms = [m for m in backbone.modules() if isinstance(m, torch.nn.GroupNorm)]
+    ok = (
+        all(isinstance(c, StdConv2dSame) and c.eps == 1e-8 for c in convs)
+        and all(isinstance(n, GroupNormAct) and n.num_groups == 32 for n in norms)
+        and isinstance(stem.pool, MaxPool2dSame)
+        and stem.conv.out_channels == 64
+        and stem.conv.kernel_size == (7, 7)
+    )
+    if not isinstance(backbone, ResNetV2):
+        return ("ResNetV2", []) if ok else ("Sequential", None)
+    layers = [len(stage.blocks) for stage in backbone.stages]
+    widths = [stage.blocks[-1].conv3.out_channels for stage in backbone.stages]
+    ok = (
+        ok
+        and isinstance(backbone.norm, torch.nn.Identity)
+        and all(isinstance(b, Bottleneck) for stage in backbone.stages for b in stage.blocks)
+        and widths == [256, 512, 1024, 2048][: len(layers)]
+    )
+    return ("ResNetV2", layers) if ok else ("ResNetV2 (not _resnetv2's)", None)
 
 
 def out_reason(arch, kwargs):
@@ -110,6 +151,9 @@ def out_reason(arch, kwargs):
         return OUT[f"block_fn:{kwargs['block_fn']}"]
     if kwargs.get("dynamic_img_size"):
         return OUT["dynamic_img_size"]
+    backbone = kwargs.get("embed_layer")
+    if isinstance(backbone, tuple) and f"backbone:{backbone[0]}" in OUT:
+        return OUT[f"backbone:{backbone[0]}"]
     return None
 
 
@@ -123,6 +167,15 @@ def lower(arch, kwargs, image_size):
     heads = kw.pop("num_heads", 12)
     expr = f"Self::vit({image_size}, {patch}, {dim}, {depth}, {heads})"
     notes = []
+    backbone = kw.pop("embed_layer", None)
+    if backbone is not None:
+        name, layers = backbone
+        if layers is None:
+            return f"embed_layer=HybridEmbed({name})"
+        expr += f".with_resnetv2_backbone(&[{', '.join(map(str, layers))}])"
+        notes.append(
+            f"on a `ResNetV2` backbone of {tuple(layers)} units" if layers else "on a `ResNetV2` stem"
+        )
 
     pre_norm = kw.pop("pre_norm", False)
     norm_layer = kw.pop("norm_layer", None)
@@ -238,7 +291,11 @@ def lower(arch, kwargs, image_size):
 
 
 def describe(arch, kwargs, image_size):
-    """The family (for the table's order) and the label (`ViT-B/16`) of `arch`."""
+    """The family (for the table's order) and the label (`ViT-B/16`, `R50+ViT-B/16`) of `arch`."""
+    hybrid = re.fullmatch(r"vit_([a-z]+)_(r\d*)_s(\d+)(?:_p\d+)?_\d+", arch)
+    if hybrid:
+        size, backbone, stride = hybrid.groups()
+        return f"vit_hybrid_{backbone}", f"{backbone.upper()}+ViT-{SIZE_LABELS.get(size, size)}/{stride}"
     tokens = arch.split("_")
     prefix, size, rest = tokens[0], tokens[1], tokens[2:]
     if "plus" in rest:

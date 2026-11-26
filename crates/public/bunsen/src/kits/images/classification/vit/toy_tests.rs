@@ -1,8 +1,9 @@
 //! The toy models against timm's own `VisionTransformer`.
 //!
-//! `testdata/vit/` holds nineteen tiny seeded timm `VisionTransformer`s and
+//! `testdata/vit/` holds twenty-one tiny seeded timm `VisionTransformer`s and
 //! their answers, computed in float64 (`tools/gen_vit_toy_fixtures.py`), each
-//! on 16x16 images in 4x4 patches, 16 wide, two layers of two heads: timm's
+//! 16 wide, two layers of two heads, all but the hybrids on 16x16 images in
+//! 4x4 patches: timm's
 //! defaults (the class token's pool); the patch tokens' mean and their
 //! `avgmax`, with the norm after the pool; CLIP's pre-norm, with `GELU` and
 //! with `QuickGELU`; register tokens with the position embedding over the
@@ -12,7 +13,9 @@
 //! class token's pool and the mean's; 18x18 images, the pixels past the last
 //! whole patch dropped; the attention pool, with no class token and with
 //! one; `AIMv2`'s `SwiGLU`, RMS norms, normed patch embedding and missing
-//! biases; a packed `SwiGLU`; and `BEiT3`'s sub-LN norms. Each is the
+//! biases; a packed `SwiGLU`; `BEiT3`'s sub-LN norms; and two hybrids on
+//! 32x32 images, a non-preact `ResNetV2` of two stages before 1x1 patches,
+//! and its stem alone before 2x2 ones. Each is the
 //! [`ViTContractConfig`] of the same knobs. The
 //! weights, under timm's names, load through [`load_vit_tensors`]; each
 //! layer's map, the output tokens, the pooled features and the logits are
@@ -348,5 +351,32 @@ fn check_openai_toy(
         &format!("{name} logits"),
         model.forward_logits(images),
         fixture.io("logits"),
+    );
+}
+
+/// A hybrid on 32x32 images: the hybrid `ViT`'s `ResNetV2` backbone of two
+/// one-unit stages, `(128, 256)` wide on a 32-wide stem, its 4x4 map in 1x1
+/// patches.
+#[test]
+fn test_hybrid_toy_is_timms() {
+    check_toy(
+        "toy_hybrid",
+        ViTContractConfig::new(32, 1, 16, 2, 2, 10).with_backbone(Some(
+            ViTContractConfig::resnetv2_backbone(&[1, 1])
+                .with_channels(vec![128, 256])
+                .with_stem_chs(32),
+        )),
+    );
+}
+
+/// A hybrid on the backbone's stem alone, its 8x8 map in 2x2 patches, as
+/// `vit_tiny_r_s16_p8`.
+#[test]
+fn test_hybrid_stem_toy_is_timms() {
+    check_toy(
+        "toy_hybrid_stem",
+        ViTContractConfig::new(32, 2, 16, 2, 2, 10).with_backbone(Some(
+            ViTContractConfig::resnetv2_backbone(&[]).with_stem_chs(32),
+        )),
     );
 }

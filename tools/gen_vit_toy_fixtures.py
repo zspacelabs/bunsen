@@ -1,7 +1,8 @@
 """Generate the vit kit's toy fixtures: tiny seeded timm `VisionTransformer`s and their answers.
 
-Eighteen toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on 16x16
-images in 4x4 patches (a 4x4 grid), 16 wide, two layers of two heads, 10 classes:
+Twenty toys, each timm's own `timm.models.vision_transformer.VisionTransformer` on 16x16
+images in 4x4 patches (a 4x4 grid), 16 wide, two layers of two heads, 10 classes (but the
+hybrids):
 
 - `toy_token`: timm's defaults: a class token, its pool, layer norms of epsilon 1e-6, a
   biased `qkv`, `GELU`;
@@ -36,7 +37,12 @@ images in 4x4 patches (a 4x4 grid), 16 wide, two layers of two heads, 10 classes
   as the giant DINOv2;
 - `toy_beit3`: BEiT3's sub-LN, a norm before the attention's output projection and one on
   the MLP's hidden width (`scale_attn_norm`, `scale_mlp_norm`), its norms of epsilon 1e-5, the
-  mean pool.
+  mean pool;
+- `toy_hybrid`: a hybrid (`HybridEmbed`) on 32x32 images: `vision_transformer_hybrid`'s
+  `ResNetV2` backbone (not pre-activation, `StdConv2dSame`, the `same` stem, 32-group norms) of
+  two stages, `(128, 256)` wide on a 32-wide stem, its 4x4 map in 1x1 patches;
+- `toy_hybrid_stem`: a hybrid on that backbone's stem alone (`create_resnetv2_stem`), its 8x8
+  map in 2x2 patches, as `vit_tiny_r_s16_p8`.
 
 The toy test builds each as bunsen's `ViTContractConfig`.
 
@@ -63,7 +69,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from functools import partial  # noqa: E402
 
 import torch  # noqa: E402
-from timm.layers import GluMlp, QuickGELU, RmsNorm, SwiGLU  # noqa: E402
+from timm.layers import GluMlp, GroupNormAct, HybridEmbed, QuickGELU, RmsNorm, StdConv2dSame, SwiGLU  # noqa: E402
+from timm.models.resnetv2 import ResNetV2, create_resnetv2_stem  # noqa: E402
 from timm.models.vision_transformer import (  # noqa: E402
     ResPostBlock,
     VisionTransformer,
@@ -82,6 +89,23 @@ from toy_fixture import (  # noqa: E402
 OUT = TESTDATA / "vit"
 
 CLIP = dict(pre_norm=True, norm_layer=partial(torch.nn.LayerNorm, eps=1e-5))
+
+# The hybrid backbone's convs and norms, as `vision_transformer_hybrid._resnetv2`'s.
+STD_SAME = partial(StdConv2dSame, eps=1e-8)
+GN = partial(GroupNormAct, num_groups=32)
+
+
+def hybrid_backbone():
+    """`_resnetv2`'s backbone of two one-unit stages, `(128, 256)` wide on a 32-wide stem."""
+    return ResNetV2(
+        layers=(1, 1), channels=(128, 256), stem_chs=32, num_classes=0, global_pool="",
+        preact=False, stem_type="same", conv_layer=STD_SAME, norm_layer=GN,
+    )
+
+
+def hybrid_stem():
+    """`_resnetv2(layers=())`'s backbone: the 32-wide `same` stem alone."""
+    return create_resnetv2_stem(3, 32, stem_type="same", preact=False, conv_layer=STD_SAME, norm_layer=GN)
 
 # Each toy's seed is its position here: a new toy goes at the end.
 TOYS = {
@@ -124,6 +148,8 @@ TOYS = {
         norm_layer=partial(torch.nn.LayerNorm, eps=1e-5),
         global_pool="avg",
     ),
+    "toy_hybrid": dict(img_size=32, patch_size=1, backbone=hybrid_backbone),
+    "toy_hybrid_stem": dict(img_size=32, patch_size=2, backbone=hybrid_stem),
 }
 
 # The toys whose weights are written in `OpenAI` CLIP's layout.
@@ -172,12 +198,16 @@ def openai_clip(state: dict) -> dict:
 
 def main() -> None:
     for i, (name, args) in enumerate(TOYS.items()):
-        args = dict(dict(num_classes=10, img_size=16), **args)
+        args = dict(dict(num_classes=10, img_size=16, patch_size=4), **args)
         size = args["img_size"]
-        model = build(
-            lambda: VisionTransformer(patch_size=4, embed_dim=16, depth=2, num_heads=2, **args),
-            seed=4321 + i,
-        )
+        backbone = args.pop("backbone", None)
+
+        def make(args=args, backbone=backbone):
+            if backbone is not None:
+                args = dict(args, embed_layer=partial(HybridEmbed, backbone=backbone()))
+            return VisionTransformer(embed_dim=16, depth=2, num_heads=2, **args)
+
+        model = build(make, seed=4321 + i)
         init_weights(model, norm_bias=0.1)
         if name in OPENAI:
             with torch.no_grad():
