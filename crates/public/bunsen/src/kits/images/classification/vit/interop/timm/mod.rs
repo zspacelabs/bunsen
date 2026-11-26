@@ -61,7 +61,7 @@ pub fn vit_contract_config(config: &TimmModelConfigMirror) -> BunsenResult<ViTCo
 ///
 /// # Errors
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a pool
-/// the head doesn't build (`map`, `''`), or an input that isn't square or
+/// the head doesn't build (`prr`, `''`), or an input that isn't square or
 /// has other channels than the architecture's.
 pub fn with_timm_config(
     mut contract: ViTContractConfig,
@@ -72,7 +72,7 @@ pub fn with_timm_config(
         contract.global_pool = TokenPoolConfig::from_timm(pool).ok_or_else(|| {
             BunsenError::unsupported(format!(
                 "timm's {architecture} with a {pool:?} pool: the vit kit pools by token, avg, \
-                 max or avgmax"
+                 max, avgmax or map"
             ))
         })?;
     }
@@ -90,8 +90,9 @@ pub fn with_timm_config(
 }
 
 /// Each layer's fused `qkv` projection, `[3 d, d]` (and its bias), split by
-/// rows into `q`, `k` and `v`, in timm's names.
-pub fn vit_row_splits() -> [TensorLoadRowSplit; 2] {
+/// rows into `q`, `k` and `v`, and the attention pool's fused `kv`,
+/// `[2 d, d]`, into `k` and `v`, in timm's names.
+pub fn vit_row_splits() -> [TensorLoadRowSplit; 4] {
     [
         TensorLoadRowSplit::equal(
             ".attn.qkv.weight",
@@ -100,6 +101,14 @@ pub fn vit_row_splits() -> [TensorLoadRowSplit; 2] {
         TensorLoadRowSplit::equal(
             ".attn.qkv.bias",
             [".attn.q.bias", ".attn.k.bias", ".attn.v.bias"],
+        ),
+        TensorLoadRowSplit::equal(
+            "attn_pool.kv.weight",
+            ["attn_pool.k.weight", "attn_pool.v.weight"],
+        ),
+        TensorLoadRowSplit::equal(
+            "attn_pool.kv.bias",
+            ["attn_pool.k.bias", "attn_pool.v.bias"],
         ),
     ]
 }
@@ -121,6 +130,9 @@ pub fn vit_row_splits() -> [TensorLoadRowSplit; 2] {
 /// | a block's `mlp.fc1`, `mlp.fc2` | its `mlp.linear1`, `mlp.linear2` |
 /// | `norm` | `stack.norm` |
 /// | `fc_norm`, `head` | `head.fc_norm`, `head.fc` |
+/// | `attn_pool.latent`, `attn_pool.norm` | `pool.latent.latent`, `pool.latent.norm` |
+/// | `attn_pool.q`, `attn_pool.k`, `attn_pool.v`, `attn_pool.proj` | `pool.latent.attn.query`, `.key`, `.value`, `.output` |
+/// | `attn_pool.mlp.fc1`, `attn_pool.mlp.fc2` | `pool.latent.mlp.linear1`, `.linear2` |
 ///
 /// Anything else is kept as it is, for the load to report.
 ///
@@ -144,7 +156,15 @@ pub fn vit_rekey() -> Rekey {
         .exact("ls2.gamma", "mlp_layer_scale")
         .rename("mlp.fc1.", "mlp.linear1.")
         .rename("mlp.fc2.", "mlp.linear2.");
+    let attn_pool = Rekey::keep_rest()
+        .rename("q.", "attn.query.")
+        .rename("k.", "attn.key.")
+        .rename("v.", "attn.value.")
+        .rename("proj.", "attn.output.")
+        .rename("mlp.fc1.", "mlp.linear1.")
+        .rename("mlp.fc2.", "mlp.linear2.");
     Rekey::keep_rest()
+        .mount("attn_pool.", "pool.latent.", attn_pool)
         .rename("patch_embed.proj.", "patch_embed.projection.")
         .exact("cls_token", "tokens.cls_token")
         .exact("reg_token", "tokens.reg_token")
@@ -206,6 +226,7 @@ mod tests {
             let pool = match want.global_pool {
                 TokenPoolConfig::Token => "token",
                 TokenPoolConfig::Avg => "avg",
+                TokenPoolConfig::Map => "map",
                 other => panic!("{name}: a {other:?} prefab"),
             };
             assert_eq!(
@@ -234,11 +255,11 @@ mod tests {
                 1000,
                 224,
             )));
-        let mut mapped = config("vit_base_patch16_224", 1000, 224);
-        mapped.global_pool = Some("map".into());
+        let mut prr = config("vit_base_patch16_224", 1000, 224);
+        prr.global_pool = Some("prr".into());
         unsupported()
-            .message_contains("\"map\" pool")
-            .assert_err(&vit_contract_config(&mapped));
+            .message_contains("\"prr\" pool")
+            .assert_err(&vit_contract_config(&prr));
         let mut wide = config("vit_base_patch16_224", 1000, 224);
         wide.pretrained_cfg.input_size = [3, 224, 256];
         unsupported()

@@ -186,6 +186,9 @@ def lower(arch, kwargs, image_size):
     if pool == "avg":
         expr += ".with_global_pool(TokenPoolConfig::Avg)"
         notes.append("average-pooled")
+    elif pool == "map":
+        expr += ".with_global_pool(TokenPoolConfig::Map)"
+        notes.append("attention-pooled")
     elif pool != "token":
         return f"global_pool={pool!r}"
     fc_norm = kw.pop("fc_norm", None)

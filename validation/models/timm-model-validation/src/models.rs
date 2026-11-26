@@ -381,6 +381,18 @@ mod timm {
 
     #[test]
     #[serial_test::serial]
+    fn vit_base_patch16_siglip_224_webli() {
+        check_row("timm/vit_base_patch16_siglip_224.webli");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn vit_base_patch32_siglip_256_v2_webli() {
+        check_row("timm/vit_base_patch32_siglip_256.v2_webli");
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn deit_small_patch16_224_fb_in1k() {
         check_row("timm/deit_small_patch16_224.fb_in1k");
     }

@@ -747,6 +747,156 @@ impl ViTContractConfig {
             .with_global_pool(TokenPoolConfig::Avg)
     }
 
+    /// The `vit_base_patch32_siglip_256` prefab: `ViT-B/32` at 256 pixels: 12
+    /// layers, 768 wide, 12 heads; tanh GELU, no class token, attention-pooled.
+    pub fn vit_base_patch32_siglip_256() -> Self {
+        Self::vit(256, 32, 768, 12, 12)
+            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_base_patch16_siglip_224` prefab: `ViT-B/16` at 224 pixels: 12
+    /// layers, 768 wide, 12 heads; no class token, attention-pooled.
+    pub fn vit_base_patch16_siglip_224() -> Self {
+        Self::vit(224, 16, 768, 12, 12)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_base_patch16_siglip_256` prefab: `ViT-B/16` at 256 pixels: 12
+    /// layers, 768 wide, 12 heads; no class token, attention-pooled.
+    pub fn vit_base_patch16_siglip_256() -> Self {
+        Self::vit(256, 16, 768, 12, 12)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_base_patch16_siglip_384` prefab: `ViT-B/16` at 384 pixels: 12
+    /// layers, 768 wide, 12 heads; no class token, attention-pooled.
+    pub fn vit_base_patch16_siglip_384() -> Self {
+        Self::vit(384, 16, 768, 12, 12)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_base_patch16_siglip_512` prefab: `ViT-B/16` at 512 pixels: 12
+    /// layers, 768 wide, 12 heads; no class token, attention-pooled.
+    pub fn vit_base_patch16_siglip_512() -> Self {
+        Self::vit(512, 16, 768, 12, 12)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_large_patch16_siglip_256` prefab: `ViT-L/16` at 256 pixels: 24
+    /// layers, 1024 wide, 16 heads; no class token, attention-pooled.
+    pub fn vit_large_patch16_siglip_256() -> Self {
+        Self::vit(256, 16, 1024, 24, 16)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_large_patch16_siglip_384` prefab: `ViT-L/16` at 384 pixels: 24
+    /// layers, 1024 wide, 16 heads; no class token, attention-pooled.
+    pub fn vit_large_patch16_siglip_384() -> Self {
+        Self::vit(384, 16, 1024, 24, 16)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_large_patch16_siglip_512` prefab: `ViT-L/16` at 512 pixels: 24
+    /// layers, 1024 wide, 16 heads; tanh GELU, no class token,
+    /// attention-pooled.
+    pub fn vit_large_patch16_siglip_512() -> Self {
+        Self::vit(512, 16, 1024, 24, 16)
+            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_so400m_patch16_siglip_256` prefab: `ViT-so400m/16` at 256
+    /// pixels: 27 layers, 1152 wide, 16 heads; an MLP ratio of 3.7362, tanh
+    /// GELU, no class token, attention-pooled.
+    pub fn vit_so400m_patch16_siglip_256() -> Self {
+        Self::vit(256, 16, 1152, 27, 16)
+            .with_mlp_ratio(3.7362)
+            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_so400m_patch16_siglip_384` prefab: `ViT-so400m/16` at 384
+    /// pixels: 27 layers, 1152 wide, 16 heads; an MLP ratio of 3.7362, tanh
+    /// GELU, no class token, attention-pooled.
+    pub fn vit_so400m_patch16_siglip_384() -> Self {
+        Self::vit(384, 16, 1152, 27, 16)
+            .with_mlp_ratio(3.7362)
+            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_so400m_patch16_siglip_512` prefab: `ViT-so400m/16` at 512
+    /// pixels: 27 layers, 1152 wide, 16 heads; an MLP ratio of 3.7362, tanh
+    /// GELU, no class token, attention-pooled.
+    pub fn vit_so400m_patch16_siglip_512() -> Self {
+        Self::vit(512, 16, 1152, 27, 16)
+            .with_mlp_ratio(3.7362)
+            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_so400m_patch14_siglip_224` prefab: `ViT-so400m/14` at 224
+    /// pixels: 27 layers, 1152 wide, 16 heads; an MLP ratio of 3.7362, no class
+    /// token, attention-pooled.
+    pub fn vit_so400m_patch14_siglip_224() -> Self {
+        Self::vit(224, 14, 1152, 27, 16)
+            .with_mlp_ratio(3.7362)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_so400m_patch14_siglip_378` prefab: `ViT-so400m/14` at 378
+    /// pixels: 27 layers, 1152 wide, 16 heads; an MLP ratio of 3.7362, no class
+    /// token, attention-pooled.
+    pub fn vit_so400m_patch14_siglip_378() -> Self {
+        Self::vit(378, 14, 1152, 27, 16)
+            .with_mlp_ratio(3.7362)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_so400m_patch14_siglip_384` prefab: `ViT-so400m/14` at 384
+    /// pixels: 27 layers, 1152 wide, 16 heads; an MLP ratio of 3.7362, no class
+    /// token, attention-pooled, the 6 pixels past the last whole patch dropped.
+    pub fn vit_so400m_patch14_siglip_384() -> Self {
+        Self::vit(384, 14, 1152, 27, 16)
+            .with_mlp_ratio(3.7362)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_giantopt_patch16_siglip_256` prefab: `ViT-giantopt/16` at 256
+    /// pixels: 40 layers, 1536 wide, 16 heads; tanh GELU, no class token,
+    /// attention-pooled.
+    pub fn vit_giantopt_patch16_siglip_256() -> Self {
+        Self::vit(256, 16, 1536, 40, 16)
+            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
+    /// The `vit_giantopt_patch16_siglip_384` prefab: `ViT-giantopt/16` at 384
+    /// pixels: 40 layers, 1536 wide, 16 heads; tanh GELU, no class token,
+    /// attention-pooled.
+    pub fn vit_giantopt_patch16_siglip_384() -> Self {
+        Self::vit(384, 16, 1536, 40, 16)
+            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+    }
+
     /// The `vit_base_patch32_siglip_gap_256` prefab: `ViT-B/32` at 256 pixels:
     /// 12 layers, 768 wide, 12 heads; tanh GELU, no class token,
     /// average-pooled, its norm before the pool.
@@ -1172,6 +1322,70 @@ impl Prefabs for ViTContractConfig {
         ),
         ("vit_base_patch16_rpn_224", Self::vit_base_patch16_rpn_224),
         (
+            "vit_base_patch32_siglip_256",
+            Self::vit_base_patch32_siglip_256,
+        ),
+        (
+            "vit_base_patch16_siglip_224",
+            Self::vit_base_patch16_siglip_224,
+        ),
+        (
+            "vit_base_patch16_siglip_256",
+            Self::vit_base_patch16_siglip_256,
+        ),
+        (
+            "vit_base_patch16_siglip_384",
+            Self::vit_base_patch16_siglip_384,
+        ),
+        (
+            "vit_base_patch16_siglip_512",
+            Self::vit_base_patch16_siglip_512,
+        ),
+        (
+            "vit_large_patch16_siglip_256",
+            Self::vit_large_patch16_siglip_256,
+        ),
+        (
+            "vit_large_patch16_siglip_384",
+            Self::vit_large_patch16_siglip_384,
+        ),
+        (
+            "vit_large_patch16_siglip_512",
+            Self::vit_large_patch16_siglip_512,
+        ),
+        (
+            "vit_so400m_patch16_siglip_256",
+            Self::vit_so400m_patch16_siglip_256,
+        ),
+        (
+            "vit_so400m_patch16_siglip_384",
+            Self::vit_so400m_patch16_siglip_384,
+        ),
+        (
+            "vit_so400m_patch16_siglip_512",
+            Self::vit_so400m_patch16_siglip_512,
+        ),
+        (
+            "vit_so400m_patch14_siglip_224",
+            Self::vit_so400m_patch14_siglip_224,
+        ),
+        (
+            "vit_so400m_patch14_siglip_378",
+            Self::vit_so400m_patch14_siglip_378,
+        ),
+        (
+            "vit_so400m_patch14_siglip_384",
+            Self::vit_so400m_patch14_siglip_384,
+        ),
+        (
+            "vit_giantopt_patch16_siglip_256",
+            Self::vit_giantopt_patch16_siglip_256,
+        ),
+        (
+            "vit_giantopt_patch16_siglip_384",
+            Self::vit_giantopt_patch16_siglip_384,
+        ),
+        (
             "vit_base_patch32_siglip_gap_256",
             Self::vit_base_patch32_siglip_gap_256,
         ),
@@ -1266,6 +1480,6 @@ mod tests {
                 assert_eq!(config.image_size, size, "{name}");
             }
         }
-        assert_eq!(ViTContractConfig::prefab_names().len(), 101);
+        assert_eq!(ViTContractConfig::prefab_names().len(), 117);
     }
 }

@@ -19,6 +19,7 @@ use crate::{
             BunsenLayerNormConfig,
             BunsenNormalizationConfig,
         },
+        pooling::LatentAttentionPoolConfig,
         transformers::{
             attention::csa::{
                 AttentionMask,
@@ -115,7 +116,9 @@ pub struct ViTContractConfig {
     #[config(default = "None")]
     pub fc_norm: Option<bool>,
 
-    /// The head's pool (timm's `global_pool`).
+    /// The head's pool (timm's `global_pool`); a
+    /// [`Map`](TokenPoolConfig::Map) pool is an attention pool of the
+    /// model's heads, MLP, norm and activation (timm's `AttentionPoolLatent`).
     #[config(default = "TokenPoolConfig::Token")]
     pub global_pool: TokenPoolConfig,
 
@@ -182,6 +185,14 @@ impl ViTContractConfig {
         (self.embed_dim as f64 * self.mlp_ratio) as usize
     }
 
+    /// An MLP of the model's: `embed_dim` to
+    /// [`mlp_hidden`](Self::mlp_hidden) and back, biased, of its activation.
+    fn mlp(&self) -> BunsenMlpConfig {
+        BunsenMlpConfig::new(self.embed_dim, self.mlp_hidden(), self.embed_dim)
+            .with_activation(self.activation.clone())
+            .with_bias(true)
+    }
+
     /// A layer norm of the model's epsilon.
     fn norm(&self) -> BunsenNormalizationConfig {
         BunsenNormalizationConfig::Layer(
@@ -216,7 +227,9 @@ impl ToStructureConfig for ViTContractConfig {
     ///   [`norm_placement`](Self::norm_placement) puts them; an input norm
     ///   under `pre_norm`; the final norm, as
     ///   [`uses_last_norm`](Self::uses_last_norm) says;
-    /// - the head: the pool, its norm, the dropout, the classifier.
+    /// - the head: the pool (under [`Map`](TokenPoolConfig::Map), an attention
+    ///   pool of `num_heads` heads, an MLP of [`mlp_hidden`](Self::mlp_hidden)
+    ///   and the model's norm), its norm, the dropout, the classifier.
     ///
     /// # Errors
     ///
@@ -257,10 +270,7 @@ impl ToStructureConfig for ViTContractConfig {
                     .with_output_bias(true)
                     .with_mask(AttentionMask::Bidirectional)
                     .into(),
-                BunsenMlpConfig::new(d, self.mlp_hidden(), d)
-                    .with_activation(self.activation.clone())
-                    .with_bias(true)
-                    .into(),
+                self.mlp().into(),
             )
             .with_norm(self.norm())
             .with_norm_placement(self.norm_placement)
@@ -272,6 +282,8 @@ impl ToStructureConfig for ViTContractConfig {
             RotaryEmbeddingConfig::unrotated(d / heads),
         );
         stack.input_norm = self.pre_norm.then(|| self.norm());
+        let latent_pool = (self.global_pool == TokenPoolConfig::Map)
+            .then(|| LatentAttentionPoolConfig::new(d, heads, self.mlp(), self.norm()));
         Ok(VisionEncoderStructureConfig::new(
             patch_embed,
             tokens,
@@ -280,7 +292,8 @@ impl ToStructureConfig for ViTContractConfig {
                 .with_fc_norm(fc_norm.then(|| self.norm()))
                 .with_drop_rate(self.drop_rate),
         )
-        .with_pool(self.global_pool))
+        .with_pool(self.global_pool)
+        .with_latent_pool(latent_pool))
     }
 }
 

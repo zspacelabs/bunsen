@@ -10,14 +10,15 @@
 //! (`vit_base_patch16_224`); later weight sets keep the tree and turn its
 //! knobs: the CLIP image towers normalise the tokens before the first layer,
 //! `DINOv2` adds register tokens and layer scale, `SigLIP`'s `gap` towers drop
-//! the class token for the mean, C-RADIO drops the final norm.
+//! the class token for the mean, and its `map` towers pool by a learned query's
+//! attention; C-RADIO drops the final norm.
 //!
 //! [`pretrained`] turns names into loaded models.
-//! [`ViTContractConfig`]'s prefabs name the 101 geometries, by timm's
+//! [`ViTContractConfig`]'s prefabs name the 117 geometries, by timm's
 //! architecture names, generated from timm's own entrypoints
 //! (`tools/gen_vit_prefabs.py`), and
 //! [`default_vit_factory`](pretrained::default_vit_factory) is the index of
-//! 242 timm hub repos (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), and
+//! 269 timm hub repos (`timm/vit_base_patch16_224.augreg2_in21k_ft_in1k`), and
 //! loads any other of the prefabs' architectures as `hf:timm/<repo>`.
 //!
 //! # The model
@@ -41,7 +42,7 @@
 //! The kit aims for parity with `timm`'s `vision_transformer.py`. Missing
 //! today:
 //!
-//! * the attention pool (`global_pool='map'`, `SigLIP`'s) and `prr`
+//! * the `prr` pool
 //! * running at another size than the position embedding's
 //!   (`resample_abs_pos_embed`, `dynamic_img_size`)
 //! * the hybrid stems (`vit_base_r50_s16_384`), the parallel blocks
