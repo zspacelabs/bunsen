@@ -1439,6 +1439,87 @@ run them.
 * timm/vit_base_patch16_rpn_224.sw_in1k: [346.9 MB]
   timm's `vit_base_patch16_rpn_224`, its `sw_in1k` weights.
 
+* timm/vit_base_patch32_siglip_256.v2_webli: [378.2 MB]
+  timm's `vit_base_patch32_siglip_256`, its `v2_webli` weights.
+
+* timm/vit_base_patch16_siglip_224.v2_webli: [371.6 MB]
+  timm's `vit_base_patch16_siglip_224`, its `v2_webli` weights.
+
+* timm/vit_base_patch16_siglip_224.webli: [371.6 MB]
+  timm's `vit_base_patch16_siglip_224`, its `webli` weights.
+
+* timm/vit_base_patch16_siglip_256.v2_webli: [371.7 MB]
+  timm's `vit_base_patch16_siglip_256`, its `v2_webli` weights.
+
+* timm/vit_base_patch16_siglip_256.webli: [371.7 MB]
+  timm's `vit_base_patch16_siglip_256`, its `webli` weights.
+
+* timm/vit_base_patch16_siglip_256.webli_i18n: [371.7 MB]
+  timm's `vit_base_patch16_siglip_256`, its `webli_i18n` weights.
+
+* timm/vit_base_patch16_siglip_384.v2_webli: [372.7 MB]
+  timm's `vit_base_patch16_siglip_384`, its `v2_webli` weights.
+
+* timm/vit_base_patch16_siglip_384.webli: [372.7 MB]
+  timm's `vit_base_patch16_siglip_384`, its `webli` weights.
+
+* timm/vit_base_patch16_siglip_512.v2_webli: [374.1 MB]
+  timm's `vit_base_patch16_siglip_512`, its `v2_webli` weights.
+
+* timm/vit_base_patch16_siglip_512.webli: [374.1 MB]
+  timm's `vit_base_patch16_siglip_512`, its `webli` weights.
+
+* timm/vit_large_patch16_siglip_256.v2_webli: [1.26 GB]
+  timm's `vit_large_patch16_siglip_256`, its `v2_webli` weights.
+
+* timm/vit_large_patch16_siglip_256.webli: [1.26 GB]
+  timm's `vit_large_patch16_siglip_256`, its `webli` weights.
+
+* timm/vit_large_patch16_siglip_384.v2_webli: [1.27 GB]
+  timm's `vit_large_patch16_siglip_384`, its `v2_webli` weights.
+
+* timm/vit_large_patch16_siglip_384.webli: [1.27 GB]
+  timm's `vit_large_patch16_siglip_384`, its `webli` weights.
+
+* timm/vit_large_patch16_siglip_512.v2_webli: [1.27 GB]
+  timm's `vit_large_patch16_siglip_512`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch16_siglip_256.v2_webli: [1.71 GB]
+  timm's `vit_so400m_patch16_siglip_256`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch16_siglip_256.webli_i18n: [1.71 GB]
+  timm's `vit_so400m_patch16_siglip_256`, its `webli_i18n` weights.
+
+* timm/vit_so400m_patch16_siglip_384.v2_webli: [1.71 GB]
+  timm's `vit_so400m_patch16_siglip_384`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch16_siglip_512.v2_webli: [1.72 GB]
+  timm's `vit_so400m_patch16_siglip_512`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch14_siglip_224.v2_webli: [1.71 GB]
+  timm's `vit_so400m_patch14_siglip_224`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch14_siglip_224.webli: [1.71 GB]
+  timm's `vit_so400m_patch14_siglip_224`, its `webli` weights.
+
+* timm/vit_so400m_patch14_siglip_378.v2_webli: [1.71 GB]
+  timm's `vit_so400m_patch14_siglip_378`, its `v2_webli` weights.
+
+* timm/vit_so400m_patch14_siglip_378.webli: [1.71 GB]
+  timm's `vit_so400m_patch14_siglip_378`, its `webli` weights.
+
+* timm/vit_so400m_patch14_siglip_378.webli_ft_in1k: [1.72 GB]
+  timm's `vit_so400m_patch14_siglip_378`, its `webli_ft_in1k` weights.
+
+* timm/vit_so400m_patch14_siglip_384.webli: [1.71 GB]
+  timm's `vit_so400m_patch14_siglip_384`, its `webli` weights.
+
+* timm/vit_giantopt_patch16_siglip_256.v2_webli: [4.65 GB]
+  timm's `vit_giantopt_patch16_siglip_256`, its `v2_webli` weights.
+
+* timm/vit_giantopt_patch16_siglip_384.v2_webli: [4.65 GB]
+  timm's `vit_giantopt_patch16_siglip_384`, its `v2_webli` weights.
+
 * timm/vit_base_patch32_siglip_gap_256.v2_webli: [349.9 MB]
   timm's `vit_base_patch32_siglip_gap_256`, its `v2_webli` weights.
 

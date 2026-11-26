@@ -22,6 +22,7 @@ use crate::{
             BunsenLayerNormConfig,
             BunsenNormalizationConfig,
         },
+        pooling::LatentAttentionPoolConfig,
         transformers::{
             attention::csa::{
                 AttentionMask,
@@ -200,4 +201,37 @@ fn test_disagreeing_parts_are_illegal() {
     let mut config = tiny(TokenPoolConfig::Token, 0);
     config.patch_embed = PatchEmbedConfig::new([18, 16], 4, 3, 8);
     illegal(config, "18x16 images don't divide into 4x4 patches");
+
+    let latent =
+        |d: usize| LatentAttentionPoolConfig::new(d, 2, BunsenMlpConfig::new(d, 4 * d, d), norm(d));
+    let mut config = tiny(TokenPoolConfig::Token, 0);
+    config.pool = TokenPoolConfig::Map;
+    illegal(config, "a Map pool with no attention pool");
+    let mut config = tiny(TokenPoolConfig::Token, 0);
+    config.latent_pool = Some(latent(8));
+    illegal(config, "a Token pool with an attention pool");
+    let mut config = tiny(TokenPoolConfig::Token, 0);
+    config.pool = TokenPoolConfig::Map;
+    config.latent_pool = Some(latent(6));
+    illegal(config, "the attention pool is 6 wide");
+}
+
+/// A [`Map`](TokenPoolConfig::Map) pool attends over the patch tokens: its
+/// pool is one vector per image, the model's width.
+#[test]
+fn test_map_pool() {
+    let device = cpu_device();
+    let mut config = tiny(TokenPoolConfig::Token, 0);
+    config.pool = TokenPoolConfig::Map;
+    config.latent_pool = Some(LatentAttentionPoolConfig::new(
+        8,
+        2,
+        BunsenMlpConfig::new(8, 32, 8),
+        norm(8),
+    ));
+    let model: VisionEncoderModel = config.init(&device);
+    assert!(model.pool.latent.is_some());
+    let images = Tensor::<4>::random([2, 3, 16, 16], Distribution::Default, &device);
+    assert_eq!(model.pooled_features(images.clone()).dims(), [2, 8]);
+    assert_eq!(model.forward(images).dims(), [2, 5]);
 }

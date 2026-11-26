@@ -7,16 +7,19 @@ use burn::{
     tensor::s,
 };
 
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    blocks::pooling::LatentAttentionPool,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
-/// The pool over a vision transformer's tokens, timm's `global_pool_nlc`
-/// kinds: the config of a [`TokenPool`].
+/// The pool over a vision transformer's tokens, timm's `global_pool` kinds:
+/// the config of a [`TokenPool`].
 ///
-/// The reducing kinds take the patch tokens alone, the prefix tokens left
-/// out.
+/// The reducing kinds and the attention pool take the patch tokens alone,
+/// the prefix tokens left out.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum TokenPoolConfig {
     /// The class token, the sequence's first (timm's `token`).
@@ -35,17 +38,23 @@ pub enum TokenPoolConfig {
     /// each through its own classifier, the two logits averaged (timm's
     /// `VisionTransformerDistilled`, `DeiT`'s distilled models).
     Distilled,
+
+    /// A learned query's attention over the patch tokens, a
+    /// [`LatentAttentionPool`] (timm's `map`, `SigLIP`'s): the one kind with
+    /// parameters.
+    Map,
 }
 
 impl TokenPoolConfig {
-    /// The kind timm names `name` (`token`, `avg`, `max`, `avgmax`); `None`
-    /// for a kind the head doesn't build (`map`, `prr`, `''`).
+    /// The kind timm names `name` (`token`, `avg`, `max`, `avgmax`, `map`);
+    /// `None` for a kind the head doesn't build (`prr`, `''`).
     pub fn from_timm(name: &str) -> Option<Self> {
         Some(match name {
             "token" => Self::Token,
             "avg" => Self::Avg,
             "max" => Self::Max,
             "avgmax" => Self::AvgMax,
+            "map" => Self::Map,
             _ => return None,
         })
     }
@@ -58,17 +67,19 @@ impl TokenPoolConfig {
 
     /// The prefix tokens the pool reads: the class token for
     /// [`Token`](Self::Token), it and the distillation token for
-    /// [`Distilled`](Self::Distilled), none for the reducing pools.
+    /// [`Distilled`](Self::Distilled), none for the reducing pools and the
+    /// attention pool.
     pub fn prefix_read(self) -> usize {
         match self {
             Self::Token => 1,
             Self::Distilled => 2,
-            Self::Avg | Self::Max | Self::AvgMax => 0,
+            Self::Avg | Self::Max | Self::AvgMax | Self::Map => 0,
         }
     }
 }
 
-/// A pool over the tokens ([`TokenPool::try_new`]). No kind has parameters.
+/// A pool over the tokens: [`TokenPool::try_new`], or
+/// [`TokenPool::attention`] for the one kind with parameters.
 #[derive(Module, Debug)]
 pub struct TokenPool {
     /// The kind.
@@ -77,6 +88,10 @@ pub struct TokenPool {
 
     /// The prefix tokens a reducing pool leaves out.
     pub n_prefix: usize,
+
+    /// The attention pool of a [`Map`](TokenPoolConfig::Map) pool; `None`
+    /// for every other kind.
+    pub latent: Option<LatentAttentionPool>,
 }
 
 impl TokenPool {
@@ -86,18 +101,42 @@ impl TokenPool {
     ///
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a pool that
     /// reads more prefix tokens than there are
-    /// ([`prefix_read`](TokenPoolConfig::prefix_read)).
+    /// ([`prefix_read`](TokenPoolConfig::prefix_read)), or a
+    /// [`Map`](TokenPoolConfig::Map) pool, which is built with its attention
+    /// ([`attention`](Self::attention)).
     pub fn try_new(
         kind: TokenPoolConfig,
         n_prefix: usize,
     ) -> BunsenResult<Self> {
+        if kind == TokenPoolConfig::Map {
+            return Err(BunsenError::illegal(
+                "a Map pool has parameters: it is built with its latent attention pool",
+            ));
+        }
         let read = kind.prefix_read();
         if read > n_prefix {
             return Err(BunsenError::illegal(alloc::format!(
                 "a {kind:?} pool reads {read} prefix tokens: there are {n_prefix}"
             )));
         }
-        Ok(Self { kind, n_prefix })
+        Ok(Self {
+            kind,
+            n_prefix,
+            latent: None,
+        })
+    }
+
+    /// The [`Map`](TokenPoolConfig::Map) pool of `latent` over a sequence of
+    /// `n_prefix` prefix tokens, which it leaves out.
+    pub fn attention(
+        latent: LatentAttentionPool,
+        n_prefix: usize,
+    ) -> Self {
+        Self {
+            kind: TokenPoolConfig::Map,
+            n_prefix,
+            latent: Some(latent),
+        }
     }
 
     /// The pooled tokens.
@@ -126,6 +165,12 @@ impl TokenPool {
             TokenPoolConfig::Avg => patches().mean_dim(1),
             TokenPoolConfig::Max => patches().max_dim(1),
             TokenPoolConfig::AvgMax => (patches().max_dim(1) + patches().mean_dim(1)) * 0.5,
+            TokenPoolConfig::Map => self
+                .latent
+                .as_ref()
+                .expect("a Map pool is built with its attention")
+                .forward(patches())
+                .unsqueeze_dim(1),
         };
         let pooled = pooled.squeeze_dim(1);
         #[cfg(any(debug_assertions, test))]
@@ -168,7 +213,7 @@ mod tests {
             (TokenPoolConfig::Max, [3., 4.]),
             (TokenPoolConfig::AvgMax, [2.5, 3.5]),
         ] {
-            let pool = TokenPool { kind, n_prefix: 1 };
+            let pool = TokenPool::try_new(kind, 1).unwrap();
             let got = pool.forward(tokens.clone()).into_data();
             assert_eq!(got.try_to_vec::<f32>().unwrap(), want, "{kind:?}");
         }
@@ -176,7 +221,14 @@ mod tests {
             TokenPoolConfig::from_timm("avg"),
             Some(TokenPoolConfig::Avg)
         );
-        assert_eq!(TokenPoolConfig::from_timm("map"), None);
+        assert_eq!(
+            TokenPoolConfig::from_timm("map"),
+            Some(TokenPoolConfig::Map)
+        );
+        assert_eq!(TokenPoolConfig::from_timm("prr"), None);
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("a Map pool has parameters")
+            .assert_err(&TokenPool::try_new(TokenPoolConfig::Map, 0));
     }
 
     /// The distilled pool is the two leading tokens' mean; a pool reading

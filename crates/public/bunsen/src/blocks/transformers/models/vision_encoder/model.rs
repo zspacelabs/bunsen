@@ -39,6 +39,7 @@ use crate::{
                 },
             },
         },
+        pooling::LatentAttentionPoolConfig,
         transformers::decoders::stack::{
             DecoderStack,
             DecoderStackMeta,
@@ -112,6 +113,11 @@ pub struct VisionEncoderStructureConfig {
     #[config(default = "TokenPoolConfig::Token")]
     pub pool: TokenPoolConfig,
 
+    /// The attention pool of a [`Map`](TokenPoolConfig::Map) pool; `None`
+    /// for every other kind.
+    #[config(default = "None")]
+    pub latent_pool: Option<LatentAttentionPoolConfig>,
+
     /// The head, over the pooled features: distilled for a
     /// [`Distilled`](TokenPoolConfig::Distilled) pool.
     pub head: ClassifierHeadConfig,
@@ -162,16 +168,24 @@ impl VisionEncoderStructureConfig {
     /// embedding, the tokens, the transformer and the head are not one
     /// width; when the tokens' patches are not the patch grid's; when the
     /// pool reads more prefix tokens than there are, or the head is distilled
-    /// and the pool not (or the other way); when the stack has
-    /// attention-residual routes; or when the images don't divide into
-    /// patches.
+    /// and the pool not (or the other way); when a
+    /// [`Map`](TokenPoolConfig::Map) pool has no attention pool, or another
+    /// kind has one; when the stack has attention-residual routes; or as the
+    /// patch embedding's
+    /// [`try_validate`](PatchEmbedConfig::try_validate).
     pub fn try_validate(&self) -> BunsenResult<()> {
         let d = self.stack.d_model();
         let widths = [
             ("the patch embedding", self.patch_embed.d_output()),
             ("the prefix tokens", self.tokens.d_model),
             ("the head", self.head.d_features),
-        ];
+        ]
+        .into_iter()
+        .chain(
+            self.latent_pool
+                .as_ref()
+                .map(|p| ("the attention pool", p.d_model)),
+        );
         for (part, width) in widths {
             if width != d {
                 return Err(BunsenError::illegal(format!(
@@ -187,7 +201,22 @@ impl VisionEncoderStructureConfig {
                 self.patch_embed.num_patches()
             )));
         }
-        TokenPool::try_new(self.pool, self.tokens.n_prefix())?;
+        match (self.pool, &self.latent_pool) {
+            (TokenPoolConfig::Map, Some(_)) => {}
+            (TokenPoolConfig::Map, None) => {
+                return Err(BunsenError::illegal(
+                    "a Map pool with no attention pool (latent_pool)",
+                ));
+            }
+            (pool, Some(_)) => {
+                return Err(BunsenError::illegal(format!(
+                    "a {pool:?} pool with an attention pool: only a Map pool attends"
+                )));
+            }
+            (pool, None) => {
+                TokenPool::try_new(pool, self.tokens.n_prefix())?;
+            }
+        }
         if self.head.distilled != (self.pool == TokenPoolConfig::Distilled) {
             return Err(BunsenError::illegal(format!(
                 "a {:?} pool with a head that is {}distilled: a distilled head reads the \
@@ -221,7 +250,13 @@ impl ModuleInit<VisionEncoderModel> for VisionEncoderStructureConfig {
             patch_embed: self.patch_embed.try_init(device)?,
             tokens: self.tokens.try_init(device).context("the prefix tokens")?,
             stack: self.stack.try_init(device).context("the transformer")?,
-            pool: TokenPool::try_new(self.pool, self.tokens.n_prefix())?,
+            pool: match &self.latent_pool {
+                Some(latent) => TokenPool::attention(
+                    latent.try_init(device).context("the attention pool")?,
+                    self.tokens.n_prefix(),
+                ),
+                None => TokenPool::try_new(self.pool, self.tokens.n_prefix())?,
+            },
             head: self.head.try_init(device).context("the head")?,
         })
     }

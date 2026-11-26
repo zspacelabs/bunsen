@@ -533,6 +533,18 @@ crates:
         core: false
         dtypes: [f32]
         varies: res-post-norm blocks (ResPostBlock)
+      timm/vit_base_patch16_siglip_224.webli:
+        size: small
+        gb: 0.47
+        core: false
+        dtypes: [f32]
+        varies: SigLIP's attention pool - a latent query over the patch tokens, headless
+      timm/vit_base_patch32_siglip_256.v2_webli:
+        size: small
+        gb: 0.48
+        core: false
+        dtypes: [f32]
+        varies: SigLIP 2's attention pool, with tanh GELU, headless
       timm/deit_small_patch16_224.fb_in1k:
         size: small
         gb: 0.2

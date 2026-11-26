@@ -1,6 +1,6 @@
 //! The toy models against timm's own `VisionTransformer`.
 //!
-//! `testdata/vit/` holds fourteen tiny seeded timm `VisionTransformer`s and
+//! `testdata/vit/` holds sixteen tiny seeded timm `VisionTransformer`s and
 //! their answers, computed in float64 (`tools/gen_vit_toy_fixtures.py`), each
 //! on 16x16 images in 4x4 patches, 16 wide, two layers of two heads: timm's
 //! defaults (the class token's pool); the patch tokens' mean and their
@@ -9,8 +9,9 @@
 //! patches alone and layer scale; no class token; no `qkv` bias; no
 //! classifier; CLIP's pre-norm with a projection head, its weights in
 //! `OpenAI` CLIP's own layout; res-post-norm blocks; no final norm, with the
-//! class token's pool and the mean's; and 18x18 images, the pixels past the
-//! last whole patch dropped. Each is the [`ViTContractConfig`] of the same
+//! class token's pool and the mean's; 18x18 images, the pixels past the last
+//! whole patch dropped; and the attention pool, with no class token and with
+//! one. Each is the [`ViTContractConfig`] of the same
 //! knobs. The
 //! weights, under timm's names, load through [`load_vit_tensors`]; each
 //! layer's map, the output tokens, the pooled features and the logits are
@@ -236,6 +237,29 @@ fn test_bare_avg_toy_is_timms() {
 #[test]
 fn test_remainder_toy_is_timms() {
     check_toy("toy_remainder", ViTContractConfig::new(18, 4, 16, 2, 2, 10));
+}
+
+/// The attention pool (`SigLIP`'s): a latent query over the patch tokens, no
+/// class token, tanh `GELU`.
+#[test]
+fn test_map_toy_is_timms() {
+    check_toy(
+        "toy_map",
+        toy_policy()
+            .with_class_token(false)
+            .with_global_pool(TokenPoolConfig::Map)
+            .with_activation(BunsenActivationConfig::GeluApproximate),
+    );
+}
+
+/// The attention pool over the patch tokens alone, the class token left
+/// out.
+#[test]
+fn test_map_cls_toy_is_timms() {
+    check_toy(
+        "toy_map_cls",
+        toy_policy().with_global_pool(TokenPoolConfig::Map),
+    );
 }
 
 /// [`check_toy`], for a toy whose weights are in `OpenAI`'s layout: only the
