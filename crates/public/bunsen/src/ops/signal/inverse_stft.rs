@@ -177,7 +177,7 @@ fn overlap_add(
     frames: Tensor<3>,
     hop: usize,
 ) -> Tensor<2> {
-    let [b, f, n] = frames.dims();
+    let [b, f, n] = crate::contracts::unpack_shape_contract!(["B", "F", "N"], &frames.dims());
     let chunks = n.div_ceil(hop);
     let padded = chunks * hop;
     let frames = if padded > n {
@@ -196,8 +196,16 @@ fn overlap_add(
         let at = s![.., j..j + f, ..];
         sum = sum.clone().slice_assign(at, sum.slice(at) + chunk);
     }
-    sum.reshape([b, (f + chunks - 1) * hop])
-        .slice(s![.., ..(f - 1) * hop + n])
+    let signal = sum
+        .reshape([b, (f + chunks - 1) * hop])
+        .slice(s![.., ..(f - 1) * hop + n]);
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["B", "samples"],
+        &signal.dims(),
+        &[("B", b), ("samples", (f - 1) * hop + n)]
+    );
+    signal
 }
 
 impl InverseStft {
@@ -414,10 +422,23 @@ impl InverseStft {
                 (&self.window.device(), dtype),
             ));
         }
+        let returned = end - ctx.next;
         ctx.next = end;
         ctx.numerator = None;
         ctx.envelope = None;
-        (!parts.is_empty()).then(|| Tensor::cat(parts, 1))
+        let rest = (!parts.is_empty()).then(|| Tensor::cat(parts, 1));
+        // The rest is the stream's batch, through its cut.
+        #[cfg(any(debug_assertions, test))]
+        if let Some(rest) = &rest {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["B", "returned"],
+                &rest.dims(),
+                &[("B", ctx.batch), ("returned", returned)]
+            );
+        }
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = returned;
+        rest
     }
 }
 

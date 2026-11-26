@@ -264,7 +264,7 @@ impl SincPhaseKernels {
         &self,
         input: Tensor<2>,
     ) -> Tensor<2> {
-        let [batch, n] = input.dims();
+        let [batch, n] = crate::contracts::unpack_shape_contract!(["batch", "n"], &input.dims());
         let phases = self.phases();
         let weight = self.kernels.clone().unsqueeze_dim::<3>(1);
         let options = ConvOptions {
@@ -274,11 +274,24 @@ impl SincPhaseKernels {
             groups: 1,
         };
         let out = conv1d(input.unsqueeze_dim::<3>(1), weight, None, options);
-        let frames = out.dims()[2];
+        let [frames] = crate::contracts::unpack_shape_contract!(
+            ["batch", "phases", "frames"],
+            &out.dims(),
+            &["frames"],
+            &[("batch", batch), ("phases", phases)]
+        );
         let keep = (n * phases).div_ceil(self.stride);
-        out.swap_dims(1, 2)
+        let y = out
+            .swap_dims(1, 2)
             .reshape([batch as i32, (frames * phases) as i32])
-            .narrow(1, 0, keep)
+            .narrow(1, 0, keep);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "keep"],
+            &y.dims(),
+            &[("batch", batch), ("keep", keep)]
+        );
+        y
     }
 
     /// A stream through the resample, not yet started.
@@ -310,10 +323,18 @@ impl SincPhaseKernels {
         ctx: &mut SincResampleStreamContext,
     ) -> Option<Tensor<2>> {
         assert!(!ctx.finished, "a push to a finished resample stream");
-        let [b, n] = input.dims();
+        let [b, n] = crate::contracts::unpack_shape_contract!(["B", "N"], &input.dims());
         assert!(n >= 1, "a resample stream's push of at least one sample");
         let head = match ctx.pending.take() {
-            Some(pending) => pending,
+            Some(pending) => {
+                // The stream's batch.
+                crate::contracts::assert_shape_contract!(
+                    ["B", "pending"],
+                    &pending.dims(),
+                    &[("B", b)]
+                );
+                pending
+            }
             None if ctx.samples == 0 && self.width > 0 => {
                 Tensor::zeros([b, self.width], (&input.device(), input.dtype()))
             }
@@ -345,7 +366,7 @@ impl SincPhaseKernels {
         let keep = (ctx.samples * self.phases()).div_ceil(self.stride);
         // Never empty: the last `2 · width` samples always wait for a frame.
         let pending = ctx.pending.take()?;
-        let [b, _] = pending.dims();
+        let [b] = crate::contracts::unpack_shape_contract!(["B", "P"], &pending.dims(), &["B"]);
         let zeros = Tensor::zeros(
             [b, self.width + self.stride],
             (&pending.device(), pending.dtype()),
@@ -353,7 +374,13 @@ impl SincPhaseKernels {
         let tail = Tensor::cat(alloc::vec![pending, zeros], 1);
         let out = self.take_frames(tail, ctx)?;
         ctx.pending = None;
-        let left = keep - (ctx.emitted - out.dims()[1]);
+        let [samples] = crate::contracts::unpack_shape_contract!(
+            ["B", "samples"],
+            &out.dims(),
+            &["samples"],
+            &[("B", b)]
+        );
+        let left = keep - (ctx.emitted - samples);
         (left > 0).then(|| out.narrow(1, 0, left))
     }
 
@@ -364,8 +391,13 @@ impl SincPhaseKernels {
         buffer: Tensor<2>,
         ctx: &mut SincResampleStreamContext,
     ) -> Option<Tensor<2>> {
-        let (r, s) = (self.kernels.dims()[1], self.stride);
-        let [b, l] = buffer.dims();
+        let [r] = crate::contracts::unpack_shape_contract!(
+            ["phases", "taps"],
+            &self.kernels.dims(),
+            &["taps"]
+        );
+        let s = self.stride;
+        let [b, l] = crate::contracts::unpack_shape_contract!(["B", "L"], &buffer.dims());
         if l < r {
             ctx.pending = Some(buffer);
             return None;

@@ -32,11 +32,19 @@ impl CausalPadding {
         at: usize,
         frames: usize,
     ) -> Tensor<3> {
-        let [b, c, _] = x.dims();
-        match self {
+        let [b, c] =
+            crate::contracts::unpack_shape_contract!(["B", "C", "T"], &x.dims(), &["B", "C"]);
+        let pad = match self {
             Self::Zeros => Tensor::zeros([b, c, frames], (&x.device(), x.dtype())),
             Self::Replicate => x.clone().slice(s![.., .., at..=at]).repeat_dim(2, frames),
-        }
+        };
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "C", "frames"],
+            &pad.dims(),
+            &[("B", b), ("C", c), ("frames", frames)]
+        );
+        pad
     }
 }
 
@@ -182,7 +190,8 @@ impl CausalConvStreamContext {
             return None;
         }
         let pending = self.pending.take().expect("a partial stride's inputs");
-        let p = pending.dims()[2];
+        let [p] =
+            crate::contracts::unpack_shape_contract!(["B", "C", "P"], &pending.dims(), &["P"]);
         let pad = self.padding.edge(&pending, p - 1, self.stride - partial);
         let window = self.take_windows(Tensor::cat(vec![pending, pad], 2));
         self.pending = None;
@@ -196,7 +205,7 @@ impl CausalConvStreamContext {
         buffer: Tensor<3>,
     ) -> Option<Tensor<3>> {
         let (r, s) = (self.receptive_field, self.stride);
-        let l = buffer.dims()[2];
+        let [l] = crate::contracts::unpack_shape_contract!(["B", "C", "L"], &buffer.dims(), &["L"]);
         if l < r {
             self.pending = Some(buffer);
             return None;

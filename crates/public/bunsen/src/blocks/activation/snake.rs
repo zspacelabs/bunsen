@@ -164,12 +164,11 @@ impl SnakeActivation {
         &self,
         input: Tensor<D>,
     ) -> Tensor<D> {
-        assert!(D >= 2, "a Snake activation reads channels on axis 1");
-        assert_eq!(
-            input.dims()[1],
-            self.channels(),
-            "a Snake activation over {} channels",
-            self.channels()
+        // The channels are axis 1.
+        crate::contracts::assert_shape_contract!(
+            ["B", "C", ...],
+            &input.dims(),
+            &[("C", self.channels())]
         );
         let alpha = self.factor::<D>(&self.alpha);
         let magnitude = match &self.beta {
@@ -257,7 +256,7 @@ mod tests {
 
     /// Axis 1 must be the channels.
     #[test]
-    #[should_panic(expected = "over 3 channels")]
+    #[should_panic(expected = "2 !~ C :: Value MissMatch")]
     fn test_channels_checked() {
         let device = cpu_device();
         SnakeActivationConfig::new(3)

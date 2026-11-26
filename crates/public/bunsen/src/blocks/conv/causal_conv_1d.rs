@@ -243,7 +243,7 @@ impl CausalConv1d {
         before: usize,
         after: usize,
     ) -> Tensor<3> {
-        let t = x.dims()[2];
+        let [t] = crate::contracts::unpack_shape_contract!(["B", "C", "T"], &x.dims(), &["T"]);
         let mut parts = Vec::with_capacity(3);
         if before > 0 {
             parts.push(self.padding.edge(&x, 0, before));

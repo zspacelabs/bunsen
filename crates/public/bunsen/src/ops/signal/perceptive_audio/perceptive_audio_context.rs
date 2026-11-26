@@ -171,6 +171,12 @@ impl PerceptiveAudioConversionContext {
         let (x, this) = this.t_stage_spectrum(x);
         let (x, this) = this.t_stage_mel(x);
         let (mels, this) = this.t_stage_compress(x);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "frames", "n_mels"],
+            &mels.dims(),
+            &[("batch", this.batch_size()), ("n_mels", this.n_mels())]
+        );
 
         Ok((mels, this))
     }
@@ -193,7 +199,12 @@ impl PerceptiveAudioConversionContext {
             return None;
         }
 
-        let len = carry.dims()[1];
+        let [len] = crate::contracts::unpack_shape_contract!(
+            ["batch", "len"],
+            &carry.dims(),
+            &["len"],
+            &[("batch", self.batch_size)]
+        );
 
         let tail = match self.end_padding() {
             PaddingMode::None => unreachable!("pad_len is zero for None"),
@@ -227,11 +238,24 @@ impl PerceptiveAudioConversionContext {
             }
         };
 
-        if self.converter.frame_count(tail.dims()[1]) == 0 {
+        let [tail_len] = crate::contracts::unpack_shape_contract!(
+            ["batch", "len"],
+            &tail.dims(),
+            &["len"],
+            &[("batch", self.batch_size)]
+        );
+        if self.converter.frame_count(tail_len) == 0 {
             return None;
         }
 
-        Some(self.converter.forward(tail))
+        let mels = self.converter.forward(tail);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "frames", "n_mels"],
+            &mels.dims(),
+            &[("batch", self.batch_size), ("n_mels", self.n_mels())]
+        );
+        Some(mels)
     }
 
     // ---- the stage stack ----------------------------------------------
@@ -251,7 +275,8 @@ impl PerceptiveAudioConversionContext {
         mut self,
         waves: Tensor<2>,
     ) -> BunsenResult<(Tensor<2>, Self)> {
-        let [batch, samples] = waves.dims();
+        let [batch, samples] =
+            crate::contracts::unpack_shape_contract!(["batch", "samples"], &waves.dims());
 
         if batch != self.batch_size {
             return Err(BunsenError::illegal(format!(
@@ -305,7 +330,13 @@ impl PerceptiveAudioConversionContext {
             }
         };
 
-        let frames = self.converter.frame_count(extended.dims()[1]);
+        let [extended_len] = crate::contracts::unpack_shape_contract!(
+            ["batch", "extended"],
+            &extended.dims(),
+            &["extended"],
+            &[("batch", batch)]
+        );
+        let frames = self.converter.frame_count(extended_len);
         if frames == 0 {
             return Err(BunsenError::illegal(format!(
                 "PerceptiveAudioConversionContext: first chunk of {samples} \
