@@ -448,6 +448,30 @@ mod timm {
 
     #[test]
     #[serial_test::serial]
+    fn regnetv_040_ra3_in1k() {
+        check_row("timm/regnetv_040.ra3_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn regnetv_064_ra3_in1k() {
+        check_row("timm/regnetv_064.ra3_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn regnetz_040_ra3_in1k() {
+        check_row("timm/regnetz_040.ra3_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn regnetz_040_h_ra3_in1k() {
+        check_row("timm/regnetz_040_h.ra3_in1k");
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn deit_small_patch16_224_fb_in1k() {
         check_row("timm/deit_small_patch16_224.fb_in1k");
     }

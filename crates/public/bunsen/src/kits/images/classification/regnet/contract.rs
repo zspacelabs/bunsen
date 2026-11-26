@@ -19,6 +19,7 @@ use crate::{
         images::models::conv_net::{
             ConvAttentionKind,
             ConvAttentionPlace,
+            ConvFinalKind,
             ConvLayersConfig,
             ConvNetContractConfig,
             ConvNetStructureConfig,
@@ -63,14 +64,33 @@ pub struct RegNetStage {
     pub groups: usize,
 }
 
+/// A `RegNet` unit's shortcut where it changes shape, timm's `downsample`.
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum RegNetDownsample {
+    /// A `1x1` conv of the unit's stride and a norm (timm's `'conv1x1'`).
+    Conv1x1,
+
+    /// A `2x2` average pool of the stride, then a `1x1` conv and a norm
+    /// (timm's `'avg'`).
+    Avg,
+
+    /// None: a unit that changes shape has no residual (timm's `None`,
+    /// `RegNetZ`'s).
+    None,
+}
+
 /// A `RegNet`'s policy: timm's `RegNetCfg`, by its names, lowering to the
 /// generic [`ConvNetContractConfig`].
 ///
 /// A `RegNet` is a `3x3` stem of stride 2 (no pool), four stages of
 /// bottleneck units (a `1x1`, a grouped `3x3` mixer that strides, a
 /// squeeze-excite after it when [`se_ratio`](Self::se_ratio) is set, a `1x1`;
-/// a `1x1` conv shortcut where a unit changes shape), and a pooled linear
-/// head. Its widths are not stated but generated from a linear rule
+/// a shortcut where a unit changes shape, as
+/// [`downsample`](Self::downsample) says), and a pooled linear head;
+/// `RegNetV` pre-activates its units ([`preact`](Self::preact)), `RegNetZ`
+/// inverts its bottleneck, ends each unit linear and has no shortcut convs
+/// ([`bottle_ratio`](Self::bottle_ratio),
+/// [`linear_out`](Self::linear_out)). Its widths are not stated but generated from a linear rule
 /// quantized to a geometric one ([`try_stages`](Self::try_stages)).
 #[derive(Config, Debug)]
 pub struct RegNetContractConfig {
@@ -112,6 +132,27 @@ pub struct RegNetContractConfig {
     /// The stem's width (timm's `stem_width`).
     #[config(default = "32")]
     pub stem_width: usize,
+
+    /// The shortcut of a unit that changes shape (timm's `downsample`).
+    #[config(default = "RegNetDownsample::Conv1x1")]
+    pub downsample: RegNetDownsample,
+
+    /// No activation after each unit's add, and one after the last stage
+    /// instead (timm's `linear_out`, `RegNetZ`'s).
+    #[config(default = "false")]
+    pub linear_out: bool,
+
+    /// Pre-activation units (timm's `preact`, `RegNetV`'s `PreBottleneck`): a
+    /// bare stem conv, each unit's input normalized and activated before its
+    /// path and shortcut, each later conv after its own norm and activation,
+    /// and an activation after the last stage.
+    #[config(default = "false")]
+    pub preact: bool,
+
+    /// A `1x1` conv, norm and activation to this many features after the
+    /// last stage (timm's `num_features`, `regnetz_040_h`'s 1536); 0, none.
+    #[config(default = "0")]
+    pub num_features: usize,
 
     /// The activation after each conv's norm and each unit's add (timm's
     /// `act_layer`).
@@ -250,7 +291,10 @@ impl RegNetContractConfig {
             .map(|stage| {
                 ConvStageContractConfig::new(
                     stage.depth,
-                    ConvUnitKind::Bottleneck,
+                    match self.preact {
+                        true => ConvUnitKind::PreBottleneck,
+                        false => ConvUnitKind::Bottleneck,
+                    },
                     stage.width,
                     stage.mid_width,
                 )
@@ -260,7 +304,12 @@ impl RegNetContractConfig {
             .collect();
         let layers = ConvLayersConfig::new()
             .with_act(self.act_layer.clone())
-            .with_shortcut(ConvShortcutKind::Conv)
+            .with_shortcut(match self.downsample {
+                RegNetDownsample::Conv1x1 => ConvShortcutKind::Conv,
+                RegNetDownsample::Avg => ConvShortcutKind::AvgConv,
+                RegNetDownsample::None => ConvShortcutKind::None,
+            })
+            .with_out_act(!self.linear_out)
             .with_attn(
                 (self.se_ratio != 0.0).then_some(ConvAttentionKind::SeFromInput {
                     se_ratio: self.se_ratio,
@@ -271,13 +320,20 @@ impl RegNetContractConfig {
             ConvStemContractConfig::new(vec![self.stem_width])
                 .with_kernel_size(3)
                 .with_stride(2)
-                .with_pool(ConvStemPoolKind::None),
+                .with_pool(ConvStemPoolKind::None)
+                .with_norm_act(!self.preact),
             stages,
             self.num_classes,
         )
         .with_in_channels(self.in_channels)
         .with_output_stride(self.output_stride)
         .with_layers(layers)
+        // timm's `final_conv`: a conv block to `num_features`, else an
+        // activation where the units end without one.
+        .with_final_conv(match self.num_features {
+            0 => (self.linear_out || self.preact).then_some(ConvFinalKind::Act),
+            width => Some(ConvFinalKind::Conv { width }),
+        })
         .with_global_pool(self.global_pool)
         .with_drop_rate(self.drop_rate))
     }

@@ -37,6 +37,7 @@ use crate::{
                 conv_net::{
                     ConvAttentionPlace,
                     ConvChainMeta,
+                    ConvFinalConfig,
                     ConvNetStructureConfig,
                     ConvShortcutConfig,
                     ConvStageConfig,
@@ -44,6 +45,9 @@ use crate::{
                     ConvStemPoolConfig,
                     GlobalPool2dConfig,
                     MaxBlurPoolConfig,
+                    NormActConfig,
+                    PreActConvConfig,
+                    ResidualConvConfig,
                     ResidualUnitConfig,
                 },
             },
@@ -77,6 +81,13 @@ pub enum ConvUnitKind {
     /// A `1x1` reduce, a `kxk` mixer (grouped; it strides) and a `1x1`
     /// expand, `in -> mid -> mid -> width` (`ResNet`'s `Bottleneck`).
     Bottleneck,
+
+    /// [`Bottleneck`](Self::Bottleneck)'s convs, pre-activated: the unit's
+    /// input normalized and activated once, read by the path and the
+    /// shortcut, then each later conv after its own norm and activation; no
+    /// norm on a conv's output and no activation after the add, and a
+    /// shortcut conv with no norm (`RegNetV`'s `PreBottleneck`).
+    PreBottleneck,
 }
 
 /// A residual unit's shortcut, as a policy names it: what a
@@ -89,6 +100,11 @@ pub enum ConvShortcutKind {
     /// An average pool, then a `1x1` conv and a norm (timm's `avg_down`, the
     /// `ResNet-D` variants): [`ConvShortcutConfig::timm_avg_down`].
     AvgConv,
+
+    /// None: a unit that changes the channels or strides has no residual,
+    /// its output its path's (`RegNetZ`'s `downsample=None`); the others add
+    /// the identity.
+    None,
 }
 
 /// A residual unit's channel attention, as a policy names it: sized from the
@@ -172,6 +188,22 @@ impl ConvAaKind {
     }
 }
 
+/// The layer a policy puts between the last stage and the pool: what a
+/// [`ConvFinalConfig`] is built from.
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum ConvFinalKind {
+    /// The layers' activation alone (a pre-activation or linear-output
+    /// net's).
+    Act,
+
+    /// A `1x1` conv to `width` channels, the layers' norm and activation
+    /// (`RegNetZ`'s `num_features`).
+    Conv {
+        /// The features' width.
+        width: usize,
+    },
+}
+
 /// The stem's pool, as a policy names it.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum ConvStemPoolKind {
@@ -222,6 +254,12 @@ pub struct ConvLayersConfig {
     /// Each striding unit's anti-aliased downsampling; none when `None`.
     #[config(default = "None")]
     pub aa: Option<ConvAaKind>,
+
+    /// Whether each unit activates after its add: `false`, a linear output
+    /// (`RegNetZ`'s `linear_out`). A pre-activation unit has none whatever
+    /// this says.
+    #[config(default = "true")]
+    pub out_act: bool,
 }
 
 impl Default for ConvLayersConfig {
@@ -231,8 +269,28 @@ impl Default for ConvLayersConfig {
 }
 
 impl ConvLayersConfig {
-    /// A conv block of these layers: a `k x k` conv (no bias, padded to keep
-    /// the size at stride 1), the norm, and the activation when `act`.
+    /// A `k x k` conv: no bias, padded to keep the size at stride 1.
+    fn conv2d(
+        channels: [usize; 2],
+        kernel_size: usize,
+        stride: usize,
+        dilation: usize,
+        groups: usize,
+    ) -> Conv2dConfig {
+        Conv2dConfig::new(channels, [kernel_size, kernel_size])
+            .with_stride([stride, stride])
+            .with_dilation([dilation, dilation])
+            .with_padding(build_square_conv2d_padding_config(
+                kernel_size,
+                stride,
+                dilation,
+            ))
+            .with_groups(groups)
+            .with_bias(false)
+    }
+
+    /// A conv block of these layers: a [`conv2d`](Self::conv2d), the norm,
+    /// and the activation when `act`.
     fn conv(
         &self,
         channels: [usize; 2],
@@ -242,21 +300,42 @@ impl ConvLayersConfig {
         groups: usize,
         act: bool,
     ) -> ConvBlock2dConfig {
-        ConvBlock2dConfig::new(
-            Conv2dConfig::new(channels, [kernel_size, kernel_size])
-                .with_stride([stride, stride])
-                .with_dilation([dilation, dilation])
-                .with_padding(build_square_conv2d_padding_config(
-                    kernel_size,
-                    stride,
-                    dilation,
-                ))
-                .with_groups(groups)
-                .with_bias(false),
-        )
+        ConvBlock2dConfig::new(Self::conv2d(
+            channels,
+            kernel_size,
+            stride,
+            dilation,
+            groups,
+        ))
         .with_norm(Some(self.norm.clone()))
         .with_act(act.then(|| self.act.clone()))
         .match_norm_features()
+    }
+
+    /// A pre-activation conv of these layers: the norm and the activation
+    /// over its input when `norm_act`, then a [`conv2d`](Self::conv2d).
+    fn pre_conv(
+        &self,
+        channels: [usize; 2],
+        kernel_size: usize,
+        stride: usize,
+        dilation: usize,
+        groups: usize,
+        norm_act: bool,
+    ) -> PreActConvConfig {
+        let conv = PreActConvConfig::new(Self::conv2d(
+            channels,
+            kernel_size,
+            stride,
+            dilation,
+            groups,
+        ));
+        match norm_act {
+            true => conv
+                .with_norm(Some(self.norm.clone()))
+                .with_act(Some(self.act.clone())),
+            false => conv,
+        }
     }
 }
 
@@ -278,6 +357,12 @@ pub struct ConvStemContractConfig {
     /// The pool after the convs.
     #[config(default = "ConvStemPoolKind::Max")]
     pub pool: ConvStemPoolKind,
+
+    /// Whether each conv has its norm and activation: `false`, bare convs,
+    /// for a pre-activation net, whose first unit normalizes its input
+    /// (`RegNetV`'s stem).
+    #[config(default = "true")]
+    pub norm_act: bool,
 }
 
 impl ConvStemContractConfig {
@@ -304,6 +389,9 @@ impl ConvStemContractConfig {
             .map(|(idx, &width)| {
                 let stride = if idx == 0 { self.stride } else { 1 };
                 let mut conv = layers.conv([channels, width], self.kernel_size, stride, 1, 1, true);
+                if !self.norm_act {
+                    conv = conv.with_norm(None).with_act(None);
+                }
                 conv.conv = conv
                     .conv
                     .with_initializer(CONV_INTO_RELU_INITIALIZER.clone());
@@ -395,52 +483,76 @@ impl ConvStageContractConfig {
             .filter(|_| stride == 2 || first_dilation != dilation)
             .map(|kind| kind.to_config(stride));
         let mixer_stride = if aa.is_some() { 1 } else { stride };
-        let (convs, mixer) = match self.unit {
+        let preact = self.unit == ConvUnitKind::PreBottleneck;
+        let (convs, mixer): (Vec<ResidualConvConfig>, usize) = match self.unit {
             ConvUnitKind::Basic => (
                 alloc::vec![
-                    layers.conv(
-                        [in_channels, mid],
-                        k,
-                        mixer_stride,
-                        first_dilation,
-                        groups,
-                        true
-                    ),
-                    layers.conv([mid, width], k, 1, dilation, groups, false),
+                    layers
+                        .conv(
+                            [in_channels, mid],
+                            k,
+                            mixer_stride,
+                            first_dilation,
+                            groups,
+                            true
+                        )
+                        .into(),
+                    layers
+                        .conv([mid, width], k, 1, dilation, groups, false)
+                        .into(),
                 ],
                 0,
             ),
             ConvUnitKind::Bottleneck => (
                 alloc::vec![
-                    layers.conv([in_channels, mid], 1, 1, 1, 1, true),
-                    layers.conv([mid, mid], k, mixer_stride, first_dilation, groups, true),
-                    layers.conv([mid, width], 1, 1, 1, 1, false),
+                    layers.conv([in_channels, mid], 1, 1, 1, 1, true).into(),
+                    layers
+                        .conv([mid, mid], k, mixer_stride, first_dilation, groups, true)
+                        .into(),
+                    layers.conv([mid, width], 1, 1, 1, 1, false).into(),
+                ],
+                1,
+            ),
+            // The unit's `pre` normalizes the input; each later conv its own.
+            ConvUnitKind::PreBottleneck => (
+                alloc::vec![
+                    layers
+                        .pre_conv([in_channels, mid], 1, 1, 1, 1, false)
+                        .into(),
+                    layers
+                        .pre_conv([mid, mid], k, mixer_stride, first_dilation, groups, true)
+                        .into(),
+                    layers.pre_conv([mid, width], 1, 1, 1, 1, true).into(),
                 ],
                 1,
             ),
         };
-        let shortcut = if stride != 1 || in_channels != width {
-            Some(match layers.shortcut {
-                ConvShortcutKind::Conv => ConvShortcutConfig::conv(layers.conv(
-                    [in_channels, width],
-                    1,
-                    stride,
-                    1,
-                    1,
-                    false,
-                )),
-                ConvShortcutKind::AvgConv => ConvShortcutConfig::timm_avg_down(
-                    layers.conv([in_channels, width], 1, 1, 1, 1, false),
-                    stride,
-                    dilation,
-                ),
-            })
-        } else {
-            None
+        // A pre-activation shortcut's conv has no norm: its input is normed.
+        let shortcut_conv = |stride| {
+            let conv = layers.conv([in_channels, width], 1, stride, 1, 1, false);
+            match preact {
+                true => conv.with_norm(None),
+                false => conv,
+            }
         };
+        let reshapes = stride != 1 || in_channels != width;
+        let shortcut = match (reshapes, layers.shortcut) {
+            (false, _) | (true, ConvShortcutKind::None) => None,
+            (true, ConvShortcutKind::Conv) => Some(ConvShortcutConfig::conv(shortcut_conv(stride))),
+            (true, ConvShortcutKind::AvgConv) => Some(ConvShortcutConfig::timm_avg_down(
+                shortcut_conv(1),
+                stride,
+                dilation,
+            )),
+        };
+        let residual = !(reshapes && layers.shortcut == ConvShortcutKind::None);
         Ok(ResidualUnitConfig {
-            convs: convs.into_iter().map(Into::into).collect(),
+            convs,
             mixer,
+            pre: preact.then(|| {
+                NormActConfig::new(layers.norm.clone()).with_act(Some(layers.act.clone()))
+            }),
+            residual,
             aa,
             shortcut,
             attn: layers.attn.map(|kind| {
@@ -451,7 +563,7 @@ impl ConvStageContractConfig {
                 kind.to_config(channels, in_channels, &layers.act)
             }),
             attn_place: layers.attn_place,
-            act: Some(layers.act.clone()),
+            act: (layers.out_act && !preact).then(|| layers.act.clone()),
             drop_block: None,
             drop_path_prob: 0.0,
         })
@@ -497,6 +609,10 @@ pub struct ConvNetContractConfig {
     /// The layer choices, for every stage that does not replace them.
     #[config(default = "ConvLayersConfig::new()")]
     pub layers: ConvLayersConfig,
+
+    /// The layer between the last stage and the pool; none when `None`.
+    #[config(default = "None")]
+    pub final_conv: Option<ConvFinalKind>,
 
     /// The head's global pool.
     #[config(default = "GlobalPool2dConfig::Avg")]
@@ -550,9 +666,19 @@ impl ToStructureConfig for ConvNetContractConfig {
             stages.push(ConvStageConfig { units });
             channels = spec.width;
         }
+        let final_conv = self.final_conv.map(|kind| match kind {
+            ConvFinalKind::Act => ConvFinalConfig::Act(self.layers.act.clone()),
+            ConvFinalKind::Conv { width } => {
+                ConvFinalConfig::Conv(self.layers.conv([channels, width], 1, 1, 1, 1, true))
+            }
+        });
+        if let Some(ConvFinalKind::Conv { width }) = self.final_conv {
+            channels = width;
+        }
         Ok(ConvNetStructureConfig {
             stem,
             stages,
+            final_conv,
             pool: self.global_pool,
             head: ClassifierHeadConfig::new(
                 self.global_pool.pooled_features(channels),

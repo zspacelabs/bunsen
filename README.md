@@ -1000,6 +1000,18 @@ run them.
 * timm/regnety_2560.seer_ft_in1k: [5.13 GB]
   timm's `regnety_2560`, its `seer_ft_in1k` weights.
 
+* timm/regnetv_040.ra3_in1k: [83.6 MB]
+  timm's `regnetv_040`, its `ra3_in1k` weights.
+
+* timm/regnetv_064.ra3_in1k: [123.4 MB]
+  timm's `regnetv_064`, its `ra3_in1k` weights.
+
+* timm/regnetz_040.ra3_in1k: [109.8 MB]
+  timm's `regnetz_040`, its `ra3_in1k` weights.
+
+* timm/regnetz_040_h.ra3_in1k: [117.1 MB]
+  timm's `regnetz_040_h`, its `ra3_in1k` weights.
+
 # contract: vit-classifier
 # A ViT image encoder, or classifier: a timm hub repo's checkpoint
 # (safetensors, or an older repo's PyTorch state dict) and `config.json`.

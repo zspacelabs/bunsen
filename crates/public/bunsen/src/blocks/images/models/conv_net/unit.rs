@@ -20,6 +20,12 @@ use burn::{
     tensor::Device,
 };
 
+use super::{
+    NormAct,
+    NormActConfig,
+    PreActConv,
+    PreActConvConfig,
+};
 use crate::{
     blocks::{
         activation::{
@@ -86,13 +92,23 @@ pub trait ConvChainMeta {
 /// One conv of a [`ResidualUnit`]'s path: the config of a [`ResidualConv`].
 ///
 /// A seam: each kind is a module of its own. Built today: a conv block
-/// ([`ConvBlock2dConfig`]). The spatial mixers of the `ResNet` kin (`Res2Net`'s
+/// ([`ConvBlock2dConfig`]) and a pre-activation conv ([`PreActConvConfig`]).
+/// The spatial mixers of the `ResNet` kin (`Res2Net`'s
 /// scale split, `ResNeSt`'s split attention, `SKNet`'s selective kernel) are
 /// further kinds.
 #[derive(Config, Debug)]
 pub enum ResidualConvConfig {
     /// A conv, norm and activation.
     Block(ConvBlock2dConfig),
+
+    /// A norm and activation, then a conv (a pre-activation unit's).
+    PreAct(PreActConvConfig),
+}
+
+impl From<PreActConvConfig> for ResidualConvConfig {
+    fn from(config: PreActConvConfig) -> Self {
+        Self::PreAct(config)
+    }
 }
 
 impl From<ConvBlock2dConfig> for ResidualConvConfig {
@@ -105,18 +121,21 @@ impl ConvChainMeta for ResidualConvConfig {
     fn in_channels(&self) -> usize {
         match self {
             Self::Block(config) => config.in_channels(),
+            Self::PreAct(config) => config.in_channels(),
         }
     }
 
     fn out_channels(&self) -> usize {
         match self {
             Self::Block(config) => config.out_channels(),
+            Self::PreAct(config) => config.out_channels(),
         }
     }
 
     fn stride(&self) -> usize {
         match self {
             Self::Block(config) => config.stride()[0],
+            Self::PreAct(config) => config.stride(),
         }
     }
 }
@@ -128,6 +147,7 @@ impl ModuleInit<ResidualConv> for ResidualConvConfig {
     ) -> BunsenResult<ResidualConv> {
         Ok(match self {
             Self::Block(config) => ResidualConv::Block(config.try_init(device)?),
+            Self::PreAct(config) => ResidualConv::PreAct(config.try_init(device)?),
         })
     }
 }
@@ -140,24 +160,30 @@ impl ModuleInit<ResidualConv> for ResidualConvConfig {
 pub enum ResidualConv {
     /// A conv, norm and activation.
     Block(ConvBlock2d),
+
+    /// A norm and activation, then a conv.
+    PreAct(PreActConv),
 }
 
 impl ConvChainMeta for ResidualConv {
     fn in_channels(&self) -> usize {
         match self {
             Self::Block(block) => block.in_channels(),
+            Self::PreAct(conv) => conv.in_channels(),
         }
     }
 
     fn out_channels(&self) -> usize {
         match self {
             Self::Block(block) => block.out_channels(),
+            Self::PreAct(conv) => conv.out_channels(),
         }
     }
 
     fn stride(&self) -> usize {
         match self {
             Self::Block(block) => block.stride()[0],
+            Self::PreAct(conv) => conv.stride(),
         }
     }
 }
@@ -165,7 +191,8 @@ impl ConvChainMeta for ResidualConv {
 impl ResidualConv {
     /// Applies the conv, with `f` run where a regularizer goes: for a block,
     /// after its norm and before its activation
-    /// ([`ConvBlock2d::map_forward`]).
+    /// ([`ConvBlock2d::map_forward`]); for a pre-activation conv, on its
+    /// output ([`PreActConv::map_forward`]).
     ///
     /// # Arguments
     ///
@@ -185,6 +212,7 @@ impl ResidualConv {
     {
         match self {
             Self::Block(block) => block.map_forward(input, f),
+            Self::PreAct(conv) => conv.map_forward(input, f),
         }
     }
 
@@ -407,6 +435,19 @@ pub struct ResidualUnitConfig {
     /// drop block follows its norm.
     pub mixer: usize,
 
+    /// A pre-activation unit's norm and activation over its input, before
+    /// both the path and the shortcut, which read its output (`RegNetV`'s
+    /// `norm1`); none when `None`. Its feature count is set to the unit's
+    /// input channels at init.
+    #[config(default = "None")]
+    pub pre: Option<NormActConfig>,
+
+    /// Whether the path's output adds to the shortcut's: `false`, the unit
+    /// is its path alone, with no shortcut (`RegNetZ`'s units that change
+    /// shape, timm's `downsample=None`).
+    #[config(default = "true")]
+    pub residual: bool,
+
     /// The anti-aliased downsampling after the mixer's activation, which then
     /// takes the stride from the mixer (timm's `aa`).
     #[config(default = "None")]
@@ -494,6 +535,12 @@ impl ResidualUnitConfig {
         let (in_channels, out_channels, stride) =
             (self.in_channels(), self.out_channels(), self.stride());
         match &self.shortcut {
+            Some(_) if !self.residual => {
+                return Err(BunsenError::illegal(
+                    "ResidualUnitConfig: a unit with no residual has no shortcut",
+                ));
+            }
+            None if !self.residual => {}
             Some(shortcut) => {
                 for (what, path, short) in [
                     ("in_channels", in_channels, shortcut.in_channels()),
@@ -570,6 +617,12 @@ impl ModuleInit<ResidualUnit> for ResidualUnitConfig {
                 .map(|c| c.try_init(device))
                 .collect::<BunsenResult<_>>()?,
             mixer: self.mixer,
+            pre: self
+                .pre
+                .as_ref()
+                .map(|p| p.try_init(self.in_channels(), device))
+                .transpose()?,
+            residual: self.residual,
             aa: self.aa.as_ref().map(|aa| aa.try_init(device)).transpose()?,
             shortcut: self
                 .shortcut
@@ -602,7 +655,9 @@ fn drop_path_layer(
 
 /// A residual unit: a conv path added to a shortcut, then an activation.
 ///
-/// `act(shortcut(x) + drop_path(attn(path(x))))`, where the path runs
+/// `act(shortcut(x) + drop_path(attn(path(x))))`, `x` first through the
+/// pre-activation when there is one, the add dropped for a unit with no
+/// residual; the path runs
 /// `convs` in order, a drop block follows the mixer's norm and the
 /// anti-aliasing pool its activation, and `attn` is the channel attention,
 /// when there is one; under [`ConvAttentionPlace::Mixer`] the attention
@@ -617,6 +672,12 @@ pub struct ResidualUnit {
 
     /// The index in `convs` of the spatial mixer.
     pub mixer: usize,
+
+    /// The pre-activation over the input, before the path and the shortcut.
+    pub pre: Option<NormAct>,
+
+    /// Whether the path adds to a shortcut.
+    pub residual: bool,
 
     /// The anti-aliased downsampling after the mixer.
     pub aa: Option<AntiAlias>,
@@ -682,9 +743,14 @@ impl ResidualUnit {
         #[cfg(not(any(debug_assertions, test)))]
         let _ = (batch, out_height, out_width);
 
-        let shortcut = match &self.shortcut {
-            Some(shortcut) => shortcut.forward(input.clone()),
-            None => input.clone(),
+        let input = match &self.pre {
+            Some(pre) => pre.forward(input),
+            None => input,
+        };
+        let shortcut = match (&self.shortcut, self.residual) {
+            (_, false) => None,
+            (Some(shortcut), true) => Some(shortcut.forward(input.clone())),
+            (None, true) => Some(input.clone()),
         };
 
         let mut x = input;
@@ -712,10 +778,15 @@ impl ResidualUnit {
         {
             x = attn.forward(x);
         }
-        if let Some(drop_path) = &self.drop_path {
+        if self.residual
+            && let Some(drop_path) = &self.drop_path
+        {
             x = drop_path.forward(x);
         }
-        let x = x + shortcut;
+        let x = match shortcut {
+            Some(shortcut) => x + shortcut,
+            None => x,
+        };
         let x = match &self.act {
             Some(act) => act.forward(x),
             None => x,

@@ -600,6 +600,30 @@ crates:
         core: false
         dtypes: [f32]
         varies: SWAG's fine-tune at 384
+      timm/regnetv_040.ra3_in1k:
+        size: small
+        gb: 0.18
+        core: false
+        dtypes: [f32]
+        varies: RegNetV - pre-activation units, shortcut convs with no norm
+      timm/regnetv_064.ra3_in1k:
+        size: small
+        gb: 0.22
+        core: false
+        dtypes: [f32]
+        varies: RegNetV with avg shortcuts
+      timm/regnetz_040.ra3_in1k:
+        size: small
+        gb: 0.21
+        core: false
+        dtypes: [f32]
+        varies: RegNetZ - an inverted bottleneck, no shortcut convs, linear unit outputs
+      timm/regnetz_040_h.ra3_in1k:
+        size: small
+        gb: 0.22
+        core: false
+        dtypes: [f32]
+        varies: RegNetZ with a final conv to 1536 features
       timm/deit_small_patch16_224.fb_in1k:
         size: small
         gb: 0.2

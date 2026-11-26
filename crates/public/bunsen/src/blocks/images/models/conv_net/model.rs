@@ -14,22 +14,33 @@ use burn::{
 };
 
 use crate::{
-    blocks::images::{
-        drop::rate_table::linear_drop_path_rate_schedule,
-        models::{
-            classifier_head::{
-                ClassifierHead,
-                ClassifierHeadConfig,
-            },
-            conv_net::{
-                ConvChainMeta,
-                ConvStage,
-                ConvStageConfig,
-                ConvStageMeta,
-                ConvStem,
-                ConvStemConfig,
-                GlobalPool2d,
-                GlobalPool2dConfig,
+    blocks::{
+        activation::{
+            BunsenActivation,
+            BunsenActivationConfig,
+        },
+        conv::{
+            ConvBlock2d,
+            ConvBlock2dConfig,
+            ConvBlock2dMeta,
+        },
+        images::{
+            drop::rate_table::linear_drop_path_rate_schedule,
+            models::{
+                classifier_head::{
+                    ClassifierHead,
+                    ClassifierHeadConfig,
+                },
+                conv_net::{
+                    ConvChainMeta,
+                    ConvStage,
+                    ConvStageConfig,
+                    ConvStageMeta,
+                    ConvStem,
+                    ConvStemConfig,
+                    GlobalPool2d,
+                    GlobalPool2dConfig,
+                },
             },
         },
     },
@@ -58,15 +69,65 @@ pub trait ConvNetMeta {
     /// The number of stages.
     fn num_stages(&self) -> usize;
 
-    /// The channels of the last stage's map: the pooled features' width.
+    /// The channels of the map the pool reads: the last stage's, or its
+    /// final conv's.
     fn d_features(&self) -> usize;
 
     /// The classes of the head.
     fn num_classes(&self) -> usize;
 }
 
+/// What a conv net applies to its last stage's map before the pool: the
+/// config of a [`ConvFinal`] (timm's `final_conv`).
+#[derive(Config, Debug)]
+pub enum ConvFinalConfig {
+    /// An activation alone (a pre-activation net's, or a linear-output
+    /// net's: `RegNetV`'s, `RegNetZ`'s).
+    Act(BunsenActivationConfig),
+
+    /// A conv block, widening the features (`RegNetZ`'s `num_features`, a
+    /// `1x1` conv, a norm and an activation).
+    Conv(ConvBlock2dConfig),
+}
+
+/// A conv net's last layer before the pool; built by [`ConvFinalConfig`].
+/// The variant is not part of a parameter's path: a conv's weight is
+/// `final_conv.conv.weight`.
+#[derive(Module, Debug)]
+// One per net: the variants' size gap costs nothing worth a box.
+#[allow(clippy::large_enum_variant)]
+pub enum ConvFinal {
+    /// An activation.
+    Act(BunsenActivation),
+
+    /// A conv block.
+    Conv(ConvBlock2d),
+}
+
+impl ConvFinal {
+    /// The map, through the layer.
+    ///
+    /// # Arguments
+    ///
+    /// - `x`: `[batch, channels, height, width]`.
+    ///
+    /// # Returns
+    ///
+    /// `[batch, out_channels, height, width]`: a conv's channels, else the
+    /// input's.
+    pub fn forward(
+        &self,
+        x: Tensor<4>,
+    ) -> Tensor<4> {
+        match self {
+            Self::Act(act) => act.forward(x),
+            Self::Conv(block) => block.forward(x),
+        }
+    }
+}
+
 /// [`ConvNetModel`]'s structure: the stem, every stage's resolved units, the
-/// global pool and the head.
+/// final layer, the global pool and the head.
 ///
 /// The structure of the conv net's [Stacked
 /// config](crate::burner::module::ModuleInit#stacked-config):
@@ -82,6 +143,10 @@ pub struct ConvNetStructureConfig {
 
     /// The stages, in order.
     pub stages: Vec<ConvStageConfig>,
+
+    /// The layer between the last stage and the pool; none when `None`.
+    #[config(default = "None")]
+    pub final_conv: Option<ConvFinalConfig>,
 
     /// The global pool over the last stage's map.
     #[config(default = "GlobalPool2dConfig::Avg")]
@@ -101,7 +166,10 @@ impl ConvNetMeta for ConvNetStructureConfig {
     }
 
     fn d_features(&self) -> usize {
-        self.stages.last().map_or(0, ConvChainMeta::out_channels)
+        match &self.final_conv {
+            Some(ConvFinalConfig::Conv(block)) => block.out_channels(),
+            _ => self.stages.last().map_or(0, ConvChainMeta::out_channels),
+        }
     }
 
     fn num_classes(&self) -> usize {
@@ -141,6 +209,24 @@ impl ConvNetStructureConfig {
                     .map(|(idx, s)| (idx, s.in_channels(), s.out_channels())),
             ),
         )?;
+        if let Some(ConvFinalConfig::Conv(block)) = &self.final_conv {
+            let last = self.stages.last().map_or(0, ConvChainMeta::out_channels);
+            if block.in_channels() != last {
+                return Err(ConstraintError::new(
+                    OWNER,
+                    "final_conv",
+                    Rule::Relation {
+                        lhs: (
+                            "final_conv in_channels".into(),
+                            format!("{}", block.in_channels()),
+                        ),
+                        op: "==",
+                        rhs: ("the last stage's out_channels".into(), format!("{last}")),
+                    },
+                )
+                .into());
+            }
+        }
         let pooled = self.pool.pooled_features(self.d_features());
         if self.head.d_features != pooled {
             return Err(ConstraintError::new(
@@ -220,6 +306,16 @@ impl ModuleInit<ConvNetModel> for ConvNetStructureConfig {
                 .iter()
                 .map(|s| s.try_init(device))
                 .collect::<BunsenResult<_>>()?,
+            final_conv: self
+                .final_conv
+                .as_ref()
+                .map(|f| -> BunsenResult<ConvFinal> {
+                    Ok(match f {
+                        ConvFinalConfig::Act(act) => ConvFinal::Act(act.init(device)),
+                        ConvFinalConfig::Conv(block) => ConvFinal::Conv(block.try_init(device)?),
+                    })
+                })
+                .transpose()?,
             pool: self.pool.try_init(device)?,
             head: self.head.try_init(device)?,
         })
@@ -246,6 +342,9 @@ pub struct ConvNetModel {
     /// The stages, in order.
     pub stages: Vec<ConvStage>,
 
+    /// The layer between the last stage and the pool.
+    pub final_conv: Option<ConvFinal>,
+
     /// The global pool over the last stage's map.
     pub pool: GlobalPool2d,
 
@@ -263,7 +362,10 @@ impl ConvNetMeta for ConvNetModel {
     }
 
     fn d_features(&self) -> usize {
-        self.stages.last().map_or(0, ConvChainMeta::out_channels)
+        match &self.final_conv {
+            Some(ConvFinal::Conv(block)) => block.out_channels(),
+            _ => self.stages.last().map_or(0, ConvChainMeta::out_channels),
+        }
     }
 
     fn num_classes(&self) -> usize {
@@ -332,6 +434,10 @@ impl ConvNetModel {
         let [batch] = self.unpack_images(&images);
         let x = self.stem.forward(images);
         let x = self.stages.iter().fold(x, |x, stage| stage.forward(x));
+        let x = match &self.final_conv {
+            Some(final_conv) => final_conv.forward(x),
+            None => x,
+        };
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "d_features", _, _],

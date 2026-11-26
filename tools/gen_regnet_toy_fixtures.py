@@ -1,6 +1,6 @@
 """Generate the regnet kit's toy fixtures: tiny seeded timm `RegNet`s and their answers.
 
-Five toys, each timm's own `timm.models.regnet.RegNet` of a small `RegNetCfg`: 7 units,
+Nine toys, each timm's own `timm.models.regnet.RegNet` of a small `RegNetCfg`: 7 units,
 `w0=8`, `wa=6.0`, `wm=1.5`, which timm's width rule makes four stages of `(1, 2, 2, 2)` units,
 `(8, 16, 24, 40)` wide, on its 32-wide `3x3` stem; 10 classes:
 
@@ -11,7 +11,16 @@ Five toys, each timm's own `timm.models.regnet.RegNet` of a small `RegNetCfg`: 7
   widths (`make_divisible(16, 12)` rounds up to 24), with the squeeze-excite;
 - `toy_headless`: `toy_y` with no classifier (`num_classes=0`), as a `SEER` trunk: the
   output is the pooled features;
-- `toy_odd`: `toy_y` on 36x36 images, so the stages see odd sizes (18, 9, 5, 3).
+- `toy_odd`: `toy_y` on 36x36 images, so the stages see odd sizes (18, 9, 5, 3);
+- `toy_v`: a `RegNetV`: pre-activation units (`preact=True`: a bare stem conv, each unit's input
+  normalized and activated before its path and its shortcut, a shortcut conv with no norm, no
+  activation after the add, an activation after the last stage), `SiLU`, the squeeze-excite;
+- `toy_v_avg`: `toy_v` with `avg` shortcuts (a `2x2` pool, then the conv), as `regnetv_064`;
+- `toy_z`: a `RegNetZ`: a bottleneck 4x its unit's width (`bottle_ratio=4`), no shortcut convs
+  (`downsample=None`: a unit that changes shape has no residual), linear unit outputs and an
+  activation after the last stage (`linear_out=True`), `SiLU`, the squeeze-excite;
+- `toy_z_h`: `toy_z` with a final `1x1` conv, norm and activation to 48 features
+  (`num_features`), as `regnetz_040_h`.
 
 The toy test builds each as bunsen's `RegNetContractConfig` of the same knobs.
 
@@ -58,6 +67,19 @@ TOYS = {
     "toy_tv": (dict(TOY, group_size=12, group_min_ratio=0.9, se_ratio=0.25), {}),
     "toy_headless": (dict(TOY, se_ratio=0.25), dict(num_classes=0)),
     "toy_odd": (dict(TOY, se_ratio=0.25), {}),
+    "toy_v": (dict(TOY, preact=True, act_layer="silu", se_ratio=0.25), {}),
+    "toy_v_avg": (dict(TOY, preact=True, act_layer="silu", se_ratio=0.25, downsample="avg"), {}),
+    "toy_z": (
+        dict(TOY, bottle_ratio=4.0, downsample=None, linear_out=True, act_layer="silu", se_ratio=0.25),
+        {},
+    ),
+    "toy_z_h": (
+        dict(
+            TOY, bottle_ratio=4.0, downsample=None, linear_out=True, act_layer="silu", se_ratio=0.25,
+            num_features=48,
+        ),
+        {},
+    ),
 }
 
 # The image side of each toy: odd stage sizes for `toy_odd`.

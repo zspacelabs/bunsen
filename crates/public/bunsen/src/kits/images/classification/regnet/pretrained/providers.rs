@@ -65,7 +65,7 @@ mod tests {
     fn test_every_row_is_a_pinned_timm_repo() {
         let factory = super::super::default_regnet_factory().unwrap();
         let rows = factory.list();
-        assert_eq!(rows.len(), 61);
+        assert_eq!(rows.len(), 65);
         let architectures = RegNetContractConfig::prefab_names();
         let mut by_labels: BTreeMap<String, usize> = BTreeMap::new();
         for (_, row) in &rows {
@@ -94,7 +94,7 @@ mod tests {
             BTreeMap::from([
                 (String::new(), 3),
                 ("imagenet/synsets-12k".into(), 2),
-                ("imagenet/synsets-1k".into(), 56),
+                ("imagenet/synsets-1k".into(), 60),
             ])
         );
     }

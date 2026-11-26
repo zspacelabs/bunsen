@@ -12,7 +12,8 @@
 //! of [`REGNET_CATALOG_CONTRACT`] in its `timm` namespace, written by the
 //! catalog builder's `timm-rows`: every timm hub repo of a prefab's
 //! architecture (`timm/regnety_032.ra_in1k`), each pinned at a revision:
-//! pycls's, torchvision's v2, timm's own, `SEER`'s and `SWAG`'s. A row whose
+//! pycls's, torchvision's v2, timm's own (`RegNetV` and `RegNetZ` among
+//! them), `SEER`'s and `SWAG`'s. A row whose
 //! head has an `ImageNet` label set's class count binds those labels; the
 //! headless `SEER` trunks bind none. A row's license is its card's: `SWAG`'s
 //! are non-commercial, `SEER`'s under its own license.

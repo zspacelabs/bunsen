@@ -45,7 +45,7 @@ fn resnet_like(
 ) -> ConvNetContractConfig {
     let expansion = match unit {
         ConvUnitKind::Basic => 1,
-        ConvUnitKind::Bottleneck => 4,
+        ConvUnitKind::Bottleneck | ConvUnitKind::PreBottleneck => 4,
     };
     let stages = depths
         .iter()
@@ -62,7 +62,9 @@ fn resnet_like(
 /// A conv block's `[in, out]`, kernel, stride, dilation, groups, and whether
 /// it has an activation.
 fn conv_shape(conv: &ResidualConvConfig) -> ([usize; 2], usize, usize, usize, usize, bool) {
-    let ResidualConvConfig::Block(block) = conv;
+    let ResidualConvConfig::Block(block) = conv else {
+        panic!("a conv block");
+    };
     (
         [block.in_channels(), block.out_channels()],
         block.kernel_size()[0],
@@ -182,7 +184,9 @@ fn test_output_stride_dilates() {
     assert_eq!(dilations(3, 0), [2, 4]);
     assert_eq!(dilations(3, 1), [4, 4]);
     // A 3x3's padding keeps the size at its dilation.
-    let ResidualConvConfig::Block(block) = &structure.stages[3].units[1].convs[0];
+    let ResidualConvConfig::Block(block) = &structure.stages[3].units[1].convs[0] else {
+        panic!("a conv block");
+    };
     assert_eq!(
         block.conv.padding,
         burn::nn::PaddingConfig2d::Explicit(4, 4, 4, 4)
@@ -587,4 +591,69 @@ fn test_mixer_attention_forward() {
         &want,
         burn::tensor::Tolerance::default(),
     );
+}
+
+/// A pre-activation bottleneck: the unit's input normed and activated once,
+/// each later conv after its own norm, a shortcut conv with no norm, no
+/// activation after the add. A `None` shortcut drops the residual of a unit
+/// that changes shape; a unit with no residual takes no shortcut.
+#[test]
+fn test_preact_and_unshortcut_units() {
+    let stages = vec![ConvStageContractConfig::new(
+        2,
+        ConvUnitKind::PreBottleneck,
+        16,
+        8,
+    )];
+    let policy = ConvNetContractConfig::new(
+        ConvStemContractConfig::new(vec![8])
+            .with_kernel_size(3)
+            .with_pool(ConvStemPoolKind::None)
+            .with_norm_act(false),
+        stages,
+        5,
+    )
+    .with_final_conv(Some(ConvFinalKind::Act));
+    let structure = policy.to_structure();
+    let stem = &structure.stem.convs[0];
+    assert!(stem.norm.is_none() && stem.act.is_none());
+    let unit = &structure.stages[0].units[0];
+    assert!(unit.pre.is_some());
+    assert!(unit.act.is_none());
+    let norms: Vec<_> = unit
+        .convs
+        .iter()
+        .map(|c| match c {
+            ResidualConvConfig::PreAct(conv) => conv.norm.is_some(),
+            ResidualConvConfig::Block(_) => panic!("a pre-activation conv"),
+        })
+        .collect();
+    assert_eq!(norms, [false, true, true]);
+    assert!(unit.shortcut.as_ref().unwrap().block.norm.is_none());
+    assert!(matches!(
+        structure.final_conv,
+        Some(ConvFinalConfig::Act(_))
+    ));
+    let device = cpu_device();
+    let model: ConvNetModel = structure.init(&device);
+    let images = Tensor::<4>::zeros([1, 3, 16, 16], &device);
+    assert_eq!(model.forward(images).dims(), [1, 5]);
+
+    let mut policy = resnet_like(&[1, 1], 8, ConvUnitKind::Bottleneck);
+    policy.layers.shortcut = ConvShortcutKind::None;
+    let structure = policy.to_structure();
+    let reshaping = &structure.stages[0].units[0];
+    assert!(!reshaping.residual && reshaping.shortcut.is_none());
+    let mut wrong = structure.stages[1].units[0].clone();
+    wrong.shortcut = structure.stages[0].units[0].shortcut.clone().or_else(|| {
+        resnet_like(&[1], 8, ConvUnitKind::Bottleneck)
+            .to_structure()
+            .stages[0]
+            .units[0]
+            .shortcut
+            .clone()
+    });
+    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        .message_contains("a unit with no residual has no shortcut")
+        .assert_err(&wrong.try_validate());
 }

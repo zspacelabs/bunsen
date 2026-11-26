@@ -1463,6 +1463,102 @@ timm:
       $kind: resource
       $file: config.json
       $format: json
+  regnetv_040.ra3_in1k:
+    $kind: build
+    $description: "timm's `regnetv_040`, its `ra3_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnetv_040.ra3_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetv_040.ra3_in1k
+      $revision: eb50fdba03a04ece175083157994ee2e44010df5
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetv_064.ra3_in1k:
+    $kind: build
+    $description: "timm's `regnetv_064`, its `ra3_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnetv_064.ra3_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetv_064.ra3_in1k
+      $revision: 804163d8b85a23709590cc470866571c5cef5305
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetz_040.ra3_in1k:
+    $kind: build
+    $description: "timm's `regnetz_040`, its `ra3_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnetz_040.ra3_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetz_040.ra3_in1k
+      $revision: b80c03b867074c36cb475828a9f5991e45b1fe50
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+  regnetz_040_h.ra3_in1k:
+    $kind: build
+    $description: "timm's `regnetz_040_h`, its `ra3_in1k` weights."
+    $license: apache-2.0
+    $origin: https://huggingface.co/timm/regnetz_040_h.ra3_in1k
+    $contract: regnet-classifier
+    $join:
+      - regnet
+    $hub:
+      $repo: timm/regnetz_040_h.ra3_in1k
+      $revision: ffc2e870c09aec5b5e6c5c81c0f98278a4b2d43c
+    $resources:
+      checkpoint: checkpoint
+      config: config
+      labels: /imagenet/synsets-1k
+      label_names: /imagenet/lemmas
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
       # END `cargo catalog timm-rows`.
 regnet:
   $kind: namespace

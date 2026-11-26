@@ -28,9 +28,9 @@
 //!   ones with a distillation token and a second classifier. 16 prefabs, loaded
 //!   from timm's hub repos through
 //!   [`default_deit_factory`](deit::pretrained::default_deit_factory).
-//! - [`regnet`]: `RegNetX` and `RegNetY`, built as the generic conv net, their
-//!   widths generated from timm's configs; prefabs and timm's hub repos, loaded
-//!   by name through
+//! - [`regnet`]: `RegNetX`, `RegNetY`, `RegNetV` and `RegNetZ`, built as the
+//!   generic conv net, their widths generated from timm's configs; prefabs and
+//!   timm's hub repos, loaded by name through
 //!   [`default_regnet_factory`](regnet::pretrained::default_regnet_factory).
 //! - [`swin`]: the Swin Transformer, V1 (with the Swin-S3 geometries) and V2,
 //!   built as the generic staged vision encoder, with timm's hub repos.
