@@ -4,8 +4,13 @@ use alloc::{
 };
 
 use burn::{
-    nn::conv::Conv2dConfig,
+    nn::{
+        PaddingConfig2d,
+        conv::Conv2dConfig,
+        pool::MaxPool2dConfig,
+    },
     prelude::Tensor,
+    tensor::Distribution,
 };
 
 use super::*;
@@ -323,8 +328,9 @@ fn test_avg_conv_shortcuts_are_timms() {
     assert_eq!(sizes, [18, 9, 5, 5]);
 }
 
-/// A malformed tree is an error from `try_init`, not a panic: no stages, an
-/// empty stage, a stage that does not chain, a mixer past the path, a
+/// A malformed tree is an error from `try_init`, not a panic: a head that
+/// doesn't read the pooled features (a net of no stages pools its stem's),
+/// an empty stage, a stage that does not chain, a mixer past the path, a
 /// widening unit with no shortcut.
 #[test]
 fn test_try_init_rejects_bad_trees() {
@@ -334,7 +340,7 @@ fn test_try_init_rejects_bad_trees() {
     let init = |s: ConvNetStructureConfig| -> BunsenResult<ConvNetModel> { s.try_init(&device) };
 
     illegal()
-        .message_contains("ConvNetStructureConfig.stages")
+        .message_contains("ConvNetStructureConfig.head")
         .assert_err(&init(ConvNetStructureConfig {
             stages: vec![],
             ..structure.clone()
@@ -703,7 +709,7 @@ fn test_resnetv2_pieces() {
             conv.weight_std = None;
         }
     }
-    let x = Tensor::<4>::random([1, 8, 4, 4], burn::tensor::Distribution::Default, &device);
+    let x = Tensor::<4>::random([1, 8, 4, 4], Distribution::Default, &device);
     zeroed
         .forward(x.clone())
         .into_data()
@@ -712,4 +718,84 @@ fn test_resnetv2_pieces() {
     let model: ConvNetModel = structure.init(&device);
     let images = Tensor::<4>::zeros([1, 3, 16, 16], &device);
     assert_eq!(model.forward(images).dims(), [1, 5]);
+}
+
+/// The hybrid `ViT`'s backbone pieces: every conv SAME-padded (unpadded
+/// itself, its input padded from its own size), the SAME-padded max pool,
+/// and the map's size on odd images, `ceil(side / stride)` at every stride.
+#[test]
+fn test_same_padded_net() {
+    let mut policy = ConvNetContractConfig::new(
+        ConvStemContractConfig::new(vec![8]).with_pool(ConvStemPoolKind::SameMax),
+        vec![ConvStageContractConfig::new(
+            1,
+            ConvUnitKind::Bottleneck,
+            16,
+            8,
+        )],
+        0,
+    );
+    policy.layers.same_pad = true;
+    policy.layers.weight_std = Some(1e-8);
+    let structure = policy.to_structure();
+    assert!(matches!(
+        structure.stem.pool,
+        Some(ConvStemPoolConfig::SameMax(_))
+    ));
+    let unit = &structure.stages[0].units[0];
+    let blocks = structure.stem.convs.iter().chain(
+        unit.convs
+            .iter()
+            .map(|c| match c {
+                ResidualConvConfig::Block(block) => block,
+                ResidualConvConfig::PreAct(_) => panic!("a conv block"),
+            })
+            .chain(unit.shortcut.as_ref().map(|s| &s.block)),
+    );
+    for block in blocks {
+        assert!(block.same_pad && matches!(block.conv.padding, PaddingConfig2d::Valid));
+    }
+    // 19: the stem's stride-2 conv, 10; its pool, 5; the stage, 3.
+    assert_eq!(structure.try_feature_size([19, 21]).unwrap(), [3, 3]);
+    let device = cpu_device();
+    let model: ConvNetModel = structure.init(&device);
+    let images = Tensor::<4>::random([1, 3, 19, 21], Distribution::Default, &device);
+    assert_eq!(model.feature_map(images).dims(), [1, 16, 3, 3]);
+}
+
+/// The SAME-padded max pool pads with `-inf`: over a negative map, the pad
+/// never wins, where a zero pad would.
+#[test]
+fn test_same_max_pool_pads_with_neg_infinity() {
+    let device = cpu_device();
+    let pool: ConvStemPool =
+        ConvStemPoolConfig::SameMax(MaxPool2dConfig::new([3, 3]).with_strides([2, 2]))
+            .init(&device);
+    let x = Tensor::<4>::ones([1, 2, 6, 5], &device).neg();
+    let y = pool.forward(x);
+    assert_eq!(y.dims(), [1, 2, 3, 3]);
+    y.into_data().assert_eq(
+        &Tensor::<4>::ones([1, 2, 3, 3], &device).neg().into_data(),
+        true,
+    );
+}
+
+/// A net of no stages is its stem: the hybrid `ViT`'s smallest backbone.
+#[test]
+fn test_stem_only_net() {
+    let policy = ConvNetContractConfig::new(
+        ConvStemContractConfig::new(vec![8]).with_pool(ConvStemPoolKind::SameMax),
+        vec![],
+        0,
+    )
+    .with_layers(ConvLayersConfig::new().with_same_pad(true));
+    let structure = policy.to_structure();
+    assert_eq!(structure.d_features(), 8);
+    assert_eq!(structure.try_feature_size([32, 32]).unwrap(), [8, 8]);
+    let device = cpu_device();
+    let model: ConvNetModel = structure.init(&device);
+    assert_eq!(model.d_features(), 8);
+    let images = Tensor::<4>::zeros([2, 3, 32, 32], &device);
+    assert_eq!(model.feature_map(images.clone()).dims(), [2, 8, 8, 8]);
+    assert_eq!(model.forward(images).dims(), [2, 8]);
 }

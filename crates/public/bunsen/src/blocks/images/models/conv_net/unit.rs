@@ -315,6 +315,7 @@ impl ModuleInit<ConvShortcut> for ConvShortcutConfig {
             norm,
             act,
             weight_std,
+            same_pad,
         } = self.block.try_init(device)?;
         Ok(ConvShortcut {
             pool: self.pool.as_ref().map(AvgPool2dConfig::init),
@@ -322,6 +323,7 @@ impl ModuleInit<ConvShortcut> for ConvShortcutConfig {
             norm,
             act,
             weight_std,
+            same_pad,
         })
     }
 }
@@ -348,6 +350,10 @@ pub struct ConvShortcut {
     /// The conv's weight standardization `eps`, if any.
     #[module(skip)]
     pub weight_std: Option<f64>,
+
+    /// Whether the conv's input is SAME-padded first.
+    #[module(skip)]
+    pub same_pad: bool,
 }
 
 impl ConvChainMeta for ConvShortcut {
@@ -392,10 +398,8 @@ impl ConvShortcut {
             Some(pool) => pool.forward(input),
             None => input,
         };
-        let x = match self.weight_std {
-            Some(eps) => crate::ops::conv::weight_standardized_conv2d(&self.conv, x, eps),
-            None => self.conv.forward(x),
-        };
+        let x =
+            crate::ops::conv::conv2d_variant_forward(&self.conv, x, self.weight_std, self.same_pad);
         let x = match &self.norm {
             Some(norm) => norm.forward(x),
             None => x,

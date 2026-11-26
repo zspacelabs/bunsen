@@ -36,14 +36,16 @@ use crate::{
         BunsenResult,
         ConstraintError,
     },
+    ops::conv::pad_same,
 };
 
 /// The stem's pool: the config of a [`ConvStemPool`].
 ///
 /// A seam: each kind is a module of its own. Built: a max pool (`ResNet`'s
 /// `3x3`, stride 2), and the anti-aliased nets' (timm's `aa_layer`): an
-/// average pool, or a max pool of stride 1 and a blur of the stride; and
-/// `ResNet-RS`'s strided conv block.
+/// average pool, or a max pool of stride 1 and a blur of the stride;
+/// `ResNet-RS`'s strided conv block; and `BiT`'s zero-padded and the hybrid
+/// `ViT`'s SAME-padded max pools.
 #[derive(Config, Debug)]
 pub enum ConvStemPoolConfig {
     /// A max pool.
@@ -64,6 +66,11 @@ pub enum ConvStemPoolConfig {
     /// padding=0)`); the zeros, unlike a max pool's own padding, can win
     /// over a negative map.
     ZeroPadMax(MaxPool2dConfig),
+
+    /// The input SAME-padded from its own size with `-inf`, then a max pool
+    /// of no padding of its own (timm's `MaxPool2dSame`): the odd pixel's pad
+    /// goes bottom-right, and never wins.
+    SameMax(MaxPool2dConfig),
 }
 
 impl ConvStemPoolConfig {
@@ -74,7 +81,7 @@ impl ConvStemPoolConfig {
             Self::Conv(config) => config.stride()[0],
             Self::Avg(config) => config.strides[0],
             Self::MaxBlur(config) => config.max.strides[0] * config.blur.stride(),
-            Self::ZeroPadMax(config) => config.strides[0],
+            Self::ZeroPadMax(config) | Self::SameMax(config) => config.strides[0],
         }
     }
 }
@@ -98,6 +105,7 @@ impl ModuleInit<ConvStemPool> for ConvStemPoolConfig {
                 blur: config.blur.try_init(device)?,
             }),
             Self::ZeroPadMax(config) => ConvStemPool::ZeroPadMax(config.init()),
+            Self::SameMax(config) => ConvStemPool::SameMax(config.init()),
         })
     }
 }
@@ -143,6 +151,9 @@ pub enum ConvStemPool {
 
     /// A zero pad of 1, then a max pool.
     ZeroPadMax(MaxPool2d),
+
+    /// A SAME pad of `-inf`, then a max pool.
+    SameMax(MaxPool2d),
 }
 
 impl ConvStemPool {
@@ -153,7 +164,7 @@ impl ConvStemPool {
             Self::Conv(block) => block.stride()[0],
             Self::Avg(pool) => pool.stride[0],
             Self::MaxBlur(pool) => pool.max.stride[0] * pool.blur.stride(),
-            Self::ZeroPadMax(pool) => pool.stride[0],
+            Self::ZeroPadMax(pool) | Self::SameMax(pool) => pool.stride[0],
         }
     }
 
@@ -175,6 +186,13 @@ impl ConvStemPool {
             Self::Avg(pool) => pool.forward(input),
             Self::MaxBlur(pool) => pool.blur.forward(pool.max.forward(input)),
             Self::ZeroPadMax(pool) => pool.forward(input.pad([(1, 1), (1, 1)], 0.0)),
+            Self::SameMax(pool) => pool.forward(pad_same(
+                input,
+                pool.kernel_size,
+                pool.stride,
+                pool.dilation,
+                f32::NEG_INFINITY,
+            )),
         };
         // A pool keeps the channels.
         #[cfg(any(debug_assertions, test))]
