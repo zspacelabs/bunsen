@@ -136,22 +136,13 @@ impl ConvAttentionKind {
             }
             Self::Eca => ChannelAttentionConfig::Eca(EcaConfig::timm(channels)),
             Self::SeFromInput { se_ratio } => ChannelAttentionConfig::Se(
-                SqueezeExciteConfig::new(channels, round_ties_even(in_channels as f64 * se_ratio))
-                    .with_act(act.clone()),
+                SqueezeExciteConfig::new(
+                    channels,
+                    crate::support::math::round_ties_even(in_channels as f64 * se_ratio),
+                )
+                .with_act(act.clone()),
             ),
         }
-    }
-}
-
-/// `x`, non-negative, rounded to the nearest integer, ties to even (Python's
-/// `round`), without `std`'s float functions.
-pub(super) fn round_ties_even(x: f64) -> usize {
-    let floor = x as usize;
-    let frac = x - floor as f64;
-    if frac > 0.5 || (frac == 0.5 && floor % 2 == 1) {
-        floor + 1
-    } else {
-        floor
     }
 }
 

@@ -42,6 +42,7 @@ use bunsen::{
     },
     kits::images::classification::{
         deit::DeiTContractConfig,
+        regnet::RegNetContractConfig,
         resnet::ResNetContractConfig,
         swin::{
             v1::SwinV1ContractConfig,
@@ -140,6 +141,13 @@ pub fn timm_kits() -> Vec<TimmKit> {
             join: &["resnet"],
             architectures: ResNetContractConfig::prefab_names(),
             unlabelled: false,
+        },
+        TimmKit {
+            name: "regnet",
+            contract: "regnet-classifier",
+            join: &["regnet"],
+            architectures: RegNetContractConfig::prefab_names(),
+            unlabelled: true,
         },
         TimmKit {
             name: "vit",
