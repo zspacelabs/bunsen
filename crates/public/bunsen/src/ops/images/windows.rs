@@ -21,6 +21,8 @@ use burn::{
 #[allow(unused_imports)]
 use num_traits::Float;
 
+use crate::contracts::unpack_shape_contract;
+
 /// A stage's window and shift, after timm's `_calc_window_shift`: an axis
 /// whose grid is no larger than the window takes the grid's size as its
 /// window, and no shift.
@@ -70,20 +72,34 @@ pub fn pad_bottom_right(
     x: Tensor<4>,
     pad: [usize; 2],
 ) -> Tensor<4> {
-    let [b, h, w, c] = x.dims();
+    let [b, h, w, c] = unpack_shape_contract!(["batch", "height", "width", "channels"], &x.dims());
     let device = x.device();
     let dtype = x.dtype();
     let x = match pad[0] {
         0 => x,
         rows => Tensor::cat(vec![x, Tensor::zeros([b, rows, w, c], (&device, dtype))], 1),
     };
-    match pad[1] {
+    let x = match pad[1] {
         0 => x,
         cols => Tensor::cat(
             vec![x, Tensor::zeros([b, h + pad[0], cols, c], (&device, dtype))],
             2,
         ),
-    }
+    };
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["batch", "height" + "rows", "width" + "columns", "channels"],
+        &x.dims(),
+        &[
+            ("batch", b),
+            ("height", h),
+            ("width", w),
+            ("channels", c),
+            ("rows", pad[0]),
+            ("columns", pad[1]),
+        ]
+    );
+    x
 }
 
 /// The grid cut into windows, timm's `window_partition`: each window's
@@ -106,15 +122,16 @@ pub fn window_partition(
     x: Tensor<4>,
     window: [usize; 2],
 ) -> Tensor<4> {
-    let [b, h, w, c] = x.dims();
     let [wh, ww] = window;
-    assert!(
-        h % wh == 0 && w % ww == 0,
-        "window_partition: a {h}x{w} grid in {wh}x{ww} windows"
+    let [b, nh, nw, c] = unpack_shape_contract!(
+        ["batch", "h_wins" * "wh", "w_wins" * "ww", "channels"],
+        &x.dims(),
+        &["batch", "h_wins", "w_wins", "channels"],
+        &[("wh", wh), ("ww", ww)]
     );
-    x.reshape([b, h / wh, wh, w / ww, ww, c])
+    x.reshape([b, nh, wh, nw, ww, c])
         .permute([0, 1, 3, 2, 4, 5])
-        .reshape([b * (h / wh) * (w / ww), wh, ww, c])
+        .reshape([b * nh * nw, wh, ww, c])
 }
 
 /// Windows put back into their grid, timm's `window_reverse`: the inverse
@@ -132,13 +149,25 @@ pub fn window_reverse(
     windows: Tensor<4>,
     grid: [usize; 2],
 ) -> Tensor<4> {
-    let [n, wh, ww, c] = windows.dims();
+    let [n, wh, ww, c] =
+        unpack_shape_contract!(["windows", "wh", "ww", "channels"], &windows.dims());
+    // The grid is a whole number of windows, and the windows a whole number
+    // of grids.
     let [h, w] = grid;
-    let (nh, nw) = (h / wh, w / ww);
+    let [nh, nw, b] = unpack_shape_contract!(
+        [
+            "h_wins" * "wh",
+            "w_wins" * "ww",
+            "batch" * "h_wins" * "w_wins"
+        ],
+        &[h, w, n],
+        &["h_wins", "w_wins", "batch"],
+        &[("wh", wh), ("ww", ww)]
+    );
     windows
-        .reshape([n / (nh * nw), nh, nw, wh, ww, c])
+        .reshape([b, nh, nw, wh, ww, c])
         .permute([0, 1, 3, 2, 4, 5])
-        .reshape([n / (nh * nw), h, w, c])
+        .reshape([b, h, w, c])
 }
 
 /// The shifted-window attention mask of a block over `grid`, timm's
@@ -193,10 +222,22 @@ pub fn shifted_window_mask(
             }
         }
     }
-    Some(Tensor::from_data(
+    let mask = Tensor::from_data(
         TensorData::new(values, [(h / wh) * (w / ww), area, area]),
         device,
-    ))
+    );
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["h_wins" * "w_wins", "wh" * "ww", "wh" * "ww"],
+        &mask.dims(),
+        &[
+            ("h_wins", h / wh),
+            ("w_wins", w / ww),
+            ("wh", wh),
+            ("ww", ww)
+        ]
+    );
+    Some(mask)
 }
 
 /// The relative position index of a window's token pairs, timm's
@@ -221,7 +262,14 @@ pub fn relative_position_index(
             values.push(dy * (2 * ww as i64 - 1) + dx);
         }
     }
-    Tensor::from_data(TensorData::new(values, [area, area]), device)
+    let index = Tensor::from_data(TensorData::new(values, [area, area]), device);
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["wh" * "ww", "wh" * "ww"],
+        &index.dims(),
+        &[("wh", wh), ("ww", ww)]
+    );
+    index
 }
 
 /// Swin V2's log-spaced relative coordinate table, timm's
@@ -256,7 +304,14 @@ pub fn log_relative_coords_table(
             values.push(norm(dx, 1));
         }
     }
-    Tensor::from_data(TensorData::new(values, [2 * wh - 1, 2 * ww - 1, 2]), device)
+    let table = Tensor::from_data(TensorData::new(values, [2 * wh - 1, 2 * ww - 1, 2]), device);
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        [2 * "wh" - 1, 2 * "ww" - 1, 2],
+        &table.dims(),
+        &[("wh", wh), ("ww", ww)]
+    );
+    table
 }
 
 /// The grid cyclically shifted by `shift` rows and columns, as `torch.roll`
@@ -287,12 +342,12 @@ pub fn roll_grid(
 ///
 /// `[batch, ceil(height / 2), ceil(width / 2), 4 * channels]`.
 pub fn merge_2x2(x: Tensor<4>) -> Tensor<4> {
-    let [_, h, w, _] = x.dims();
-    let x = pad_bottom_right(x, [h % 2, w % 2]);
-    let [b, h, w, c] = x.dims();
-    x.reshape([b, h / 2, 2, w / 2, 2, c])
+    let [b, h, w, c] = unpack_shape_contract!(["batch", "height", "width", "channels"], &x.dims());
+    let [mh, mw] = [h.div_ceil(2), w.div_ceil(2)];
+    pad_bottom_right(x, [h % 2, w % 2])
+        .reshape([b, mh, 2, mw, 2, c])
         .permute([0, 1, 3, 4, 2, 5])
-        .reshape([b, h / 2, w / 2, 4 * c])
+        .reshape([b, mh, mw, 4 * c])
 }
 
 // The tests read seeded timm fixtures, which need `store`.

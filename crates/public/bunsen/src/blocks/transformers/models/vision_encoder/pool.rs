@@ -113,7 +113,12 @@ impl TokenPool {
         &self,
         tokens: Tensor<3>,
     ) -> Tensor<2> {
-        let n = tokens.dims()[1];
+        let [batch, n, d] = crate::contracts::unpack_shape_contract!(
+            ["batch", "tokens" = "n_prefix" + "patches", "d"],
+            &tokens.dims(),
+            &["batch", "tokens", "d"],
+            &[("n_prefix", self.n_prefix)]
+        );
         let patches = || tokens.clone().slice(s![.., self.n_prefix..n]);
         let pooled: Tensor<3> = match self.kind {
             TokenPoolConfig::Token => tokens.clone().slice(s![.., 0..1]),
@@ -122,7 +127,16 @@ impl TokenPool {
             TokenPoolConfig::Max => patches().max_dim(1),
             TokenPoolConfig::AvgMax => (patches().max_dim(1) + patches().mean_dim(1)) * 0.5,
         };
-        pooled.squeeze_dim(1)
+        let pooled = pooled.squeeze_dim(1);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "d"],
+            &pooled.dims(),
+            &[("batch", batch), ("d", d)]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (batch, d);
+        pooled
     }
 }
 

@@ -134,7 +134,11 @@ impl BlurPool2d {
         &self,
         input: Tensor<4>,
     ) -> Tensor<4> {
-        let [_, channels, _, _] = input.dims();
+        let [batch, channels] = crate::contracts::unpack_shape_contract!(
+            ["batch", "channels", _, _],
+            &input.dims(),
+            &["batch", "channels"]
+        );
         let n = self.filt_size;
         let taps = self.taps();
         let filter: Vec<f32> = taps
@@ -149,12 +153,21 @@ impl BlurPool2d {
         .expand([channels, 1, n, n]);
         let pad = self.padding();
         let padded = input.pad([(pad, pad), (pad, pad)], PadMode::Reflect);
-        conv2d(
+        let y = conv2d(
             padded,
             weight,
             None,
             ConvOptions::new([self.stride, self.stride], [0, 0], [1, 1], channels),
-        )
+        );
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "channels", _, _],
+            &y.dims(),
+            &[("batch", batch), ("channels", channels)]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = batch;
+        y
     }
 }
 

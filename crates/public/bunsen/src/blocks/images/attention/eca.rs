@@ -114,14 +114,31 @@ impl Eca {
         &self,
         input: Tensor<4>,
     ) -> Tensor<4> {
-        let [batch, channels, _, _] = input.dims();
+        let [batch, channels, height, width] = crate::contracts::unpack_shape_contract!(
+            ["batch", "channels", "height", "width"],
+            &input.dims()
+        );
         let means: Tensor<3> = input
             .clone()
             .mean_dim(2)
             .mean_dim(3)
             .reshape([batch, 1, channels]);
         let gate: Tensor<4> = sigmoid(self.conv.forward(means)).reshape([batch, channels, 1, 1]);
-        input * gate
+        let y = input * gate;
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "channels", "height", "width"],
+            &y.dims(),
+            &[
+                ("batch", batch),
+                ("channels", channels),
+                ("height", height),
+                ("width", width)
+            ]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (height, width);
+        y
     }
 }
 
