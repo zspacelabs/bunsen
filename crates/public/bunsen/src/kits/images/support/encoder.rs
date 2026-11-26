@@ -11,9 +11,15 @@ use crate::blocks::{
         ConvNetMeta,
         ConvNetModel,
     },
-    transformers::models::vision_encoder::{
-        VisionEncoderMeta,
-        VisionEncoderModel,
+    transformers::models::{
+        staged_vision_encoder::{
+            StagedVisionEncoderMeta,
+            StagedVisionEncoderModel,
+        },
+        vision_encoder::{
+            VisionEncoderMeta,
+            VisionEncoderModel,
+        },
     },
 };
 
@@ -151,5 +157,44 @@ impl ImageEncoder for VisionEncoderModel {
         images: Tensor<4>,
     ) -> Vec<Tensor<4>> {
         self.layer_maps(images)
+    }
+}
+
+/// The generic staged vision encoder as an image encoder: its unpooled
+/// features are the last stage's tokens, no prefix, over the last grid; its
+/// stages are timm's `feature_info` for a Swin, each stage's output as a map.
+impl ImageEncoder for StagedVisionEncoderModel {
+    fn input_channels(&self) -> usize {
+        self.in_channels()
+    }
+
+    /// The last stage's width.
+    fn d_features(&self) -> usize {
+        StagedVisionEncoderMeta::d_features(self)
+    }
+
+    fn forward_features(
+        &self,
+        images: Tensor<4>,
+    ) -> ImageFeatures {
+        ImageFeatures::Tokens {
+            tokens: self.feature_tokens(images),
+            prefix: 0,
+            grid: self.stage_grids().last().copied().unwrap_or([0, 0]),
+        }
+    }
+
+    fn forward_pooled(
+        &self,
+        images: Tensor<4>,
+    ) -> Tensor<2> {
+        self.pooled_features(images)
+    }
+
+    fn forward_intermediates(
+        &self,
+        images: Tensor<4>,
+    ) -> Vec<Tensor<4>> {
+        self.stage_maps(images)
     }
 }

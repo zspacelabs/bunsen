@@ -13,6 +13,9 @@ The cases: V2 shifted on an `8x8` grid in `4x4` windows; V2 shifted on a `7x10` 
 V2 on a `6x6` grid a `8x8` window shrinks to (no shift); V2 with a `pretrained_window_size`;
 V1 shifted on `8x8`; V1 shifted on `7x10`.
 
+And the patch merges, `merge_v1` and `merge_v2` (timm's `PatchMerging` of each, 8 wide, on a
+`[2, 5, 6, 8]` grid whose odd side pads): `{merge}.reduction.weight`, `{merge}.norm.*`, `.x`, `.y`.
+
 Run from the repository root:
 
     /media/Data/bunsen-tmp/timm/venv/bin/python -I tools/gen_swin_attn_fixtures.py
@@ -26,7 +29,9 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import torch  # noqa: E402
+from timm.models.swin_transformer import PatchMerging as PatchMergingV1  # noqa: E402
 from timm.models.swin_transformer import SwinTransformerBlock  # noqa: E402
+from timm.models.swin_transformer_v2 import PatchMerging as PatchMergingV2  # noqa: E402
 from timm.models.swin_transformer_v2 import SwinTransformerV2Block  # noqa: E402
 
 from toy_fixture import TESTDATA, init_weights, write  # noqa: E402
@@ -73,6 +78,19 @@ def main() -> None:
         tensors[f"{name}.x"] = x
         tensors[f"{name}.y"] = y
         print(name, tuple(x.shape), block.window_size, block.shift_size)
+    # The patch merges: V1 norms the collated 4C, then reduces; V2 reduces, then norms.
+    for i, (name, cls) in enumerate([("merge_v1", PatchMergingV1), ("merge_v2", PatchMergingV2)]):
+        torch.manual_seed(9753 + i)
+        merge = cls(dim=8).to(torch.float64).eval()
+        init_weights(merge, norm_bias=0.1)
+        x = torch.randn(2, 5, 6, 8, dtype=torch.float64)
+        with torch.no_grad():
+            y = merge(x)
+        for k, v in merge.state_dict().items():
+            tensors[f"{name}.{k}"] = v
+        tensors[f"{name}.x"] = x
+        tensors[f"{name}.y"] = y
+        print(name, tuple(x.shape), tuple(y.shape))
     write(
         OUT / "window_attn.safetensors",
         {k: v.float().contiguous() for k, v in tensors.items()},

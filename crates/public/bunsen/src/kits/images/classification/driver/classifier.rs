@@ -16,9 +16,15 @@ use crate::{
             ConvNetMeta,
             ConvNetModel,
         },
-        transformers::models::vision_encoder::{
-            VisionEncoderMeta,
-            VisionEncoderModel,
+        transformers::models::{
+            staged_vision_encoder::{
+                StagedVisionEncoderMeta,
+                StagedVisionEncoderModel,
+            },
+            vision_encoder::{
+                VisionEncoderMeta,
+                VisionEncoderModel,
+            },
         },
     },
     kits::images::support::{
@@ -62,6 +68,21 @@ impl ImageClassifier for ConvNetModel {
 /// ([`VisionEncoderModel::forward`]). A headless model has 0 classes: its
 /// output is its pooled features, not logits.
 impl ImageClassifier for VisionEncoderModel {
+    fn n_classes(&self) -> usize {
+        self.num_classes()
+    }
+
+    fn forward_logits(
+        &self,
+        images: Tensor<4>,
+    ) -> Tensor<2> {
+        self.forward(images)
+    }
+}
+
+/// The generic staged vision encoder as an image classifier: its head's
+/// logits ([`StagedVisionEncoderModel::forward`]).
+impl ImageClassifier for StagedVisionEncoderModel {
     fn n_classes(&self) -> usize {
         self.num_classes()
     }

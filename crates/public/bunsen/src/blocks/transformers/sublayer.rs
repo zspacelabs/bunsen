@@ -77,6 +77,10 @@ pub enum NormPlacement {
     /// After the residual sum: `norm(x + f(x))`. The original Transformer's,
     /// and `NeMo`'s `TransformerEncoder` without `pre_ln`: Sortformer v2's.
     Post,
+
+    /// After the branch, inside the residual: `x + norm(f(x))`. Swin V2's
+    /// res-post-norm.
+    ResPost,
 }
 
 impl ResidualSublayerConfig {
@@ -89,6 +93,7 @@ impl ResidualSublayerConfig {
         match placement {
             NormPlacement::Pre => Self::pre_norm(norm),
             NormPlacement::Post => Self::post_norm(norm),
+            NormPlacement::ResPost => Self::new().with_post(norm),
         }
     }
 
