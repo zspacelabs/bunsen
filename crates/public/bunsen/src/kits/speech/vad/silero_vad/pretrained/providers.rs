@@ -71,10 +71,6 @@ mod tests {
         testing::ErrorMatcher,
     };
 
-    /// The embedded catalog hangs together.
-    #[test]
-    fn test_catalog() {}
-
     /// Upstream's row is the factory's only one, and `vad`, a prefix of its
     /// name, finds nothing.
     #[test]
