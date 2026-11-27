@@ -248,7 +248,7 @@ impl TextDecoder {
     ///
     /// # Arguments
     /// * `x`: `[batch, seq]` token ids.
-    /// * `xa`: `[batch, seq, d_model]` encoder features, in any float dtype;
+    /// * `xa`: `[batch, frames, d_model]` encoder features, in any float dtype;
     ///   cast to [`preferred_dtype`](InputDTypes::preferred_dtype) here.
     ///
     /// # Returns
@@ -267,7 +267,17 @@ impl TextDecoder {
     ) -> Tensor<3> {
         let xa = self.coerce_input(xa);
 
-        let [_batch, seq_len] = x.dims();
+        let [batch, seq_len] = crate::contracts::unpack_shape_contract!(
+            ["batch", "seq"],
+            &x.dims(),
+            &["batch", "seq"]
+        );
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "frames", "d_model"],
+            &xa.dims(),
+            &[("d_model", self.d_model())]
+        );
         assert!(
             seq_len <= self.max_context(),
             "Token sequence length {} must not exceed {}.",
@@ -290,10 +300,21 @@ impl TextDecoder {
 
         // denorm [batch, seq_len, n_vocab]
         // Needs softmax / beamsearch.
-        {
-            let dtype = device_float_dtype(&x.device());
-            unembed(&self.token_embedding, x).cast(dtype)
-        }
+        let dtype = device_float_dtype(&x.device());
+        let logits = unembed(&self.token_embedding, x).cast(dtype);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "seq", "n_vocab"],
+            &logits.dims(),
+            &[
+                ("batch", batch),
+                ("seq", seq_len),
+                ("n_vocab", self.vocab_size())
+            ]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = batch;
+        logits
     }
 
     /// Opens an incremental decode's [`KVCache`] against a fixed encoder
@@ -397,7 +418,11 @@ impl TextDecoder {
             "cache was built for a different decoder",
         );
 
-        let seq_new = x.dims()[1];
+        let [batch, seq_new] = crate::contracts::unpack_shape_contract!(
+            ["batch", "seq_new"],
+            &x.dims(),
+            &["batch", "seq_new"]
+        );
         let past = cache.pos();
         assert!(
             past + seq_new <= self.max_context(),
@@ -421,10 +446,21 @@ impl TextDecoder {
             h = block.forward_w_kv_cache(h, mask.clone(), cache, layer);
         }
 
-        {
-            let dtype = device_float_dtype(&h.device());
-            unembed(&self.token_embedding, self.ln.forward(h)).cast(dtype)
-        }
+        let dtype = device_float_dtype(&h.device());
+        let logits = unembed(&self.token_embedding, self.ln.forward(h)).cast(dtype);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "seq_new", "n_vocab"],
+            &logits.dims(),
+            &[
+                ("batch", batch),
+                ("seq_new", seq_new),
+                ("n_vocab", self.vocab_size())
+            ]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = batch;
+        logits
     }
 
     fn embed(
