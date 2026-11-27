@@ -547,6 +547,7 @@ impl LayaModel {
 mod tests {
     use super::*;
     use crate::{
+        errors::testing::ErrorMatcher,
         kits::support::tokens::Detokenizer,
         support::testing::assert_scalar_close,
     };
@@ -682,7 +683,10 @@ mod tests {
         let s = specials();
         assert_eq!((s.cls, s.sep, s.mask, s.pad), (1, 2, 3, 0));
         assert_eq!(s.mask_spelling, "[MASK]");
-        assert!(LayaSpecials::from_tokenizer_config(r#"{"cls_token": "[X]"}"#, &Chars).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&LayaSpecials::from_tokenizer_config(
+            r#"{"cls_token": "[X]"}"#,
+            &Chars,
+        ));
     }
 
     /// Upstream's option texts, and the keys an answer gives them.
@@ -705,7 +709,7 @@ mod tests {
             ["false: no, the statement does not hold", "true: it is done"]
         );
         assert_eq!(noul.option_keys(), ["false", "true"]);
-        assert!(serde_json::from_str::<LayaOption>(r#"{"a": "x", "b": "y"}"#).is_err());
+        assert!(serde_json::from_str::<LayaOption>(r#"{"a": "x", "b": "y"}"#,).is_err());
     }
 
     /// `[CLS] <kind> question: … [SEP] [MASK] opt … [SEP] state [SEP]`, the

@@ -649,6 +649,6 @@ mod defaults {
 /// does not fit `T`.
 pub fn parse_nemo_yaml<T: DeserializeOwned>(yaml: &str) -> BunsenResult<T> {
     serde_saphyr::from_str(yaml).map_err(|e| {
-        BunsenError::invalid_resource(format!("a NeMo config that does not parse: {e}"))
+        BunsenError::invalid_resource("a NeMo config that does not parse").with_cause(e)
     })
 }

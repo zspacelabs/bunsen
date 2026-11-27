@@ -231,6 +231,7 @@ impl ByteLevelVocabulary {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_byte_alphabet() {
@@ -251,13 +252,14 @@ mod tests {
         assert_eq!(a.text(&[0, 1]).unwrap(), " the moon\n");
         assert_eq!(a.added_id("<|im_end|>"), Some(5));
         assert_eq!(a.text(&[5]).unwrap(), "<|im_end|>");
-        assert!(a.text(&[9]).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&a.text(&[9]));
 
         let tok = r#"{"model": {"vocab": {"Ġthe": 0, "ĠmoonĊ": 1, "ä½": 2, "ł": 3}},
                       "added_tokens": [{"id": 5, "content": "<|im_end|>"}]}"#;
         let b = ByteLevelVocabulary::from_tokenizer_json(tok).unwrap();
         assert_eq!(a, b);
-        assert!(ByteLevelVocabulary::from_vocab_json(r#"{"☃": 0}"#, None).is_err());
+        ErrorMatcher::invalid_resource()
+            .assert_err(&ByteLevelVocabulary::from_vocab_json(r#"{"☃": 0}"#, None));
     }
 
     /// A piece is found by its exact bytes; an added token is not a piece,

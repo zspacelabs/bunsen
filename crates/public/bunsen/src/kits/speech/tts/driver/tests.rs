@@ -275,7 +275,7 @@ fn test_text_stage() {
     driver.synthesize(&TtsRequest::new("Hello\nthere")).unwrap();
     assert_eq!(driver.engine().seen()[0].text, "Hello there");
 
-    let driver = driver.with_normalizer(TextNormalizationConfig::None.init().unwrap());
+    let driver = driver.with_normalizer(TextNormalizationConfig::None.try_init().unwrap());
     driver.synthesize(&TtsRequest::new("Hello\nthere")).unwrap();
     assert_eq!(driver.engine().seen()[1].text, "Hello\nthere");
 }

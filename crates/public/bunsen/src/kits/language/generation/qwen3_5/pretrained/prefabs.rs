@@ -30,6 +30,7 @@ mod tests {
     use super::*;
     use crate::{
         blocks::transformers::models::language_decoder::LmDecoderMeta,
+        errors::testing::ErrorMatcher,
         kits::language::generation::qwen3_5::Qwen3_5LayerKind,
     };
 
@@ -39,7 +40,7 @@ mod tests {
     fn test_prefabs() {
         for (name, prefab) in Qwen3_5Config::PREFABS {
             let config = prefab();
-            config.stack().unwrap();
+            config.try_stack().unwrap();
             assert_eq!(config.rotary_dim(), 64, "{}", name);
             assert_eq!(config.layer_kind(3), Qwen3_5LayerKind::Full);
             assert_eq!(config.layer_kind(4), Qwen3_5LayerKind::Linear);
@@ -50,6 +51,6 @@ mod tests {
         let nine = Qwen3_5Config::expect_prefab("qwen3.5-9b");
         assert_eq!((nine.n_kv_heads(), nine.linear_value_heads), (4, 32));
         assert!(!nine.tied_head);
-        assert!(Qwen3_5Config::try_prefab("qwen3.5-35b-a3b").is_err());
+        ErrorMatcher::lookup().assert_err(&Qwen3_5Config::try_prefab("qwen3.5-35b-a3b"));
     }
 }

@@ -32,6 +32,7 @@ mod tests {
     use super::*;
     use crate::{
         blocks::transformers::models::language_decoder::LmDecoderMeta,
+        errors::testing::ErrorMatcher,
         kits::language::generation::gemma::GemmaLayerKind,
     };
 
@@ -54,8 +55,8 @@ mod tests {
         let g1 = GemmaConfig::expect_prefab("gemma-7b");
         assert!(!g1.post_norms && g1.layer_kinds.is_empty());
         for (_, prefab) in GemmaConfig::PREFABS {
-            prefab().stack().unwrap();
+            prefab().try_stack().unwrap();
         }
-        assert!(GemmaConfig::try_prefab("gemma-3-27b").is_err());
+        ErrorMatcher::lookup().assert_err(&GemmaConfig::try_prefab("gemma-3-27b"));
     }
 }

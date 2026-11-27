@@ -56,7 +56,10 @@ impl Prefabs for NanoChatGptContractConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::language::generation::nanochat::NanoChatGptMeta;
+    use crate::{
+        errors::testing::ErrorMatcher,
+        kits::language::generation::nanochat::NanoChatGptMeta,
+    };
 
     #[test]
     fn test_prefabs() {
@@ -73,6 +76,6 @@ mod tests {
             (1152, 18, 9)
         );
         assert_eq!(config.window_pattern.as_deref(), Some("L"));
-        assert!(NanoChatGptContractConfig::try_prefab("nanochat-d32").is_err());
+        ErrorMatcher::lookup().assert_err(&NanoChatGptContractConfig::try_prefab("nanochat-d32"));
     }
 }

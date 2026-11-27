@@ -173,7 +173,7 @@ impl<K: TransformersLmKit> ConstructInit for K {
         let mut lm: K::Model = config.try_init(device)?;
         let mut store = BurnpackStore::from_file(path).auto_extension(false);
         let result = lm.load_from(&mut store).map_err(|e| {
-            BunsenError::invalid_resource(format!("cannot read {}: {e}", path.display()))
+            BunsenError::invalid_resource(format!("cannot read {}", path.display())).with_cause(e)
         })?;
         if !result.errors.is_empty() || !result.missing.is_empty() {
             return Err(BunsenError::invalid_resource(format!(
@@ -198,7 +198,7 @@ impl<K: TransformersLmKit> ConstructInit for K {
         construct
             .model
             .save_into(&mut store)
-            .map_err(|e| BunsenError::sys(format!("write {}: {e}", path.display())))
+            .map_err(|e| BunsenError::sys(format!("write {}", path.display())).with_cause(e))
     }
 }
 

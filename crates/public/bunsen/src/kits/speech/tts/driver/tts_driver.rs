@@ -193,7 +193,7 @@ impl<E: TtsEngine> TtsDriver<E> {
                 config.take_gap_seconds
             )));
         }
-        let normalizer = config.normalization.init()?;
+        let normalizer = config.normalization.try_init()?;
         let mut stages: Vec<Arc<dyn TtsRequestStage>> =
             vec![Arc::new(TtsTextStage::new(normalizer))];
         if config.strip_instruction {

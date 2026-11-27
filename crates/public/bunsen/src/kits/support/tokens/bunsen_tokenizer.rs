@@ -422,7 +422,9 @@ mod tests {
         assert_eq!(built.token_id("<|im_end|>"), Some(301));
 
         let missing = dir.path().join("nothing.json");
-        assert!(BunsenTokenizer::from_qwen2_files(&missing, &merges, &config).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&BunsenTokenizer::from_qwen2_files(
+            &missing, &merges, &config,
+        ));
     }
 
     /// Special tokens' spellings are tokens in a rendered prompt and text
@@ -450,7 +452,7 @@ mod tests {
         let ids = tok.encode("hé").unwrap();
         assert!(ids.len() >= 3, "{ids:?}");
         assert_eq!(tok.detokenize(&ids).unwrap(), "hé");
-        assert!(tok.detokenize(&[end + 7]).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&tok.detokenize(&[end + 7]));
     }
 
     /// A `tokenizer_config.json`'s added tokens that the `tokenizer.json`
@@ -508,20 +510,14 @@ mod tests {
 
         // An id the tokenizer.json spells otherwise, or one past the next
         // free id, is refused.
-        assert!(
-            BunsenTokenizer::from_json_with_config(
-                &json,
-                Some(&config(&[(n - 1, "<other>", true)]))
-            )
-            .is_err()
-        );
-        assert!(
-            BunsenTokenizer::from_json_with_config(
-                &json,
-                Some(&config(&[(n + 1, "<think>", false)]))
-            )
-            .is_err()
-        );
+        ErrorMatcher::invalid_resource().assert_err(&BunsenTokenizer::from_json_with_config(
+            &json,
+            Some(&config(&[(n - 1, "<other>", true)])),
+        ));
+        ErrorMatcher::unsupported().assert_err(&BunsenTokenizer::from_json_with_config(
+            &json,
+            Some(&config(&[(n + 1, "<think>", false)])),
+        ));
     }
 
     /// A byte-level tokenizer, as Qwen3's is built: its config's added

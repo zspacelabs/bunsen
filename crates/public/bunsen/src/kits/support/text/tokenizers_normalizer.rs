@@ -52,7 +52,7 @@ impl TokenizersTextNormalizer {
     pub fn from_spec(spec: &Value) -> BunsenResult<Self> {
         let normalizer =
             serde_json::from_value::<NormalizerWrapper>(spec.clone()).map_err(|error| {
-                BunsenError::illegal(format!("not a tokenizers normalizer: {error}"))
+                BunsenError::illegal("not a tokenizers normalizer").with_cause(error)
             })?;
         Ok(Self {
             normalizer,
@@ -71,7 +71,8 @@ impl TokenizersTextNormalizer {
     pub fn from_tokenizer_json(path: &std::path::Path) -> BunsenResult<Self> {
         let text = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
         let json: Value = serde_json::from_str(&text).map_err(|error| {
-            BunsenError::invalid_resource(format!("{} is not JSON: {error}", path.display()))
+            BunsenError::invalid_resource(format!("{} is not JSON", path.display()))
+                .with_cause(error)
         })?;
         match json.get("normalizer") {
             Some(spec) if !spec.is_null() => Self::from_spec(spec),
@@ -157,7 +158,7 @@ mod tests {
         )
         .unwrap();
         let normalizer = super::super::TokenizersSpec::TokenizerJson(with.display().to_string())
-            .init()
+            .try_init()
             .unwrap();
         assert_eq!(normalizer.name(), "tokenizers(Lowercase)");
         assert_eq!(normalizer.normalize("ABC", None).unwrap(), "abc");

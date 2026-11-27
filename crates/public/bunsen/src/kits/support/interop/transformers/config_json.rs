@@ -53,7 +53,7 @@ impl TransformersConfigJson {
             } else {
                 format!(" `{}`", self.path)
             };
-            BunsenError::invalid_resource(format!("config.json{at}: {e}"))
+            BunsenError::invalid_resource(format!("config.json{at}")).with_cause(e)
         })
     }
 
@@ -341,7 +341,7 @@ mod tests {
         ErrorMatcher::unsupported()
             .message_contains("`sub.d` is 8")
             .assert_err(&sub.expect_eq("d", 8, 16));
-        assert!(TransformersConfigJson::parse("[1]").is_err());
+        ErrorMatcher::invalid_resource().assert_err(&TransformersConfigJson::parse("[1]"));
     }
 
     /// The optional accessors: `None` for an absent or `null` field, the

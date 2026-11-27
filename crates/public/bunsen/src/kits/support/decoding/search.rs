@@ -135,15 +135,74 @@ pub struct SearchConfig {
 }
 
 impl SearchConfig {
-    /// The search this config asks for: sampling above temperature zero,
-    /// else a beam search when `beam_size` is more than one, else the
+    /// Checks the knobs the searches take: at least one beam, a positive
+    /// patience, a temperature that is not negative, at least one sample.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`](crate::errors::ConstraintError) naming the knob.
+    pub fn try_validate(&self) -> crate::errors::BunsenResult<()> {
+        use crate::errors::ConstraintError;
+        const OWNER: &str = "SearchConfig";
+        if self.beam_size == 0 {
+            return Err(ConstraintError::zero_or_empty(OWNER, "beam_size").into());
+        }
+        if let Some(patience) = self.patience
+            && patience.partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater)
+        {
+            return Err(ConstraintError::out_of_range(OWNER, "patience", patience, "> 0").into());
+        }
+        if self.temperature.is_nan() || self.temperature < 0.0 {
+            return Err(ConstraintError::out_of_range(
+                OWNER,
+                "temperature",
+                self.temperature,
+                ">= 0",
+            )
+            .into());
+        }
+        if self.best_of == Some(0) {
+            return Err(ConstraintError::zero_or_empty(OWNER, "best_of").into());
+        }
+        Ok(())
+    }
+
+    /// The search this config asks for, its knobs checked first
+    /// ([`try_validate`](Self::try_validate)): sampling above temperature
+    /// zero, else a beam search when `beam_size` is more than one, else the
     /// argmax.
     ///
     /// # Arguments
     /// * `stops` - the tokens that end a sequence.
     /// * `filler` - what a greedy search feeds a finished row; must be a valid
     ///   id, which a stop token need not be.
+    ///
+    /// # Errors
+    /// As [`try_validate`](Self::try_validate).
+    pub fn try_init_search(
+        &self,
+        stops: &[i64],
+        filler: i64,
+    ) -> crate::errors::BunsenResult<Box<dyn TokenSearch>> {
+        self.try_validate()?;
+        Ok(self.init_search_unchecked(stops, filler))
+    }
+
+    /// [`try_init_search`](Self::try_init_search), panicking with its error's
+    /// report.
+    ///
+    /// # Panics
+    /// As [`try_validate`](Self::try_validate)'s errors.
     pub fn init_search(
+        &self,
+        stops: &[i64],
+        filler: i64,
+    ) -> Box<dyn TokenSearch> {
+        use crate::errors::WithOkOrPanic;
+        self.try_init_search(stops, filler).ok_or_panic()
+    }
+
+    fn init_search_unchecked(
         &self,
         stops: &[i64],
         filler: i64,
@@ -216,6 +275,26 @@ impl SearchConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Each knob a search can't take is refused by name.
+    #[test]
+    fn test_try_validate() {
+        SearchConfig::new().try_validate().unwrap();
+        for (field, config) in [
+            ("beam_size", SearchConfig::new().with_beam_size(0)),
+            ("patience", SearchConfig::new().with_patience(Some(0.0))),
+            ("temperature", SearchConfig::new().with_temperature(-0.5)),
+            (
+                "temperature",
+                SearchConfig::new().with_temperature(f64::NAN),
+            ),
+            ("best_of", SearchConfig::new().with_best_of(Some(0))),
+        ] {
+            crate::errors::testing::ErrorMatcher::illegal()
+                .constraint("SearchConfig", field)
+                .assert_err(&config.try_init_search(&[9], 0).map(|_| ()));
+        }
+    }
 
     #[test]
     fn test_init_search_and_rungs() {

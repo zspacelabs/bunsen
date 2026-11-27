@@ -24,7 +24,7 @@ use crate::errors::{
 };
 
 /// A text normalizer bunsen ships, as config: what a catalog row, a preset or
-/// a file names, and [`init`](Self::init) builds.
+/// a file names, and [`try_init`](Self::try_init) builds.
 ///
 /// A normalizer bunsen does not ship is not a variant: it plugs in as an
 /// `Arc<dyn TextNormalizer>` wherever a built one goes.
@@ -71,7 +71,7 @@ impl TokenizersSpec {
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) in a
     /// build without the feature `tokenizer`; else as
     /// `TokenizersTextNormalizer`'s constructors.
-    pub fn init(&self) -> BunsenResult<Arc<dyn TextNormalizer>> {
+    pub fn try_init(&self) -> BunsenResult<Arc<dyn TextNormalizer>> {
         #[cfg(feature = "tokenizer")]
         {
             use super::TokenizersTextNormalizer;
@@ -180,7 +180,8 @@ impl TextNormalizationConfig {
         if let Some(kind) = spec.strip_prefix("tokenizers:") {
             let value = if kind.trim_start().starts_with('{') {
                 serde_json::from_str(kind).map_err(|error| {
-                    BunsenError::illegal(format!("{spec:?}: not a JSON normalizer spec: {error}"))
+                    BunsenError::illegal(format!("{spec:?}: not a JSON normalizer spec"))
+                        .with_cause(error)
                 })?
             } else {
                 serde_json::json!({ "type": kind })
@@ -193,9 +194,8 @@ impl TextNormalizationConfig {
         if spec.ends_with(".json") {
             let text = std::fs::read_to_string(spec).map_err(sys_at("read", spec))?;
             return serde_json::from_str(&text).map_err(|error| {
-                BunsenError::invalid_resource(format!(
-                    "{spec} is not a text normalization config: {error}"
-                ))
+                BunsenError::invalid_resource(format!("{spec} is not a text normalization config"))
+                    .with_cause(error)
             });
         }
         match spec {
@@ -233,17 +233,17 @@ impl TextNormalizationConfig {
     /// # Errors
     /// A variant's own: one whose feature this build lacks is
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
-    pub fn init(&self) -> BunsenResult<Arc<dyn TextNormalizer>> {
+    pub fn try_init(&self) -> BunsenResult<Arc<dyn TextNormalizer>> {
         Ok(match self {
             Self::None => Arc::new(TextNormalizerChain::default()),
             Self::CollapseLineBreaks => Arc::new(CollapseLineBreaks),
             Self::Transcript => Arc::new(TranscriptTextNormalizer),
-            Self::Zyphra(config) => Arc::new(config.init()?),
-            Self::Tokenizers(spec) => spec.init()?,
+            Self::Zyphra(config) => Arc::new(config.try_init()?),
+            Self::Tokenizers(spec) => spec.try_init()?,
             Self::Chain(stages) => Arc::new(TextNormalizerChain::new(
                 stages
                     .iter()
-                    .map(Self::init)
+                    .map(Self::try_init)
                     .collect::<BunsenResult<Vec<_>>>()?,
             )),
         })
@@ -263,7 +263,7 @@ mod tests {
             TextNormalizationConfig::None,
             TextNormalizationConfig::Transcript,
         ]);
-        let normalizer = config.init().unwrap();
+        let normalizer = config.try_init().unwrap();
         assert_eq!(
             normalizer.name(),
             "collapse-line-breaks > none > transcript"
@@ -272,7 +272,10 @@ mod tests {
             normalizer.normalize("Hi,\nTHERE.", None).unwrap(),
             "hi there"
         );
-        assert_eq!(TextNormalizationConfig::None.init().unwrap().name(), "none");
+        assert_eq!(
+            TextNormalizationConfig::None.try_init().unwrap().name(),
+            "none"
+        );
     }
 
     #[cfg(feature = "tokenizer")]
@@ -281,7 +284,7 @@ mod tests {
         let config = TextNormalizationConfig::Tokenizers(TokenizersSpec::Spec(
             serde_json::json!({"type": "Lowercase"}),
         ));
-        let normalizer = config.init().unwrap();
+        let normalizer = config.try_init().unwrap();
         assert_eq!(normalizer.name(), "tokenizers(Lowercase)");
         assert_eq!(normalizer.normalize("ABC", None).unwrap(), "abc");
     }

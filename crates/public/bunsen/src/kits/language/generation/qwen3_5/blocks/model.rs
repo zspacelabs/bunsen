@@ -367,7 +367,7 @@ impl Qwen3_5Config {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause, for `layer_kinds` of another length than
     /// the layers.
-    pub fn stack(&self) -> BunsenResult<PatternedStackConfig> {
+    pub fn try_stack(&self) -> BunsenResult<PatternedStackConfig> {
         if !self.layer_kinds.is_empty() && self.layer_kinds.len() != self.n_layers {
             return Err(ConstraintError::new(
                 "Qwen3_5Config",
@@ -399,10 +399,10 @@ impl Qwen3_5Config {
 }
 
 /// The language model: [`embedding`](Qwen3_5Config::embedding),
-/// [`head`](Qwen3_5Config::head) and [`stack`](Qwen3_5Config::stack).
+/// [`head`](Qwen3_5Config::head) and [`try_stack`](Qwen3_5Config::try_stack).
 ///
 /// # Errors
-/// As [`stack`](Qwen3_5Config::stack).
+/// As [`try_stack`](Qwen3_5Config::try_stack).
 impl ToStructureConfig for Qwen3_5Config {
     type Structure = LmDecoderVariantConfig;
 
@@ -410,7 +410,7 @@ impl ToStructureConfig for Qwen3_5Config {
         Ok(LmDecoderVariantConfig::new(
             self.embedding(),
             self.head(),
-            self.stack()?.into(),
+            self.try_stack()?.into(),
         ))
     }
 }
@@ -418,7 +418,7 @@ impl ToStructureConfig for Qwen3_5Config {
 /// The Qwen3.5 decoder-only language model (Qwen team, 2026), the text model
 /// of the dense Qwen3.5 checkpoints: a hybrid [`LmDecoderModel`] of gated
 /// `DeltaNet` layers and gated full-attention layers
-/// ([`Qwen3_5Config::stack`]), its head tied to the embedding or a linear
+/// ([`Qwen3_5Config::try_stack`]), its head tied to the embedding or a linear
 /// map of its own.
 ///
 /// [`qwen3_5_rekey`](crate::kits::language::generation::qwen3_5::interop::transformers::qwen3_5_rekey)
@@ -471,6 +471,7 @@ mod tests {
             models::language_decoder::LmDecoderOps,
         },
         burner::module::ModuleInit,
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -536,11 +537,10 @@ mod tests {
             Qwen3_5Config::every_nth_full(8, 4),
             "every fourth layer full by default"
         );
-        assert!(
-            config
+        ErrorMatcher::illegal().assert_err(
+            &config
                 .with_layer_kinds(vec![Qwen3_5LayerKind::Full])
-                .stack()
-                .is_err()
+                .try_stack(),
         );
     }
 

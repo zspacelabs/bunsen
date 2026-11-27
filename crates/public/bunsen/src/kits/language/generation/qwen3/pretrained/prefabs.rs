@@ -26,7 +26,10 @@ impl Prefabs for Qwen3Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::blocks::transformers::models::language_decoder::LmDecoderMeta;
+    use crate::{
+        blocks::transformers::models::language_decoder::LmDecoderMeta,
+        errors::testing::ErrorMatcher,
+    };
 
     #[test]
     fn test_prefabs() {
@@ -36,6 +39,6 @@ mod tests {
         let config = Qwen3Config::expect_prefab("qwen3-8b");
         assert_eq!(config.d_model(), 4096);
         assert!(!config.tied_head);
-        assert!(Qwen3Config::try_prefab("qwen3-14b").is_err());
+        ErrorMatcher::lookup().assert_err(&Qwen3Config::try_prefab("qwen3-14b"));
     }
 }

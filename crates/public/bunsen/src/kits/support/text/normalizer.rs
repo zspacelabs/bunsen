@@ -147,7 +147,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::errors::BunsenError;
+    use crate::errors::{
+        BunsenError,
+        testing::ErrorMatcher,
+    };
 
     /// Appends its mark, and the language it was given.
     #[derive(Debug)]
@@ -228,9 +231,9 @@ mod tests {
             Arc::new(Refuse),
             Arc::new(Mark("b")),
         ]);
-        assert!(chain.normalize("x", None).is_err());
-        assert!(chain.explain("x", None).is_err());
-        assert!(chain.check_language(None).is_err());
+        ErrorMatcher::unsupported().assert_err(&chain.normalize("x", None));
+        ErrorMatcher::unsupported().assert_err(&chain.explain("x", None));
+        ErrorMatcher::unsupported().assert_err(&chain.check_language(None));
         assert!(
             TextNormalizerChain::new(vec![Arc::new(Mark("a")) as Arc<dyn TextNormalizer>])
                 .check_language(None)
