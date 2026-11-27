@@ -370,7 +370,7 @@ impl GemmaConfig {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause, for `layer_kinds` of another length than
     /// the layers, or a sliding layer without a window.
-    pub fn stack(&self) -> BunsenResult<PatternedStackConfig> {
+    pub fn try_stack(&self) -> BunsenResult<PatternedStackConfig> {
         if !self.layer_kinds.is_empty() && self.layer_kinds.len() != self.n_layers {
             return Err(ConstraintError::new(
                 "GemmaConfig",
@@ -413,18 +413,18 @@ impl GemmaConfig {
 }
 
 /// The language model: [`embedding`](GemmaConfig::embedding),
-/// [`head`](GemmaConfig::head) and [`stack`](GemmaConfig::stack), its KV
+/// [`head`](GemmaConfig::head) and [`try_stack`](GemmaConfig::try_stack), its KV
 /// cache [`kv_cache_pre_size`](GemmaConfig::kv_cache_pre_size) positions up
 /// front.
 ///
 /// # Errors
-/// As [`stack`](GemmaConfig::stack).
+/// As [`try_stack`](GemmaConfig::try_stack).
 impl ToStructureConfig for GemmaConfig {
     type Structure = LmDecoderVariantConfig;
 
     fn try_to_structure(&self) -> BunsenResult<LmDecoderVariantConfig> {
         Ok(
-            LmDecoderVariantConfig::new(self.embedding(), self.head(), self.stack()?.into())
+            LmDecoderVariantConfig::new(self.embedding(), self.head(), self.try_stack()?.into())
                 .with_kv_cache_pre_size(self.kv_cache_pre_size),
         )
     }
@@ -432,8 +432,8 @@ impl ToStructureConfig for GemmaConfig {
 
 /// Google's Gemma decoder-only language model, generations 1 to 3 (text):
 /// an [`LmDecoderModel`] of `GeGLU` layers with `1 + w` RMS norms, sliding
-/// and full attention by layer ([`GemmaConfig::stack`]); the embedding scaled
-/// by `√d_model`; the head tied to it.
+/// and full attention by layer ([`GemmaConfig::try_stack`]); the embedding
+/// scaled by `√d_model`; the head tied to it.
 ///
 /// [`gemma_rekey`](crate::kits::language::generation::gemma::interop::transformers::gemma_rekey)
 /// maps `transformers`' `GemmaModel` names onto the [`LmDecoderModel`]'s, and
@@ -502,7 +502,7 @@ mod tests {
     #[test]
     fn test_config_and_meta() {
         let config = config();
-        let stack = config.stack().unwrap();
+        let stack = config.try_stack().unwrap();
         assert_eq!(stack.layer_kinds, [1, 0, 1]);
         assert_eq!(stack.kinds[0].attn.attention().sliding_window, None);
         assert_eq!(stack.kinds[1].attn.attention().sliding_window, Some(4));
@@ -547,11 +547,11 @@ mod tests {
             .assert_err(
                 &config()
                     .with_layer_kinds(vec![GemmaLayerKind::Full])
-                    .stack(),
+                    .try_stack(),
             );
         ErrorMatcher::illegal()
             .message_contains("sliding_window")
-            .assert_err(&config().with_sliding_window(None).stack());
+            .assert_err(&config().with_sliding_window(None).try_stack());
         ErrorMatcher::illegal()
             .message_contains("sliding_window")
             .assert_err(&config().with_sliding_window(None).try_to_structure());

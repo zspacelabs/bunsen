@@ -71,5 +71,5 @@ use crate::errors::{
 pub fn json_mirror_from_path<T: serde::de::DeserializeOwned>(path: &Path) -> BunsenResult<T> {
     let text = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
     serde_json::from_str(&text)
-        .map_err(|e| BunsenError::invalid_resource(format!("{}: {e}", path.display())))
+        .map_err(|e| BunsenError::invalid_resource(format!("{}", path.display())).with_cause(e))
 }

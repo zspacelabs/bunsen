@@ -97,6 +97,7 @@ impl TransformersGenerationConfigMirror {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_generation_config() {
@@ -119,6 +120,7 @@ mod tests {
             TransformersGenerationConfigMirror::from_slice(br#"{"eos_token_id": 2}"#).unwrap();
         assert_eq!(greedy.stop_ids(), Some(alloc::vec![2]));
         assert_eq!(greedy.sampling_policy(), None);
-        assert!(TransformersGenerationConfigMirror::from_slice(b"[1]").is_err());
+        ErrorMatcher::invalid_resource()
+            .assert_err(&TransformersGenerationConfigMirror::from_slice(b"[1]"));
     }
 }

@@ -210,7 +210,7 @@ impl ModuleInit<LayaModel> for LayaConfig {
             type_emb: TokenEmbeddingConfig::new(LayaQuestionKind::ALL.len(), d).try_init(device)?,
             head: self.head().try_init(device)?,
             scorer: LayaScorer {
-                norm: BunsenLayerNormConfig::new(d).init(device),
+                norm: BunsenLayerNormConfig::new(d).try_init(device)?,
                 mlp: mlp(d, d, 1)?,
             },
             act_head: mlp(d + 4, self.act_hidden, self.n_act)?,
@@ -320,11 +320,28 @@ impl LayaModel {
         lengths: &[usize],
         kinds: Tensor<1, Int>,
     ) -> Tensor<3> {
-        let [_b, _t] = unpack_shape_contract!(["B", "T"], &ids.dims());
-        let _device = ids.device();
+        let [b, t] = unpack_shape_contract!(["B", "T"], &ids.dims());
+        #[cfg(any(debug_assertions, test))]
+        {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["B"],
+                &kinds.dims(),
+                &[("B", b)]
+            );
+            assert_eq!(lengths.len(), b, "one length per prompt");
+        }
         let h = self.encoder.forward(ids, Some(lengths));
         let h = h + self.type_emb.forward(kinds.unsqueeze_dim::<2>(1));
-        self.head.encoder_forward(h, Some(lengths))
+        let h = self.head.encoder_forward(h, Some(lengths));
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "T", "d"],
+            &h.dims(),
+            &[("B", b), ("T", t), ("d", self.d_model())]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (b, t);
+        h
     }
 
     /// Each question's option logits and act logits.
@@ -345,6 +362,19 @@ impl LayaModel {
         options: Tensor<2, Bool>,
     ) -> LayaOutput {
         let [b, k] = unpack_shape_contract!(["B", "K"], &markers.dims());
+        #[cfg(any(debug_assertions, test))]
+        {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["B", "K"],
+                &options.dims(),
+                &[("B", b), ("K", k)]
+            );
+            crate::contracts::assert_shape_contract_periodically!(
+                ["B", _],
+                &ids.dims(),
+                &[("B", b)]
+            );
+        }
         let d = self.d_model();
         let h = self.head_states(ids, lengths, kinds);
 

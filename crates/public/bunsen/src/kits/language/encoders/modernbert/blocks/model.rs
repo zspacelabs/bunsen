@@ -219,7 +219,7 @@ impl ModernBertContractConfig {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause, for `layer_kinds` of another length than
     /// the layers, or heads that do not divide the width.
-    pub fn stack(&self) -> BunsenResult<PatternedStackConfig> {
+    pub fn try_stack(&self) -> BunsenResult<PatternedStackConfig> {
         if !self.layer_kinds.is_empty() && self.layer_kinds.len() != self.n_layers {
             return Err(ConstraintError::new(
                 "ModernBertContractConfig",
@@ -278,11 +278,11 @@ impl ToStructureConfig for ModernBertContractConfig {
     type Structure = ModernBertStructureConfig;
 
     /// # Errors
-    /// As [`stack`](Self::stack) and its lowering.
+    /// As [`try_stack`](Self::try_stack) and its lowering.
     fn try_to_structure(&self) -> BunsenResult<ModernBertStructureConfig> {
         Ok(ModernBertStructureConfig::new(
             self.embedding(),
-            self.stack()?.try_to_structure()?,
+            self.try_stack()?.try_to_structure()?,
         ))
     }
 }
@@ -312,7 +312,7 @@ impl ModuleInit<ModernBertModel> for ModernBertStructureConfig {
 
 /// Answer.AI's `ModernBERT` encoder: a normalized token embedding, then a
 /// [`DecoderStack`] of bidirectional `GeGLU` layers, global and local by
-/// layer ([`ModernBertContractConfig::stack`]), and a final `LayerNorm`.
+/// layer ([`ModernBertContractConfig::try_stack`]), and a final `LayerNorm`.
 ///
 /// [`modernbert_rekey`](crate::kits::language::encoders::modernbert::interop::transformers::modernbert_rekey)
 /// maps a `transformers` state dict's names onto it, after
@@ -375,7 +375,10 @@ impl CanonicalKeys for ModernBertModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        errors::testing::ErrorMatcher,
+        support::testing::cpu_device,
+    };
 
     /// `transformers`' default pattern: every third layer global, from the
     /// first; the first layer alone without an attention norm; the local
@@ -408,10 +411,10 @@ mod tests {
     fn test_layer_kinds_must_cover_the_layers() {
         let config = ModernBertContractConfig::new(32, 16, 3, 2, 24)
             .with_layer_kinds(vec![ModernBertLayerKind::Global]);
-        assert!(config.stack().is_err());
+        ErrorMatcher::illegal().assert_err(&config.try_stack());
         assert!(
             ModernBertContractConfig::new(32, 16, 3, 3, 24)
-                .stack()
+                .try_stack()
                 .is_err(),
             "3 heads over 16"
         );

@@ -93,7 +93,7 @@ impl TextNormalizeCommand {
         let stages = self
             .normalizers
             .iter()
-            .map(|spec| TextNormalizationConfig::parse_spec(spec)?.init())
+            .map(|spec| TextNormalizationConfig::parse_spec(spec)?.try_init())
             .collect::<BunsenResult<Vec<_>>>()?;
         Ok(TextNormalizerChain::new(stages))
     }

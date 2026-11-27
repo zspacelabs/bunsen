@@ -58,8 +58,9 @@ impl BunsenLanguageTag {
             .replace('_', "-");
         Locale::try_from_str(&stem).map(Self).map_err(|error| {
             BunsenError::illegal(format!(
-                "{text:?} is not a language tag (BCP 47, or a POSIX name like `en_US`): {error}"
+                "{text:?} is not a language tag (BCP 47, or a POSIX name like `en_US`)"
             ))
+            .with_cause(error)
         })
     }
 

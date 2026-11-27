@@ -136,7 +136,10 @@ pub fn laya_rekey() -> Rekey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burner::module::testing::assert_rekeys;
+    use crate::{
+        burner::module::testing::assert_rekeys,
+        errors::testing::ErrorMatcher,
+    };
 
     /// The checkpoint's names land on the model's; the buffer is dropped.
     #[test]
@@ -198,6 +201,6 @@ mod tests {
             (2, 512, 192)
         );
         assert_eq!(config.n_act(), 2);
-        assert!(LayaAgentMirror::from_json("{}").is_err());
+        ErrorMatcher::invalid_resource().assert_err(&LayaAgentMirror::from_json("{}"));
     }
 }

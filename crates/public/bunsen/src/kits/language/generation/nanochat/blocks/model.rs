@@ -75,10 +75,7 @@ use crate::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     ops::transformers::attention::{
         KVCache,
         KVCacheConfig,
@@ -176,9 +173,12 @@ pub fn window_pattern_windows(
 ) -> BunsenResult<Vec<usize>> {
     let pattern = pattern.to_ascii_uppercase();
     if pattern.is_empty() || !pattern.chars().all(|c| c == 'S' || c == 'L') {
-        return Err(BunsenError::illegal(format!(
-            "a window pattern is letters S and L; got {pattern:?}"
-        )));
+        return Err(crate::errors::ConstraintError::custom(
+            "window_pattern_windows",
+            "pattern",
+            format!("a window pattern is letters S and L; got {pattern:?}"),
+        )
+        .into());
     }
     let long = seq_len;
     let short = seq_len.div_ceil(4).div_ceil(128) * 128;
@@ -532,10 +532,19 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
     ) -> BunsenResult<NanoChatGpt> {
         let n_layer = self.lm.decoder.stack.layers.len();
         if !self.value_embeds.is_empty() && self.value_embeds.len() != n_layer {
-            return Err(BunsenError::illegal(format!(
-                "value_embeds has {} entries for {n_layer} layers",
-                self.value_embeds.len()
-            )));
+            return Err(crate::errors::ConstraintError::new(
+                "NanoChatGptStructureConfig",
+                "value_embeds",
+                crate::errors::Rule::Relation {
+                    lhs: (
+                        "value_embeds.len()".into(),
+                        self.value_embeds.len().to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("the stack's layers".into(), n_layer.to_string()),
+                },
+            )
+            .into());
         }
         // Upstream's initial values: a stronger residual and more of the
         // embedding at early layers.
@@ -980,6 +989,7 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
+        errors::testing::ErrorMatcher,
         support::testing::{
             DeviceMemoryGuard,
             cpu_device,
@@ -1066,8 +1076,8 @@ mod tests {
         );
         assert_eq!(window_pattern_windows("l", 2048, 3).unwrap(), vec![2049; 3]);
         assert_eq!(window_pattern_windows("S", 4, 2).unwrap(), vec![129, 5]);
-        assert!(window_pattern_windows("", 2048, 2).is_err());
-        assert!(window_pattern_windows("SXL", 2048, 2).is_err());
+        ErrorMatcher::illegal().assert_err(&window_pattern_windows("", 2048, 2));
+        ErrorMatcher::illegal().assert_err(&window_pattern_windows("SXL", 2048, 2));
     }
 
     /// `with_upstream_2026` turns on every 2026 option, with upstream's

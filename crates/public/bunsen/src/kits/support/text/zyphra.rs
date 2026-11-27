@@ -41,7 +41,7 @@ impl ZyphraNormalizationConfig {
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) in a
     /// build without the feature `zyphra-textnorm`.
-    pub fn init(&self) -> BunsenResult<ZyphraTextNormalizer> {
+    pub fn try_init(&self) -> BunsenResult<ZyphraTextNormalizer> {
         ZyphraTextNormalizer::new(self)
     }
 }
@@ -54,7 +54,7 @@ impl ZyphraNormalizationConfig {
 /// `zh` is Mandarin). A text needs its language: without one, or in a
 /// language without a grammar, it is an error, never a guess. In a build
 /// without the feature `zyphra-textnorm` it cannot be built
-/// ([`ZyphraNormalizationConfig::init`]).
+/// ([`ZyphraNormalizationConfig::try_init`]).
 pub struct ZyphraTextNormalizer {
     #[cfg(feature = "zyphra-textnorm")]
     normalizer: zyphra_textnorm::Normalizer,
@@ -76,7 +76,7 @@ impl ZyphraTextNormalizer {
     /// The normalizer of `config`.
     ///
     /// # Errors
-    /// As [`ZyphraNormalizationConfig::init`].
+    /// As [`ZyphraNormalizationConfig::try_init`].
     #[cfg(feature = "zyphra-textnorm")]
     pub fn new(config: &ZyphraNormalizationConfig) -> BunsenResult<Self> {
         Ok(Self {
@@ -89,7 +89,7 @@ impl ZyphraTextNormalizer {
     /// The normalizer of `config`.
     ///
     /// # Errors
-    /// As [`ZyphraNormalizationConfig::init`].
+    /// As [`ZyphraNormalizationConfig::try_init`].
     #[cfg(not(feature = "zyphra-textnorm"))]
     pub fn new(_config: &ZyphraNormalizationConfig) -> BunsenResult<Self> {
         Err(BunsenError::unsupported(
@@ -176,7 +176,7 @@ mod tests {
     #[cfg(feature = "zyphra-textnorm")]
     #[test]
     fn test_zyphra() {
-        let zyphra = ZyphraNormalizationConfig::new().init().unwrap();
+        let zyphra = ZyphraNormalizationConfig::new().try_init().unwrap();
         let en_us = BunsenLanguageTag::parse("en-US").unwrap();
         assert_eq!(zyphra.name(), "zyphra");
         assert_eq!(
@@ -196,7 +196,7 @@ mod tests {
         let tagged = ZyphraNormalizationConfig::new()
             .with_prepass(true)
             .with_markup_tags(alloc::vec!["laugh".into()])
-            .init()
+            .try_init()
             .unwrap();
         assert_eq!(tagged.name(), "zyphra+prepass(tags: laugh)");
     }
@@ -204,7 +204,7 @@ mod tests {
     #[cfg(not(feature = "zyphra-textnorm"))]
     #[test]
     fn test_zyphra_needs_the_feature() {
-        let error = ZyphraNormalizationConfig::new().init().unwrap_err();
+        let error = ZyphraNormalizationConfig::new().try_init().unwrap_err();
         assert_eq!(error.kind(), BunsenErrorKind::Unsupported);
         assert!(error.to_string().contains("zyphra-textnorm"));
     }

@@ -204,7 +204,10 @@ pub fn modernbert_config_from_path(path: &Path) -> BunsenResult<ModernBertContra
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burner::module::testing::assert_rekeys;
+    use crate::{
+        burner::module::testing::assert_rekeys,
+        errors::testing::ErrorMatcher,
+    };
 
     /// A layer's names, once split, land on the block's: the projections,
     /// the norms, the `GeGLU`'s parts.
@@ -322,6 +325,6 @@ mod tests {
         );
 
         let biased = json.replace(r#""mlp_bias": false"#, r#""mlp_bias": true"#);
-        assert!(modernbert_config_from_str(&biased).is_err());
+        ErrorMatcher::unsupported().assert_err(&modernbert_config_from_str(&biased));
     }
 }
