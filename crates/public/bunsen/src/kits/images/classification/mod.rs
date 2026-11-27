@@ -50,9 +50,14 @@
 //!   [`default_sknet_factory`](sknet::pretrained::default_sknet_factory).
 //! - [`swin`]: the Swin Transformer, V1 (with the Swin-S3 geometries) and V2,
 //!   built as the generic staged vision encoder, with timm's hub repos.
+//!
+//! [`pretrained`] is every kit's pretrained pathway at once: each kit's
+//! factory, type-erased, as one table a tool loads any image kit's model
+//! through.
 
 pub mod deit;
 pub mod driver;
+pub mod pretrained;
 pub mod regnet;
 pub mod res2net;
 pub mod resnest;

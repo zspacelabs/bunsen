@@ -323,109 +323,22 @@ pub fn validation_shard(cache: &bunsen::data::resources::ResourceCache) -> PathB
         .unwrap_or_else(|e| panic!("fetch ImageNet's validation shard: {e:#}"))
 }
 
-/// The image kits whose rows are checked here, by the factory that holds a
-/// row.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RowKit {
-    /// `kits::images::classification::resnet`.
-    ResNet,
-    /// `kits::images::classification::vit`.
-    ViT,
-    /// `kits::images::classification::deit`.
-    DeiT,
-    /// `kits::images::classification::swin::v1`.
-    SwinV1,
-    /// `kits::images::classification::swin::v2`.
-    SwinV2,
-    /// `kits::images::classification::regnet`.
-    RegNet,
-    /// `kits::images::classification::resnetv2`.
-    ResNetV2,
-    /// `kits::images::classification::res2net`.
-    Res2Net,
-    /// `kits::images::classification::resnest`.
-    ResNeSt,
-    /// `kits::images::classification::sknet`.
-    SKNet,
-}
-
-impl RowKit {
-    /// The kit whose factory names `row`: the vit kit's, the deit kit's, the
-    /// swin v1 kit's, the swin v2 kit's, the regnet kit's, the resnetv2
-    /// kit's, the res2net kit's, the resnest kit's, the sknet kit's, else the
-    /// resnet kit's.
-    pub fn of(row: &str) -> Self {
-        use bunsen::kits::images::classification::{
-            deit::pretrained::default_deit_factory,
-            regnet::pretrained::default_regnet_factory,
-            res2net::pretrained::default_res2net_factory,
-            resnest::pretrained::default_resnest_factory,
-            resnetv2::pretrained::default_resnetv2_factory,
-            sknet::pretrained::default_sknet_factory,
-            swin::{
-                v1::pretrained::default_swin_v1_factory,
-                v2::pretrained::default_swin_v2_factory,
-            },
-            vit::pretrained::default_vit_factory,
-        };
-        if default_vit_factory()
-            .expect("the vit factory")
-            .lookup(row)
-            .is_ok()
-        {
-            Self::ViT
-        } else if default_deit_factory()
-            .expect("the deit factory")
-            .lookup(row)
-            .is_ok()
-        {
-            Self::DeiT
-        } else if default_swin_v1_factory()
-            .expect("the swin v1 factory")
-            .lookup(row)
-            .is_ok()
-        {
-            Self::SwinV1
-        } else if default_swin_v2_factory()
-            .expect("the swin v2 factory")
-            .lookup(row)
-            .is_ok()
-        {
-            Self::SwinV2
-        } else if default_regnet_factory()
-            .expect("the regnet factory")
-            .lookup(row)
-            .is_ok()
-        {
-            Self::RegNet
-        } else if default_resnetv2_factory()
-            .expect("the resnetv2 factory")
-            .lookup(row)
-            .is_ok()
-        {
-            Self::ResNetV2
-        } else if default_res2net_factory()
-            .expect("the res2net factory")
-            .lookup(row)
-            .is_ok()
-        {
-            Self::Res2Net
-        } else if default_resnest_factory()
-            .expect("the resnest factory")
-            .lookup(row)
-            .is_ok()
-        {
-            Self::ResNeSt
-        } else if default_sknet_factory()
-            .expect("the sknet factory")
-            .lookup(row)
-            .is_ok()
-        {
-            Self::SKNet
-        } else {
-            Self::ResNet
-        }
-    }
+/// The kit whose catalog holds `row`, among `kits`
+/// ([`image_kit_factories`](bunsen::kits::images::classification::pretrained::image_kit_factories)).
+///
+/// # Panics
+/// When no kit's catalog names `row`: a row here is a catalog row.
+pub fn row_kit<'k>(
+    kits: &'k [Box<dyn bunsen::kits::images::classification::pretrained::ImageKitFactory>],
+    row: &str,
+) -> &'k dyn bunsen::kits::images::classification::pretrained::ImageKitFactory {
+    kits.iter()
+        .find(|kit| {
+            kit.lookup(row)
+                .is_ok_and(|(provider, _)| provider == "catalog")
+        })
+        .unwrap_or_else(|| panic!("no image kit's catalog has {row}"))
+        .as_ref()
 }
 
 /// `row`'s build, resolved through its kit's factory.
@@ -434,63 +347,11 @@ pub fn resolve_row(
     row: &str,
     cache: &bunsen::data::resources::ResourceCache,
 ) -> bunsen::data::builds::BuildRef {
-    use bunsen::kits::images::classification::{
-        deit::pretrained::default_deit_factory,
-        regnet::pretrained::default_regnet_factory,
-        res2net::pretrained::default_res2net_factory,
-        resnest::pretrained::default_resnest_factory,
-        resnet::pretrained::default_resnet_factory,
-        resnetv2::pretrained::default_resnetv2_factory,
-        sknet::pretrained::default_sknet_factory,
-        swin::{
-            v1::pretrained::default_swin_v1_factory,
-            v2::pretrained::default_swin_v2_factory,
-        },
-        vit::pretrained::default_vit_factory,
-    };
-    let resolved = match RowKit::of(row) {
-        RowKit::ResNet => default_resnet_factory()
-            .expect("the resnet factory")
-            .resolve(row, cache)
-            .map(|d| d.model),
-        RowKit::ViT => default_vit_factory()
-            .expect("the vit factory")
-            .resolve(row, cache)
-            .map(|d| d.model),
-        RowKit::DeiT => default_deit_factory()
-            .expect("the deit factory")
-            .resolve(row, cache)
-            .map(|d| d.model),
-        RowKit::SwinV1 => default_swin_v1_factory()
-            .expect("the swin v1 factory")
-            .resolve(row, cache)
-            .map(|d| d.model),
-        RowKit::SwinV2 => default_swin_v2_factory()
-            .expect("the swin v2 factory")
-            .resolve(row, cache)
-            .map(|d| d.model),
-        RowKit::RegNet => default_regnet_factory()
-            .expect("the regnet factory")
-            .resolve(row, cache)
-            .map(|d| d.model),
-        RowKit::ResNetV2 => default_resnetv2_factory()
-            .expect("the resnetv2 factory")
-            .resolve(row, cache)
-            .map(|d| d.model),
-        RowKit::Res2Net => default_res2net_factory()
-            .expect("the res2net factory")
-            .resolve(row, cache)
-            .map(|d| d.model),
-        RowKit::ResNeSt => default_resnest_factory()
-            .expect("the resnest factory")
-            .resolve(row, cache)
-            .map(|d| d.model),
-        RowKit::SKNet => default_sknet_factory()
-            .expect("the sknet factory")
-            .resolve(row, cache)
-            .map(|d| d.model),
-    };
-    resolved.unwrap_or_else(|e| panic!("resolve {row}: {e:#}"))
+    let kits = bunsen::kits::images::classification::pretrained::image_kit_factories()
+        .expect("the image kits' factories");
+    row_kit(&kits, row)
+        .resolve(row, cache)
+        .unwrap_or_else(|e| panic!("resolve {row}: {e:#}"))
 }
 
 /// `row`'s model, its weights loaded under `policy`, and its card, through
@@ -505,104 +366,11 @@ pub fn load_row(
     Box<dyn bunsen::kits::images::classification::driver::ImageClassifier>,
     bunsen::kits::images::support::card::ImageModelCard,
 ) {
-    use std::sync::Arc;
-
-    use bunsen::kits::images::classification::{
-        deit::pretrained::default_deit_factory,
-        regnet::pretrained::default_regnet_factory,
-        res2net::pretrained::default_res2net_factory,
-        resnest::pretrained::default_resnest_factory,
-        resnet::pretrained::default_resnet_factory,
-        resnetv2::pretrained::default_resnetv2_factory,
-        sknet::pretrained::default_sknet_factory,
-        swin::{
-            v1::pretrained::default_swin_v1_factory,
-            v2::pretrained::default_swin_v2_factory,
-        },
-        vit::pretrained::default_vit_factory,
-    };
-    match RowKit::of(row) {
-        RowKit::ResNet => {
-            let construct = default_resnet_factory()
-                .expect("the resnet factory")
-                .load_construct(row, cache, device, policy)
-                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-            let construct = Arc::unwrap_or_clone(construct);
-            (Box::new(construct.model), construct.card)
-        }
-        RowKit::ViT => {
-            let construct = default_vit_factory()
-                .expect("the vit factory")
-                .load_construct(row, cache, device, policy)
-                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-            let construct = Arc::unwrap_or_clone(construct);
-            (Box::new(construct.model), construct.card)
-        }
-        RowKit::DeiT => {
-            let construct = default_deit_factory()
-                .expect("the deit factory")
-                .load_construct(row, cache, device, policy)
-                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-            let construct = Arc::unwrap_or_clone(construct);
-            (Box::new(construct.model), construct.card)
-        }
-        RowKit::SwinV1 => {
-            let construct = default_swin_v1_factory()
-                .expect("the swin v1 factory")
-                .load_construct(row, cache, device, policy)
-                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-            let construct = Arc::unwrap_or_clone(construct);
-            (Box::new(construct.model), construct.card)
-        }
-        RowKit::SwinV2 => {
-            let construct = default_swin_v2_factory()
-                .expect("the swin v2 factory")
-                .load_construct(row, cache, device, policy)
-                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-            let construct = Arc::unwrap_or_clone(construct);
-            (Box::new(construct.model), construct.card)
-        }
-        RowKit::RegNet => {
-            let construct = default_regnet_factory()
-                .expect("the regnet factory")
-                .load_construct(row, cache, device, policy)
-                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-            let construct = Arc::unwrap_or_clone(construct);
-            (Box::new(construct.model), construct.card)
-        }
-        RowKit::ResNetV2 => {
-            let construct = default_resnetv2_factory()
-                .expect("the resnetv2 factory")
-                .load_construct(row, cache, device, policy)
-                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-            let construct = Arc::unwrap_or_clone(construct);
-            (Box::new(construct.model), construct.card)
-        }
-        RowKit::Res2Net => {
-            let construct = default_res2net_factory()
-                .expect("the res2net factory")
-                .load_construct(row, cache, device, policy)
-                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-            let construct = Arc::unwrap_or_clone(construct);
-            (Box::new(construct.model), construct.card)
-        }
-        RowKit::ResNeSt => {
-            let construct = default_resnest_factory()
-                .expect("the resnest factory")
-                .load_construct(row, cache, device, policy)
-                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-            let construct = Arc::unwrap_or_clone(construct);
-            (Box::new(construct.model), construct.card)
-        }
-        RowKit::SKNet => {
-            let construct = default_sknet_factory()
-                .expect("the sknet factory")
-                .load_construct(row, cache, device, policy)
-                .unwrap_or_else(|e| panic!("load {row}: {e:#}"));
-            let construct = Arc::unwrap_or_clone(construct);
-            (Box::new(construct.model), construct.card)
-        }
-    }
+    let kits = bunsen::kits::images::classification::pretrained::image_kit_factories()
+        .expect("the image kits' factories");
+    row_kit(&kits, row)
+        .load(row, cache, device, policy)
+        .unwrap_or_else(|e| panic!("load {row}: {e:#}"))
 }
 
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
@@ -611,6 +379,16 @@ mod models;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every row is a catalog row of some image kit, so a mistyped row fails
+    /// here and not as another kit's lookup.
+    #[test]
+    fn test_every_row_has_a_kit() {
+        let kits = bunsen::kits::images::classification::pretrained::image_kit_factories().unwrap();
+        for row in ROWS {
+            row_kit(&kits, row);
+        }
+    }
 
     /// Every row has its fixture, of [`IMAGES`] images, readable.
     #[test]
