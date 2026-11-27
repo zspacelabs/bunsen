@@ -175,7 +175,7 @@ impl Qwen3AsrConstruct {
         let n_audio = self.model.audio_tower.output_len(valid);
         let ids = self.prompt.prompt(n_audio, self.model.audio_token());
         let embeds = self.model.prompt_embeds(&ids, audio)?;
-        let tokens = self.decoder.init().decode(&self.model, embeds);
+        let tokens = self.decoder.decode(&self.model, embeds);
         self.prompt.parse(tokens, &self.decoder.eos, &self.vocab)
     }
 

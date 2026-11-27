@@ -159,7 +159,7 @@ impl ModuleInit<ParakeetTdt> for ParakeetTdtConfig {
 /// [`TdtPredictionNetwork`] over the tokens emitted so far and the
 /// [`TdtJoint`] over one encoder frame, which scores the next token (or the
 /// blank) and how many frames to advance:
-/// [`TdtGreedyDecoder`](crate::kits::speech::asr::parakeet::TdtGreedyDecoder).
+/// [`TdtGreedyDecoderConfig::decode`](crate::kits::speech::asr::parakeet::TdtGreedyDecoderConfig::decode).
 ///
 /// The fields carry the names `transformers`' `ParakeetForTDT` gives them.
 ///

@@ -27,7 +27,16 @@ pub struct TdtHypothesis {
     pub durations: Vec<usize>,
 }
 
-/// Config for [`TdtGreedyDecoder`].
+/// Greedy decoding of a token-and-duration transducer, batched.
+///
+/// Each item keeps a frame index `t`, starting at 0, and the prediction
+/// network's output for the tokens emitted so far, starting from the blank.
+/// At each step the joint scores frame `t` against that output: the argmax
+/// over the tokens (blank included) is emitted unless it is the blank, which
+/// is when the prediction network advances; the argmax over the durations
+/// advances `t`, by at least one frame when the token is the blank. An item
+/// is done when `t` passes its length. This is the decode `transformers`'
+/// `ParakeetForTDT.generate` and `NeMo`'s greedy TDT perform.
 #[derive(Config, Debug)]
 pub struct TdtGreedyDecoderConfig {
     /// The most tokens emitted at one frame before the decode moves on by
@@ -39,37 +48,6 @@ pub struct TdtGreedyDecoderConfig {
 }
 
 impl TdtGreedyDecoderConfig {
-    /// Builds the decoder.
-    pub fn init(&self) -> TdtGreedyDecoder {
-        TdtGreedyDecoder {
-            config: self.clone(),
-        }
-    }
-}
-
-/// Greedy decoding of a token-and-duration transducer, batched.
-///
-/// Each item keeps a frame index `t`, starting at 0, and the prediction
-/// network's output for the tokens emitted so far, starting from the blank.
-/// At each step the joint scores frame `t` against that output: the argmax
-/// over the tokens (blank included) is emitted unless it is the blank, which
-/// is when the prediction network advances; the argmax over the durations
-/// advances `t`, by at least one frame when the token is the blank. An item
-/// is done when `t` passes its length. This is the decode `transformers`'
-/// `ParakeetForTDT.generate` and `NeMo`'s greedy TDT perform.
-///
-/// Built by [`TdtGreedyDecoderConfig`].
-#[derive(Clone, Debug)]
-pub struct TdtGreedyDecoder {
-    config: TdtGreedyDecoderConfig,
-}
-
-impl TdtGreedyDecoder {
-    /// The config this was built from.
-    pub fn config(&self) -> &TdtGreedyDecoderConfig {
-        &self.config
-    }
-
     /// Decodes a batch.
     ///
     /// # Arguments
@@ -147,7 +125,6 @@ impl TdtGreedyDecoder {
                 if duration == 0
                     && (token == blank
                         || self
-                            .config
                             .max_symbols_per_frame
                             .is_some_and(|max| at_frame[b] >= max))
                 {
@@ -220,7 +197,7 @@ mod tests {
             burn::tensor::Distribution::Normal(0.0, 1.0),
             &device,
         );
-        let decoder = TdtGreedyDecoderConfig::new().init();
+        let decoder = TdtGreedyDecoderConfig::new();
         let out = decoder.decode(&model, encoded, &[9, 4]);
         assert_eq!(out.len(), 2);
         for (h, len) in out.iter().zip([9, 4]) {

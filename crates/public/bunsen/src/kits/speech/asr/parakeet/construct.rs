@@ -56,6 +56,9 @@ pub struct ParakeetConstruct {
     /// The pieces the model's token ids spell.
     pub vocab: ParakeetVocabulary,
 
+    /// How the transducer is decoded.
+    pub decoder: TdtGreedyDecoderConfig,
+
     /// How it transcribes a stream: what its presets resolved to.
     pub policy: ParakeetPolicy,
 
@@ -147,6 +150,7 @@ impl ParakeetConstruct {
             front_end: ParakeetFrontEndConfig::new().try_init(device)?,
             vocab,
             policy: ParakeetPolicy::default(),
+            decoder: TdtGreedyDecoderConfig::new(),
             presets: PresetSelection::default(),
         })
     }
@@ -265,8 +269,7 @@ impl ParakeetConstruct {
     ) -> BunsenResult<Vec<ParakeetTranscript>> {
         let (features, frames) = self.front_end.forward(waveforms, lengths);
         let (encoded, frames) = self.model.encode(features, Some(&frames));
-        TdtGreedyDecoderConfig::new()
-            .init()
+        self.decoder
             .decode(&self.model, encoded, &frames)
             .into_iter()
             .map(|hypothesis| {

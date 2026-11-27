@@ -122,7 +122,26 @@ impl TdtPredictionState {
         mask: Tensor<1, burn::prelude::Bool>,
         next: Self,
     ) -> Self {
-        let [layers, batch, d] = self.hidden.dims();
+        let [layers, batch, d] = crate::contracts::unpack_shape_contract!(
+            ["layers", "batch", "d"],
+            &self.hidden.dims(),
+            &["layers", "batch", "d"]
+        );
+        #[cfg(any(debug_assertions, test))]
+        {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch"],
+                &mask.dims(),
+                &[("batch", batch)]
+            );
+            for s in [&self.cell, &next.hidden, &next.cell] {
+                crate::contracts::assert_shape_contract_periodically!(
+                    ["layers", "batch", "d"],
+                    &s.dims(),
+                    &[("layers", layers), ("batch", batch), ("d", d)]
+                );
+            }
+        }
         let mask = mask.reshape([1, batch, 1]).expand([layers, batch, d]);
         Self {
             hidden: self.hidden.mask_where(mask.clone(), next.hidden),
@@ -196,7 +215,8 @@ impl TdtPredictionNetwork {
         tokens: Tensor<1, Int>,
         state: TdtPredictionState,
     ) -> (Tensor<2>, TdtPredictionState) {
-        let [batch] = tokens.dims();
+        let [batch] =
+            crate::contracts::unpack_shape_contract!(["batch"], &tokens.dims(), &["batch"]);
         let d = self.d_pred();
         #[cfg(any(debug_assertions, test))]
         for s in [&state.hidden, &state.cell] {
@@ -260,7 +280,11 @@ impl TdtPredictionNetwork {
         &self,
         tokens: Tensor<2, Int>,
     ) -> Tensor<3> {
-        let [batch, len] = tokens.dims();
+        let [batch, len] = crate::contracts::unpack_shape_contract!(
+            ["batch", "len"],
+            &tokens.dims(),
+            &["batch", "len"]
+        );
         let mut state = self.new_state(batch, &tokens.device());
         let mut outputs = Vec::with_capacity(len);
         for u in 0..len {
