@@ -11,12 +11,7 @@
 //!   checkpoint.
 
 use crate::{
-    blocks::images::models::conv_net::GlobalPool2dConfig,
-    data::pretrained::Prefabs,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::images::{
         classification::resnet::ResNetContractConfig,
         support::interop::timm::TimmModelConfigMirror,
@@ -40,25 +35,13 @@ pub use weights::*;
 pub fn resnet_contract_config(
     config: &TimmModelConfigMirror
 ) -> BunsenResult<ResNetContractConfig> {
-    let architecture = config.architecture.as_str();
-    let mut contract = ResNetContractConfig::prefab(architecture).ok_or_else(|| {
-        BunsenError::unsupported(format!(
-            "timm's {architecture}: the resnet kit builds {}",
-            ResNetContractConfig::prefab_names().join(", ")
-        ))
-    })?;
-    if config.num_classes == 0 {
-        return Err(BunsenError::unsupported(format!(
-            "timm's headless {architecture}: the resnet kit builds a classifier"
-        )));
-    }
-    if let Some(pool) = config.global_pool.as_deref() {
-        contract.global_pool = GlobalPool2dConfig::from_timm(pool).ok_or_else(|| {
-            BunsenError::unsupported(format!(
-                "timm's {architecture} with a {pool:?} pool: the resnet kit pools by avg, max, \
-                 avgmax or catavgmax"
-            ))
-        })?;
+    use crate::kits::images::support::interop::timm::{
+        timm_conv_global_pool,
+        timm_prefab,
+    };
+    let mut contract: ResNetContractConfig = timm_prefab(config, "resnet")?;
+    if let Some(pool) = timm_conv_global_pool(config, "resnet")? {
+        contract.global_pool = pool;
     }
     contract.num_classes = config.num_classes;
     Ok(contract)
@@ -68,6 +51,8 @@ pub fn resnet_contract_config(
 mod tests {
     use super::*;
     use crate::{
+        blocks::images::models::conv_net::GlobalPool2dConfig,
+        data::pretrained::Prefabs,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
         support::testing::assert_config_eq,
@@ -107,9 +92,13 @@ mod tests {
         unsupported()
             .message_contains("timm's resnest50d")
             .assert_err(&resnet_contract_config(&config("resnest50d", 1000)));
-        unsupported()
-            .message_contains("headless")
-            .assert_err(&resnet_contract_config(&config("resnet50", 0)));
+        // A headless repo builds a headless model: its pooled features.
+        assert_eq!(
+            resnet_contract_config(&config("resnet50", 0))
+                .unwrap()
+                .num_classes,
+            0
+        );
         let mut unpooled = config("resnet50", 1000);
         unpooled.global_pool = Some("".into());
         unsupported()

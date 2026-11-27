@@ -10,14 +10,8 @@
 //!   [`swin::interop::timm`](crate::kits::images::classification::swin::interop::timm),
 //!   V1's and V2's alike.
 
-use alloc::format;
-
 use crate::{
-    data::pretrained::Prefabs,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::images::{
         classification::swin::{
             interop::timm::swin_timm_input,
@@ -39,13 +33,8 @@ use crate::{
 pub fn swin_v2_contract_config(
     config: &TimmModelConfigMirror
 ) -> BunsenResult<SwinV2ContractConfig> {
-    let architecture = config.architecture.as_str();
-    let mut contract = SwinV2ContractConfig::prefab(architecture).ok_or_else(|| {
-        BunsenError::unsupported(format!(
-            "timm's {architecture}: the swin v2 kit builds {}",
-            SwinV2ContractConfig::prefab_names().join(", ")
-        ))
-    })?;
+    let mut contract: SwinV2ContractConfig =
+        crate::kits::images::support::interop::timm::timm_prefab(config, "swin v2")?;
     let (image_size, pool) = swin_timm_input(config, "swin v2", contract.in_channels)?;
     contract.image_size = image_size;
     if let Some(pool) = pool {
@@ -59,6 +48,7 @@ pub fn swin_v2_contract_config(
 mod tests {
     use super::*;
     use crate::{
+        data::pretrained::Prefabs,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
         support::testing::assert_config_eq,

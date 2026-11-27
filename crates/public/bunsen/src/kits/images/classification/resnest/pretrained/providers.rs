@@ -1,14 +1,8 @@
 //! # `ResNeSt` pretrained providers
 
-use alloc::{
-    sync::Arc,
-    vec,
-};
+use alloc::sync::Arc;
 
-use crate::data::builds::{
-    BuildProvider,
-    HfProvider,
-};
+use crate::data::builds::BuildProvider;
 
 /// The `ResNeSt` kit's name: its rows' `kit` tag.
 pub const RESNEST_KIT: &str = "resnest";
@@ -31,12 +25,18 @@ pub const RESNEST_CATALOG_CONTRACT: &str = "resnest-classifier";
 /// `model.safetensors` and its `config.json`, whose architecture names the
 /// geometry.
 pub fn default_resnest_providers() -> Vec<Arc<dyn BuildProvider>> {
-    vec![
-        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
-            RESNEST_CATALOG_CONTRACT,
-        )),
-        Arc::new(HfProvider::new()),
-    ]
+    crate::kits::images::support::pretrained::timm_providers(RESNEST_CATALOG_CONTRACT)
+}
+
+/// `ResNeSt`'s factory: [`default_resnest_providers`] behind
+/// [`ResNeStConstructConfig`](super::ResNeStConstructConfig).
+///
+/// # Errors
+/// As [`BuildFactory::register`](crate::data::builds::BuildFactory::register), if two of the defaults share a name,
+/// which the tests pin they do not.
+pub fn default_resnest_factory()
+-> crate::errors::BunsenResult<crate::data::builds::BuildFactory<super::ResNeStConstructConfig>> {
+    crate::data::builds::BuildFactory::new().with_providers(default_resnest_providers())
 }
 
 #[cfg(test)]
@@ -50,7 +50,10 @@ mod tests {
             pretrained::Prefabs,
         },
         kits::images::{
-            classification::resnest::ResNeStContractConfig,
+            classification::resnest::{
+                ResNeStContractConfig,
+                pretrained::RESNEST_KIT,
+            },
             support::card::{
                 LABEL_NAMES,
                 LABELS,
@@ -91,5 +94,14 @@ mod tests {
             by_labels,
             BTreeMap::from([("imagenet/synsets-1k".into(), 8),])
         );
+    }
+
+    /// The default factory is the catalog provider, then `hf:`, serving the
+    /// kit.
+    #[test]
+    fn test_the_defaults_register() {
+        let factory = default_resnest_factory().unwrap();
+        assert_eq!(factory.kit(), RESNEST_KIT);
+        assert_eq!(factory.providers().len(), 2);
     }
 }

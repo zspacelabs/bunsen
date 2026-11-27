@@ -11,19 +11,12 @@
 //! - **Loading** (feature `store`): `load_resnest_tensors`; with `cache`,
 //!   `load_resnest`, a resource set's checkpoint.
 
-use alloc::format;
-
 use crate::{
-    blocks::images::models::conv_net::GlobalPool2dConfig,
     burner::module::{
         Indices,
         Rekey,
     },
-    data::pretrained::Prefabs,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::images::{
         classification::{
             resnest::ResNeStContractConfig,
@@ -53,25 +46,13 @@ pub use weights::*;
 pub fn resnest_contract_config(
     config: &TimmModelConfigMirror
 ) -> BunsenResult<ResNeStContractConfig> {
-    let architecture = config.architecture.as_str();
-    let mut contract = ResNeStContractConfig::prefab(architecture).ok_or_else(|| {
-        BunsenError::unsupported(format!(
-            "timm's {architecture}: the resnest kit builds {}",
-            ResNeStContractConfig::prefab_names().join(", ")
-        ))
-    })?;
-    if config.num_classes == 0 {
-        return Err(BunsenError::unsupported(format!(
-            "timm's headless {architecture}: the resnest kit builds a classifier"
-        )));
-    }
-    if let Some(pool) = config.global_pool.as_deref() {
-        contract.resnet.global_pool = GlobalPool2dConfig::from_timm(pool).ok_or_else(|| {
-            BunsenError::unsupported(format!(
-                "timm's {architecture} with a {pool:?} pool: the resnest kit pools by avg, max, \
-                 avgmax or catavgmax"
-            ))
-        })?;
+    use crate::kits::images::support::interop::timm::{
+        timm_conv_global_pool,
+        timm_prefab,
+    };
+    let mut contract: ResNeStContractConfig = timm_prefab(config, "resnest")?;
+    if let Some(pool) = timm_conv_global_pool(config, "resnest")? {
+        contract.resnet.global_pool = pool;
     }
     contract.resnet.num_classes = config.num_classes;
     Ok(contract)
@@ -127,6 +108,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::testing::assert_rekeys,
+        data::pretrained::Prefabs,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
         support::testing::assert_config_eq,

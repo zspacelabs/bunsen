@@ -22,7 +22,6 @@ use crate::{
         Rekey,
         TensorLoadRowSplit,
     },
-    data::pretrained::Prefabs,
     errors::{
         BunsenError,
         BunsenResult,
@@ -49,13 +48,8 @@ pub use weights::*;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for an
 /// architecture the kit has no prefab of; as [`with_timm_config`].
 pub fn vit_contract_config(config: &TimmModelConfigMirror) -> BunsenResult<ViTContractConfig> {
-    let architecture = config.architecture.as_str();
-    let contract = ViTContractConfig::prefab(architecture).ok_or_else(|| {
-        BunsenError::unsupported(format!(
-            "timm's {architecture}: the vit kit builds {}",
-            ViTContractConfig::prefab_names().join(", ")
-        ))
-    })?;
+    let contract: ViTContractConfig =
+        crate::kits::images::support::interop::timm::timm_prefab(config, "vit")?;
     with_timm_config(contract, config)
 }
 
@@ -243,6 +237,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::testing::assert_rekeys,
+        data::pretrained::Prefabs,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
         support::testing::assert_config_eq,

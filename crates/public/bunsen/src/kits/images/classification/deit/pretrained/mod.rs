@@ -31,15 +31,11 @@
 
 #[cfg(feature = "store")]
 mod construct;
-#[cfg(feature = "store")]
-mod factory;
 mod prefabs;
 #[cfg(feature = "store")]
 mod providers;
 
 #[cfg(feature = "store")]
 pub use construct::*;
-#[cfg(feature = "store")]
-pub use factory::*;
 #[cfg(feature = "store")]
 pub use providers::*;

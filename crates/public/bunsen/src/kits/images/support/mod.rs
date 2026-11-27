@@ -32,4 +32,6 @@ pub mod eval;
 pub mod imagenet;
 pub mod interop;
 pub mod labels;
+#[cfg(feature = "store")]
+pub mod pretrained;
 pub mod transform;

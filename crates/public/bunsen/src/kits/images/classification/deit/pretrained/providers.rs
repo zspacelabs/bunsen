@@ -1,14 +1,8 @@
 //! # `DeiT` pretrained providers
 
-use alloc::{
-    sync::Arc,
-    vec,
-};
+use alloc::sync::Arc;
 
-use crate::data::builds::{
-    BuildProvider,
-    HfProvider,
-};
+use crate::data::builds::BuildProvider;
 
 /// The `DeiT` kit's name: its rows' `kit` tag.
 pub const DEIT_KIT: &str = "deit";
@@ -31,12 +25,17 @@ pub const DEIT_CATALOG_CONTRACT: &str = "deit-classifier";
 /// `model.safetensors` and its `config.json`, whose architecture names the
 /// geometry.
 pub fn default_deit_providers() -> Vec<Arc<dyn BuildProvider>> {
-    vec![
-        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
-            DEIT_CATALOG_CONTRACT,
-        )),
-        Arc::new(HfProvider::new()),
-    ]
+    crate::kits::images::support::pretrained::timm_providers(DEIT_CATALOG_CONTRACT)
+}
+
+/// `DeiT`'s factory: [`default_deit_providers`] behind [`DeiTConstructConfig`](super::DeiTConstructConfig).
+///
+/// # Errors
+/// As [`BuildFactory::register`](crate::data::builds::BuildFactory::register), if two of the defaults share a name,
+/// which the tests pin they do not.
+pub fn default_deit_factory()
+-> crate::errors::BunsenResult<crate::data::builds::BuildFactory<super::DeiTConstructConfig>> {
+    crate::data::builds::BuildFactory::new().with_providers(default_deit_providers())
 }
 
 #[cfg(test)]
@@ -48,7 +47,10 @@ mod tests {
             pretrained::Prefabs,
         },
         kits::images::{
-            classification::deit::DeiTContractConfig,
+            classification::deit::{
+                DeiTContractConfig,
+                pretrained::DEIT_KIT,
+            },
             support::card::{
                 LABEL_NAMES,
                 LABELS,
@@ -83,5 +85,14 @@ mod tests {
             );
             assert!(map.get(LABEL_NAMES).is_some(), "{name}");
         }
+    }
+
+    /// The default factory is the catalog provider, then `hf:`, serving the
+    /// kit.
+    #[test]
+    fn test_the_defaults_register() {
+        let factory = default_deit_factory().unwrap();
+        assert_eq!(factory.kit(), DEIT_KIT);
+        assert_eq!(factory.providers().len(), 2);
     }
 }

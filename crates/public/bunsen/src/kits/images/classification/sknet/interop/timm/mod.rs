@@ -11,19 +11,12 @@
 //! - **Loading** (feature `store`): `load_sknet_tensors`; with `cache`,
 //!   `load_sknet`, a resource set's checkpoint.
 
-use alloc::format;
-
 use crate::{
-    blocks::images::models::conv_net::GlobalPool2dConfig,
     burner::module::{
         Indices,
         Rekey,
     },
-    data::pretrained::Prefabs,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::images::{
         classification::{
             resnet::interop::torchvision::{
@@ -51,25 +44,13 @@ pub use weights::*;
 /// architecture the kit has no prefab of, a headless model (0 classes), or a
 /// pool the head doesn't build (`''`).
 pub fn sknet_contract_config(config: &TimmModelConfigMirror) -> BunsenResult<SKNetContractConfig> {
-    let architecture = config.architecture.as_str();
-    let mut contract = SKNetContractConfig::prefab(architecture).ok_or_else(|| {
-        BunsenError::unsupported(format!(
-            "timm's {architecture}: the sknet kit builds {}",
-            SKNetContractConfig::prefab_names().join(", ")
-        ))
-    })?;
-    if config.num_classes == 0 {
-        return Err(BunsenError::unsupported(format!(
-            "timm's headless {architecture}: the sknet kit builds a classifier"
-        )));
-    }
-    if let Some(pool) = config.global_pool.as_deref() {
-        contract.resnet.global_pool = GlobalPool2dConfig::from_timm(pool).ok_or_else(|| {
-            BunsenError::unsupported(format!(
-                "timm's {architecture} with a {pool:?} pool: the sknet kit pools by avg, max, \
-                 avgmax or catavgmax"
-            ))
-        })?;
+    use crate::kits::images::support::interop::timm::{
+        timm_conv_global_pool,
+        timm_prefab,
+    };
+    let mut contract: SKNetContractConfig = timm_prefab(config, "sknet")?;
+    if let Some(pool) = timm_conv_global_pool(config, "sknet")? {
+        contract.resnet.global_pool = pool;
     }
     contract.resnet.num_classes = config.num_classes;
     Ok(contract)
@@ -133,6 +114,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::testing::assert_rekeys,
+        data::pretrained::Prefabs,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
         support::testing::assert_config_eq,

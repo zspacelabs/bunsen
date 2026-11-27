@@ -1,14 +1,8 @@
 //! # Swin V1 pretrained providers
 
-use alloc::{
-    sync::Arc,
-    vec,
-};
+use alloc::sync::Arc;
 
-use crate::data::builds::{
-    BuildProvider,
-    HfProvider,
-};
+use crate::data::builds::BuildProvider;
 
 /// The Swin V1 kit's name: its rows' `kit` tag.
 pub const SWIN_V1_KIT: &str = "swin-v1";
@@ -31,12 +25,18 @@ pub const SWIN_V1_CATALOG_CONTRACT: &str = "swin-v1-classifier";
 /// `model.safetensors` and its `config.json`, whose architecture names the
 /// geometry.
 pub fn default_swin_v1_providers() -> Vec<Arc<dyn BuildProvider>> {
-    vec![
-        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
-            SWIN_V1_CATALOG_CONTRACT,
-        )),
-        Arc::new(HfProvider::new()),
-    ]
+    crate::kits::images::support::pretrained::timm_providers(SWIN_V1_CATALOG_CONTRACT)
+}
+
+/// Swin V1's factory: [`default_swin_v1_providers`] behind
+/// [`SwinV1ConstructConfig`](super::SwinV1ConstructConfig).
+///
+/// # Errors
+/// As [`BuildFactory::register`](crate::data::builds::BuildFactory::register), if two of the defaults share a name,
+/// which the tests pin they do not.
+pub fn default_swin_v1_factory()
+-> crate::errors::BunsenResult<crate::data::builds::BuildFactory<super::SwinV1ConstructConfig>> {
+    crate::data::builds::BuildFactory::new().with_providers(default_swin_v1_providers())
 }
 
 #[cfg(test)]
@@ -48,7 +48,10 @@ mod tests {
             pretrained::Prefabs,
         },
         kits::images::{
-            classification::swin::v1::SwinV1ContractConfig,
+            classification::swin::v1::{
+                SwinV1ContractConfig,
+                pretrained::SWIN_V1_KIT,
+            },
             support::card::{
                 LABEL_NAMES,
                 LABELS,
@@ -82,5 +85,14 @@ mod tests {
             assert_eq!(map.get(LABELS).is_some(), labelled, "{name}");
             assert_eq!(map.get(LABEL_NAMES).is_some(), labelled, "{name}");
         }
+    }
+
+    /// The default factory is the catalog provider, then `hf:`, serving the
+    /// kit.
+    #[test]
+    fn test_the_defaults_register() {
+        let factory = default_swin_v1_factory().unwrap();
+        assert_eq!(factory.kit(), SWIN_V1_KIT);
+        assert_eq!(factory.providers().len(), 2);
     }
 }
