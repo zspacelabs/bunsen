@@ -31,7 +31,7 @@ pub struct RotaryTableDTypePolicy {
 impl RotaryTableDTypePolicy {
     /// The policy for tables wanted in `table_dtype`, on a device that
     /// supports the dtypes `supports` accepts.
-    pub fn init(
+    pub fn new(
         table_dtype: Option<FloatDType>,
         supports: impl Fn(DType) -> bool,
     ) -> Self {
@@ -188,7 +188,7 @@ mod tests {
         let all = |_: DType| true;
         let no_half_no_f64 = |d: DType| !matches!(d, DType::BF16 | DType::F16 | DType::F64);
         let policy = |table_dtype, supports: &dyn Fn(DType) -> bool| {
-            let p = RotaryTableDTypePolicy::init(table_dtype, supports);
+            let p = RotaryTableDTypePolicy::new(table_dtype, supports);
             (p.round_to, p.keep_in)
         };
         assert_eq!(policy(None, &all), (None, FloatDType::F32));

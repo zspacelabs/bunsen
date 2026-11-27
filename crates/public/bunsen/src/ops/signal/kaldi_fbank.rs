@@ -170,7 +170,7 @@ impl KaldiFbankConfig {
     /// finite; a frame length or shift of no samples; fewer than 4 mel bins;
     /// a low or high edge outside `[0, nyquist]`, or a low edge not below the
     /// high; a pre-emphasis outside `[0, 1]`.
-    pub fn validate(&self) -> BunsenResult<()> {
+    pub fn try_validate(&self) -> BunsenResult<()> {
         const OWNER: &str = "KaldiFbankConfig";
         if !(self.sample_rate.is_finite() && self.sample_rate > 0.0) {
             return Err(ConstraintError::out_of_range(
@@ -258,12 +258,12 @@ impl ModuleInit<KaldiFbank> for KaldiFbankConfig {
     /// Builds a [`KaldiFbank`] on `device`: the window and the filterbank.
     ///
     /// # Errors
-    /// See [`validate`](KaldiFbankConfig::validate).
+    /// See [`try_validate`](KaldiFbankConfig::try_validate).
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<KaldiFbank> {
-        self.validate()?;
+        self.try_validate()?;
         let frame_len = self.frame_len();
         let to_f32 = |v: Vec<f64>| v.into_iter().map(|x| x as f32).collect::<Vec<_>>();
         let window = Tensor::from_data(
@@ -456,7 +456,7 @@ mod tests {
     /// Each config's refusals.
     #[test]
     fn test_validate() {
-        assert!(zonos3().validate().is_ok());
+        assert!(zonos3().try_validate().is_ok());
         for bad in [
             zonos3().with_sample_rate(0.0),
             zonos3().with_frame_length_ms(0.01),
@@ -468,7 +468,7 @@ mod tests {
             zonos3().with_low_freq(7000.0).with_high_freq(-1500.0),
             zonos3().with_preemphasis(1.5),
         ] {
-            assert!(bad.validate().is_err(), "{bad:?}");
+            assert!(bad.try_validate().is_err(), "{bad:?}");
         }
         assert_eq!(zonos3().with_high_freq(-200.0).high_freq_hz(), 7800.0);
         assert_eq!(zonos3().with_high_freq(6000.0).high_freq_hz(), 6000.0);

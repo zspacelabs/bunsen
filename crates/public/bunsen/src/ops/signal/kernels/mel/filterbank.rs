@@ -14,7 +14,6 @@ use num_traits::Float;
 
 use crate::{
     errors::{
-        BunsenError,
         BunsenResult,
         ConstraintError,
         Rule,
@@ -248,12 +247,16 @@ impl MelFilterbankConfig {
 
         for w in points.windows(2) {
             if w[0] >= w[1] {
-                return Err(BunsenError::illegal(format!(
-                    "{OWNER}: mel points are not strictly increasing \
-                 ({} then {}); n_mels ({}) is too large for the \
-                 [{f_min}, {f_max}] Hz span",
-                    w[0], w[1], self.n_mels
-                )));
+                return Err(ConstraintError::custom(
+                    OWNER,
+                    "n_mels",
+                    format!(
+                        "mel points are not strictly increasing ({} then {}); {} is too large \
+                         for the [{f_min}, {f_max}] Hz span",
+                        w[0], w[1], self.n_mels
+                    ),
+                )
+                .into());
             }
         }
 
@@ -273,14 +276,18 @@ impl MelFilterbankConfig {
             }
 
             if row.iter().all(|&v| v == 0.0) {
-                return Err(BunsenError::illegal(format!(
-                    "{OWNER}: triangle {i} spanning [{f_lo}, {f_hi}] Hz \
-                 covers no rfft bin (bin spacing {} Hz); n_mels ({}) is \
-                 too large for n_fft ({})",
-                    self.sample_rate as f64 / self.n_fft as f64,
-                    self.n_mels,
-                    self.n_fft
-                )));
+                return Err(ConstraintError::custom(
+                    OWNER,
+                    "n_mels",
+                    format!(
+                        "triangle {i} spanning [{f_lo}, {f_hi}] Hz covers no rfft bin (bin \
+                     spacing {} Hz); {} is too large for n_fft ({})",
+                        self.sample_rate as f64 / self.n_fft as f64,
+                        self.n_mels,
+                        self.n_fft
+                    ),
+                )
+                .into());
             }
         }
 

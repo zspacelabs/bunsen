@@ -361,7 +361,7 @@ impl PerceptiveAudioConversionContext {
     ///
     /// Currently the identity. This is where pre-emphasis and DC removal will
     /// land; both are rejected by
-    /// [`validate`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverterConfig::validate)
+    /// [`try_validate`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverterConfig::try_validate)
     /// until then, so the stage cannot silently drop a configured filter.
     ///
     /// `[batch, extended]` -> `[batch, extended]`.

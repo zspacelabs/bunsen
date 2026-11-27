@@ -1,6 +1,9 @@
 //! A multi-layer key/value cache, stored as its config's policy says.
 
-use alloc::vec::Vec;
+use alloc::{
+    string::ToString,
+    vec::Vec,
+};
 
 use burn::{
     Tensor,
@@ -22,8 +25,9 @@ use crate::{
         unpack_shape_contract,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
 };
 
@@ -330,29 +334,39 @@ impl ModuleInit<KVCache> for KVCacheConfig {
         device: &Device,
     ) -> BunsenResult<KVCache> {
         if self.chunk_size == 0 {
-            return Err(BunsenError::illegal(
-                "a KV cache's chunk_size must be positive",
-            ));
+            return Err(ConstraintError::zero_or_empty("KVCacheConfig", "chunk_size").into());
         }
         if let Some(max) = self.max_seq_len
             && self.seq_len > max
         {
-            return Err(BunsenError::illegal(format!(
-                "a KV cache's seq_len ({}) exceeds its max_seq_len ({max})",
-                self.seq_len
-            )));
+            return Err(ConstraintError::new(
+                "KVCacheConfig",
+                "seq_len",
+                Rule::Relation {
+                    lhs: ("seq_len".into(), self.seq_len.to_string()),
+                    op: "<=",
+                    rhs: ("max_seq_len".into(), max.to_string()),
+                },
+            )
+            .into());
         }
         if !self.layer_windows.is_empty() && self.layer_windows.len() != self.num_layers {
-            return Err(BunsenError::illegal(format!(
-                "a KV cache's layer_windows has {} entries for {} layers",
-                self.layer_windows.len(),
-                self.num_layers
-            )));
+            return Err(ConstraintError::new(
+                "KVCacheConfig",
+                "layer_windows",
+                Rule::Relation {
+                    lhs: (
+                        "layer_windows.len()".into(),
+                        self.layer_windows.len().to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("num_layers".into(), self.num_layers.to_string()),
+                },
+            )
+            .into());
         }
         if self.layer_windows.iter().flatten().any(|&w| w == 0) {
-            return Err(BunsenError::illegal(
-                "a KV cache layer's window must be positive",
-            ));
+            return Err(ConstraintError::zero_or_empty("KVCacheConfig", "layer_windows").into());
         }
         let layer_windows = if self.layer_windows.is_empty() {
             vec![None; self.num_layers]
@@ -1539,19 +1553,19 @@ mod tests {
         };
         illegal(
             KVCacheConfig::new(1, 2, 16, 4, 3).with_max_seq_len(Some(8)),
-            "a KV cache's seq_len (16) exceeds its max_seq_len (8)",
+            "KVCacheConfig.seq_len: seq_len (16) must be <= max_seq_len (8)",
         );
         illegal(
             KVCacheConfig::new(1, 2, 16, 4, 3).with_chunk_size(0),
-            "a KV cache's chunk_size must be positive",
+            "KVCacheConfig.chunk_size: must not be zero or empty",
         );
         illegal(
             KVCacheConfig::new(1, 2, 16, 4, 3).with_layer_windows(vec![None]),
-            "a KV cache's layer_windows has 1 entries for 3 layers",
+            "KVCacheConfig.layer_windows: layer_windows.len() (1) must be == num_layers (3)",
         );
         illegal(
             KVCacheConfig::new(1, 2, 16, 4, 1).with_layer_windows(vec![Some(0)]),
-            "a KV cache layer's window must be positive",
+            "KVCacheConfig.layer_windows: must not be zero or empty",
         );
     }
 

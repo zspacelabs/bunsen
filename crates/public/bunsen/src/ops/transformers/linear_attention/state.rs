@@ -19,8 +19,9 @@ use burn::{
 use crate::{
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        WithOkOrPanic,
     },
 };
 
@@ -58,10 +59,13 @@ impl ModuleInit<DeltaNetState> for DeltaNetStateConfig {
         device: &Device,
     ) -> BunsenResult<DeltaNetState> {
         if self.conv_kernel < 2 {
-            return Err(BunsenError::illegal(format!(
-                "a causal convolution of at least 2 taps; got {}",
-                self.conv_kernel
-            )));
+            return Err(ConstraintError::out_of_range(
+                "DeltaNetStateConfig",
+                "conv_kernel",
+                self.conv_kernel,
+                ">= 2",
+            )
+            .into());
         }
         let f32 = (device, FloatDType::F32.into());
         Ok(DeltaNetState {
@@ -180,16 +184,36 @@ impl DeltaNetCache {
 
     /// The state of the layer at `slot`.
     ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] on `slot`, if the cache has no such slot: a cache
+    /// built for a model with fewer linear-attention layers.
+    pub fn try_layer_mut(
+        &mut self,
+        slot: usize,
+    ) -> BunsenResult<&mut DeltaNetState> {
+        let len = self.layers.len();
+        self.layers.get_mut(slot).ok_or_else(|| {
+            ConstraintError::out_of_range(
+                "DeltaNetCache::try_layer_mut",
+                "slot",
+                slot,
+                alloc::format!("0..{len}, the cache's layers"),
+            )
+            .into()
+        })
+    }
+
+    /// [`try_layer_mut`](Self::try_layer_mut), panicking with its error's
+    /// report.
+    ///
     /// # Panics
     /// If there is no such slot.
     pub fn layer_mut(
         &mut self,
         slot: usize,
     ) -> &mut DeltaNetState {
-        let len = self.layers.len();
-        self.layers
-            .get_mut(slot)
-            .unwrap_or_else(|| panic!("linear-attention slot {slot} of {len}"))
+        self.try_layer_mut(slot).ok_or_panic()
     }
 
     /// Every layer back to the start of a sequence; the snapshot dropped.
@@ -284,7 +308,9 @@ mod tests {
     #[test]
     fn test_init_refuses_a_short_kernel() {
         ErrorMatcher::illegal()
-            .display(text::eq("a causal convolution of at least 2 taps; got 1"))
+            .display(text::eq(
+                "DeltaNetStateConfig.conv_kernel: 1 is outside >= 2",
+            ))
             .assert_err(&DeltaNetStateConfig::new(2, 10, 1, 3, 5, 6).try_init(&cpu_device()));
     }
 
@@ -369,10 +395,9 @@ mod tests {
         );
         cache.reset();
         assert_eq!(cache.snapshot_pos(), None);
-        let refused = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
-            let _ = cache.layer_mut(2);
-        }));
-        assert!(refused.is_err());
+        ErrorMatcher::illegal()
+            .constraint("DeltaNetCache::try_layer_mut", "slot")
+            .assert_err(&cache.try_layer_mut(2).map(|_| ()));
     }
 
     #[test]
