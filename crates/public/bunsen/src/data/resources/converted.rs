@@ -23,9 +23,9 @@ pub const CONVERTED_WEIGHTS_REVISION: u32 = 1;
 pub const CONVERTED_DIR: &str = "converted";
 
 impl ResourceCache {
-    /// Whether loads keep and use converted copies of the weights they read
+    /// What loads do with converted copies of the weights they read
     /// ([`ResourceCacheOptions::converted_weights`](super::ResourceCacheOptions::converted_weights)).
-    pub fn converted_weights(&self) -> bool {
+    pub fn converted_weights(&self) -> super::ConvertedWeights {
         self.converted_weights
     }
 
@@ -130,7 +130,11 @@ mod tests {
     fn test_key_and_path() {
         let dir = tempfile::tempdir().unwrap();
         let cache = cache(dir.path());
-        assert!(!cache.converted_weights(), "off by default");
+        assert_eq!(
+            cache.converted_weights(),
+            super::super::ConvertedWeights::Off,
+            "off by default"
+        );
         let pin = "a".repeat(64);
         let key = cache
             .converted_key("qwen3", &weights(Some(&pin)), "policy x")
