@@ -23,8 +23,8 @@ use bunsen::{
     kits::speech::asr::{
         driver::TranscriptSegment,
         whisper::{
+            WhisperConstruct,
             driver::{
-                WhisperConstruct,
                 WhisperEngineConfig,
                 WhisperStreamDriver,
             },

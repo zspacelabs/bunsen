@@ -36,11 +36,9 @@ use crate::{
         speech::asr::whisper::{
             Whisper,
             WhisperApiConfig,
+            WhisperConstruct,
             WhisperGeometry,
-            driver::{
-                WhisperConstruct,
-                WhisperPolicy,
-            },
+            WhisperPolicy,
             interop::{
                 openai_whisper::PytorchWhisperScanner,
                 transformers::SafetensorsWhisperScanner,

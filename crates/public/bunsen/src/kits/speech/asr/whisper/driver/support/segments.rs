@@ -1,6 +1,6 @@
 //! # Segments: what a timestamped decode says about time.
 
-use crate::kits::speech::asr::whisper::driver::whisper_token_layout::WhisperSpecialIds;
+use crate::kits::speech::asr::whisper::driver::WhisperSpecialIds;
 
 /// A segment of a decoded unit, in frames relative to the unit's start.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -301,7 +301,7 @@ impl WhisperTokenLayoutConfig {
 /// [`WhisperSpecialIds`] is the layout as numbers, a plain `Copy` value;
 /// this pairs it with the layout's names and timestamp grid, and is the
 /// view of it the decode loop holds. A
-/// [`WhisperConstruct`](super::WhisperConstruct) carries one beside its model,
+/// [`WhisperConstruct`](crate::kits::speech::asr::whisper::WhisperConstruct) carries one beside its model,
 /// and the driver reads it from there.
 ///
 /// The [`ids`](Self::ids) as numbers, with the [`layout`](Self::layout)
@@ -598,7 +598,7 @@ mod tests {
         },
         kits::speech::asr::whisper::{
             blocks::CONTROL_TOKENS,
-            driver::whisper_token_layout::WhisperSpecialIds,
+            driver::WhisperSpecialIds,
         },
     };
 

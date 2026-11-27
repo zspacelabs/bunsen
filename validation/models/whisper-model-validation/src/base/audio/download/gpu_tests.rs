@@ -532,12 +532,10 @@ fn test_bunsen_driver_transcribes_like_openai() {
         .with_language(Some("en".to_string()))
         .with_timestamps(true)
         .try_init(
-            std::sync::Arc::new(
-                bunsen::kits::speech::asr::whisper::driver::WhisperConstruct::new(
-                    bunsen_model(&device),
-                    table.policy.clone(),
-                ),
-            ),
+            std::sync::Arc::new(bunsen::kits::speech::asr::whisper::WhisperConstruct::new(
+                bunsen_model(&device),
+                table.policy.clone(),
+            )),
             &device,
         )
         .and_then(|engine| {

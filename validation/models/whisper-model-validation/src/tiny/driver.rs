@@ -78,12 +78,10 @@ fn stream_matches_one_shot() {
         .with_language(Some("en".to_string()))
         .with_condition_on_previous_text(false)
         .try_init(
-            std::sync::Arc::new(
-                bunsen::kits::speech::asr::whisper::driver::WhisperConstruct::new(
-                    model.clone(),
-                    table.policy.clone(),
-                ),
-            ),
+            std::sync::Arc::new(bunsen::kits::speech::asr::whisper::WhisperConstruct::new(
+                model.clone(),
+                table.policy.clone(),
+            )),
             &device,
         )
         .and_then(|engine| {

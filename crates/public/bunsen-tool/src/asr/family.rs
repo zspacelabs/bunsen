@@ -54,7 +54,7 @@ use bunsen::{
                 },
             },
             whisper::{
-                driver::WhisperConstruct,
+                WhisperConstruct,
                 pretrained::default_whisper_factory,
             },
         },

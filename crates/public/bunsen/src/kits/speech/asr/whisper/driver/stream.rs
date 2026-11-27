@@ -1,39 +1,69 @@
-//! # Whisper as the core's engine, and its stream context.
+//! # The Whisper stream driver and context: the core's, over a [`WhisperEngine`].
 
-use burn::Tensor;
+use alloc::sync::Arc;
 
-use crate::{
-    errors::BunsenResult,
-    kits::speech::{
-        asr::{
-            driver::{
-                AsrEngine,
-                AsrStreamContext,
-                DecodeRequest,
-                LevelPolicy,
-                TimedTokens,
-                WindowDecode,
-            },
-            whisper::{
-                blocks::WhisperMeta,
-                decode::{
-                    DecodeConfig,
-                    DecodedTokens,
-                    WhisperFallbackConfig,
-                },
-                driver::{
-                    WhisperEngine,
-                    support::segments::split_window,
-                },
-            },
+use crate::kits::{
+    speech::asr::{
+        driver::{
+            AsrStreamContext,
+            AsrStreamDriver,
         },
-        support::{
-            MaxLevel,
-            log_mel::LogMelFeatures,
+        whisper::{
+            driver::WhisperEngine,
+            logit_filters::ApplyTimestampRules,
         },
     },
-    ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
+    support::{
+        decoding::LogitFilter,
+        tokens::Detokenizer,
+    },
 };
+
+/// The Whisper stream driver: the shared, immutable half of a
+/// transcription, the core's [`AsrStreamDriver`] over a [`WhisperEngine`].
+///
+/// Built as every ASR driver is: [`AsrStreamDriver::new`] over a
+/// [`WhisperEngine`] ([`WhisperEngineConfig::try_init`](super::WhisperEngineConfig::try_init)) and an
+/// [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy), then optionally given a voice-activity model with
+/// [`with_vad`](AsrStreamDriver::with_vad). Opens streams with
+/// [`new_context`](AsrStreamDriver::new_context); each
+/// [`WhisperStreamContext`](super::WhisperStreamContext) holds a clone of
+/// the driver, which is cheap (the construct is an `Arc`, and tensors are
+/// shared), so one driver serves any number of streams in one process and
+/// [`advance_ready`](crate::kits::speech::asr::driver::AsrStreamDriver::advance_ready) batches
+/// their decodes.
+pub type WhisperStreamDriver = AsrStreamDriver<WhisperEngine>;
+
+impl AsrStreamDriver<WhisperEngine> {
+    /// Attaches a detokenizer, so emissions carry text as well as ids.
+    pub fn with_detokenizer(
+        self,
+        detokenizer: Arc<dyn Detokenizer>,
+    ) -> Self {
+        self.map_engine(|mut engine| {
+            engine.detokenizer = Some(detokenizer);
+            engine
+        })
+    }
+
+    /// Sets the logit filters every decode applies, in order, replacing
+    /// any set before.
+    pub fn with_logit_filters(
+        self,
+        filters: Vec<Arc<dyn LogitFilter>>,
+    ) -> Self {
+        self.map_engine(|mut engine| {
+            engine.filters = filters;
+            if engine.config.timestamps {
+                engine.filters.push(Arc::new(ApplyTimestampRules::new(
+                    engine.construct.layout.ids(),
+                    engine.max_initial_timestamp_index,
+                )));
+            }
+            engine
+        })
+    }
+}
 
 /// One Whisper stream: the core's [`AsrStreamContext`] over a
 /// [`WhisperEngine`].
@@ -58,380 +88,12 @@ impl AsrStreamContext<WhisperEngine> {
     }
 }
 
-/// What a Whisper stream carries from one window to the next.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct WhisperStreamState {
-    /// The language the prompt names: configured, or detected from the
-    /// first window committed; `None` until then on a detecting driver.
-    pub language: Option<String>,
-
-    /// Where the prompt carry starts in the transcript: upstream's
-    /// `prompt_reset_since`, moved past a decode that needed a high
-    /// temperature so a failure does not feed the next window.
-    pub prompt_reset: usize,
-}
-
-/// What a Whisper decode hands back to its commit.
-#[derive(Clone, Debug, PartialEq)]
-pub struct WhisperCarry {
-    /// The temperature the decode was accepted at.
-    pub temperature: f64,
-
-    /// The language the decode detected, when the stream had none.
-    pub detected: Option<String>,
-}
-
-/// One request, packaged: what it decodes under, and its window.
-struct Packaged {
-    /// The prompt it decodes under; what it is batched by.
-    prompt: Vec<i64>,
-    /// `[1, n_mels, width]`.
-    window: Tensor<3>,
-    /// The language detected for it, when its stream had none.
-    detected: Option<String>,
-    /// The window's frames.
-    count: usize,
-}
-
-impl WhisperEngine {
-    /// Floors a window at the range below its level and pads it out to the
-    /// model's width: `[1, n_mels, width]`.
-    fn package_padded(
-        &self,
-        window: Tensor<3>,
-        level: &MaxLevel,
-    ) -> Tensor<3> {
-        let packaged = self.front_end().package_window(window, level.max.clone());
-
-        let width = self.window_frames();
-        let [_, n_mels, have] = packaged.dims();
-        if have < width {
-            let pad = Tensor::zeros(
-                [1, n_mels, width - have],
-                (&packaged.device(), packaged.dtype()),
-            );
-            Tensor::cat(vec![packaged, pad], 2)
-        } else {
-            packaged
-        }
-    }
-
-    /// The prompt a window decodes under: the sot sequence naming
-    /// `language`, preceded by the transcript's tail after
-    /// `<|startofprev|>` when carrying is on.
-    pub(super) fn prompt_under(
-        &self,
-        state: &WhisperStreamState,
-        transcript: &[i64],
-        language: Option<&str>,
-    ) -> Vec<i64> {
-        let prompt = self
-            .sot_sequence(language)
-            .expect("the language is known before a prompt is built");
-        let carried = &transcript[state.prompt_reset.min(transcript.len())..];
-        if !self.config.condition_on_previous_text || carried.is_empty() {
-            return prompt;
-        }
-
-        // Upstream keeps `n_text_ctx / 2 - 1` tokens of context.
-        let keep = self.whisper_model().max_text_ctx() / 2 - 1;
-        let tail = &carried[carried.len().saturating_sub(keep)..];
-
-        let mut out = Vec::with_capacity(1 + tail.len() + prompt.len());
-        out.push(self.token_layout().ids().sot_prev);
-        out.extend_from_slice(tail);
-        out.extend_from_slice(&prompt);
-        out
-    }
-
-    /// The language a packaged window detects, when the stream has none and
-    /// the driver leaves it to be detected: upstream's `detect_language`, on
-    /// the features the decode will use.
-    fn undetected_language(
-        &self,
-        state: &WhisperStreamState,
-        packaged: &Tensor<3>,
-    ) -> Option<String> {
-        if state.language.is_some() || !self.detects_language() {
-            return None;
-        }
-        let model = self.whisper_model();
-        let xa = model.forward_encoder(packaged.clone());
-        let token = model.detect_language(xa, self.token_layout().ids())[0];
-        let code = self
-            .token_layout()
-            .language_code(token)
-            .expect("detection picks a language token");
-        Some(code.to_string())
-    }
-
-    /// Packages a request, and finds the prompt it decodes under.
-    ///
-    /// A request on a stream with no language yet detects one from its own
-    /// window and decodes under it. A commit's detection reaches the stream
-    /// through its carry; a draft's is dropped, so drafting cannot change
-    /// the language the stream commits under.
-    fn package(
-        &self,
-        request: &DecodeRequest<'_, Self>,
-    ) -> Packaged {
-        let count = request
-            .speaker_cut(self.config.speaker_cut.as_ref(), self)
-            .unwrap_or(request.window.dims()[1]);
-        let window = self.package_padded(
-            request.window.clone().slice_dim(1, 0..count),
-            &request.level,
-        );
-        let detected = self.undetected_language(request.state, &window);
-        let language = detected.as_deref().or(request.state.language.as_deref());
-        Packaged {
-            prompt: self.prompt_under(request.state, request.transcript, language),
-            window,
-            detected,
-            count,
-        }
-    }
-
-    /// Decodes a packaged window up the ladder, encoding it only if a rung
-    /// past `first` is needed.
-    ///
-    /// # Arguments
-    /// * `base` - the decode config at temperature zero.
-    /// * `window` - `[1, n_mels, width]`, packaged.
-    /// * `first` - the first rung's result when the caller has it.
-    fn ladder(
-        &self,
-        base: &DecodeConfig,
-        window: Tensor<3>,
-        first: Option<DecodedTokens>,
-    ) -> DecodedTokens {
-        let model = self.whisper_model();
-        let mut xa: Option<Tensor<3>> = None;
-        self.config.fallback.decode(
-            base,
-            first,
-            |config| {
-                let xa = xa
-                    .get_or_insert_with(|| model.forward_encoder(window.clone()))
-                    .clone();
-                model
-                    .decode_features_full(xa, config, &self.filters)
-                    .pop()
-                    .expect("one row in, one row out")
-            },
-            |ids| self.text(ids).ok().flatten(),
-        )
-    }
-
-    /// Lays a decode out for the core.
-    ///
-    /// A window the fallback policy calls silence (its no-speech probability
-    /// over the threshold, its log probability poor) is skipped whole.
-    /// Without timestamps the window is one segment. With them the decode is
-    /// split on its timestamps ([`split_window`]): the stream advances to the
-    /// last closed timestamp, and the unfinished tail opens at its first
-    /// timestamp.
-    fn lay_out(
-        &self,
-        decoded: DecodedTokens,
-        count: usize,
-        detected: Option<String>,
-    ) -> WindowDecode<WhisperCarry> {
-        let carry = WhisperCarry {
-            temperature: decoded.temperature,
-            detected,
-        };
-        let skip = self
-            .config
-            .fallback
-            .should_skip(decoded.no_speech_prob.map(f64::from), decoded.avg_logprob());
-        let tokens = decoded.tokens;
-
-        if skip {
-            return WindowDecode {
-                tokens,
-                skip: true,
-                segments: Vec::new(),
-                advance: count,
-                tail: None,
-                carry,
-            };
-        }
-        if !self.config.timestamps {
-            return WindowDecode::whole(count, tokens, carry);
-        }
-
-        let ids = self.token_layout().ids();
-        let fpt = self.frames_per_timestamp();
-        let split = split_window(&tokens, ids, count, fpt);
-        let tail = (!split.tail.is_empty()).then(|| TimedTokens {
-            start: (split.tail[0] - ids.timestamp_begin) as usize * fpt,
-            end: count,
-            tokens: split.tail,
-        });
-        WindowDecode {
-            segments: split
-                .segments
-                .into_iter()
-                .map(|segment| TimedTokens {
-                    start: segment.start,
-                    end: segment.end,
-                    tokens: segment.tokens,
-                })
-                .collect(),
-            tokens,
-            skip: false,
-            advance: split.advance,
-            tail,
-            carry,
-        }
-    }
-}
-
-impl AsrEngine for WhisperEngine {
-    type Carry = WhisperCarry;
-    type Features = LogMelFeatures;
-    type Level = MaxLevel;
-    type StreamState = WhisperStreamState;
-
-    fn sample_rate(&self) -> usize {
-        self.construct.model.sample_rate()
-    }
-
-    fn hop(&self) -> usize {
-        self.audio_converter.hop()
-    }
-
-    fn window_frames(&self) -> usize {
-        WhisperEngine::window_frames(self)
-    }
-
-    fn grid_frames(&self) -> usize {
-        self.frames_per_timestamp()
-    }
-
-    /// [`Running`](LevelPolicy::Running): each window floored against the
-    /// loudest the stream has been.
-    fn level_policy(&self) -> LevelPolicy {
-        LevelPolicy::Running
-    }
-
-    /// The language the stream's prompt names, once known: configured, or
-    /// detected by the stream's first commit.
-    fn language<'s>(
-        &self,
-        state: &'s WhisperStreamState,
-    ) -> Option<&'s str> {
-        state.language.as_deref()
-    }
-
-    /// Whisper's `stft[..., :-1]`: the stream's last frame is the end
-    /// padding's, and goes.
-    fn end_frames_dropped(&self) -> usize {
-        1
-    }
-
-    fn new_features(&self) -> BunsenResult<LogMelFeatures> {
-        Ok(LogMelFeatures::new(
-            self.audio_converter.clone(),
-            self.devices()[0].clone(),
-        ))
-    }
-
-    fn new_stream_state(&self) -> WhisperStreamState {
-        WhisperStreamState {
-            language: self.config.language.clone(),
-            prompt_reset: 0,
-        }
-    }
-
-    /// Windows that decode under the same prompt share one batched first
-    /// rung; a window that needs a rung above it climbs the rest of the
-    /// ladder alone. A lone window decodes on its own, encoding only when
-    /// its first rung needs it.
-    fn decode(
-        &self,
-        requests: Vec<DecodeRequest<'_, Self>>,
-    ) -> BunsenResult<Vec<WindowDecode<WhisperCarry>>> {
-        let packaged: Vec<Packaged> = requests.iter().map(|r| self.package(r)).collect();
-
-        if let [one] = packaged.as_slice() {
-            let config = self.decode_config(one.prompt.clone());
-            let decoded = self.ladder(&config, one.window.clone(), None);
-            return Ok(vec![self.lay_out(decoded, one.count, one.detected.clone())]);
-        }
-
-        // Group by prompt, in order of first appearance.
-        let mut groups: Vec<(Vec<i64>, Vec<usize>)> = Vec::new();
-        for (k, item) in packaged.iter().enumerate() {
-            match groups.iter_mut().find(|(p, _)| *p == item.prompt) {
-                Some((_, members)) => members.push(k),
-                None => groups.push((item.prompt.clone(), vec![k])),
-            }
-        }
-
-        let mut out: Vec<Option<WindowDecode<WhisperCarry>>> = vec![None; packaged.len()];
-        for (prompt, members) in groups {
-            let batch = Tensor::cat(
-                members
-                    .iter()
-                    .map(|&k| packaged[k].window.clone())
-                    .collect(),
-                0,
-            );
-            let config = self.decode_config(prompt);
-            let first = self
-                .whisper_model()
-                .decode_windows_full(batch, &config, &self.filters);
-            for (row, k) in members.into_iter().enumerate() {
-                let item = &packaged[k];
-                let decoded = self.ladder(&config, item.window.clone(), Some(first[row].clone()));
-                out[k] = Some(self.lay_out(decoded, item.count, item.detected.clone()));
-            }
-        }
-        Ok(out
-            .into_iter()
-            .map(|d| d.expect("every request decoded"))
-            .collect())
-    }
-
-    /// Fixes a detected language, and resets the prompt carry after a decode
-    /// that needed a temperature above 0.5 (as upstream does, so a failure
-    /// does not feed the next window), or always when carrying is off.
-    fn commit(
-        &self,
-        state: &mut WhisperStreamState,
-        transcript: &[i64],
-        carry: WhisperCarry,
-    ) {
-        if state.language.is_none() {
-            state.language = carry.detected;
-        }
-        if !self.config.condition_on_previous_text
-            || WhisperFallbackConfig::resets_prompt(carry.temperature)
-        {
-            state.prompt_reset = transcript.len();
-        }
-    }
-
-    fn text(
-        &self,
-        tokens: &[i64],
-    ) -> BunsenResult<Option<String>> {
-        match &self.detokenizer {
-            Some(detokenizer) => Ok(Some(
-                detokenizer.detokenize(&self.token_layout().text_ids(tokens))?,
-            )),
-            None => Ok(None),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use alloc::sync::Arc;
 
     use burn::{
+        Tensor,
         prelude::TensorData,
         tensor::Device,
     };
@@ -441,6 +103,7 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         errors::{
+            BunsenResult,
             ConstraintError,
             LookupError,
             testing::ErrorMatcher,
@@ -459,14 +122,16 @@ mod tests {
                     },
                     whisper::{
                         Whisper,
+                        WhisperConstruct,
+                        WhisperFallbackConfig,
+                        WhisperMeta,
                         blocks::WhisperApiConfig,
                         decode::GreedyDecodeConfig,
                         driver::{
-                            WhisperConstruct,
+                            WhisperEngineConfig,
                             WhisperSpecialIds,
                             WhisperStreamDriver,
                             WhisperTokenLayout,
-                            whisper_stream_driver::WhisperEngineConfig,
                         },
                     },
                 },
@@ -484,6 +149,7 @@ mod tests {
                 tokens::Detokenizer,
             },
         },
+        ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
         support::testing::{
             DeviceMemoryGuard,
             assert_scalar_close,

@@ -21,7 +21,7 @@
 //!
 //! # Presets
 //!
-//! A construct carries the [`WhisperPolicy`](super::driver::WhisperPolicy)
+//! A construct carries the [`WhisperPolicy`](super::WhisperPolicy)
 //! its presets resolved to, which a driver takes with
 //! [`with_policy`](super::driver::WhisperEngineConfig::with_policy).
 //! The multilingual checkpoints that translate (every one but the `.en`
@@ -55,7 +55,7 @@
 //!
 //! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! is the whole pathway from a name to a
-//! [`WhisperConstruct`](crate::kits::speech::asr::whisper::driver::WhisperConstruct)
+//! [`WhisperConstruct`](crate::kits::speech::asr::whisper::WhisperConstruct)
 //! behind an `Arc`. The factory resolves the name to a
 //! [`DeferredBuild`](crate::data::builds::DeferredBuild) model carrying the
 //! kit's hook, [`WhisperConstructConfig`], with the [`WhisperReader`] its

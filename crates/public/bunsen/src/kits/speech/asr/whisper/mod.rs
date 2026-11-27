@@ -12,8 +12,8 @@
 //!   [`default_whisper_factory`](pretrained::default_whisper_factory) is the
 //!   index: `openai/base`, `large`, `catalog:openai/tiny.en`, and
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo. It resolves a name
-//!   to a [`WhisperConstruct`](driver::WhisperConstruct): the model at the
-//!   precision it ships in, its token layout, and its vocabulary.
+//!   to a [`WhisperConstruct`]: the model at the precision it ships in, its
+//!   token layout, and its vocabulary.
 //! - [`interop`]: its checkpoints' ecosystems: [`interop::openai_whisper`],
 //!   `OpenAI`'s `.pt`; [`interop::transformers`], a
 //!   `WhisperForConditionalGeneration`'s state-dict names. Each reads the
@@ -34,8 +34,7 @@
 //! 2. The factory,
 //!    [`default_whisper_factory`](pretrained::default_whisper_factory): a name
 //!    to a row of the index, and the kit's hook to build it.
-//! 3. A [`WhisperConstruct`](driver::WhisperConstruct) behind an `Arc`, from
-//!    the factory's
+//! 3. A [`WhisperConstruct`] behind an `Arc`, from the factory's
 //!    [`load_construct`](crate::data::builds::BuildFactory::load_construct):
 //!    the model, its token layout and its vocabulary.
 //! 4. A [`WhisperEngine`](driver::WhisperEngine) over the construct, from a
@@ -200,8 +199,8 @@
 //!                 EmissionPolicy,
 //!             },
 //!             whisper::{
+//!                 WhisperConstruct,
 //!                 driver::{
-//!                     WhisperConstruct,
 //!                     WhisperEngineConfig,
 //!                     WhisperStreamDriver,
 //!                 },
@@ -294,6 +293,8 @@
 //! # }
 //! ```
 
+mod construct;
+
 pub mod blocks;
 pub mod decode;
 pub mod driver;
@@ -309,5 +310,6 @@ pub use blocks::{
     WhisperMeta,
     WhisperStructureConfig,
 };
+pub use construct::*;
 #[doc(inline)]
 pub use decode::*;
