@@ -89,11 +89,139 @@ impl ResourceCache {
 }
 
 /// Marks a converted copy used now, as a cache hit marks a file: its
-/// modification time, which `cache list` and `cache clear --age` read.
+/// modification time, which `cache list`, `cache clear --age` and `cache gc`
+/// read; and its manifest's ([`converted_manifest_path`]), so that a manifest
+/// is as new as the copy's last use.
 pub fn mark_converted_used(path: &std::path::Path) {
     let now = std::time::SystemTime::now();
-    if let Ok(file) = fs::OpenOptions::new().write(true).open(path) {
-        let _ = file.set_times(fs::FileTimes::new().set_accessed(now).set_modified(now));
+    for path in [path.to_path_buf(), converted_manifest_path(path)] {
+        if let Ok(file) = fs::OpenOptions::new().write(true).open(&path) {
+            let _ = file.set_times(fs::FileTimes::new().set_accessed(now).set_modified(now));
+        }
+    }
+}
+
+/// The manifest beside a converted copy: `<kit>.bpk.json` for `<kit>.bpk`.
+pub fn converted_manifest_path(copy: &std::path::Path) -> PathBuf {
+    let mut name = copy.as_os_str().to_os_string();
+    name.push(".json");
+    PathBuf::from(name)
+}
+
+/// A cached resource a converted copy stands for: what the next load with the
+/// copy's choices does not read. Its cache file is
+/// `resources/<name>/<pin>/<file>`.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ShadowedResource {
+    /// The resource's full name (`qwen/qwen3/qwen3-4b/checkpoint`).
+    pub name: String,
+
+    /// Its SHA-256.
+    pub pin: String,
+
+    /// Its file under the pin.
+    pub file: String,
+}
+
+/// The record beside a converted copy ([`converted_manifest_path`]): what it
+/// was made from and under which choices, and which cached resources it
+/// shadows. `cache gc` reads it to clear sources no load with the copy's
+/// choices reads.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ConvertedManifest {
+    /// The converted-weights layout ([`CONVERTED_WEIGHTS_REVISION`]).
+    pub revision: u32,
+
+    /// The bunsen version that wrote the copy: part of its key, so another
+    /// version's loads never read it.
+    pub bunsen: String,
+
+    /// The kit whose copy it is.
+    pub kit: String,
+
+    /// The copy's key ([`ResourceCache::converted_key`]).
+    pub key: String,
+
+    /// The load's choices the key spells (its policy, the device's floats).
+    pub facets: String,
+
+    /// The resources the copy stands for.
+    pub shadows: Vec<ShadowedResource>,
+}
+
+impl ConvertedManifest {
+    /// The manifest of a kit's copy of `weights` under `key`, saved now by this
+    /// bunsen, under `facets`.
+    pub fn new(
+        kit: &str,
+        key: &str,
+        facets: &str,
+        weights: &ResourceSet,
+    ) -> Self {
+        Self {
+            revision: CONVERTED_WEIGHTS_REVISION,
+            bunsen: env!("CARGO_PKG_VERSION").to_string(),
+            kit: kit.to_string(),
+            key: key.to_string(),
+            facets: facets.to_string(),
+            shadows: weights
+                .resources
+                .values()
+                .filter_map(|r| {
+                    Some(ShadowedResource {
+                        name: r.name.clone(),
+                        pin: r.sha256.clone()?,
+                        file: r.file.clone(),
+                    })
+                })
+                .collect(),
+        }
+    }
+
+    /// Whether this bunsen's loads can read the copy: it was written by this
+    /// version, under this layout ([`CONVERTED_WEIGHTS_REVISION`]). A copy that
+    /// is not current is stale: no load computes its key.
+    pub fn is_current(&self) -> bool {
+        self.revision == CONVERTED_WEIGHTS_REVISION && self.bunsen == env!("CARGO_PKG_VERSION")
+    }
+
+    /// Writes the manifest of the copy at `copy` ([`converted_manifest_path`]):
+    /// to a `.partial` beside it first, then renamed.
+    ///
+    /// # Errors
+    /// A [`Sys`](crate::errors::BunsenErrorKind::Sys) error when it cannot be
+    /// written.
+    pub fn write(
+        &self,
+        copy: &std::path::Path,
+    ) -> crate::errors::BunsenResult<()> {
+        use crate::errors::sys_at;
+        let path = converted_manifest_path(copy);
+        let partial = path.with_extension("json.partial");
+        let text = serde_json::to_string_pretty(self).map_err(|e| {
+            crate::errors::BunsenError::internal("a converted manifest").with_cause(e)
+        })?;
+        fs::write(&partial, text).map_err(sys_at("write", &partial))?;
+        fs::rename(&partial, &path).map_err(sys_at("rename", &partial))
+    }
+
+    /// The manifest of the copy at `copy`, when it has one.
+    ///
+    /// # Errors
+    /// A [`Sys`](crate::errors::BunsenErrorKind::Sys) error when it cannot be
+    /// read, [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// when it does not parse.
+    pub fn read(copy: &std::path::Path) -> crate::errors::BunsenResult<Option<Self>> {
+        use crate::errors::sys_at;
+        let path = converted_manifest_path(copy);
+        if !path.is_file() {
+            return Ok(None);
+        }
+        let text = fs::read_to_string(&path).map_err(sys_at("read", &path))?;
+        serde_json::from_str(&text).map(Some).map_err(|e| {
+            crate::errors::BunsenError::invalid_resource(format!("{}", path.display()))
+                .with_cause(e)
+        })
     }
 }
 
@@ -201,6 +329,59 @@ mod tests {
                 .cached_files(&"toy/lm/tiny/checkpoint".parse().unwrap())
                 .unwrap()
                 .is_empty()
+        );
+    }
+
+    /// A manifest names the copy's weights by name, pin and file, round-trips
+    /// beside its copy, and is touched with it; another version's is stale.
+    #[test]
+    fn test_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let copy = dir.path().join("qwen3.bpk");
+        fs::write(&copy, b"bpk").unwrap();
+        assert_eq!(ConvertedManifest::read(&copy).unwrap(), None);
+
+        let pin = "a".repeat(64);
+        let manifest = ConvertedManifest::new("qwen3", "k", "policy x", &weights(Some(&pin)));
+        assert_eq!(
+            manifest.shadows,
+            [ShadowedResource {
+                name: "toy/lm/tiny/checkpoint".into(),
+                pin: pin.clone(),
+                file: "model.safetensors".into(),
+            }]
+        );
+        assert_eq!(manifest.bunsen, env!("CARGO_PKG_VERSION"));
+        assert!(manifest.is_current());
+        let older = ConvertedManifest {
+            bunsen: "0.0.1".into(),
+            ..manifest.clone()
+        };
+        assert!(!older.is_current());
+        manifest.write(&copy).unwrap();
+        assert_eq!(
+            ConvertedManifest::read(&copy).unwrap().as_ref(),
+            Some(&manifest)
+        );
+        assert_eq!(
+            converted_manifest_path(&copy),
+            dir.path().join("qwen3.bpk.json")
+        );
+
+        let old = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000);
+        for path in [copy.clone(), converted_manifest_path(&copy)] {
+            fs::OpenOptions::new()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_modified(old)
+                .unwrap();
+        }
+        mark_converted_used(&copy);
+        let modified = |p: &std::path::Path| fs::metadata(p).unwrap().modified().unwrap();
+        assert!(
+            modified(&converted_manifest_path(&copy)) > old,
+            "touched with its copy"
         );
     }
 }
