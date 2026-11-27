@@ -74,11 +74,23 @@
 //!   builds through one call shape, and generic code bounded on `C:
 //!   ModuleInit<M>` accepts it.
 //! - **`try_init` reports a config whose fields disagree** as an
-//!   [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error, usually with a
-//!   [`ConstraintError`](crate::errors::ConstraintError) naming the config and
-//!   the field; `init` panics only with that error's report, never through an
-//!   `assert!` of its own. Configs are data: deserialized, assembled by
-//!   loaders, edited by users.
+//!   [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error whose cause is
+//!   a [`ConstraintError`](crate::errors::ConstraintError) naming the config
+//!   and the field, on the shaped [`Rule`](crate::errors::Rule) where one fits
+//!   (zero or empty, out of range, not a multiple, a relation between two
+//!   fields, a chain) and `custom` for a rule in words; a compound check is one
+//!   check per rule. Free-text `illegal` is for a refusal no config or argument
+//!   owns (a stream fed after it ended), and `unsupported` for a valid choice
+//!   that isn't built. `init` panics only with that error's report, never
+//!   through an `assert!` of its own.
+//! - **A `try_` body builds its fallible children with `try_`** (`try_init`,
+//!   `try_validate`, `try_x`), passing their errors on, and an inherent
+//!   `try_init` has its panicking `init` twin. A panicking child inside a
+//!   `try_` body is a panic the caller asked not to get.
+//! - **A model's numeric choices are config fields**, with `#[config(default =
+//!   ..)]` defaults, not constants or statics in its code: a width rounding, an
+//!   epsilon, a kernel list. A prefab states a value by setting the field.
+//!   Configs are data: deserialized, assembled by loaders, edited by users.
 //! - **A Simple family's config is `FooConfig`, and builds `Foo`. A Stacked
 //!   family is a `FooStructureConfig`**, the unrolled tree that implements
 //!   `ModuleInit`, plus policy configs named for their policy

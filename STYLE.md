@@ -92,6 +92,14 @@ Building errors:
   `.with_details(..)` or a frame's details.
 * An `io::Error` goes through `sys_at` (naming its path) or `sys_op`. A
   foreign error is kept as the cause, not formatted into the message.
+* A rule on a config's field or a function's argument is a
+  `ConstraintError` (its owner, its field, the `Rule` it broke), not free
+  text, so a caller and a test can read which rule broke; the
+  [`burner::module` Design Rules](https://docs.rs/bunsen/latest/bunsen/burner/module/index.html#design-rules)
+  say which `Rule` and when free text is right.
+* A value that came from outside the program (a file, a flag) and broke a
+  rule is re-marked `as_policy` where it was read, under a frame naming the
+  source.
 
 Tests check errors with `bunsen::errors::testing::ErrorMatcher`, naming the
 kind and only the parts of the message or cause the test is about.
