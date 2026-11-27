@@ -222,6 +222,7 @@ fn max_weight_assignment(weights: &[Vec<f64>]) -> Vec<Option<usize>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::testdata;
 
     fn seg(
         speaker: &str,
@@ -333,10 +334,7 @@ mod tests {
     /// without a collar, with and without overlap.
     #[test]
     fn test_matches_nemo_md_eval() {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/diarization/nemo.json"
-        );
+        let path = testdata!("diarization/nemo.json");
         let fixture: NemoFixture =
             serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         assert!(!fixture.der.is_empty());

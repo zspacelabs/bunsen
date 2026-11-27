@@ -10,8 +10,6 @@
 //! names, load through [`load_swin_tensors`]; each stage's map, the output
 //! tokens, the pooled features and the logits are checked against timm's.
 
-use std::path::PathBuf;
-
 use burn::prelude::*;
 
 use super::SwinV1ContractConfig;
@@ -30,8 +28,8 @@ use crate::{
     },
     support::testing::{
         ToyFixture,
-        assert_io_close,
         cpu_device,
+        testdata,
     },
 };
 
@@ -47,9 +45,7 @@ fn check_toy(
     policy: SwinV1ContractConfig,
 ) {
     let device = cpu_device();
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("testdata/swin")
-        .join(format!("{name}.safetensors"));
+    let path = testdata!("swin").join(format!("{name}.safetensors"));
     let mut fixture = ToyFixture::load(path, &device);
     let mut model: StagedVisionEncoderModel = policy.init(&device);
     let applied = load_swin_tensors(&mut model, fixture.take_weights()).expect("load the toy");
@@ -58,26 +54,14 @@ fn check_toy(
     let maps = model.stage_maps(images.clone());
     assert_eq!(maps.len(), 2, "{name}: two stages");
     for (k, map) in maps.into_iter().enumerate() {
-        assert_io_close(
-            &format!("{name} stage_{k}"),
-            map,
-            fixture.io(&format!("stage_{k}")),
-        );
+        fixture.assert_io(name, &format!("stage_{k}"), map);
     }
     let ImageFeatures::Tokens { tokens, .. } = model.forward_features(images.clone()) else {
         panic!("{name}: a Swin's features are tokens");
     };
-    assert_io_close(&format!("{name} features"), tokens, fixture.io("features"));
-    assert_io_close(
-        &format!("{name} pooled"),
-        model.forward_pooled(images.clone()),
-        fixture.io("pooled"),
-    );
-    assert_io_close(
-        &format!("{name} logits"),
-        model.forward_logits(images),
-        fixture.io("logits"),
-    );
+    fixture.assert_io(name, "features", tokens);
+    fixture.assert_io(name, "pooled", model.forward_pooled(images.clone()));
+    fixture.assert_io(name, "logits", model.forward_logits(images));
 }
 
 #[test]

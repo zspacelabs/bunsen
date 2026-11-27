@@ -502,7 +502,6 @@ impl WindowAttention {
 // The tests read seeded timm fixtures, which need `store`.
 #[cfg(all(test, feature = "store"))]
 mod tests {
-    use std::path::PathBuf;
 
     use burn::tensor::s;
 
@@ -511,13 +510,11 @@ mod tests {
         ToyFixture,
         assert_io_close,
         cpu_device,
+        testdata,
     };
 
     fn fixture(device: &Device) -> ToyFixture {
-        ToyFixture::load_io(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/swin/window_attn.safetensors"),
-            device,
-        )
+        ToyFixture::load_io(testdata!("swin/window_attn.safetensors"), device)
     }
 
     /// A linear layer of torch's `[out, in]` weight and its bias.

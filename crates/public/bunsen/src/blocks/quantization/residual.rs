@@ -484,8 +484,7 @@ mod tests {
         };
 
         let device = cpu_device();
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("testdata/qwen3_tts/toy.safetensors");
+        let path = crate::support::testing::testdata!("qwen3_tts/toy.safetensors");
         let fixture = ToyFixture::load_io(path, &device);
         let codes = fixture.io::<3>("io.codec.codes").int();
         let [_, k, _] = codes.dims();

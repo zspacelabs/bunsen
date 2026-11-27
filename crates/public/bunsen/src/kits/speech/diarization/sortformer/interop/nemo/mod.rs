@@ -300,7 +300,6 @@ mod defaults {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
 
     use super::*;
     use crate::{
@@ -311,11 +310,11 @@ mod tests {
             diarization::sortformer::SortformerV2Config,
             support::nemo::FeatureNormalization,
         },
+        support::testing::testdata,
     };
 
     fn toy_yaml() -> String {
-        let path =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/nemo/toy_sortformer_v2.nemo");
+        let path = testdata!("nemo/toy_sortformer_v2.nemo");
         NemoArchive::open(&path).unwrap().config_yaml().to_string()
     }
 

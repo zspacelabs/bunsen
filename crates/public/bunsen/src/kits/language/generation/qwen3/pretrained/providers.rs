@@ -102,6 +102,7 @@ mod tests {
             Qwen3Config,
             interop::transformers::qwen3_config_from_str,
         },
+        support::testing::testdata,
     };
 
     /// Every file of every row is pinned to one URL, and each row's
@@ -159,10 +160,7 @@ mod tests {
                 "{name}"
             );
 
-            let path = format!(
-                "{}/testdata/qwen3/{name}.config.json",
-                env!("CARGO_MANIFEST_DIR")
-            );
+            let path = testdata!(format!("qwen3/{name}.config.json"));
             assert_eq!(
                 Some(crate::data::cache::sha256_of(std::path::Path::new(&path)).unwrap()),
                 map.get(CONFIG).unwrap().sha256,

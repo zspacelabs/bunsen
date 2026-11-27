@@ -25,13 +25,12 @@ use crate::{
     support::testing::{
         cpu_device,
         expect_variant,
+        testdata,
     },
 };
 
 fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("testdata/nemo")
-        .join(name)
+    testdata!("nemo").join(name)
 }
 
 fn toy() -> NemoArchive {

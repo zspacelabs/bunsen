@@ -8,8 +8,6 @@
 //! weights, every projection fused as upstream stores them, load through
 //! [`load_laya_tensors`].
 
-use std::path::PathBuf;
-
 use burn::prelude::*;
 
 use super::{
@@ -39,6 +37,7 @@ use crate::{
         assert_scalar_close,
         cpu_device,
         performance_device,
+        testdata,
     },
 };
 
@@ -50,7 +49,7 @@ struct Toy {
 
 impl Toy {
     fn load(device: &Device) -> Self {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/laya");
+        let dir = testdata!("laya");
         let encoder = modernbert_config_from_path(&dir.join("laya_toy.encoder.config.json"))
             .expect("read the toy encoder config");
         let mut fixture = ToyFixture::load(dir.join("laya_toy.safetensors"), device);
@@ -109,7 +108,7 @@ fn test_toy_forward() {
     let out = toy
         .model
         .forward(ids, &toy.lengths, kinds, markers, options);
-    assert_io_close("logits", out.logits, toy.fixture.io("logits"));
+    toy.fixture.assert_io("", "logits", out.logits);
     assert_io_close("act logits", out.act_logits, toy.fixture.io("act_logits"));
 }
 
@@ -230,7 +229,7 @@ fn test_decide_batches_alike() {
 /// answer the meta alike.
 #[test]
 fn test_meta() {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/laya");
+    let dir = testdata!("laya");
     let encoder = modernbert_config_from_path(&dir.join("laya_toy.encoder.config.json"))
         .expect("read the toy encoder config");
     let config = LayaConfig::new(encoder)

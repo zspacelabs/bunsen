@@ -127,10 +127,7 @@ mod tests {
             SafetensorsStore,
             bridge,
         };
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/fermion/mlx_affine.safetensors"
-        );
+        let path = crate::support::testing::testdata!("fermion/mlx_affine.safetensors");
         let mut store = SafetensorsStore::from_file(path);
         let all = store.get_all_tensors().unwrap().clone();
         let get = |k: &str| bridge::to_data(&all[k]).unwrap();

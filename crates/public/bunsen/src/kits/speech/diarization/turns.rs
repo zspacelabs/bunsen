@@ -405,7 +405,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::assert_scalar_close;
+    use crate::support::testing::{
+        assert_scalar_close,
+        testdata,
+    };
 
     /// `NeMo`'s `binarization_vectorized`, transliterated over one track: the
     /// reference the streaming filter is held to.
@@ -697,10 +700,7 @@ mod tests {
     /// The turns are the ones `NeMo` itself computes, to its `f32` times.
     #[test]
     fn test_turns_match_nemo() {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/diarization/nemo.json"
-        );
+        let path = testdata!("diarization/nemo.json");
         let fixture: NemoFixture =
             serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         assert!(!fixture.turns.is_empty());

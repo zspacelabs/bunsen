@@ -14,8 +14,6 @@
 //! Fixtures are `f32`, as `librosa` emits, so the tolerances below are bounded
 //! by the reference's own precision rather than by this implementation's.
 
-use std::path::PathBuf;
-
 use burn::{
     Tensor,
     prelude::TensorData,
@@ -46,6 +44,7 @@ use crate::{
         DeviceMemoryGuard,
         assert_close_to_vec,
         performance_device,
+        testdata,
     },
 };
 
@@ -53,9 +52,7 @@ type F = f32;
 
 /// Loads a flat little-endian `f32` fixture as `f64`.
 fn fixture(name: &str) -> Vec<f64> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("testdata/perceptive_audio")
-        .join(name);
+    let path = testdata!("perceptive_audio").join(name);
 
     let bytes =
         std::fs::read(&path).unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()));

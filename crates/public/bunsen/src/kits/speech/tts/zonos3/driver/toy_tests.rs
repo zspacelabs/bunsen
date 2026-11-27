@@ -69,6 +69,7 @@ use crate::{
         expect_variant,
         performance_device,
         tensor_to_vec_as,
+        testdata,
     },
 };
 
@@ -144,7 +145,7 @@ fn generation() -> Zonos3GenerationMirror {
 /// the release's languages `generation` gives.
 fn construct_with(generation: &Zonos3GenerationMirror) -> Zonos3Construct {
     let device = performance_device();
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/zonos3");
+    let dir = testdata!("zonos3");
     let json: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(dir.join("toy.config.json")).expect("read the toy config"),
     )
@@ -477,7 +478,7 @@ fn test_release_normalization() {
 /// construct's part of the build `toy@sha256:00`.
 fn toy_speaker() -> Zonos3SpeakerPart {
     let device = performance_device();
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/zonos3");
+    let dir = testdata!("zonos3");
     let json: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(dir.join("speaker_toy.config.json")).expect("read the config"),
     )

@@ -58,6 +58,7 @@ use crate::{
         ToyFixture,
         expect_variant,
         performance_device,
+        testdata,
     },
 };
 
@@ -140,7 +141,7 @@ fn construct(
     instruction: bool,
 ) -> Arc<Qwen3TtsConstruct> {
     let device = performance_device();
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3_tts");
+    let dir = testdata!("qwen3_tts");
     let text = std::fs::read_to_string(dir.join("toy.config.json")).expect("read");
     let model_json = TransformersConfigJson::parse(&text)
         .and_then(|c| c.section("model"))

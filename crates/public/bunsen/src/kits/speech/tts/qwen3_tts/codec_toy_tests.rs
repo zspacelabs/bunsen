@@ -9,8 +9,6 @@
 //! geometry comes from `toy.config.json`'s `codec.decoder_config`, and the
 //! weights load through [`load_codec_decoder_tensors`].
 
-use std::path::PathBuf;
-
 use burn::{
     prelude::*,
     tensor::Tolerance,
@@ -32,6 +30,7 @@ use crate::{
         assert_io_close,
         assert_io_close_within,
         performance_device,
+        testdata,
     },
 };
 
@@ -56,7 +55,7 @@ fn load() -> (
     ToyFixture,
 ) {
     let device = performance_device();
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3_tts");
+    let dir = testdata!("qwen3_tts");
     let json: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(dir.join("toy.config.json")).expect("read the toy config"),
     )

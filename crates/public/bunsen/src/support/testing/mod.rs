@@ -142,6 +142,8 @@ mod expect_variant;
 pub mod matching;
 mod seeded;
 mod tensor_record;
+#[cfg(feature = "std")]
+mod testdata;
 #[cfg(feature = "store")]
 mod toy_fixture;
 
@@ -153,5 +155,7 @@ pub use dtype_assertions::*;
 pub use expect_variant::*;
 pub use seeded::*;
 pub use tensor_record::*;
+#[cfg(feature = "std")]
+pub use testdata::*;
 #[cfg(feature = "store")]
 pub use toy_fixture::*;

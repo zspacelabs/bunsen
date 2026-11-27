@@ -433,7 +433,10 @@ mod tests {
     use super::*;
     use crate::{
         burner::tensor::bf16_round,
-        support::testing::cpu_device,
+        support::testing::{
+            cpu_device,
+            testdata,
+        },
     };
 
     #[test]
@@ -550,10 +553,7 @@ mod tests {
             SafetensorsStore,
             bridge,
         };
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/nemo/front_end.safetensors"
-        );
+        let path = testdata!("nemo/front_end.safetensors");
         let mut store = SafetensorsStore::from_file(path);
         let all = store.get_all_tensors().expect("read the fixture").clone();
         all.iter()
@@ -667,10 +667,7 @@ mod tests {
 
         use crate::support::testing::performance_device;
 
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/parakeet/front_end.safetensors"
-        );
+        let path = testdata!("parakeet/front_end.safetensors");
         let mut store = SafetensorsStore::from_file(path);
         let all = store.get_all_tensors().expect("read the fixture").clone();
         let device = performance_device();

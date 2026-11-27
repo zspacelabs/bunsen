@@ -79,6 +79,7 @@ pub fn decode_quint5(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::testdata;
 
     #[test]
     fn test_hand_packed_row() {
@@ -104,10 +105,7 @@ mod tests {
             SafetensorsStore,
             bridge,
         };
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/fermion/quint5.safetensors"
-        );
+        let path = testdata!("fermion/quint5.safetensors");
         let mut store = SafetensorsStore::from_file(path);
         let all = store.get_all_tensors().unwrap().clone();
         let get = |k: &str| bridge::to_data(&all[k]).unwrap();

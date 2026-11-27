@@ -284,7 +284,10 @@ impl Qwen3TtsGenerationMirror {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::BunsenErrorKind;
+    use crate::{
+        errors::BunsenErrorKind,
+        support::testing::testdata,
+    };
 
     fn release() -> Qwen3TtsGenerationMirror {
         serde_json::from_str(
@@ -319,7 +322,7 @@ mod tests {
     /// The toy's `model` section (its codec table: 32 codes, then 1024
     /// control rows), with its talker's `vocab_size` set to `vocab`.
     fn toy_model_json(vocab: u64) -> String {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3_tts/toy.config.json");
+        let path = testdata!("qwen3_tts/toy.config.json");
         let text = std::fs::read_to_string(path).expect("read");
         let mut value: serde_json::Value = serde_json::from_str(&text).expect("parse");
         value["model"]["talker_config"]["vocab_size"] = vocab.into();

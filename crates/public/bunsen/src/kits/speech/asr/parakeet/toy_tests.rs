@@ -5,18 +5,7 @@
 //! (`tools/gen_parakeet_toy_fixtures.py`). The weights load through
 //! [`load_parakeet_tdt_tensors`], so the loader is under test too.
 
-use alloc::collections::BTreeMap;
-
-use burn::{
-    prelude::*,
-    store::{
-        ModuleStore,
-        SafetensorsStore,
-        bridge,
-        burn_pack::Tensor as PackTensor,
-    },
-    tensor::Tolerance,
-};
+use burn::prelude::*;
 
 use super::{
     blocks::{
@@ -39,8 +28,11 @@ use crate::{
     burner::module::ModuleInit,
     ops::transformers::attention::rel_position_table,
     support::testing::{
+        ToyFixture,
+        assert_io_close,
         expect_variant,
         performance_device,
+        testdata,
     },
 };
 
@@ -67,37 +59,19 @@ const OUT_LENGTHS: [usize; 2] = [7, 5];
 
 struct Toy {
     model: ParakeetTdt,
-    io: BTreeMap<String, PackTensor>,
-    device: Device,
+    fixture: ToyFixture,
 }
 
 impl Toy {
     fn load() -> Self {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/parakeet/toy.safetensors"
+        let mut fixture = ToyFixture::load_prefixed(
+            testdata!("parakeet/toy.safetensors"),
+            "model.",
+            &performance_device(),
         );
-        let mut store = SafetensorsStore::from_file(path);
-        let all = store
-            .get_all_tensors()
-            .expect("read the toy fixture")
-            .clone();
-
-        let mut weights = Vec::new();
-        let mut io = BTreeMap::new();
-        for (name, tensor) in all {
-            if let Some(param) = name.strip_prefix("model.") {
-                let mut tensor = tensor;
-                tensor.name = param.to_string();
-                weights.push(tensor);
-            } else if let Some(key) = name.strip_prefix("io.") {
-                io.insert(key.to_string(), tensor);
-            }
-        }
-
-        let device = performance_device();
-        let mut model: ParakeetTdt = toy_config().init(&device);
-        let applied = load_parakeet_tdt_tensors(&mut model, weights).expect("load the toy weights");
+        let mut model: ParakeetTdt = toy_config().init(fixture.device());
+        let applied = load_parakeet_tdt_tensors(&mut model, fixture.take_weights())
+            .expect("load the toy weights");
         assert!(
             applied
                 .unused
@@ -106,29 +80,15 @@ impl Toy {
             "unused: {:?}",
             applied.unused
         );
-        Self { model, io, device }
+        Self { model, fixture }
     }
 
     fn io<const D: usize>(
         &self,
         key: &str,
     ) -> Tensor<D> {
-        let data = bridge::to_data(&self.io[key]).expect("read an io tensor");
-        Tensor::from_data(data, &self.device)
+        self.fixture.io(key)
     }
-}
-
-fn assert_close<const D: usize>(
-    what: &str,
-    actual: Tensor<D>,
-    expected: Tensor<D>,
-) {
-    assert_eq!(actual.dims(), expected.dims(), "{what}: shape");
-    let tolerance = Tolerance::<f32>::rel_abs(1e-3, 1e-4);
-    eprintln!("checking {what}");
-    actual
-        .to_data_as::<f32>()
-        .assert_approx_eq::<f32>(&expected.to_data_as::<f32>(), tolerance);
 }
 
 /// The valid frames of `[batch, time, ...]` item `b`.
@@ -149,8 +109,8 @@ fn features(toy: &Toy) -> Tensor<3> {
 fn test_toy_positions() {
     let toy = Toy::load();
     let expected: Tensor<3> = toy.io("positions");
-    let actual = rel_position_table(OUT_LENGTHS[0], 16, &toy.device);
-    assert_close("positions", actual, expected.slice_dim(0, 0..1));
+    let actual = rel_position_table(OUT_LENGTHS[0], 16, toy.fixture.device());
+    assert_io_close("positions", actual, expected.slice_dim(0, 0..1));
 }
 
 #[test]
@@ -162,7 +122,7 @@ fn test_toy_subsampling() {
         .subsampling
         .forward(features(&toy), Some(&LENGTHS));
     assert_eq!(lengths, OUT_LENGTHS);
-    assert_close("subsampling", x, toy.io("subsampling"));
+    assert_io_close("subsampling", x, toy.io("subsampling"));
 }
 
 /// Each module of the first block, on the subsampled frames, unmasked.
@@ -175,26 +135,26 @@ fn test_toy_block_modules() {
         "a FastConformer's stack is a Conformer's",
     );
     let layer = &stack.layers[0];
-    let positions = rel_position_table(OUT_LENGTHS[0], 16, &toy.device);
+    let positions = rel_position_table(OUT_LENGTHS[0], 16, toy.fixture.device());
 
     let ff1 = layer
         .feed_forward1
         .branch
         .forward(layer.feed_forward1.pre.as_ref().unwrap().forward(x.clone()));
-    assert_close("feed_forward1", ff1, toy.io("block.ff1"));
+    assert_io_close("feed_forward1", ff1, toy.io("block.ff1"));
 
     let attn = layer.attn.branch.forward(
         layer.attn.pre.as_ref().unwrap().forward(x.clone()),
         positions,
         None,
     );
-    assert_close("self_attn", attn, toy.io("block.attn"));
+    assert_io_close("self_attn", attn, toy.io("block.attn"));
 
     let conv = layer
         .conv
         .branch
         .forward(layer.conv.pre.as_ref().unwrap().forward(x), None);
-    assert_close("conv", conv, toy.io("block.conv"));
+    assert_io_close("conv", conv, toy.io("block.conv"));
 }
 
 /// The encoder, layer by layer and whole, on a padded batch: every valid
@@ -206,7 +166,7 @@ fn test_toy_encoder() {
     assert_eq!(lengths, OUT_LENGTHS);
     let expected: Tensor<3> = toy.io("encoder");
     for (b, &len) in OUT_LENGTHS.iter().enumerate() {
-        assert_close(
+        assert_io_close(
             &format!("encoder item {b}"),
             valid(encoded.clone(), b, len),
             valid(expected.clone(), b, len),
@@ -218,7 +178,7 @@ fn test_toy_encoder() {
         .slice_dim(0, 1..2)
         .slice_dim(2, 0..LENGTHS[1]);
     let (alone, _) = toy.model.encoder.forward(alone, None);
-    assert_close(
+    assert_io_close(
         "encoder item 1 alone",
         alone,
         valid(expected, 1, OUT_LENGTHS[1]),
@@ -233,7 +193,7 @@ fn test_toy_transducer() {
     let (projected, _) = toy.model.encode(features(&toy), Some(&LENGTHS));
     let expected: Tensor<3> = toy.io("projected");
     for (b, &len) in OUT_LENGTHS.iter().enumerate() {
-        assert_close(
+        assert_io_close(
             &format!("projected item {b}"),
             valid(projected.clone(), b, len),
             valid(expected.clone(), b, len),
@@ -242,7 +202,7 @@ fn test_toy_transducer() {
 
     let tokens = toy.io::<2>("tokens").int();
     let decoded = toy.model.decoder.forward(tokens);
-    assert_close("decoder", decoded.clone(), toy.io("decoder"));
+    assert_io_close("decoder", decoded.clone(), toy.io("decoder"));
 
     let logits = toy.model.joint.forward(
         projected.unsqueeze_dim::<4>(2),
@@ -250,7 +210,7 @@ fn test_toy_transducer() {
     );
     let expected: Tensor<4> = toy.io("logits");
     for (b, &len) in OUT_LENGTHS.iter().enumerate() {
-        assert_close(
+        assert_io_close(
             &format!("logits item {b}"),
             valid(logits.clone(), b, len),
             valid(expected.clone(), b, len),

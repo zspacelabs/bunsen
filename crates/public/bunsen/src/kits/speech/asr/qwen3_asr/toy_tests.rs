@@ -42,6 +42,7 @@ use crate::{
         assert_io_close,
         performance_device,
         tensor_to_vec_as,
+        testdata,
     },
 };
 
@@ -72,10 +73,7 @@ impl Toy {
     }
 
     fn load_on(device: &Device) -> Self {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/qwen3_asr/toy.safetensors"
-        );
+        let path = testdata!("qwen3_asr/toy.safetensors");
         let mut fixture = ToyFixture::load(path, device);
         let device = device.clone();
         let mut model: Qwen3Asr = toy_config().init(&device);

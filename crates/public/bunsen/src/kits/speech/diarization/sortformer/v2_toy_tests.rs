@@ -11,12 +11,6 @@ use alloc::collections::BTreeMap;
 
 use burn::{
     prelude::*,
-    store::{
-        ModuleStore,
-        SafetensorsStore,
-        bridge,
-        burn_pack::Tensor as PackTensor,
-    },
     tensor::Tolerance,
 };
 use serde::Deserialize;
@@ -33,7 +27,11 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    support::testing::performance_device,
+    support::testing::{
+        ToyFixture,
+        performance_device,
+        testdata,
+    },
 };
 
 /// The fixture's toy, as a [`SortformerV2Config`].
@@ -97,7 +95,7 @@ struct Case {
 
 struct Toy {
     model: Sortformer,
-    io: BTreeMap<String, PackTensor>,
+    fixture: ToyFixture,
     cases: BTreeMap<String, Case>,
     stream: Stream,
     device: Device,
@@ -105,29 +103,13 @@ struct Toy {
 
 impl Toy {
     fn load() -> Self {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/sortformer");
-        let mut store = SafetensorsStore::from_file(format!("{dir}/v2_toy.safetensors"));
-        let all = store
-            .get_all_tensors()
-            .expect("read the toy fixture")
-            .clone();
-
-        let mut weights = Vec::new();
-        let mut io = BTreeMap::new();
-        for (name, tensor) in all {
-            if let Some(rest) = name.strip_prefix("weights.") {
-                let mut tensor = tensor;
-                tensor.name = rest.to_string();
-                weights.push(tensor);
-            } else if let Some(rest) = name.strip_prefix("io.") {
-                io.insert(rest.to_string(), tensor);
-            }
-        }
-
+        let dir = testdata!("sortformer");
         let device = performance_device();
+        let mut fixture =
+            ToyFixture::load_prefixed(dir.join("v2_toy.safetensors"), "weights.", &device);
         let mut model: Sortformer = toy_config().init(&device);
-        let applied =
-            load_sortformer_v2_tensors(&mut model, weights).expect("load the toy weights");
+        let applied = load_sortformer_v2_tensors(&mut model, fixture.take_weights())
+            .expect("load the toy weights");
         // What the loader drops, and nothing else.
         for name in &applied.unused {
             assert!(
@@ -143,11 +125,11 @@ impl Toy {
             cases: BTreeMap<String, Case>,
             stream: Stream,
         }
-        let meta = std::fs::read_to_string(format!("{dir}/v2_toy.json")).expect("read v2_toy.json");
+        let meta = std::fs::read_to_string(dir.join("v2_toy.json")).expect("read v2_toy.json");
         let meta = serde_json::from_str::<Meta>(&meta).expect("parse v2_toy.json");
         Self {
             model,
-            io,
+            fixture,
             cases: meta.cases,
             stream: meta.stream,
             device,
@@ -158,8 +140,7 @@ impl Toy {
         &self,
         name: &str,
     ) -> Tensor<D> {
-        let data = bridge::to_data(&self.io[name]).expect("read a fixture tensor");
-        Tensor::from_data(data, &self.device)
+        self.fixture.io(name)
     }
 }
 
@@ -265,14 +246,8 @@ fn test_stages_match_nemo() {
 fn test_streaming_matches_nemo() {
     let toy = Toy::load();
     let model = alloc::sync::Arc::new(toy.model);
-    let mels: Tensor<3> = {
-        let data = bridge::to_data(&toy.io["stream.mels"]).unwrap();
-        Tensor::from_data(data, &toy.device)
-    };
-    let want: Tensor<3> = {
-        let data = bridge::to_data(&toy.io["stream.probs"]).unwrap();
-        Tensor::from_data(data, &toy.device)
-    };
+    let mels: Tensor<3> = toy.fixture.io("stream.mels");
+    let want: Tensor<3> = toy.fixture.io("stream.probs");
     let frames = toy.stream.mel_frames;
     assert_eq!(mels.dims(), [1, frames, 24]);
     let mels = mels.squeeze_dim::<2>(0);

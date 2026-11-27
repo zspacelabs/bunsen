@@ -8,8 +8,6 @@
 //! The geometry comes from `toy.config.json`'s `codec` section, and the
 //! weights load through [`load_zonos3_codec_tensors`].
 
-use std::path::PathBuf;
-
 use burn::prelude::*;
 
 use crate::{
@@ -30,6 +28,7 @@ use crate::{
         ToyFixture,
         assert_io_close_within,
         performance_device,
+        testdata,
     },
 };
 
@@ -50,7 +49,7 @@ fn close<const D: usize>(
 
 fn load() -> (Zonos3CodecConfig, Zonos3Codec, ToyFixture) {
     let device = performance_device();
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/zonos3");
+    let dir = testdata!("zonos3");
     let json: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(dir.join("toy.config.json")).expect("read the toy config"),
     )

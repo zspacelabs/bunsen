@@ -9,8 +9,6 @@
 //! `speaker_toy.config.json`'s `speaker_encoder` section, and the weights
 //! load through [`load_zonos3_speaker_tensors`].
 
-use std::path::PathBuf;
-
 use crate::{
     burner::module::ModuleInit,
     kits::speech::tts::zonos3::{
@@ -29,11 +27,12 @@ use crate::{
         assert_io_close,
         assert_scalar_close,
         performance_device,
+        testdata,
     },
 };
 
 fn mirror() -> Zonos3SpeakerEncoderMirror {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/zonos3");
+    let dir = testdata!("zonos3");
     let json: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(dir.join("speaker_toy.config.json")).expect("read the toy config"),
     )
@@ -43,7 +42,7 @@ fn mirror() -> Zonos3SpeakerEncoderMirror {
 
 fn load() -> (Zonos3SpeakerEncoderConfig, Zonos3SpeakerEncoder, ToyFixture) {
     let device = performance_device();
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/zonos3");
+    let dir = testdata!("zonos3");
     let config = mirror().speaker_config().expect("the toy's config");
     let mut fixture = ToyFixture::load(dir.join("speaker_toy.safetensors"), &device);
     let mut model: Zonos3SpeakerEncoder = config.init(&device);

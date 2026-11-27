@@ -174,7 +174,6 @@ impl PatchMerge {
 // The tests read seeded timm fixtures, which need `store`.
 #[cfg(all(test, feature = "store"))]
 mod tests {
-    use std::path::PathBuf;
 
     use burn::module::Param;
 
@@ -186,6 +185,7 @@ mod tests {
             assert_io_close,
             cpu_device,
             expect_variant,
+            testdata,
         },
     };
 
@@ -193,10 +193,7 @@ mod tests {
     #[test]
     fn test_patch_merge_is_timms() {
         let device = cpu_device();
-        let fixture = ToyFixture::load_io(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/swin/window_attn.safetensors"),
-            &device,
-        );
+        let fixture = ToyFixture::load_io(testdata!("swin/window_attn.safetensors"), &device);
         for (case, norm_first) in [("merge_v1", true), ("merge_v2", false)] {
             let config = PatchMergeConfig::new(
                 [5, 6],

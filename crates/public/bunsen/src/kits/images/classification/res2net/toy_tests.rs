@@ -10,8 +10,6 @@
 //! under timm's names, load through [`load_res2net_tensors`]; each stage
 //! output, the pooled features and the logits are checked against timm's.
 
-use std::path::PathBuf;
-
 use burn::prelude::*;
 
 use super::{
@@ -34,8 +32,8 @@ use crate::{
     },
     support::testing::{
         ToyFixture,
-        assert_io_close,
         cpu_device,
+        testdata,
     },
 };
 
@@ -67,9 +65,7 @@ fn check_toy(
     policy: Res2NetContractConfig,
 ) {
     let device = cpu_device();
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("testdata/res2net")
-        .join(format!("{name}.safetensors"));
+    let path = testdata!("res2net").join(format!("{name}.safetensors"));
     let mut fixture = ToyFixture::load(path, &device);
     let mut model: ConvNetModel = policy.init(&device);
     let applied = load_res2net_tensors(&mut model, fixture.take_weights()).expect("load the toy");
@@ -85,22 +81,10 @@ fn check_toy(
     let stages = model.forward_intermediates(images.clone());
     assert_eq!(stages.len(), 5, "{name}: the stem and four stages");
     for (k, stage) in stages.into_iter().enumerate() {
-        assert_io_close(
-            &format!("{name} stage_{k}"),
-            stage,
-            fixture.io(&format!("stage_{k}")),
-        );
+        fixture.assert_io(name, &format!("stage_{k}"), stage);
     }
-    assert_io_close(
-        &format!("{name} pooled"),
-        model.forward_pooled(images.clone()),
-        fixture.io("pooled"),
-    );
-    assert_io_close(
-        &format!("{name} logits"),
-        model.forward_logits(images),
-        fixture.io("logits"),
-    );
+    fixture.assert_io(name, "pooled", model.forward_pooled(images.clone()));
+    fixture.assert_io(name, "logits", model.forward_logits(images));
 }
 
 /// `res2net50_26w_4s`'s knobs.
