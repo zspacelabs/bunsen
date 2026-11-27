@@ -281,6 +281,14 @@ impl SelectiveKernel {
     where
         F: FnOnce(Tensor<4>) -> Tensor<4>,
     {
+        // The input must be the paths' whole width: a split of a narrower or
+        // wider input would drop or truncate paths silently.
+        let [batch] = crate::contracts::unpack_shape_contract!(
+            ["batch", "in_channels", _, _],
+            &input.dims(),
+            &["batch"],
+            &[("in_channels", self.in_channels())]
+        );
         let n = self.paths.len();
         let outs: Vec<Tensor<4>> = match self.split_input {
             true => input
@@ -311,12 +319,14 @@ impl SelectiveKernel {
             ["batch", "out_channels", "height", "width"],
             &out.dims(),
             &[
-                ("batch", b),
+                ("batch", batch),
                 ("out_channels", c),
                 ("height", h),
                 ("width", w)
             ]
         );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = batch;
         out
     }
 
@@ -455,6 +465,29 @@ mod tests {
         assert_eq!(got.dims(), [2, 6, 4, 4]);
         got.into_data()
             .assert_approx_eq::<f32>(&want.into_data(), Tolerance::rel_abs(1e-6, 1e-6));
+    }
+
+    /// An input of another width than the paths' is refused, not split into
+    /// fewer (or truncated) paths.
+    #[test]
+    #[should_panic(expected = "in_channels")]
+    fn test_input_width_is_checked() {
+        let device = cpu_device();
+        let config = SelectiveKernelConfig::timm(
+            [8, 8],
+            [3, 5],
+            true,
+            1,
+            1,
+            1,
+            0.5,
+            2,
+            true,
+            bn(),
+            BunsenActivationConfig::Relu,
+        );
+        let sk: SelectiveKernel = config.init(&device);
+        let _ = sk.forward(Tensor::<4>::zeros([1, 12, 5, 5], &device));
     }
 
     #[test]
