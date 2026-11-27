@@ -18,10 +18,12 @@ use crate::{
             LevelPolicy,
             SpeakerAttribution,
             StreamClock,
+        },
+        diarization::SpeakerActivityModel,
+        vad::{
             VoiceActivityFilterConfig,
             VoiceActivityModel,
         },
-        diarization::SpeakerActivityModel,
     },
 };
 

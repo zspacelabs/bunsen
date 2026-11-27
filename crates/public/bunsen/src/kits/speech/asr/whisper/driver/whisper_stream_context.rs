@@ -1576,15 +1576,15 @@ mod tests {
                 tensor::device_float_dtype,
             },
             kits::speech::{
-                asr::driver::{
-                    TranscriptSegment,
-                    VoiceActivityFilterConfig,
-                },
+                asr::driver::TranscriptSegment,
                 support::testing::RecordedVoiceActivity,
-                vad::silero_vad::{
-                    SileroPolicy,
-                    SileroVad,
-                    pretrained::default_silero_factory,
+                vad::{
+                    VoiceActivityFilterConfig,
+                    silero_vad::{
+                        SileroPolicy,
+                        SileroVad,
+                        pretrained::default_silero_factory,
+                    },
                 },
             },
             support::{

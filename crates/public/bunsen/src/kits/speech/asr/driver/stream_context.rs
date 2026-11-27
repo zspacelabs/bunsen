@@ -23,12 +23,9 @@ use crate::{
             LevelPolicy,
             LevelTracker,
             SpeakerAttribution,
-            SpeechRegion,
             StreamClock,
             TranscriptEvent,
             TranscriptSegment,
-            VoiceActivityFilter,
-            VoiceActivityStream,
             WindowDecode,
             support::frame_ring::FrameRing,
         },
@@ -37,6 +34,11 @@ use crate::{
             SpeakerActivityStream,
         },
         support::StreamingFeatures,
+        vad::{
+            SpeechRegion,
+            VoiceActivityFilter,
+            VoiceActivityStream,
+        },
     },
 };
 
@@ -976,14 +978,16 @@ mod tests {
                 DecodeTriggers,
                 EmissionPolicy,
                 TimedTokens,
-                VoiceActivityFilterConfig,
-                VoiceActivityModel,
             },
             diarization::SpeakerActivityModel,
             support::{
                 MaxLevel,
                 StreamingFeatures,
                 testing::ScriptedDiarizer,
+            },
+            vad::{
+                VoiceActivityFilterConfig,
+                VoiceActivityModel,
             },
         },
         support::testing::{

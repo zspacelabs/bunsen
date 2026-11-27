@@ -22,9 +22,12 @@
 //!   commits ([`CommitRule`]), with presets for the three deployments (offline,
 //!   conservative real time, drafting real time).
 //! - [`StreamClock`]: a stream's sample index to media time.
-//! - [`VoiceActivityModel`] and [`VoiceActivityFilter`]: per-chunk speech
-//!   probabilities, and the gate that turns them into [`SpeechRegion`]s.
-//!   [`SileroVad`](crate::kits::speech::vad::silero_vad::SileroVad) is a model.
+//! - Voice activity: the driver gates its decoding on a
+//!   [`VoiceActivityModel`](crate::kits::speech::vad::VoiceActivityModel)'s
+//!   probabilities, through a
+//!   [`VoiceActivityFilter`](crate::kits::speech::vad::VoiceActivityFilter),
+//!   into [`SpeechRegion`](crate::kits::speech::vad::SpeechRegion)s
+//!   ([`speech::vad`](crate::kits::speech::vad)).
 //! - Cutting a full window: an engine that times its words places the cut
 //!   between two [`WordSpan`]s ([`pause_cut`]) and makes each a segment
 //!   ([`word_segments`]); one that cannot cuts at the window's quietest stretch
@@ -54,13 +57,10 @@ mod level;
 mod quiet_cut;
 mod speaker_attribution;
 mod speaker_cut;
-mod speech_region;
 mod stream_clock;
 mod stream_context;
 mod stream_driver;
 mod transcript;
-mod voice_activity_filter;
-mod voice_activity_model;
 mod word_spans;
 
 pub use emission_policy::*;
@@ -69,11 +69,8 @@ pub use level::*;
 pub use quiet_cut::*;
 pub use speaker_attribution::*;
 pub use speaker_cut::*;
-pub use speech_region::*;
 pub use stream_clock::*;
 pub use stream_context::*;
 pub use stream_driver::*;
 pub use transcript::*;
-pub use voice_activity_filter::*;
-pub use voice_activity_model::*;
 pub use word_spans::*;

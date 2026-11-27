@@ -1,5 +1,3 @@
-use crate::kits::speech::asr::driver::StreamClock;
-
 /// A half-open span of samples, `start..end`, in the stream's own sample
 /// index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -71,15 +69,6 @@ impl SpeechRegion {
             end: self.end.div_ceil(grid) * grid,
         }
     }
-
-    /// The region's own clock: the parent stream's, sliced so that the
-    /// region's sample 0 is its `start`.
-    pub fn clock(
-        &self,
-        parent: &StreamClock,
-    ) -> StreamClock {
-        parent.slice(self.start, self.end)
-    }
 }
 
 /// Pads regions outward by `pad` samples.
@@ -128,7 +117,6 @@ pub fn pad_regions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::assert_scalar_close;
 
     fn r(
         start: usize,
@@ -185,20 +173,6 @@ mod tests {
             r(640, 960),
             "already on the grid"
         );
-    }
-
-    /// A region's clock says the same times the parent's does, from its
-    /// own zero.
-    #[test]
-    fn test_region_clock() {
-        let mut parent = StreamClock::uniform(16_000);
-        parent.anchor(16_000, 10.0).unwrap();
-
-        let region = r(8_000, 40_000);
-        let clock = region.clock(&parent);
-        for s in [0, 8_000, 16_000, 31_999] {
-            assert_scalar_close(clock.time_at(s), parent.time_at(region.start + s), 1e-9);
-        }
     }
 
     /// `faster-whisper`'s padding, in its three cases: clamped at the

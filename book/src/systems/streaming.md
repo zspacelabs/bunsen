@@ -303,9 +303,9 @@ The real-time emission modes decode at the end of each speech region, so they ne
 a voice-activity model, attached with
 [`with_vad`](bunsen::kits::speech::asr::whisper::driver::WhisperStreamDriver::with_vad).
 Each stream then runs Silero in a Silero context of its own. A
-[`VoiceActivityFilterConfig`](bunsen::kits::speech::asr::driver::VoiceActivityFilterConfig)
+[`VoiceActivityFilterConfig`](bunsen::kits::speech::vad::VoiceActivityFilterConfig)
 turns Silero's probabilities into
-[`SpeechRegion`](bunsen::kits::speech::asr::driver::SpeechRegion)s.
+[`SpeechRegion`](bunsen::kits::speech::vad::SpeechRegion)s.
 A closed region is decoded as a unit of its own, with times taken off the
 parent stream's clock, and a full window of silence is skipped instead of
 decoded. That gives a region the behaviour of a stream without a second

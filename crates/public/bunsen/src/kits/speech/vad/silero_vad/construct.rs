@@ -8,9 +8,9 @@ use serde::{
 use crate::{
     data::catalog::presets::PresetSelection,
     errors::BunsenResult,
-    kits::speech::{
-        asr::driver::VoiceActivityFilterConfig,
-        vad::silero_vad::{
+    kits::speech::vad::{
+        VoiceActivityFilterConfig,
+        silero_vad::{
             SileroVad,
             SileroVadCollection,
         },

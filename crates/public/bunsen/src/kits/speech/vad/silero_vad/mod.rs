@@ -9,7 +9,9 @@
 //!   [`SileroVadCollection`] a checkpoint holds; and the [`SileroVadContext`]
 //!   that carries what a stream needs between chunks (the tail of the last
 //!   chunk and the recurrent state). The model holds no stream state, so one
-//!   loaded model serves any number of streams, a context each.
+//!   loaded model serves any number of streams, a context each. It is a
+//!   [`VoiceActivityModel`](super::VoiceActivityModel), each stream a
+//!   [`VoiceActivityStream`](super::VoiceActivityStream) over its context.
 //! - [`pretrained`] (features `store` and `cache`, both default): how the
 //!   weights arrive.
 //!   [`default_silero_factory`](pretrained::default_silero_factory) is the
@@ -112,7 +114,7 @@
 //!
 //! A loaded pretrained is a [`SileroConstruct`]: the models, and the policy
 //! that turns their probabilities into speech regions, a
-//! [`VoiceActivityFilterConfig`](crate::kits::speech::asr::driver::VoiceActivityFilterConfig)
+//! [`VoiceActivityFilterConfig`](crate::kits::speech::vad::VoiceActivityFilterConfig)
 //! ([`SileroConstruct::vad_filter`]). The policy comes from the row's
 //! presets: `silero/vad-16k` has a `vad-policy` axis, with `[silero]`
 //! (upstream's `get_speech_timestamps` defaults, the row's default) and
@@ -134,6 +136,7 @@ pub mod pretrained;
 pub mod blocks;
 mod construct;
 pub mod interop;
+mod stream;
 
 #[doc(inline)]
 pub use blocks::*;

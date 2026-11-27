@@ -31,9 +31,13 @@
 //!     rows of audio codec codes and text, without a residual stream, and the
 //!     codec that decodes its codes.
 //!
-//! Beside the tasks, [`support::nemo`] holds the parts NVIDIA's `NeMo` models
-//! share across them (the mel front end, `.nemo` checkpoints): Parakeet's and
-//! Sortformer's.
+//! Beside the tasks, [`support`] holds what more than one task, or more than
+//! one kit of a task, shares: the streaming features seam
+//! ([`StreamingFeatures`](support::StreamingFeatures)) and the level
+//! statistics a front end scales against; [`support::log_mel`], the log-mel
+//! front end of Whisper, Qwen3-ASR and Voxtral; and [`support::nemo`], the
+//! parts NVIDIA's `NeMo` models share across tasks (the mel front end, `.nemo`
+//! checkpoints): Parakeet's and Sortformer's.
 //!
 //! # How they connect
 //!
@@ -45,9 +49,9 @@
 //! [`SileroVad`](vad::silero_vad::SileroVad), attached with
 //! [`with_vad`](asr::whisper::driver::WhisperStreamDriver::with_vad) together
 //! with a
-//! [`VoiceActivityFilterConfig`](asr::driver::VoiceActivityFilterConfig)
+//! [`VoiceActivityFilterConfig`](vad::VoiceActivityFilterConfig)
 //! that turns the model's probabilities into
-//! [`SpeechRegion`](asr::driver::SpeechRegion)s. Each stream then runs
+//! [`SpeechRegion`](vad::SpeechRegion)s. Each stream then runs
 //! Silero in its own context, decodes each closed region as a unit of its
 //! own, and skips windows of silence. The offline preset needs no gate.
 //!

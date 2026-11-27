@@ -200,9 +200,9 @@ mod tests {
     /// `faster-whisper`'s by name, resolved with nothing fetched.
     #[test]
     fn test_the_vad_policy_presets() {
-        use crate::kits::speech::{
-            asr::driver::VoiceActivityFilterConfig,
-            vad::silero_vad::pretrained::default_silero_factory,
+        use crate::kits::speech::vad::{
+            VoiceActivityFilterConfig,
+            silero_vad::pretrained::default_silero_factory,
         };
 
         let factory = default_silero_factory().unwrap();
