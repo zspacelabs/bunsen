@@ -9,8 +9,10 @@
 //! ([`qwen3_tts_driver`]); the text is spoken as typed, as upstream speaks it.
 
 mod engine;
+mod take;
 
 pub use engine::*;
+pub use take::*;
 
 #[cfg(test)]
 mod toy_tests;

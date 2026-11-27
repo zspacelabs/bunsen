@@ -29,7 +29,7 @@
 //!     frame's embeddings and its trailing text the talker's next row, until
 //!     EOS; each choice by a [`Qwen3TtsSampler`](sampler::Qwen3TtsSampler) as
 //!     upstream's `generate` makes it
-//!     ([`Qwen3TtsTakeConfig`](blocks::Qwen3TtsTakeConfig), from
+//!     ([`Qwen3TtsTakeConfig`](driver::Qwen3TtsTakeConfig), from
 //!     `generation_config.json`).
 //! - [`prompt`]: the rows the talker reads before it generates
 //!   ([`Qwen3TtsPromptRows::build`](prompt::Qwen3TtsPromptRows::build)): an

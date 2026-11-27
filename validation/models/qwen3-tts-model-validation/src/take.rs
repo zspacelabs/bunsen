@@ -10,10 +10,10 @@ use bunsen::{
             TtsVoiceChoice,
         },
         qwen3_tts::{
-            blocks::Qwen3TtsTakeConfig,
             driver::{
                 Qwen3TtsEngine,
                 Qwen3TtsEngineConfig,
+                Qwen3TtsTakeConfig,
             },
             prompt::{
                 Qwen3TtsPromptRows,

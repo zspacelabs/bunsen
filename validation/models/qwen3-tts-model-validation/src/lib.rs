@@ -44,7 +44,7 @@ use bunsen::{
     data::formats::LoadPolicy,
     kits::speech::tts::qwen3_tts::{
         Qwen3TtsConstruct,
-        blocks::Qwen3TtsChooser,
+        driver::Qwen3TtsChooser,
         prompt::{
             Qwen3TtsPromptConfig,
             Qwen3TtsPromptRequest,

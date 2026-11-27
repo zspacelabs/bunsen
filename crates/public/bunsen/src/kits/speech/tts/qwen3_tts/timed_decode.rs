@@ -167,12 +167,12 @@ mod tests {
             language::generation::qwen3::Qwen3Config,
             speech::tts::qwen3_tts::{
                 blocks::{
-                    Qwen3TtsChooser,
                     Qwen3TtsCodePredictorConfig,
                     Qwen3TtsModelConfig,
                     Qwen3TtsTalkerConfig,
                     release_text_projection,
                 },
+                driver::Qwen3TtsChooser,
                 prompt::{
                     Qwen3TtsPrompt,
                     Qwen3TtsPromptConfig,
