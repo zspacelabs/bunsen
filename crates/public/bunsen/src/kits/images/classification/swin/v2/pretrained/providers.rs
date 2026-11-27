@@ -42,22 +42,7 @@ pub fn default_swin_v2_factory()
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        data::{
-            builds::CONFIG,
-            pretrained::Prefabs,
-        },
-        kits::images::{
-            classification::swin::v2::{
-                SwinV2ContractConfig,
-                pretrained::SWIN_V2_KIT,
-            },
-            support::card::{
-                LABEL_NAMES,
-                LABELS,
-            },
-        },
-    };
+    use crate::kits::images::classification::swin::v2::SwinV2ContractConfig;
 
     /// Every row is a timm hub repo of a prefab's architecture, pinned: its
     /// checkpoint and its `config.json`. Each binds `ImageNet`-1k's labels
@@ -65,25 +50,21 @@ mod tests {
     /// of the catalog's fits.
     #[test]
     fn test_every_row_is_a_pinned_timm_repo() {
-        let factory = super::super::default_swin_v2_factory().unwrap();
-        let rows = factory.list();
-        assert_eq!(rows.len(), 12);
-        let architectures = SwinV2ContractConfig::prefab_names();
-        for (_, row) in &rows {
-            let name = row.name.to_string();
-            let map = &row.resource_set();
-            map.validate().unwrap();
-            let arch = name
-                .strip_prefix("timm/")
-                .and_then(|n| n.split_once('.'))
-                .map(|(arch, _)| arch)
-                .unwrap_or_else(|| panic!("{name}: a timm repo's name"));
-            assert!(architectures.contains(&arch), "{name}");
-            assert!(map.get(CHECKPOINT).unwrap().sha256.is_some(), "{name}");
-            assert!(map.get(CONFIG).is_some(), "{name}");
-            let labelled = !name.ends_with(".ms_in22k");
-            assert_eq!(map.get(LABELS).is_some(), labelled, "{name}");
-            assert_eq!(map.get(LABEL_NAMES).is_some(), labelled, "{name}");
+        use crate::kits::images::support::pretrained::testing::{
+            LabelRule,
+            assert_timm_rows,
+        };
+        let rows = assert_timm_rows::<SwinV2ContractConfig>(
+            &super::super::default_swin_v2_factory().unwrap(),
+            12,
+            LabelRule::Any,
+        );
+        for (name, row) in rows {
+            let labelled = row
+                .resource_set()
+                .get(crate::kits::images::support::card::LABELS)
+                .is_some();
+            assert_eq!(labelled, !name.ends_with(".ms_in22k"), "{name}");
         }
     }
 
@@ -91,8 +72,8 @@ mod tests {
     /// kit.
     #[test]
     fn test_the_defaults_register() {
-        let factory = default_swin_v2_factory().unwrap();
-        assert_eq!(factory.kit(), SWIN_V2_KIT);
-        assert_eq!(factory.providers().len(), 2);
+        crate::kits::images::support::pretrained::testing::assert_timm_defaults_register(
+            &default_swin_v2_factory().unwrap(),
+        );
     }
 }

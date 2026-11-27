@@ -92,19 +92,11 @@ mod tests {
         }
 
         let factory = default_voxtral_factory().unwrap();
-        assert_eq!(factory.kit(), VOXTRAL_KIT);
         assert_eq!(
             factory.ids(),
             ["catalog:mistralai/voxtral/voxtral-mini-4b-realtime-2602"]
         );
-        assert_eq!(
-            factory
-                .providers()
-                .iter()
-                .map(|p| p.name())
-                .collect::<Vec<_>>(),
-            ["catalog", "hf"]
-        );
+        crate::kits::support::pretrained::testing::assert_catalog_then_hf(&factory);
         for spec in [
             DEFAULT_VOXTRAL_MODEL,
             "voxtral-mini-4b-realtime-2602",
