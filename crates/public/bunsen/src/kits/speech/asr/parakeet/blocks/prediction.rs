@@ -97,7 +97,7 @@ impl ModuleInit<TdtPredictionNetwork> for TdtPredictionNetworkConfig {
 ///
 /// A decode opens one with [`TdtPredictionNetwork::new_state`] and passes it
 /// back in at every step; the network never holds it.
-#[derive(Clone, Debug)]
+#[derive(burn::module::Module, Debug)]
 pub struct TdtPredictionState {
     /// `[n_layers, batch, d_pred]`.
     pub hidden: Tensor<3>,

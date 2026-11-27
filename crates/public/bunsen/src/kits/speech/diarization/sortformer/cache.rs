@@ -102,20 +102,24 @@ impl SilenceFill {
 /// Compression scores and selects on the host: the scores are a few thousand
 /// values, and selecting there breaks ties the same way on every backend
 /// (the higher score first, then the earlier frame).
-#[derive(Clone, Debug)]
+#[derive(burn::module::Module, Debug)]
 pub struct SpeakerCache {
+    #[module(skip)]
     config: SortformerStreamingConfig,
     n_speakers: usize,
 
     /// What a compression's silence slots hold.
+    #[module(skip)]
     silence: SilenceFill,
 
     /// `[cache_frames, d_model]`.
     embeds: Option<Tensor<2>>,
 
     /// `cache_frames * n_speakers`, frame-major, once the cache is compressed.
+    #[module(skip)]
     probs: Vec<f32>,
 
+    #[module(skip)]
     compressed: bool,
 
     /// `[fifo_frames, d_model]`.

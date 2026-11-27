@@ -331,7 +331,7 @@ impl Qwen3TtsPromptRows {
 }
 
 /// A prompt, embedded: the talker's prefill input and the trailing text.
-#[derive(Clone, Debug)]
+#[derive(burn::module::Module, Debug)]
 pub struct Qwen3TtsPrompt {
     /// `[1, L, W]`: the prefill's rows.
     pub embeds: Tensor<3>,

@@ -18,7 +18,7 @@ use burn::Tensor;
 ///
 /// The tail of the buffer past the live frames is uninitialized, and nothing
 /// reads it.
-#[derive(Clone, Debug)]
+#[derive(burn::module::Module, Debug)]
 pub(crate) struct FrameRing {
     /// `[1, capacity, features]`; `None` until the first push.
     buf: Option<Tensor<3>>,

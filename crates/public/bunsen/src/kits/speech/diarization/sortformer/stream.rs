@@ -52,8 +52,9 @@ use crate::{
 ///
 /// The output is at the model's output rate: one frame per
 /// `subsampling_factor / output_upsampling` mel frames.
-#[derive(Clone, Debug)]
+#[derive(burn::module::Module, Debug)]
 pub struct SortformerMelStream {
+    #[module(skip)]
     model: Arc<Sortformer>,
 
     cache: SpeakerCache,
@@ -74,6 +75,7 @@ pub struct SortformerMelStream {
     /// Output frames emitted.
     emitted: usize,
 
+    #[module(skip)]
     finished: bool,
 }
 
@@ -286,8 +288,9 @@ fn mels_len(mels: &Option<Tensor<2>>) -> usize {
 ///
 /// Its mel frames are the one-shot front end's, however the samples are
 /// split, so its activity is the one a whole recording would give.
-#[derive(Clone, Debug)]
+#[derive(burn::module::Module, Debug)]
 pub struct SortformerStream {
+    #[module(skip)]
     features: NemoMelFeatures,
     hop: usize,
     mels: SortformerMelStream,
