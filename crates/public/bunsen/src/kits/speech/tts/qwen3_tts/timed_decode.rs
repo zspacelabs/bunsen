@@ -160,8 +160,6 @@ fn greedy(logits: Tensor<2>) -> i64 {
 mod tests {
     use std::collections::BTreeMap;
 
-    use burn::tensor::Tolerance;
-
     use super::*;
     use crate::{
         burner::module::ModuleInit,
@@ -182,6 +180,7 @@ mod tests {
             },
         },
         support::testing::{
+            REORDER,
             assert_tensors_close,
             cpu_device,
         },
@@ -269,7 +268,7 @@ mod tests {
         model.run_take(&prompt, &ids, 3, 0, &mut chooser);
         assert_eq!(chooser.0.len(), 3);
         for (timed, taken) in timed.iter().zip(&chooser.0) {
-            assert_tensors_close(timed, taken, Tolerance::rel_abs(1e-4, 1e-5));
+            assert_tensors_close(timed, taken, REORDER);
         }
     }
 

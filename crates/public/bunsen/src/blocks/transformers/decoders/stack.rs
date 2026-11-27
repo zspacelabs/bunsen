@@ -1259,6 +1259,7 @@ mod tests {
         errors::testing::ErrorMatcher,
         support::testing::{
             DeviceMemoryGuard,
+            ROUNDING,
             assert_tensors_close,
             performance_device,
             seeded_tensor,
@@ -1718,14 +1719,14 @@ mod tests {
             (&range.tables[0].cos, &clipped.tables[0].cos),
             (&range.tables[0].sin, &clipped.tables[0].sin),
         ] {
-            assert_tensors_close(a, b, Tolerance::rel_abs(1e-6, 1e-6));
+            assert_tensors_close(a, b, ROUNDING);
         }
         // A range's clip is absolute: positions 7..9 of the 5..12 table.
         let inner = range.clip_range(7..9);
         assert_tensors_close(
             &inner.tables[0].cos,
             &full.clip_range(7..9).tables[0].cos,
-            Tolerance::rel_abs(1e-6, 1e-6),
+            ROUNDING,
         );
     }
 

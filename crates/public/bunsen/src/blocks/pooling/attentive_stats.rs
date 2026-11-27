@@ -281,6 +281,8 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        REORDER,
+        ROUNDING,
         assert_tensor_close_to_vec,
         performance_device,
         seeded_tensor,
@@ -408,7 +410,7 @@ mod tests {
                 )
             })
             .collect();
-        assert_tensor_close_to_vec(&actual, &expected, Tolerance::rel_abs(1e-4, 1e-5));
+        assert_tensor_close_to_vec(&actual, &expected, REORDER);
     }
 
     /// ASTP's form: tanh, no context, the raw moment.
@@ -444,7 +446,7 @@ mod tests {
             (AttentiveStatsDeviation::Centered { floor: 1e-6 }, 1e-6),
         ] {
             let (mean, std) = deviation.weighted_mean_std(x.clone(), w.clone());
-            assert_tensor_close_to_vec(&mean, &[1.0, 1.0], Tolerance::rel_abs(1e-6, 1e-6));
+            assert_tensor_close_to_vec(&mean, &[1.0, 1.0], ROUNDING);
             assert_tensor_close_to_vec(&std, &[floor.sqrt(); 2], Tolerance::rel_abs(1e-3, 1e-6));
         }
     }

@@ -49,6 +49,8 @@ use crate::{
     },
     errors::testing::ErrorMatcher,
     support::testing::{
+        IDENTICAL,
+        ROUNDING,
         assert_tensors_close,
         cpu_device,
         seeded_tensor,
@@ -174,7 +176,7 @@ fn test_headless_and_with_classes() {
     assert_tensors_close(
         &model.forward(images.clone()),
         &model.pooled_features(images.clone()),
-        Tolerance::rel_abs(0.0, 0.0),
+        IDENTICAL,
     );
     let model = model.with_classes(7);
     assert_eq!(model.forward(images).dims(), [1, 7]);
@@ -274,7 +276,7 @@ fn test_backbone() {
     assert_tensors_close(
         &model.embed(images),
         &model.tokens.forward(tokens),
-        Tolerance::rel_abs(1e-6, 1e-6),
+        ROUNDING,
     );
 
     let illegal = |config: VisionEncoderStructureConfig, message: &str| {

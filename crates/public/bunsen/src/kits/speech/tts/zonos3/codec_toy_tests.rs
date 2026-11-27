@@ -25,6 +25,7 @@ use crate::{
         },
     },
     support::testing::{
+        TOY,
         ToyFixture,
         assert_io_close_within,
         performance_device,
@@ -39,12 +40,7 @@ fn close<const D: usize>(
     actual: Tensor<D>,
     expected: Tensor<D>,
 ) {
-    assert_io_close_within(
-        what,
-        actual,
-        expected,
-        burn::tensor::Tolerance::rel_abs(1e-3, 1e-4),
-    );
+    assert_io_close_within(what, actual, expected, TOY);
 }
 
 fn load() -> (Zonos3CodecConfig, Zonos3Codec, ToyFixture) {

@@ -354,10 +354,10 @@ pub fn merge_2x2(x: Tensor<4>) -> Tensor<4> {
 #[cfg(all(test, feature = "store"))]
 mod tests {
 
-    use burn::tensor::Tolerance;
-
     use super::*;
     use crate::support::testing::{
+        IDENTICAL,
+        ROUNDING,
         assert_tensors_close,
         cpu_device,
         tensor_to_vec_as,
@@ -372,10 +372,6 @@ mod tests {
         )
     }
 
-    fn exact() -> Tolerance<f32> {
-        Tolerance::rel_abs(0.0, 0.0)
-    }
-
     /// The partition is timm's, and reversing it is the identity.
     #[test]
     fn test_partition_and_reverse() {
@@ -383,8 +379,8 @@ mod tests {
         let fixture = fixture(&device);
         let x: Tensor<4> = fixture.io("partition.x");
         let windows = window_partition(x.clone(), [4, 6]);
-        assert_tensors_close(&windows, &fixture.io::<4>("partition.windows"), exact());
-        assert_tensors_close(&window_reverse(windows, [8, 12]), &x, exact());
+        assert_tensors_close(&windows, &fixture.io::<4>("partition.windows"), IDENTICAL);
+        assert_tensors_close(&window_reverse(windows, [8, 12]), &x, IDENTICAL);
     }
 
     /// The window shrinks to a smaller grid, and loses its shift.
@@ -418,7 +414,7 @@ mod tests {
                 grid[0], grid[1], window[0], window[1], shift[0], shift[1]
             );
             let mask = shifted_window_mask(grid, window, shift, &device).unwrap();
-            assert_tensors_close(&mask, &fixture.io::<3>(&name), exact());
+            assert_tensors_close(&mask, &fixture.io::<3>(&name), IDENTICAL);
         }
         assert!(shifted_window_mask([8, 8], [4, 4], [0, 0], &device).is_none());
     }
@@ -430,7 +426,7 @@ mod tests {
         for window in [[3, 4], [7, 7]] {
             let index = relative_position_index(window, &device).float();
             let name = format!("index.w{}x{}", window[0], window[1]);
-            assert_tensors_close(&index, &fixture.io::<2>(&name), exact());
+            assert_tensors_close(&index, &fixture.io::<2>(&name), IDENTICAL);
         }
     }
 
@@ -446,7 +442,7 @@ mod tests {
             assert_tensors_close(
                 &log_relative_coords_table(window, pretrained, &device),
                 &fixture.io::<3>(&name),
-                Tolerance::rel_abs(1e-6, 1e-6),
+                ROUNDING,
             );
         }
     }
@@ -458,8 +454,8 @@ mod tests {
         let fixture = fixture(&device);
         let x: Tensor<4> = fixture.io("roll.x");
         let back = roll_grid(x.clone(), [-2, -3]);
-        assert_tensors_close(&back, &fixture.io::<4>("roll.back"), exact());
-        assert_tensors_close(&roll_grid(back, [2, 3]), &x, exact());
+        assert_tensors_close(&back, &fixture.io::<4>("roll.back"), IDENTICAL);
+        assert_tensors_close(&roll_grid(back, [2, 3]), &x, IDENTICAL);
     }
 
     /// The merge's collation is timm's, an odd grid padded.
@@ -468,6 +464,6 @@ mod tests {
         let device = cpu_device();
         let fixture = fixture(&device);
         let merged = merge_2x2(fixture.io("merge.x"));
-        assert_tensors_close(&merged, &fixture.io::<4>("merge.collated"), exact());
+        assert_tensors_close(&merged, &fixture.io::<4>("merge.collated"), IDENTICAL);
     }
 }

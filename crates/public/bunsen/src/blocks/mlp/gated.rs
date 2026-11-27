@@ -220,7 +220,11 @@ mod tests {
             let expected = mlp
                 .down_proj
                 .forward(act(mlp.gate_proj.forward(x.clone())) * mlp.up_proj.forward(x.clone()));
-            assert_tensors_close(&mlp.forward(x.clone()), &expected, Default::default());
+            assert_tensors_close(
+                &mlp.forward(x.clone()),
+                &expected,
+                burn::tensor::Tolerance::default(),
+            );
         }
     }
 

@@ -1,9 +1,6 @@
 use burn::{
     Tensor,
-    tensor::{
-        Distribution,
-        Tolerance,
-    },
+    tensor::Distribution,
 };
 
 use super::*;
@@ -42,6 +39,7 @@ use crate::{
     },
     errors::testing::ErrorMatcher,
     support::testing::{
+        ROUNDING,
         assert_tensors_close,
         cpu_device,
         seeded_tensor,
@@ -123,7 +121,7 @@ fn test_shapes_and_meta() {
     assert_tensors_close(
         &model.head.forward(model.pooled_features(images.clone())),
         &model.forward(images),
-        Tolerance::rel_abs(1e-6, 1e-6),
+        ROUNDING,
     );
 }
 

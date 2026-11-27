@@ -339,6 +339,7 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        IDENTICAL,
         assert_tensors_close,
         cpu_device,
     };
@@ -362,7 +363,7 @@ mod tests {
         assert_tensors_close(
             &dropped.residual_update_with(x.clone(), |b, z| b.forward(z)),
             &plain.residual_update_with(x, |b, z| b.forward(z)),
-            Tolerance::rel_abs(0.0, 0.0),
+            IDENTICAL,
         );
     }
 

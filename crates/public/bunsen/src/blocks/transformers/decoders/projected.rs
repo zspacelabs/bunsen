@@ -226,6 +226,7 @@ mod tests {
             },
         },
         support::testing::{
+            ROUNDING,
             assert_tensors_close,
             performance_device,
             seeded_tensor,
@@ -268,7 +269,7 @@ mod tests {
             .stack
             .forward_hidden(h.clone(), &model.stack.rotary(7, &h.device()), None);
         let expected = model.output_proj.as_ref().unwrap().forward(h);
-        assert_tensors_close(&y, &expected, burn::tensor::Tolerance::rel_abs(1e-6, 1e-6));
+        assert_tensors_close(&y, &expected, ROUNDING);
 
         let bare = ProjectedDecoderStackConfig::new(6, stack(8))
             .try_init(&device)

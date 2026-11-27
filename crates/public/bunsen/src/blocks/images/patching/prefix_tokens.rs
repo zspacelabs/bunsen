@@ -285,6 +285,8 @@ mod tests {
     use crate::{
         errors::testing::ErrorMatcher,
         support::testing::{
+            IDENTICAL,
+            ROUNDING,
             assert_tensors_close,
             cpu_device,
         },
@@ -415,7 +417,7 @@ mod tests {
                 &[10.0, 20.0, 50.0, 60.0, 30.0, 40.0, 1.0, 2.0, 3.0, 4.0],
                 &device,
             ),
-            Tolerance::rel_abs(1e-6, 1e-6),
+            ROUNDING,
         );
     }
 
@@ -428,7 +430,7 @@ mod tests {
         assert_tensors_close(
             &x.clone().slice(burn::tensor::s![0..1]),
             &x.slice(burn::tensor::s![1..2]),
-            Tolerance::rel_abs(0.0, 0.0),
+            IDENTICAL,
         );
     }
 

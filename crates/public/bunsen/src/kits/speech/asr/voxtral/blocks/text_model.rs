@@ -308,16 +308,14 @@ impl VoxtralTextModel {
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        prelude::Int,
-        tensor::Tolerance,
-    };
+    use burn::prelude::Int;
 
     use super::*;
     use crate::{
         blocks::transformers::models::language_decoder::LmDecoderOps,
         burner::module::ModuleInit,
         support::testing::{
+            REORDER,
             assert_tensors_close,
             cpu_device,
         },
@@ -361,11 +359,7 @@ mod tests {
             Some(&mut cache),
         );
         let tail = model.forward_hidden(embeds.slice_dim(1, 4..6), &r_emb, &cond, Some(&mut cache));
-        assert_tensors_close(
-            &Tensor::cat(vec![head, tail], 1),
-            &whole,
-            Tolerance::rel_abs(1e-4, 1e-5),
-        );
+        assert_tensors_close(&Tensor::cat(vec![head, tail], 1), &whole, REORDER);
         assert_eq!(model.logits(whole).dims(), [1, 6, 40]);
         assert_eq!(cond.dims(), [1, 1, 12]);
     }
