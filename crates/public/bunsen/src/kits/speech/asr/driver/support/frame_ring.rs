@@ -219,7 +219,10 @@ mod test {
     };
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        cpu_device,
+        tensor_to_vec_as,
+    };
 
     /// `[1, count, 2]` frames whose values are their stream index.
     fn frames(
@@ -233,10 +236,7 @@ mod test {
     }
 
     fn indices(window: Tensor<3>) -> Vec<f32> {
-        window
-            .to_data()
-            .try_to_vec::<f32>()
-            .unwrap()
+        tensor_to_vec_as::<f32, _>(&window)
             .into_iter()
             .step_by(2)
             .collect()

@@ -105,24 +105,28 @@ pub fn rel_shift(scores: Tensor<4>) -> Tensor<4> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        assert_scalar_close,
+        cpu_device,
+        tensor_to_vec_as,
+    };
 
     #[test]
     fn test_rel_position_table() {
         let device = cpu_device();
         let table = rel_position_table(3, 4, &device);
         assert_eq!(table.dims(), [1, 5, 4]);
-        let values: Vec<f32> = table.into_data().try_into_vec_as::<f32>().unwrap();
+        let values: Vec<f32> = tensor_to_vec_as::<f32, _>(&table);
         // Row 2 is position 0: sin 0, cos 0, sin 0, cos 0.
         assert_eq!(&values[8..12], &[0.0, 1.0, 0.0, 1.0]);
         // Row 0 is position 2; the second frequency is 10000^(-1/2) = 0.01.
         let expected = [2f32.sin(), 2f32.cos(), 0.02f32.sin(), 0.02f32.cos()];
         for (a, b) in values[0..4].iter().zip(expected) {
-            assert!((a - b).abs() < 1e-6, "{a} != {b}");
+            assert_scalar_close(*a, b, 1e-6);
         }
         // Row 4 is position -2.
         assert!((values[16] + 2f32.sin()).abs() < 1e-6);
-        assert!((values[17] - 2f32.cos()).abs() < 1e-6);
+        assert_scalar_close(values[17], 2f32.cos(), 1e-6);
     }
 
     /// `rel_shift` is the gather `out[i][j] = in[i][j + (T - 1) - i]`.
@@ -137,7 +141,7 @@ mod tests {
 
         let shifted = rel_shift(scores);
         assert_eq!(shifted.dims(), [b, h, t, t]);
-        let out: Vec<f32> = shifted.into_data().try_into_vec_as::<f32>().unwrap();
+        let out: Vec<f32> = tensor_to_vec_as::<f32, _>(&shifted);
         for bh in 0..b * h {
             for i in 0..t {
                 for j in 0..t {

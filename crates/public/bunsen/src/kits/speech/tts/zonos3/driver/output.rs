@@ -25,6 +25,7 @@ pub fn zonos3_output_stage(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::assert_scalar_close;
 
     #[test]
     fn test_output_stage() {
@@ -33,7 +34,7 @@ mod tests {
         zonos3_output_stage(&mut samples, 3.0, -1.0);
         let expected = [0.353_973, 0.990_966, -0.999_986, 0.884_932];
         for (got, want) in samples.iter().zip(expected) {
-            assert!((got - want).abs() < 1e-6, "{got} vs {want}");
+            assert_scalar_close(*got, want, 1e-6);
         }
     }
 }

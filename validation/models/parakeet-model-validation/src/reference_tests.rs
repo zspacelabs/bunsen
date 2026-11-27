@@ -8,6 +8,8 @@ use bunsen::support::testing::{
 use super::*;
 
 mod parakeet_tdt_0_6b_v3 {
+    use bunsen::support::testing::int_tensor_to_vec;
+
     use super::*;
 
     /// The generated encoder computes what onnxruntime computes for the same
@@ -23,7 +25,7 @@ mod parakeet_tdt_0_6b_v3 {
         let length = Tensor::<1, Int>::from_data(TensorData::from([N_FRAMES as i64]), &device);
         let (outputs, lengths) = model.forward(synthetic_features(&device), length);
 
-        let lengths: Vec<i64> = lengths.into_data().try_into_vec_as::<i64>().unwrap();
+        let lengths: Vec<i64> = int_tensor_to_vec(&lengths);
         assert_eq!(lengths, fixture.encoded_lengths);
         fixture
             .outputs

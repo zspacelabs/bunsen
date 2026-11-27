@@ -94,7 +94,10 @@ impl VoxtralTranscript {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::asr::voxtral::VoxtralTokenLayoutConfig;
+    use crate::{
+        kits::speech::asr::voxtral::VoxtralTokenLayoutConfig,
+        support::testing::assert_scalar_close,
+    };
 
     #[test]
     fn test_parse() {
@@ -130,6 +133,6 @@ mod tests {
         assert_eq!(t.words[1].ids, [35, 36]);
         assert_eq!(t.words[1].position, 6);
         // Position 6, less a left pad and a delay of one: the fifth position.
-        assert!((t.words[1].start - 0.32).abs() < 1e-9);
+        assert_scalar_close(t.words[1].start, 0.32, 1e-9);
     }
 }

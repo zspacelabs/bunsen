@@ -380,7 +380,10 @@ mod tests {
             },
             support::tokens::ByteLevelVocabulary,
         },
-        support::testing::performance_device,
+        support::testing::{
+            assert_scalar_close,
+            performance_device,
+        },
     };
 
     /// The toy's token count.
@@ -575,7 +578,7 @@ mod tests {
         };
         assert_eq!(segment.tokens.len(), 3);
         assert_eq!(segment.start, 0.0);
-        assert!((segment.end - 2.5).abs() < 0.011, "{}", segment.end);
+        assert_scalar_close(segment.end, 2.5, 0.011);
         assert_eq!(segment.text, driver.engine().text(&segment.tokens).unwrap());
         assert_eq!(stream.language(), None);
     }
@@ -623,7 +626,7 @@ mod tests {
         assert_eq!(cut[1].0, cut[0].1);
 
         let whole = commits(engine.with_quiet_cut(false));
-        assert!((whole[0].1 - 1.0).abs() < 1e-9, "{whole:?}");
+        assert_scalar_close(whole[0].1, 1.0, 1e-9);
     }
 
     /// With a diarizer, a window is cut where the speaker changes, past the
@@ -683,7 +686,7 @@ mod tests {
         );
         assert_eq!(cut.len(), 2, "{cut:?}");
         assert_eq!((cut[0].0, cut[0].2), (0.0, Some(0)));
-        assert!((cut[0].1 - 1.5).abs() < 1e-9, "{cut:?}");
+        assert_scalar_close(cut[0].1, 1.5, 1e-9);
         assert_eq!((cut[1].0, cut[1].2), (cut[0].1, Some(1)));
 
         let whole = commits(engine.clone().with_speaker_cut(None));

@@ -221,6 +221,7 @@ mod tests {
         assert_tensors_close,
         cpu_device,
         seeded_tensor,
+        tensor_to_vec_as,
     };
 
     fn ids(t: Tensor<2, Int>) -> Vec<i64> {
@@ -304,7 +305,7 @@ mod tests {
         row[900] = 1.0;
         let x = Tensor::<2>::from_data(TensorData::new(row, [1, 1000]), &device);
         let (v, i) = topk_rows(x, 5);
-        let v: Vec<f32> = v.into_data().try_into_vec_as::<f32>().unwrap();
+        let v: Vec<f32> = tensor_to_vec_as::<f32, _>(&v);
         let i = ids(i);
         assert_eq!(&i[..2], [10, 900]);
         assert_eq!(&v[..2], [2.0, 1.0]);

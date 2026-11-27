@@ -143,7 +143,10 @@ mod tests {
     use burn::module::DisplaySettings;
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        assert_scalar_close,
+        cpu_device,
+    };
 
     #[test]
     fn test_noise_config_display() {
@@ -231,7 +234,7 @@ mod tests {
             .int()
             .sum()
             .into_scalar::<f64>();
-        assert!((0.5 - (count_05 / numel)).abs() < 0.15);
+        assert_scalar_close(count_05 / numel, 0.5, 0.15);
 
         let count_ge_1 = noise
             .clone()
@@ -259,6 +262,6 @@ mod tests {
 
         let ratio =
             noise.clone().sum().into_scalar::<f64>() / (noise.shape().num_elements() as f64);
-        assert!((ratio - p).abs() < 0.05);
+        assert_scalar_close(ratio, p, 0.05);
     }
 }

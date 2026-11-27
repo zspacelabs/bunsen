@@ -80,11 +80,8 @@ mod tests {
         assert_tensors_close,
         cpu_device,
         seeded_tensor,
+        tensor_to_vec_as,
     };
-
-    fn values<const D: usize>(t: Tensor<D>) -> Vec<f64> {
-        t.into_data().try_into_vec_as::<f64>().unwrap()
-    }
 
     /// The convolution as written out, one output at a time, against the
     /// op: zeros before the first input, each channel its own kernel.
@@ -98,7 +95,11 @@ mod tests {
         assert_eq!(y.dims(), [b, t, c]);
         assert_eq!(next.dims(), [b, k - 1, c]);
 
-        let (xs, ws, ys) = (values(x.clone()), values(w), values(y));
+        let (xs, ws, ys) = (
+            tensor_to_vec_as::<f64, _>(&x),
+            tensor_to_vec_as::<f64, _>(&w),
+            tensor_to_vec_as::<f64, _>(&y),
+        );
         for row in 0..b {
             for pos in 0..t {
                 for ch in 0..c {

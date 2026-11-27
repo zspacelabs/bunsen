@@ -285,7 +285,10 @@ impl TdtPredictionNetwork {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        cpu_device,
+        tensor_to_vec_as,
+    };
 
     #[test]
     fn test_meta() {
@@ -313,13 +316,8 @@ mod tests {
         };
         let mask = Tensor::<1, burn::prelude::Bool>::from_data([true, false, true], &device);
         let picked = zeros.select(mask, ones);
-        let rows: Vec<f32> = picked
-            .hidden
-            .slice_dim(0, 1..2)
-            .slice_dim(2, 0..1)
-            .into_data()
-            .try_into_vec_as::<f32>()
-            .unwrap();
+        let rows: Vec<f32> =
+            tensor_to_vec_as::<f32, _>(&picked.hidden.slice_dim(0, 1..2).slice_dim(2, 0..1));
         assert_eq!(rows, [1.0, 0.0, 1.0]);
     }
 }

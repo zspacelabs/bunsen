@@ -1,6 +1,9 @@
-use bunsen::kits::speech::asr::driver::{
-    SpeakerLabel,
-    TranscriptSegment,
+use bunsen::{
+    kits::speech::asr::driver::{
+        SpeakerLabel,
+        TranscriptSegment,
+    },
+    support::testing::assert_scalar_close,
 };
 
 use super::*;
@@ -36,7 +39,7 @@ fn test_statements() {
     assert_eq!((st[0].start, st[0].end), (0.0, 1.5));
     let label = st[0].speaker.unwrap();
     assert_eq!(label.index, 0);
-    assert!((label.confidence - 0.7).abs() < 1e-6);
+    assert_scalar_close(label.confidence, 0.7, 1e-6);
     assert_eq!(st[2].speaker, None);
 
     // Undiarized, the segments are one statement.

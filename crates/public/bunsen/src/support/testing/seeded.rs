@@ -53,12 +53,11 @@ mod tests {
     use super::*;
     use crate::{
         burner::tensor::device_float_dtype,
-        support::testing::cpu_device,
+        support::testing::{
+            cpu_device,
+            tensor_to_vec_as,
+        },
     };
-
-    fn host<const D: usize>(tensor: &Tensor<D>) -> Vec<f64> {
-        tensor.to_data().try_into_vec_as::<f64>().unwrap()
-    }
 
     #[test]
     fn test_seeded_tensor_is_deterministic() {
@@ -68,8 +67,18 @@ mod tests {
         let b = seeded_tensor::<3>(7, [2, 3, 4], dist, &device);
         let c = seeded_tensor::<3>(8, [2, 3, 4], dist, &device);
         assert_eq!(a.dtype(), device_float_dtype(&device));
-        assert_eq!(host(&a), host(&b));
-        assert_ne!(host(&a), host(&c));
-        assert!(host(&a).iter().all(|v| (-1.0..1.0).contains(v)));
+        assert_eq!(
+            tensor_to_vec_as::<f64, _>(&a),
+            tensor_to_vec_as::<f64, _>(&b)
+        );
+        assert_ne!(
+            tensor_to_vec_as::<f64, _>(&a),
+            tensor_to_vec_as::<f64, _>(&c)
+        );
+        assert!(
+            tensor_to_vec_as::<f64, _>(&a)
+                .iter()
+                .all(|v| (-1.0..1.0).contains(v))
+        );
     }
 }

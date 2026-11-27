@@ -442,6 +442,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
+        assert_scalar_close,
         cpu_device,
         performance_device,
     };
@@ -660,7 +661,7 @@ mod tests {
 
         let total = drop.sum().into_scalar::<f64>();
         let norm = total / numel as f64;
-        assert!((norm - 1.0).abs() < 0.01);
+        assert_scalar_close(norm, 1.0, 0.01);
     }
 
     #[test]

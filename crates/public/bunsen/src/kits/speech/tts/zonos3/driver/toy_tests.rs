@@ -67,6 +67,7 @@ use crate::{
     support::testing::{
         ToyFixture,
         performance_device,
+        tensor_to_vec_as,
     },
 };
 
@@ -560,13 +561,7 @@ fn test_build_voice() {
 
     let part = engine.speaker_part().unwrap();
     let mono = reference.clips[0].mono();
-    let expected = part
-        .encoder
-        .embed(&mono, 22_050)
-        .unwrap()
-        .into_data()
-        .try_into_vec::<f32>()
-        .unwrap();
+    let expected = tensor_to_vec_as::<f32, _>(&part.encoder.embed(&mono, 22_050).unwrap());
     assert_eq!(
         embedding, expected,
         "the clip mixed down, then the encoder's"

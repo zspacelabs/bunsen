@@ -182,7 +182,10 @@ mod tests {
         },
         burner::module::ModuleInit,
         kits::images::support::encoder::ImageFeatures,
-        support::testing::cpu_device,
+        support::testing::{
+            assert_scalar_close,
+            cpu_device,
+        },
     };
 
     /// The conv net through the seam: the stem's and the stages' maps at
@@ -242,8 +245,8 @@ mod tests {
         assert_eq!(top[1][0].index, 0);
         assert_eq!(top[0][0].name.as_deref(), Some("one"));
         assert_eq!(top[0][1].synset.as_deref(), Some("n2"));
-        assert!((top[0][0].probability - p0[1]).abs() < 1e-6);
-        assert!((top[1][0].probability - p1[0]).abs() < 1e-6);
+        assert_scalar_close(top[0][0].probability, p0[1], 1e-6);
+        assert_scalar_close(top[1][0].probability, p1[0], 1e-6);
     }
 
     /// `k` past the class count is the class count; no labels, no names.

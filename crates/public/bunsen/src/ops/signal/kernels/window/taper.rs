@@ -149,6 +149,7 @@ mod tests {
         ops::signal::kernels::window::SamplingWindowBuilder,
         support::testing::{
             assert_close_to_vec,
+            assert_scalar_close,
             assert_tensor_close_to_vec,
             performance_device,
         },
@@ -208,7 +209,7 @@ mod tests {
         for x in [-0.7, -0.1, 0.0, 0.3, 0.9] {
             assert_eq!(hann.taper(x), (x * PI / 2.0).cos().powi(2));
         }
-        assert!((DualCosineWindow::blackman(false).taper(0.0) - 1.0).abs() < 1e-15);
+        assert_scalar_close(DualCosineWindow::blackman(false).taper(0.0), 1.0, 1e-15);
     }
 
     /// A device's taper is the host's, element-wise, inside and outside

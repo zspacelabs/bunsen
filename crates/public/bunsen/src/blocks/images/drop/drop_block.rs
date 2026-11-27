@@ -91,7 +91,10 @@ impl DropBlock2d {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        assert_scalar_close,
+        cpu_device,
+    };
 
     /// The expected drop ratio of a `drop_prob = 0.1`, `[2, 3]`-kernel drop
     /// block over `[_, 3, 100, 100]` ones (whole blocks only, batchwise noise),
@@ -171,6 +174,6 @@ mod tests {
 
         let total = drop.sum().into_scalar::<f64>();
         let norm = total / numel as f64;
-        assert!((norm - 1.0).abs() < 0.01);
+        assert_scalar_close(norm, 1.0, 0.01);
     }
 }

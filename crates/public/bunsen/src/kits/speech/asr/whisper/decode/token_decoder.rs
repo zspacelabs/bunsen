@@ -491,6 +491,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             performance_device,
+            tensor_to_vec_as,
         },
     };
 
@@ -548,7 +549,7 @@ mod tests {
         assert_eq!(windows.len(), 1);
 
         // Converted on the host: not every backend can cast to f64 on device.
-        let got: Vec<f64> = windows[0].to_data().try_into_vec_as::<f64>().unwrap();
+        let got: Vec<f64> = tensor_to_vec_as::<f64, _>(&windows[0]);
 
         assert_eq!(got, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 0.0, 0.0, 0.0]);
     }
@@ -738,6 +739,7 @@ mod search_tests {
         },
         support::testing::{
             DeviceMemoryGuard,
+            assert_scalar_close,
             performance_device,
         },
     };
@@ -1012,12 +1014,7 @@ mod search_tests {
         assert_eq!(shared.len(), 2);
         for (s, g) in shared.iter().zip(&ground) {
             assert_eq!(s.tokens, g.tokens);
-            assert!(
-                (s.sum_logprob - g.sum_logprob).abs() < 1e-3,
-                "{} vs {}",
-                s.sum_logprob,
-                g.sum_logprob
-            );
+            assert_scalar_close(s.sum_logprob, g.sum_logprob, 1e-3);
         }
     }
 }

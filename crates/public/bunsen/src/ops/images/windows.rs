@@ -361,6 +361,7 @@ mod tests {
     use crate::support::testing::{
         assert_tensors_close,
         cpu_device,
+        tensor_to_vec_as,
     };
 
     /// timm's answers (`tools/gen_swin_op_fixtures.py`).
@@ -394,10 +395,7 @@ mod tests {
         for (grid, window) in [([16, 16], 8), ([8, 8], 8), ([6, 8], 8), ([4, 4], 12)] {
             let (w, s) = window_and_shift(grid, [window; 2], [window / 2; 2]);
             let want: Tensor<1> = fixture.io(&format!("shift.{}x{}.w{window}", grid[0], grid[1]));
-            let want: Vec<usize> = want
-                .into_data()
-                .try_to_vec::<f32>()
-                .unwrap()
+            let want: Vec<usize> = tensor_to_vec_as::<f32, _>(&want)
                 .into_iter()
                 .map(|v| v as usize)
                 .collect();

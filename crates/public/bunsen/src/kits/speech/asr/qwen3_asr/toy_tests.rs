@@ -41,6 +41,7 @@ use crate::{
         ToyFixture,
         assert_io_close,
         performance_device,
+        tensor_to_vec_as,
     },
 };
 
@@ -103,9 +104,7 @@ impl Toy {
 
     fn ids(&self) -> Vec<usize> {
         let ids: Tensor<2> = self.io("input_ids");
-        ids.into_data()
-            .try_into_vec_as::<f32>()
-            .unwrap()
+        tensor_to_vec_as::<f32, _>(&ids)
             .into_iter()
             .map(|v| v as usize)
             .collect()

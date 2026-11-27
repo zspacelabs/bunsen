@@ -168,6 +168,7 @@ mod tests {
         ToyFixture,
         assert_io_close_within,
         performance_device,
+        tensor_to_vec_as,
     };
 
     /// The most the device's conversion may stray from the reference,
@@ -204,12 +205,7 @@ mod tests {
             let [rows, _] = input.dims();
             let outputs: Vec<Vec<f32>> = (0..rows)
                 .map(|r| {
-                    let row = input
-                        .clone()
-                        .slice_dim(0, r..r + 1)
-                        .into_data()
-                        .try_to_vec::<f32>()
-                        .unwrap();
+                    let row = tensor_to_vec_as::<f32, _>(&input.clone().slice_dim(0, r..r + 1));
                     resampler.resample(&row, orig, new)
                 })
                 .collect();

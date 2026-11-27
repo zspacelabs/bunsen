@@ -491,6 +491,7 @@ mod tests {
         cpu_device,
         performance_device,
         seeded_tensor,
+        tensor_to_vec_as,
     };
 
     /// `x`'s centred, windowed frames' spectra, by a direct real DFT on the
@@ -544,13 +545,7 @@ mod tests {
             );
             let x: Tensor<2> = seeded_tensor(n as u64, [2, len], Distribution::Default, &device);
             let rows: Vec<Vec<f64>> = (0..2)
-                .map(|r| {
-                    x.clone()
-                        .slice(s![r..r + 1])
-                        .into_data()
-                        .try_into_vec_as::<f64>()
-                        .unwrap()
-                })
+                .map(|r| tensor_to_vec_as::<f64, _>(&x.clone().slice(s![r..r + 1])))
                 .collect();
             let window = StftWindowConfig::Hann { periodic: true }.to_vec_window(n);
             let (re, im, frames) = spectra(&rows, n, hop, &window);
@@ -573,7 +568,7 @@ mod tests {
             );
             let y = overlap_add(frames, 2);
             assert_eq!(
-                y.into_data().try_into_vec_as::<f32>().unwrap(),
+                tensor_to_vec_as::<f32, _>(&y),
                 [1.0, 2.0, 13.0, 24.0, 35.0, 40.0, 50.0]
             );
         }
@@ -594,10 +589,7 @@ mod tests {
         let long = istft.istft(spec.clone(), spec.clone(), Some(20));
         assert_eq!(long.dims(), [1, 20]);
         assert_eq!(
-            long.slice(s![.., 14..])
-                .into_data()
-                .try_into_vec_as::<f32>()
-                .unwrap(),
+            tensor_to_vec_as::<f32, _>(&long.slice(s![.., 14..])),
             [0.0; 6]
         );
         let uncentred: InverseStft = InverseStftConfig::new(8, 2)

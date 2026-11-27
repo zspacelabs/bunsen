@@ -68,6 +68,7 @@ impl SequenceRanker for MaximumLikelihoodRanker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::assert_scalar_close;
 
     fn c(
         tokens: Vec<i64>,
@@ -94,8 +95,8 @@ mod tests {
         let ranker = MaximumLikelihoodRanker {
             length_penalty: Some(1.0),
         };
-        assert!((ranker.penalty(1) - 1.0).abs() < 1e-12);
-        assert!((ranker.penalty(7) - 2.0).abs() < 1e-12);
+        assert_scalar_close(ranker.penalty(1), 1.0, 1e-12);
+        assert_scalar_close(ranker.penalty(7), 2.0, 1e-12);
 
         // Under the NMT penalty a longer sequence is penalized more gently
         // than by its raw length, so the same pair flips.

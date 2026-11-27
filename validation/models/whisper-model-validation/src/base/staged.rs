@@ -13,6 +13,7 @@ use bunsen::{
     support::testing::{
         DeviceMemoryGuard,
         performance_device,
+        tensor_to_vec_as,
     },
 };
 use burn::{
@@ -38,7 +39,7 @@ fn test_reference_encoder_runs() {
     let out = model.forward(synthetic_mels(&device));
     assert_eq!(out.dims(), [1, N_FRAMES / 2, D_MODEL]);
 
-    let values: Vec<f32> = out.clone().into_data().try_into_vec_as::<f32>().unwrap();
+    let values: Vec<f32> = tensor_to_vec_as::<f32, _>(&out);
     assert!(
         values.iter().all(|v| v.is_finite()),
         "the reference encoder produced a non-finite value",

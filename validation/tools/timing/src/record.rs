@@ -256,6 +256,8 @@ pub struct Memory {
 
 #[cfg(test)]
 mod tests {
+    use bunsen::support::testing::assert_scalar_close;
+
     use super::*;
 
     /// cubecl's statistics, in ms.
@@ -263,7 +265,7 @@ mod tests {
     fn test_stats() {
         let s = Stats::of([1.0, 2.0, 3.0, 10.0]);
         assert_eq!((s.min_ms, s.max_ms), (1.0, 10.0));
-        assert!((s.mean_ms - 4.0).abs() < 1e-6);
+        assert_scalar_close(s.mean_ms, 4.0, 1e-6);
         assert!(s.median_ms >= 2.0 && s.median_ms <= 3.0);
         assert!(s.std_ms > 0.0);
         assert_eq!(Stats::of([]).median_ms, 0.0);

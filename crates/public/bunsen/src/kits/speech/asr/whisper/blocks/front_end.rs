@@ -242,6 +242,7 @@ mod tests {
             WhisperTokenLayoutConfig,
         },
         support::testing::{
+            assert_scalar_close,
             assert_tensor_close_to_vec,
             cpu_device,
         },
@@ -361,7 +362,7 @@ mod tests {
         let hop_seconds = front_end().hop_ms as f64 / 1000.0;
         let step_seconds =
             WhisperTokenLayoutConfig::new().timestamp_step_seconds / AUDIO_ENCODER_STRIDE as f64;
-        assert!((hop_seconds - step_seconds).abs() < 1e-12);
+        assert_scalar_close(hop_seconds, step_seconds, 1e-12);
     }
 
     /// The clamp range is the front end's, not a constant.

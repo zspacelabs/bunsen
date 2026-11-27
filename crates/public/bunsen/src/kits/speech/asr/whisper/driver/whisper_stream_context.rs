@@ -485,6 +485,7 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
+            assert_scalar_close,
             performance_device,
         },
     };
@@ -757,9 +758,9 @@ mod tests {
         let window_seconds = width as f64 * hop / driver.sample_rate() as f64;
         for (w, e) in emissions.iter().enumerate() {
             let segment = e.segment();
-            assert!((segment.start - (100.0 + w as f64 * window_seconds)).abs() < 1e-9);
+            assert_scalar_close(segment.start, 100.0 + w as f64 * window_seconds, 1e-9);
             if w + 1 < emissions.len() {
-                assert!((segment.end - segment.start - window_seconds).abs() < 1e-9);
+                assert_scalar_close(segment.end - segment.start, window_seconds, 1e-9);
             }
         }
 
@@ -767,7 +768,11 @@ mod tests {
         // 105, one per hop, and the remainder ends there.
         let last = emissions.last().unwrap().segment();
         assert_eq!(ctx.seek(), 105);
-        assert!((last.end - (100.0 + 105.0 * hop / driver.sample_rate() as f64)).abs() < 1e-9);
+        assert_scalar_close(
+            last.end,
+            100.0 + 105.0 * hop / driver.sample_rate() as f64,
+            1e-9,
+        );
         assert_eq!(ctx.pending_frames(), 0);
     }
 
@@ -1178,8 +1183,8 @@ mod tests {
         assert_eq!(base.len(), shifted.len());
         for (a, b) in base.iter().zip(&shifted) {
             assert_eq!(a.segment().tokens, b.segment().tokens);
-            assert!((b.segment().start - a.segment().start - 100.0).abs() < 1e-9);
-            assert!((b.segment().end - a.segment().end - 100.0).abs() < 1e-9);
+            assert_scalar_close(b.segment().start - a.segment().start, 100.0, 1e-9);
+            assert_scalar_close(b.segment().end - a.segment().end, 100.0, 1e-9);
         }
     }
 
@@ -2140,13 +2145,13 @@ mod tests {
         };
 
         let (first, second) = first_segment(cut);
-        assert!((first.end - 0.11).abs() < 1e-9, "{first:?}");
+        assert_scalar_close(first.end, 0.11, 1e-9);
         assert_eq!(first.speaker.map(|l| l.index), Some(0));
         assert_eq!(second.start, first.end);
         assert_eq!(second.speaker.map(|l| l.index), Some(1));
 
         let (whole, _) = first_segment(None);
-        assert!((whole.end - 0.16).abs() < 1e-9, "{whole:?}");
+        assert_scalar_close(whole.end, 0.16, 1e-9);
     }
 
     /// Pushes a clip through a fresh context and flushes it.

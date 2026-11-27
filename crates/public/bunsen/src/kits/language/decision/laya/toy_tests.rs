@@ -36,6 +36,7 @@ use crate::{
     support::testing::{
         ToyFixture,
         assert_io_close,
+        assert_scalar_close,
         cpu_device,
         performance_device,
     },
@@ -217,11 +218,11 @@ fn test_decide_batches_alike() {
             .collect();
         assert_eq!(keys, q.option_keys());
         let sum: f64 = answer.probabilities.iter().map(|(_, p)| p).sum();
-        assert!((sum - 1.0).abs() < 1e-9, "{sum}");
+        assert_scalar_close(sum, 1.0, 1e-9);
         for ((_, p), (_, a)) in answer.probabilities.iter().zip(&alone[0].probabilities) {
             assert!((p - a).abs() < 1e-4, "{}: {p} alone {a}", q.question);
         }
-        assert!((answer.act_probability - alone[0].act_probability).abs() < 1e-4);
+        assert_scalar_close(answer.act_probability, alone[0].act_probability, 1e-4);
     }
 }
 

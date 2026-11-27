@@ -310,6 +310,7 @@ mod tests {
         cpu_device,
         performance_device,
         seeded_tensor,
+        tensor_to_vec_as,
     };
 
     /// The soft-cap bounds the scaled scores before the causal mask:
@@ -429,7 +430,7 @@ mod tests {
 
         let p = 0.5;
         let config = ScaledDotProductAttentionOptions::new();
-        let read = |t: Tensor<4>| t.into_data().try_to_vec_as::<f32>().unwrap();
+        let read = |t: Tensor<4>| tensor_to_vec_as::<f32, _>(&t);
         let kept = read(sdpa_attn_weight(
             q.clone(),
             k.clone(),

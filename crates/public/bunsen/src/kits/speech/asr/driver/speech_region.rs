@@ -128,6 +128,7 @@ pub fn pad_regions(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::assert_scalar_close;
 
     fn r(
         start: usize,
@@ -196,7 +197,7 @@ mod tests {
         let region = r(8_000, 40_000);
         let clock = region.clock(&parent);
         for s in [0, 8_000, 16_000, 31_999] {
-            assert!((clock.time_at(s) - parent.time_at(region.start + s)).abs() < 1e-9);
+            assert_scalar_close(clock.time_at(s), parent.time_at(region.start + s), 1e-9);
         }
     }
 

@@ -988,6 +988,7 @@ mod tests {
             assert_tensor_close_to_vec,
             assert_tensors_close,
             performance_device,
+            tensor_to_vec_as,
         },
     };
 
@@ -1092,7 +1093,7 @@ mod tests {
             .try_init(&device)
             .ok_or_panic();
 
-        let before = conv.mel_t.to_data().try_to_vec_as::<f64>().unwrap();
+        let before = tensor_to_vec_as::<f64, _>(&conv.mel_t);
 
         // One device here, so this pins traversal rather than a real move: a
         // dropped derive or a stray `#[module(skip)]` on a tensor field drops
@@ -1220,11 +1221,7 @@ mod tests {
         // A ragged length, so this also exercises the trimmed path.
         let samples = 1000;
         let (batched, _) = signal(&device, 3, samples);
-        let together = conv
-            .frame(batched.clone())
-            .to_data()
-            .try_to_vec_as::<f64>()
-            .unwrap();
+        let together = tensor_to_vec_as::<f64, _>(&conv.frame(batched.clone()));
 
         let frames = conv.frame_count(samples);
         let per_row = frames * opts.n_fft;
@@ -1233,7 +1230,7 @@ mod tests {
             let single: Tensor<2> = batched
                 .clone()
                 .slice_dim(0, row as isize..(row + 1) as isize);
-            let alone = conv.frame(single).to_data().try_to_vec_as::<f64>().unwrap();
+            let alone = tensor_to_vec_as::<f64, _>(&conv.frame(single));
 
             assert_close_to_vec(&alone, &together[row * per_row..(row + 1) * per_row], 1e-9);
         }
@@ -1282,7 +1279,7 @@ mod tests {
 
         // Re-derive from the framed tensor, so this tests the spectrum stage
         // alone rather than re-testing framing.
-        let framed_host = framed.to_data().try_to_vec_as::<f64>().unwrap();
+        let framed_host = tensor_to_vec_as::<f64, _>(&framed);
         let mut expected = Vec::with_capacity(batch * frames * opts.n_bins());
         for f in 0..batch * frames {
             let frame = &framed_host[f * n_fft..(f + 1) * n_fft];
@@ -1310,11 +1307,7 @@ mod tests {
             .collect();
         let x = Tensor::from_data(TensorData::new(tone, [1, n_fft]), &device);
 
-        let power = conv
-            .spectrum(conv.frame(x))
-            .to_data()
-            .try_to_vec_as::<f64>()
-            .unwrap();
+        let power = tensor_to_vec_as::<f64, _>(&conv.spectrum(conv.frame(x)));
         assert_eq!(power.len(), n_bins);
 
         let peak = power[k];
@@ -1356,7 +1349,7 @@ mod tests {
         assert_eq!(mels.dims(), [batch, frames, n_mels]);
 
         // `[rows, n_bins] @ [n_bins, n_mels]`, on the host.
-        let spec_host = spectrum.to_data().try_to_vec_as::<f64>().unwrap();
+        let spec_host = tensor_to_vec_as::<f64, _>(&spectrum);
         let bank_t = opts.to_vec_filterbank_t().unwrap();
         let mut expected = Vec::with_capacity(batch * frames * n_mels);
         for r in 0..batch * frames {
@@ -1381,11 +1374,7 @@ mod tests {
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         let zeros: Tensor<3> = Tensor::zeros([2, 4, opts.n_mels], &device);
-        let out = conv
-            .compress(zeros)
-            .to_data()
-            .try_to_vec_as::<f64>()
-            .unwrap();
+        let out = tensor_to_vec_as::<f64, _>(&conv.compress(zeros));
 
         // All-zero energy must land on a finite floor, not -inf or NaN.
         assert!(
@@ -1481,9 +1470,7 @@ mod tests {
         assert_tensors_close(&out, &staged, Tolerance::default());
 
         assert!(
-            out.to_data()
-                .try_to_vec_as::<f64>()
-                .unwrap()
+            tensor_to_vec_as::<f64, _>(&out)
                 .iter()
                 .all(|v| v.is_finite())
         );

@@ -197,7 +197,10 @@ impl WhisperFallbackConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::support::decoding::SearchConfig;
+    use crate::{
+        kits::support::decoding::SearchConfig,
+        support::testing::assert_scalar_close,
+    };
 
     fn decoded(
         n: usize,
@@ -287,7 +290,7 @@ mod tests {
     fn test_compression_ratio() {
         let looping = "la la la la la la la la la la la la la";
         let ratio = compression_ratio(looping);
-        assert!((ratio - 38.0 / 13.0).abs() < 0.3, "{ratio}");
+        assert_scalar_close(ratio, 38.0 / 13.0, 0.3);
         assert!(ratio > 2.4, "a loop fails the threshold");
         let sentence = compression_ratio(" We choose to go to the moon.");
         assert!(sentence < 1.0, "{sentence}");
@@ -301,10 +304,10 @@ mod tests {
     #[test]
     fn test_compression_ratio_fails_short_loops() {
         let thanks = compression_ratio(&" Thank you.".repeat(8));
-        assert!((thanks - 88.0 / 22.0).abs() < 0.3, "{thanks}");
+        assert_scalar_close(thanks, 88.0 / 22.0, 0.3);
         assert!(thanks > 2.4, "{thanks}");
         let la = compression_ratio(&"la ".repeat(20));
-        assert!((la - 60.0 / 14.0).abs() < 0.3, "{la}");
+        assert_scalar_close(la, 60.0 / 14.0, 0.3);
         assert!(la > 2.4, "{la}");
     }
 

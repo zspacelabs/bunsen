@@ -405,6 +405,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::support::testing::assert_scalar_close;
 
     /// `NeMo`'s `binarization_vectorized`, transliterated over one track: the
     /// reference the streaming filter is held to.
@@ -789,7 +790,7 @@ mod tests {
         assert_eq!(filter.frames_seen(), 1);
         let turns = filter.finish();
         assert_eq!(turns.len(), 1);
-        assert!((turns[0].end - 0.08).abs() < 1e-12);
+        assert_scalar_close(turns[0].end, 0.08, 1e-12);
         assert!(!filter.is_speaking(0));
     }
 }
