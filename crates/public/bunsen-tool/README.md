@@ -2554,13 +2554,22 @@ within it; presets (`--preset`, `--on`, `--off`) apply to the one chosen. `-v` l
 bunsen-tool cache path                          # where it is
 bunsen-tool cache list [NAME]                   # what it holds, and when each file was last used
 bunsen-tool cache clear [NAME] --age 30d --yes  # what has not been used for 30 days
+bunsen-tool cache gc --max-cache 200G --yes     # what no load needs, then the least used over 200 GB
 ```
 
 A language model's first load also keeps a converted copy of its weights, as the load placed them,
 under the build's `converted` name (`qwen/qwen3/qwen3-4b/converted`); later loads read it instead of
 the checkpoint (Qwen3-4B on CUDA: 18 s the first time, under 5 s after), and still do with the
-checkpoint cleared (`cache clear qwen/qwen3/qwen3-4b/checkpoint`). `--converted-weights false` keeps
-and uses no copy.
+checkpoint cleared (`cache clear qwen/qwen3/qwen3-4b/checkpoint`). `--converted-weights off` keeps
+and uses no copy; `--converted-weights drop-downloads` removes the checkpoint a load downloaded once
+its copy is saved.
+
+`cache gc` lists what no load needs, each file with its reason, and removes it with `--yes`:
+unfinished downloads; converted copies another bunsen version wrote (a copy's key includes the
+version, so this one never reads them); files not used for `--max-age` (7 days; `none` keeps them);
+a checkpoint not read since the converted copies standing for it were made or last used; then, with
+`--max-cache`, the least recently used until the cache fits. `--keep-shadowed` and
+`--keep-stale-converted` keep those classes.
 
 Every fetched file is pinned to a SHA-256 and verified as it lands. `--cache-dir` moves the cache, and `--offline` never
 reaches the network. Every command also takes `--device`, and the commands that load a model `--min-precision f32`, a
