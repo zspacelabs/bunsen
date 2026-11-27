@@ -159,10 +159,7 @@ impl StreamClock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     fn close(
         a: f64,
@@ -230,7 +227,7 @@ mod tests {
         let mut clock = StreamClock::uniform(16_000);
         clock.anchor(1_000, 1.0).unwrap();
 
-        let refused = ErrorMatcher::kind(BunsenErrorKind::InvalidResource);
+        let refused = ErrorMatcher::invalid_resource();
         refused.assert_err(&clock.anchor(999, 2.0)); // backwards in sample
         refused.assert_err(&clock.anchor(2_000, f64::NAN));
         refused.assert_err(&clock.anchor(2_000, f64::INFINITY));

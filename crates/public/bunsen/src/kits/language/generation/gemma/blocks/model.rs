@@ -541,21 +541,18 @@ mod tests {
     /// have no window, is refused.
     #[test]
     fn test_refusals() {
-        use crate::errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        };
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        use crate::errors::testing::ErrorMatcher;
+        ErrorMatcher::illegal()
             .message_contains("layer_kinds")
             .assert_err(
                 &config()
                     .with_layer_kinds(vec![GemmaLayerKind::Full])
                     .stack(),
             );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("sliding_window")
             .assert_err(&config().with_sliding_window(None).stack());
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("sliding_window")
             .assert_err(&config().with_sliding_window(None).try_to_structure());
     }

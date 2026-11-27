@@ -20,12 +20,15 @@ use core::{
     marker::PhantomData,
 };
 
-use crate::errors::{
-    BunsenError,
-    BunsenErrorKind,
-    BunsenResult,
-    Multiple,
-    testing::{
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenErrorKind,
+        BunsenResult,
+        ConstraintError,
+        Multiple,
+    },
+    support::testing::matching::{
         BoxMatcher,
         Description,
         Matcher,
@@ -78,6 +81,43 @@ impl ErrorMatcher {
     /// A matcher for errors of `kind`: `new().with_kind(kind)`.
     pub fn kind(kind: BunsenErrorKind) -> Self {
         Self::new().with_kind(kind)
+    }
+
+    /// A matcher for [`Illegal`](BunsenErrorKind::Illegal) errors, as
+    /// [`BunsenError::illegal`] makes them.
+    pub fn illegal() -> Self {
+        Self::kind(BunsenErrorKind::Illegal)
+    }
+
+    /// A matcher for [`Internal`](BunsenErrorKind::Internal) errors.
+    pub fn internal() -> Self {
+        Self::kind(BunsenErrorKind::Internal)
+    }
+
+    /// A matcher for [`Policy`](BunsenErrorKind::Policy) errors.
+    pub fn policy() -> Self {
+        Self::kind(BunsenErrorKind::Policy)
+    }
+
+    /// A matcher for [`Lookup`](BunsenErrorKind::Lookup) errors.
+    pub fn lookup() -> Self {
+        Self::kind(BunsenErrorKind::Lookup)
+    }
+
+    /// A matcher for [`Unavailable`](BunsenErrorKind::Unavailable) errors.
+    pub fn unavailable() -> Self {
+        Self::kind(BunsenErrorKind::Unavailable)
+    }
+
+    /// A matcher for [`InvalidResource`](BunsenErrorKind::InvalidResource)
+    /// errors.
+    pub fn invalid_resource() -> Self {
+        Self::kind(BunsenErrorKind::InvalidResource)
+    }
+
+    /// A matcher for [`Unsupported`](BunsenErrorKind::Unsupported) errors.
+    pub fn unsupported() -> Self {
+        Self::kind(BunsenErrorKind::Unsupported)
     }
 
     fn clause(
@@ -224,6 +264,20 @@ impl ErrorMatcher {
             matcher: Some(Box::new(matcher)),
             _t: PhantomData,
         })
+    }
+
+    /// The cause chain holds a [`ConstraintError`] on `owner`'s `field`: the
+    /// rule a refusal broke, matched by where it is rather than by message
+    /// text.
+    pub fn constraint(
+        self,
+        owner: &'static str,
+        field: &'static str,
+    ) -> Self {
+        self.cause(crate::support::testing::matching::predicate(
+            format!("a constraint on {owner}.{field}"),
+            move |e: &ConstraintError| e.owner == owner && e.field == field,
+        ))
     }
 
     /// The cause chain holds a [`Multiple`] with a member that matches
@@ -735,5 +789,50 @@ mod tests {
     fn test_assert_err_on_ok() {
         let r: BunsenResult<i32> = Ok(3);
         ErrorMatcher::new().assert_err(&r);
+    }
+
+    /// Each kind's shorthand is `kind` of that kind.
+    #[test]
+    fn test_kind_shorthands() {
+        for (shorthand, kind) in [
+            (ErrorMatcher::illegal(), BunsenErrorKind::Illegal),
+            (ErrorMatcher::internal(), BunsenErrorKind::Internal),
+            (ErrorMatcher::policy(), BunsenErrorKind::Policy),
+            (ErrorMatcher::lookup(), BunsenErrorKind::Lookup),
+            (ErrorMatcher::unavailable(), BunsenErrorKind::Unavailable),
+            (
+                ErrorMatcher::invalid_resource(),
+                BunsenErrorKind::InvalidResource,
+            ),
+            (ErrorMatcher::unsupported(), BunsenErrorKind::Unsupported),
+        ] {
+            assert_eq!(
+                format!("{shorthand}"),
+                format!("{}", ErrorMatcher::kind(kind)),
+                "{kind:?}"
+            );
+        }
+    }
+
+    /// `constraint` matches a refusal by its `ConstraintError`'s owner and
+    /// field, not by its words; another field, or another owner, misses.
+    #[test]
+    fn test_constraint() {
+        let refusal: BunsenResult<()> =
+            Err(ConstraintError::zero_or_empty("ConvStemConfig", "convs").into());
+        ErrorMatcher::illegal()
+            .constraint("ConvStemConfig", "convs")
+            .assert_err(&refusal);
+        let error = refusal.unwrap_err();
+        assert!(
+            !ErrorMatcher::illegal()
+                .constraint("ConvStemConfig", "pool")
+                .matches(&error)
+        );
+        assert!(
+            !ErrorMatcher::illegal()
+                .constraint("ConvNetConfig", "convs")
+                .matches(&error)
+        );
     }
 }

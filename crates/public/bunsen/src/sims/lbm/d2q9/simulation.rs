@@ -324,10 +324,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         sims::lbm::d2q9::{
             SPEED_OF_SOUND,
             macroscopic_momentum,
@@ -513,7 +510,7 @@ mod tests {
 
         for (height, width) in [(0, 8), (1, 8), (2, 8), (8, 2), (2, 2)] {
             let result = LBMD2Q9Config::new(GridShape2D { width, height }).try_init(&device, RHO);
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .has_cause::<ConstraintError>()
                 .details_contains("at least 3 cells on a side")
                 .assert_err(&result);
@@ -522,7 +519,7 @@ mod tests {
         let result = LBMD2Q9Config::new(GridShape2D::square(8))
             .with_relaxation(RelaxationParam::Tau(0.49))
             .try_init(&device, RHO);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("RelaxationParam.tau")
             .assert_err(&result);
 

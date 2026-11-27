@@ -515,7 +515,6 @@ mod tests {
     use super::*;
     use crate::{
         errors::{
-            BunsenErrorKind,
             Rule,
             testing::{
                 ErrorMatcher,
@@ -553,7 +552,7 @@ mod tests {
 
     #[test]
     fn test_validate_empty() {
-        let empty = ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        let empty = ErrorMatcher::illegal()
             .cause(predicate("empty blocks", |e: &ConstraintError| {
                 e.rule == Rule::ZeroOrEmpty
             }));
@@ -567,7 +566,7 @@ mod tests {
     fn test_validate_channel_mismatch() {
         // block 0 out_channels = 4, block 1 in_channels = 8 -> mismatch.
         let blocks = vec![block(2, 4, 1), block(8, 16, 1)];
-        let chain = ErrorMatcher::kind(BunsenErrorKind::Illegal).cause(predicate(
+        let chain = ErrorMatcher::illegal().cause(predicate(
             "a chain break at block 1",
             |e: &ConstraintError| matches!(e.rule, Rule::Chain { index: 1, .. }),
         ));

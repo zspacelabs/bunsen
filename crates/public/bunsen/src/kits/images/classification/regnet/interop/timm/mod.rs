@@ -127,10 +127,7 @@ pub fn regnet_rekey() -> Rekey {
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
     };
 
@@ -165,7 +162,7 @@ mod tests {
                 );
             }
         }
-        let unsupported = || ErrorMatcher::kind(BunsenErrorKind::Unsupported);
+        let unsupported = || ErrorMatcher::unsupported();
         unsupported()
             .message_contains("timm's resnet50")
             .assert_err(&regnet_contract_config(&config("resnet50", 1000)));

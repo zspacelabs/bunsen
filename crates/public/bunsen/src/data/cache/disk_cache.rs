@@ -781,8 +781,8 @@ mod fetch_tests {
         assert_ne!(data_file, cache_file);
 
         // Nothing on disk: neither finds anything, and downloads are off.
-        let not_cached = ErrorMatcher::kind(BunsenErrorKind::Policy)
-            .message_contains("not cached, and downloads are off");
+        let not_cached =
+            ErrorMatcher::policy().message_contains("not cached, and downloads are off");
         not_cached.assert_err(&cache.load_data_path(&context, &urls, false, None));
         not_cached.assert_err(&cache.load_cached_path(&context, &urls, false, None));
 
@@ -867,7 +867,7 @@ mod fetch_tests {
         let url = serve_once("abc.bin", b"abd");
         let result = cache.load_cached_path(&["t"], &[url.as_str()], true, Some(ABC_SHA256));
 
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .has_cause::<FetchFailure>()
             .assert_err(&result);
         let path = cache.cache_path(&["t"], "abc.bin");
@@ -887,8 +887,8 @@ mod fetch_tests {
         let a = refused_url("abc.bin");
         let b = refused_url("abc.bin");
         let result = cache.load_cached_path(&["t"], &[a.as_str(), b.as_str()], true, None);
-        let down = || ErrorMatcher::kind(BunsenErrorKind::Unavailable).has_cause::<FetchFailure>();
-        ErrorMatcher::kind(BunsenErrorKind::Unavailable)
+        let down = || ErrorMatcher::unavailable().has_cause::<FetchFailure>();
+        ErrorMatcher::unavailable()
             .message_contains("none of 2 mirrors could be fetched")
             .details_contains(&format!("{a}: [Unavailable]"))
             .details_contains(&format!("{b}: [Unavailable]"))
@@ -928,11 +928,11 @@ mod fetch_tests {
             &dest,
             Some(ABC_SHA256),
         );
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .member(0, ErrorMatcher::kind(BunsenErrorKind::Lookup))
+        ErrorMatcher::lookup()
+            .member(0, ErrorMatcher::lookup())
             .member(
                 1,
-                ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+                ErrorMatcher::invalid_resource()
                     .cause(predicate("a digest failure", |f: &FetchFailure| {
                         matches!(f, FetchFailure::Digest(_))
                     })),
@@ -951,7 +951,7 @@ mod fetch_tests {
         let a = serve_once("abc.bin", b"abc");
         let b = serve_once("abc.bin", b"abc");
         let result = cache.fetch_mirrors(&[a.as_str(), b.as_str()], Path::new("/"), None, 0);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("not a file path")
             .assert_err(&result.0);
         assert_eq!(result.1, 1, "one fetch was tried");
@@ -973,7 +973,7 @@ mod fetch_tests {
 
         let flaky = serve_flaky("abc.bin", b"abc", 1);
         let dest = cache.cache_path(&["t"], "abd.bin");
-        ErrorMatcher::kind(BunsenErrorKind::Unavailable).assert_err(&cache.fetch_from_urls(
+        ErrorMatcher::unavailable().assert_err(&cache.fetch_from_urls(
             &[flaky.as_str()],
             &dest,
             None,
@@ -982,7 +982,7 @@ mod fetch_tests {
         // A 404 is not retried, whatever the budget.
         let missing = serve_status("abc.bin", 404);
         let (result, attempts) = cache.fetch_mirrors(&[missing.as_str()], &dest, None, 3);
-        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&result);
+        ErrorMatcher::lookup().assert_err(&result);
         assert_eq!(attempts, 1);
     }
 
@@ -1017,10 +1017,10 @@ mod fetch_tests {
         let cache = observing_cache(dir.path(), &observer);
 
         let result = cache.load_cached_path(&["t"], &["https://example.invalid/dir/"], true, None);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("names no file")
             .assert_err(&result);
-        let no_url = ErrorMatcher::kind(BunsenErrorKind::Illegal).has_cause::<ConstraintError>();
+        let no_url = ErrorMatcher::illegal().has_cause::<ConstraintError>();
         no_url.assert_err(&cache.load_cached_path::<&str, &str>(&["t"], &[], true, None));
         no_url.assert_err(&cache.fetch_from_urls(&[], Path::new("/d/f.bin"), None));
     }

@@ -116,10 +116,7 @@ mod tests {
                 ResidualConvConfig,
             },
         },
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
     };
 
     /// timm's `skresnet18`: basic blocks, the selective kernel their first
@@ -142,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_illegal_policies() {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("an anti-aliased SKNet")
             .assert_err(
                 &SKNetContractConfig::new(

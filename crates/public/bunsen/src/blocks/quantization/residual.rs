@@ -352,10 +352,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::{
             assert_tensors_close,
             cpu_device,
@@ -523,7 +520,7 @@ mod tests {
     #[test]
     fn test_illegal_codebooks() {
         let device = cpu_device();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("no codebooks")
             .assert_err(
                 &ModuleInit::<ResidualVectorQuantizer>::try_init(
@@ -533,7 +530,7 @@ mod tests {
                 .map(|_| ()),
             );
         for first in [0, 3] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains("the split is in 1..3")
                 .assert_err(
                     &ModuleInit::<SplitResidualVectorQuantizer>::try_init(

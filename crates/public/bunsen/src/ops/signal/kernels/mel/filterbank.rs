@@ -291,10 +291,7 @@ impl MelFilterbankConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     /// Asserts `actual` matches `expected` to a relative tolerance.
     fn assert_rel(
@@ -516,7 +513,7 @@ mod tests {
             .with_norm(FilterNorm::Slaney)
             .try_to_vec();
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("covers no rfft bin")
             .assert_err(&err);
     }
@@ -535,7 +532,7 @@ mod tests {
             ok(400, 80, 8000.0..8000.0),
             ok(400, 80, 8000.0..0.0),
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .has_cause::<ConstraintError>()
                 .assert_err(&bad);
         }

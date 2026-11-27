@@ -136,12 +136,9 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::reflection::XmlModuleTree,
-        errors::{
-            BunsenErrorKind,
-            testing::{
-                ErrorMatcher,
-                predicate,
-            },
+        errors::testing::{
+            ErrorMatcher,
+            predicate,
         },
         support::testing::cpu_device,
     };
@@ -162,7 +159,7 @@ mod tests {
         let expr = "Linear/*[@name='weight', @rank=2]";
         let err = mtree.select_param_ids(expr).unwrap_err();
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("XPath Type Error: XPTY0004")
             .details_contains("Type Error")
             .has_cause::<xee_xpath::error::Error>()
@@ -177,7 +174,7 @@ mod tests {
         let mut mtree = linear_tree();
 
         let err = mtree.try_select("Linear/*[").err().unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("XPath Parse Error: XPST0003")
             .details_contains("Parse Error")
             .cause(predicate("the expression", |p: &ParseError| {

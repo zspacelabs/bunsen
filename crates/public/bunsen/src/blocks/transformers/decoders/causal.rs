@@ -1050,7 +1050,7 @@ mod tests {
     #[test]
     fn test_conditioned_block_width() {
         let device = crate::support::testing::cpu_device();
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Illegal)
+        crate::errors::testing::ErrorMatcher::illegal()
             .message_contains("mlp_scale.d_model")
             .assert_err(
                 &conditioned(16)

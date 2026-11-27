@@ -123,10 +123,7 @@ pub fn res2net_rekey(layout: ResNetStateLayout) -> Rekey {
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
     };
 
@@ -156,7 +153,7 @@ mod tests {
                 "{name}"
             );
         }
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("timm's resnet50")
             .assert_err(&res2net_contract_config(&config("resnet50", 1000)));
     }

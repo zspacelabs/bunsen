@@ -230,7 +230,7 @@ mod tests {
         assert_eq!(patched.config.vad.threshold, 0.6);
         assert_eq!(patched.config.vad.min_silence_ms, 100);
 
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Policy)
+        crate::errors::testing::ErrorMatcher::policy()
             .message_contains("vad-policy")
             .assert_err(&factory.resolve_presets(
                 "silero/vad-16k[silero,faster-whisper]",

@@ -158,10 +158,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -232,7 +229,7 @@ mod tests {
             .with_mean(vec![0.5])
             .with_std(vec![0.5]);
         let image = DynamicImage::ImageRgb8(image::RgbImage::new(8, 8));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("1 channels")
             .assert_err(&try_eval_input(&transform, &image, &device));
     }
@@ -250,7 +247,7 @@ mod tests {
     #[test]
     fn test_try_filter_for_rejects_box_and_hamming() {
         for f in [ImageInterpolation::Box, ImageInterpolation::Hamming] {
-            ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            ErrorMatcher::unsupported()
                 .message_contains(f.timm_name())
                 .assert_err(&try_filter_for(f));
         }
@@ -291,7 +288,7 @@ mod tests {
         assert_eq!(batch.dims(), [2, 3, 8, 8]);
 
         let missing = [temp_dir.path().join("missing.png")];
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .frame_contains("missing.png")
             .assert_err(&try_load_eval_batch(&transform, &missing, &device));
     }

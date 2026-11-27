@@ -266,12 +266,9 @@ mod test {
             audit_probe::AuditProbeEventParams,
         },
         burner::descriptors::ToleranceDesc,
-        errors::{
-            BunsenErrorKind,
-            testing::{
-                ErrorMatcher,
-                text,
-            },
+        errors::testing::{
+            ErrorMatcher,
+            text,
         },
     };
 
@@ -354,7 +351,7 @@ mod test {
             ("grad".to_string(), vec![a.clone()]),
         ]));
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .frame(text::eq("unpacking `&e`"))
             .message_contains("unexpected event data keys [\"grad\"]")
             .message_contains("pattern declares [\"data\"]")
@@ -367,7 +364,7 @@ mod test {
         let a = TensorData::from([1, 2, 3]);
         let e = event(HashMap::from([("data".to_string(), vec![a.clone()])]));
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .frame(text::eq("unpacking `&e`"))
             .message_contains("missing event data key `grad`")
             .message_contains("present keys [\"data\"]")
@@ -382,11 +379,11 @@ mod test {
             vec![a.clone(), a.clone()],
         )]));
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("key `data` has 2 values, expected 1")
             .assert_err(&unpack_audit_probe_event_data!([&e], { data }));
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("key `data` has 2 values, expected 3")
             .assert_err(&unpack_audit_probe_event_data!([&e], { data: [3] }));
     }
@@ -398,7 +395,7 @@ mod test {
         let good = event(HashMap::from([("data".to_string(), vec![a.clone()])]));
         let bad = event(HashMap::from([("other".to_string(), vec![a.clone()])]));
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .frame(text::eq("unpacking `&bad`"))
             .display_contains("unpacking `&bad`: ")
             .assert_err(&unpack_audit_probe_event_data!([&good, &bad], { data }));

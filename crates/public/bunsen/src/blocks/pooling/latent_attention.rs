@@ -167,10 +167,7 @@ mod tests {
     use super::*;
     use crate::{
         blocks::norm::BunsenLayerNormConfig,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -209,7 +206,7 @@ mod tests {
     fn test_illegal_pools() {
         let device = cpu_device();
         let illegal = |config: LatentAttentionPoolConfig, message: &str| {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains(message)
                 .assert_err(&ModuleInit::<LatentAttentionPool>::try_init(
                     &config, &device,

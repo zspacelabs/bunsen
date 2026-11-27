@@ -300,7 +300,7 @@ mod tests {
     /// A slice wider than the rows is refused.
     #[test]
     fn test_vocab_within_rows() {
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Illegal)
+        crate::errors::testing::ErrorMatcher::illegal()
             .message_contains("vocab")
             .assert_err(
                 &LmHeadConfig::new(4, 12)

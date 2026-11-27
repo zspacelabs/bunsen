@@ -38,10 +38,7 @@ use crate::{
         ModuleInit,
         ToStructureConfig,
     },
-    errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    },
+    errors::testing::ErrorMatcher,
     ops::transformers::attention::{
         KVCacheConfig,
         KVCacheMeta,
@@ -307,7 +304,7 @@ fn test_lowering_frame() {
     if let DecoderStackVariantConfig::Patterned(stack) = &mut variant.stack {
         stack.layer_kinds = vec![0, 2];
     }
-    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+    ErrorMatcher::illegal()
         .message_contains("layer_kinds[1]")
         .frame_contains("LmDecoderVariantConfig's stack")
         .assert_err(&variant.try_to_structure());
@@ -350,7 +347,7 @@ fn test_parts_agree() {
         ),
     ];
     for (config, field) in cases {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains(field)
             .assert_err(&ModuleInit::<LmDecoderModel>::try_init(&config, &device));
     }

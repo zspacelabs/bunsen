@@ -76,7 +76,7 @@ mod tests {
     fn test_missing_checkpoint_is_a_lookup() {
         let dir = tempfile::tempdir().unwrap();
         let err = read_pytorch_tensors(&dir.path().join("absent.pt")).unwrap_err();
-        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert(&err);
+        ErrorMatcher::lookup().assert(&err);
     }
 
     #[test]
@@ -85,6 +85,6 @@ mod tests {
         let path = dir.path().join("junk.pt");
         std::fs::write(&path, b"not a zip, not a pickle").unwrap();
         let err = read_pytorch_tensors(&path).unwrap_err();
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert(&err);
+        ErrorMatcher::invalid_resource().assert(&err);
     }
 }

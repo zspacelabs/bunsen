@@ -47,10 +47,7 @@ use crate::{
         ModuleInit,
         ToStructureConfig,
     },
-    errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    },
+    errors::testing::ErrorMatcher,
     support::testing::{
         assert_tensors_close,
         cpu_device,
@@ -188,7 +185,7 @@ fn test_headless_and_with_classes() {
 fn test_disagreeing_parts_are_illegal() {
     let device = cpu_device();
     let illegal = |config: VisionEncoderStructureConfig, message: &str| {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains(message)
             .assert_err(&ModuleInit::<VisionEncoderModel>::try_init(
                 &config, &device,
@@ -282,7 +279,7 @@ fn test_backbone() {
 
     let illegal = |config: VisionEncoderStructureConfig, message: &str| {
         let built: crate::errors::BunsenResult<VisionEncoderModel> = config.try_init(&device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains(message)
             .assert_err(&built);
     };

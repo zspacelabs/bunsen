@@ -388,10 +388,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -430,7 +427,7 @@ mod tests {
 
         // No legal output when the kernel cannot fit.
         let too_big = block(Conv1dConfig::new(2, 4, 5).with_padding(PaddingConfig1d::Valid));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("input length (3)")
             .assert_err(&too_big.try_output_length(3));
     }

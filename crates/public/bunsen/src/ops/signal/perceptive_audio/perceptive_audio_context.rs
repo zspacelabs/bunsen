@@ -448,7 +448,6 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         errors::{
-            BunsenErrorKind,
             WithOkOrPanic,
             testing::ErrorMatcher,
         },
@@ -694,14 +693,14 @@ mod tests {
         // Not a hop multiple.
         let ctx = conv.new_context(2);
         let bad = from_rows(&rows(2, 1601), &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("multiple of hop")
             .assert_err(&ctx.transform(bad));
 
         // Wrong batch.
         let ctx = conv.new_context(2);
         let bad = from_rows(&rows(3, 1600), &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("batch (3)")
             .assert_err(&ctx.transform(bad));
 
@@ -709,7 +708,7 @@ mod tests {
         // largest hop-aligned chunk below it.
         let ctx = conv.new_context(1);
         let bad = from_rows(&rows(1, 160), &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("reflect start padding")
             .assert_err(&ctx.transform(bad));
     }

@@ -1220,12 +1220,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::{
-                ErrorMatcher,
-                text,
-            },
+        errors::testing::{
+            ErrorMatcher,
+            text,
         },
         support::testing::{
             DeviceMemoryGuard,
@@ -1536,7 +1533,7 @@ mod tests {
     fn test_config_refuses_disagreeing_fields() {
         let device = cpu_device();
         let illegal = |config: KVCacheConfig, message: &str| {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .display(text::eq(message))
                 .assert_err(&config.try_init(&device));
         };

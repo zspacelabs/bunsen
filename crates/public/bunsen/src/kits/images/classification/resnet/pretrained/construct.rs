@@ -323,7 +323,7 @@ mod tests {
                 .expect("a stated geometry")
                 .value = serde_json::json!({"layers": "not a list"});
         }
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("doesn't read as its config")
             .assert_err(&hook.config_for(&bad, None));
         assert_eq!(

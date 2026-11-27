@@ -125,7 +125,7 @@ mod tests {
             .unwrap()
             .resource_set();
         other.resources.get_mut(CHECKPOINT).unwrap().format = Some("gguf".to_string());
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
+        crate::errors::testing::ErrorMatcher::unsupported()
             .message_contains("gguf")
             .assert_err(&LayaConstructConfig::for_resource_set(&other));
     }

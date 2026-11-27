@@ -97,10 +97,7 @@ impl ConstructInit for NanoChatConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
@@ -127,7 +124,7 @@ mod tests {
             .unwrap()
             .resource_set();
         safetensors.resources.get_mut(CHECKPOINT).unwrap().format = Some("safetensors".to_string());
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("safetensors")
             .assert_err(&NanoChatConstructConfig::for_resource_set(&safetensors));
     }

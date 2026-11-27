@@ -1042,7 +1042,6 @@ mod tests {
     use crate::{
         data::cache::testing::ABC_SHA256,
         errors::{
-            BunsenErrorKind,
             ConstraintError,
             testing::{
                 ErrorMatcher,
@@ -1125,7 +1124,7 @@ mod tests {
         assert_eq!(cache.read_prefix(&local, 64).unwrap(), b"abcdef");
 
         let remote = res("remote", None, vec![url("http://h.invalid/remote.bin")]);
-        ErrorMatcher::kind(BunsenErrorKind::Policy).assert_err(&cache.read_prefix(&remote, 4));
+        ErrorMatcher::policy().assert_err(&cache.read_prefix(&remote, 4));
 
         #[cfg(feature = "fetch")]
         {
@@ -1175,7 +1174,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![Source::Bundled(BundledBytes(b"abd"))],
         );
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("not the pinned")
             .cause(predicate("a bundled mismatch", |c: &DigestMismatch| {
                 c.origin == DigestOrigin::Bundled && c.subject == "abd" && c.expected == ABC_SHA256
@@ -1186,7 +1185,7 @@ mod tests {
         // The cache checks the rule `validate` does, with the same error.
         let unpinned = res("abe", None, vec![Source::Bundled(BundledBytes(b"abe"))]);
         let unpinned_err = |e: &BunsenError| {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .display(text::eq(
                     "abe: Resource.sha256: a bundled source needs a digest to be cached under",
                 ))
@@ -1431,7 +1430,7 @@ mod tests {
         )
         .unwrap();
         assert!(verifying.verify_local_dirs());
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert_err(&verifying.resolve(&r));
+        ErrorMatcher::invalid_resource().assert_err(&verifying.resolve(&r));
         fs::write(upstream.join("abc.bin"), b"abc").unwrap();
         assert_eq!(
             verifying.resolve(&r).unwrap().provenance,
@@ -1492,19 +1491,19 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/abc.bin")],
         );
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("the cache is offline")
             .frame_contains("abc")
             .assert_err(&offline.resolve(&remote));
 
         let no_url = res("abc", Some(ABC_SHA256), vec![]);
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .details_contains("no URL")
             .assert_err(&cache_in(dir.path(), false).resolve(&no_url));
 
         let absent = dir.path().join("absent.pt");
         let given = Resource::given("checkpoint", &absent);
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .frame_contains("checkpoint")
             .cause(predicate("a missing path", move |c: &LookupError| {
                 c.problem == LookupProblem::Missing && c.key == absent.display().to_string()
@@ -1531,7 +1530,7 @@ mod tests {
 
         let wrong = serve_once("abd.bin", b"abd");
         let r = res("abd", Some(ABC_SHA256), vec![url(&wrong)]);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert_err(&cache.resolve(&r));
+        ErrorMatcher::invalid_resource().assert_err(&cache.resolve(&r));
         assert!(!cache.resource_path(&r).unwrap().exists());
     }
 
@@ -1614,10 +1613,9 @@ mod tests {
         let before = listed();
         assert_eq!(cache.status(&r), CacheStatus::Conflicting);
         let duplicate = || {
-            ErrorMatcher::kind(BunsenErrorKind::Lookup)
-                .cause(predicate("a duplicate copy", |c: &LookupError| {
-                    c.problem == LookupProblem::Duplicate
-                }))
+            ErrorMatcher::lookup().cause(predicate("a duplicate copy", |c: &LookupError| {
+                c.problem == LookupProblem::Duplicate
+            }))
         };
         duplicate().assert_err(&cache.cached_path(&r));
         duplicate().assert_err(&cache.resolve(&r));
@@ -1750,7 +1748,7 @@ mod tests {
             .with_resource(cached)
             .with_resource(remote);
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message(text::ends_with("offline: remote"))
             .frame_contains("m")
             .assert_err(&cache.load(&map));

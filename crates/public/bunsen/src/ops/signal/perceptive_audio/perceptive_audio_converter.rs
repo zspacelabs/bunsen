@@ -979,7 +979,6 @@ mod tests {
     use super::*;
     use crate::{
         errors::{
-            BunsenErrorKind,
             WithOkOrPanic,
             testing::ErrorMatcher,
         },
@@ -1558,7 +1557,7 @@ mod tests {
             base().with_f_min(8000.0),
             base().with_f_min(9000.0).with_f_max(Some(8000.0)),
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .has_cause::<ConstraintError>()
                 .assert_err(&bad.validate());
         }
@@ -1572,7 +1571,7 @@ mod tests {
             base().with_pre_emphasis(Some(0.97)),
             base().with_remove_dc(true),
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            ErrorMatcher::unsupported()
                 .message_contains("is not implemented")
                 .assert_err(&bad.validate());
         }
@@ -1588,7 +1587,7 @@ mod tests {
         opts.validate().unwrap();
 
         let bank = opts.try_to_filterbank_vec();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("covers no rfft bin")
             .frame_contains("mel filterbank")
             .assert_err(&bank);
@@ -1686,7 +1685,7 @@ mod tests {
 
         // Scalar geometry.
         let bad = PerceptiveAudioConverterConfig::default().with_hop(0);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&ModuleInit::<PerceptiveAudioConverter>::try_init(
                 &bad, &device,
@@ -1696,7 +1695,7 @@ mod tests {
         let empty_rows = PerceptiveAudioConverterConfig::default()
             .with_n_fft(256)
             .with_n_mels(128);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("covers no rfft bin")
             .assert_err(&ModuleInit::<PerceptiveAudioConverter>::try_init(
                 &empty_rows,

@@ -130,13 +130,13 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
 
         let missing = temp_dir.path().join("missing.png");
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .has_cause::<std::io::Error>()
             .assert_err(&try_open_image(&missing));
 
         let junk = temp_dir.path().join("junk.png");
         std::fs::write(&junk, b"not a png").unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .frame_contains("opening image")
             .has_cause::<image::ImageError>()
             .assert_err(&try_open_image(&junk));
@@ -152,11 +152,10 @@ mod tests {
             .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .unwrap();
         assert_eq!(try_decode_image(&png).unwrap().to_rgb8(), source);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .frame_contains("decoding an image")
             .assert_err(&try_decode_image(&png[..png.len() / 2]));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
-            .assert_err(&try_decode_image(b"no format at all"));
+        ErrorMatcher::unsupported().assert_err(&try_decode_image(b"no format at all"));
     }
 
     /// A saved PNG opens to the same pixels.

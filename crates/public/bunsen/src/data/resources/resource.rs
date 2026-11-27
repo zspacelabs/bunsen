@@ -373,13 +373,10 @@ fn resolve_dir_template_with(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::{
-            ErrorMatcher,
-            predicate,
-            text,
-        },
+    use crate::errors::testing::{
+        ErrorMatcher,
+        predicate,
+        text,
     };
 
     /// Sources print as a listing shows them, a local dir with the
@@ -429,7 +426,7 @@ mod tests {
         };
         assert_eq!(r.bundled(), Some(&b"abc"[..]));
         assert!(r.urls().is_empty());
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("bundled source needs a digest")
             .frame_contains("burnpack")
             .has_cause::<ConstraintError>()
@@ -528,7 +525,7 @@ mod tests {
         let r = checkpoint();
 
         let broken = |field: &'static str| {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal).cause(predicate(
+            ErrorMatcher::illegal().cause(predicate(
                 format!("a broken Resource.{field}"),
                 move |c: &ConstraintError| c.owner == "Resource" && c.field == field,
             ))

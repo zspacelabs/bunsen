@@ -297,11 +297,11 @@ mod tests {
         );
 
         let ctc = V3.replace("parakeet_tdt", "parakeet_ctc");
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
+        crate::errors::testing::ErrorMatcher::unsupported()
             .message_contains("`model_type`")
             .assert_err(&parakeet_tdt_config_from_str(&ctc));
         let mels = V3.replace("\"num_mel_bins\": 128", "\"num_mel_bins\": 80");
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
+        crate::errors::testing::ErrorMatcher::unsupported()
             .message_contains("`encoder_config.num_mel_bins` is 80")
             .assert_err(&parakeet_tdt_config_from_str(&mels));
     }

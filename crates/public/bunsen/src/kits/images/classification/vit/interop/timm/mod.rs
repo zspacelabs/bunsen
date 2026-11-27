@@ -242,10 +242,7 @@ fn vit_rekey_with(mlp: &[(&str, &str)]) -> Rekey {
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
     };
 
@@ -307,7 +304,7 @@ mod tests {
 
     #[test]
     fn test_unbuilt_configs_are_unsupported() {
-        let unsupported = || ErrorMatcher::kind(BunsenErrorKind::Unsupported);
+        let unsupported = || ErrorMatcher::unsupported();
         unsupported()
             .message_contains("timm's vit_giant_patch14_224")
             .assert_err(&vit_contract_config(&config(

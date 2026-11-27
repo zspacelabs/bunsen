@@ -155,12 +155,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::{
-                ErrorMatcher,
-                text,
-            },
+        errors::testing::{
+            ErrorMatcher,
+            text,
         },
         support::testing::cpu_device,
     };
@@ -171,7 +168,7 @@ mod tests {
         let err = DropPathConfig::new()
             .with_drop_prob(1.5)
             .try_init(&cpu_device());
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::contains("drop_prob"))
             .assert_err(&err);
     }

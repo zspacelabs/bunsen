@@ -6,7 +6,7 @@
 use alloc::string::String;
 use core::fmt::Write;
 
-use crate::errors::testing::{
+use crate::support::testing::matching::{
     Description,
     Matcher,
 };

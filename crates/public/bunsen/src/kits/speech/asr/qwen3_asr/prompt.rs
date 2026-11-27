@@ -254,7 +254,7 @@ mod tests {
             .unwrap();
         assert_eq!(decoder.eos, [151_643, 151_645]);
 
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::InvalidResource)
+        crate::errors::testing::ErrorMatcher::invalid_resource()
             .message_contains("<|im_start|>")
             .assert_err(&Qwen3AsrPromptConfig::from_vocabulary(&vocab()));
     }

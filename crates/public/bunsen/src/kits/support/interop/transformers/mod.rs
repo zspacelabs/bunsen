@@ -81,12 +81,9 @@ pub fn config_from_path<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::{
-            ErrorMatcher,
-            text,
-        },
+    use crate::errors::testing::{
+        ErrorMatcher,
+        text,
     };
 
     /// The text helper parses and converts; a conversion's error passes
@@ -95,7 +92,7 @@ mod tests {
     fn test_config_from_str() {
         let n = config_from_str(r#"{"vocab_size": 7}"#, |t| t.usize("vocab_size")).unwrap();
         assert_eq!(n, 7);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .display(text::contains("missing_field"))
             .assert_err(&config_from_str(r#"{}"#, |t| t.usize("missing_field")));
     }

@@ -177,7 +177,7 @@ mod tests {
             .into_data()
             .assert_approx_eq::<f32>(&(x * 0.5).into_data(), Tolerance::absolute(1e-6));
         let even: BunsenResult<Eca> = EcaConfig::new(4).try_init(&device);
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Illegal)
+        crate::errors::testing::ErrorMatcher::illegal()
             .message_contains("is even")
             .assert_err(&even);
     }

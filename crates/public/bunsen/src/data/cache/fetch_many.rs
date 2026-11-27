@@ -424,10 +424,7 @@ mod tests {
                 serve_status,
             },
         },
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
     };
 
     fn cache_in(dir: &Path) -> BunsenDiskCache {
@@ -508,10 +505,10 @@ mod tests {
         );
         assert_eq!(fs::read(root.join("shard_1.bin")).unwrap(), b"abc");
 
-        ErrorMatcher::kind(BunsenErrorKind::Unavailable)
+        ErrorMatcher::unavailable()
             .message_eq("1 of 3 fetches did not land")
             .details_contains("shard_2.bin: [Unavailable] ")
-            .member(0, ErrorMatcher::kind(BunsenErrorKind::Unavailable))
+            .member(0, ErrorMatcher::unavailable())
             .assert_err(&report.paths());
         let summary = report.to_string();
         assert!(
@@ -539,7 +536,7 @@ mod tests {
         assert!(matches!(report.outcomes[1], FetchOutcome::Skipped { .. }));
         assert_eq!(report.skipped(), 1);
         assert!(!dir.path().join("b.bin").exists());
-        ErrorMatcher::kind(BunsenErrorKind::Unavailable)
+        ErrorMatcher::unavailable()
             .message_eq("2 of 2 fetches did not land")
             .details_contains("b.bin: [Unavailable] skipped")
             .assert_err(&report.paths());
@@ -582,7 +579,7 @@ mod tests {
                 error, attempts, ..
             } => {
                 assert_eq!(*attempts, 1);
-                ErrorMatcher::kind(BunsenErrorKind::Lookup).assert(error);
+                ErrorMatcher::lookup().assert(error);
             }
             other => panic!("expected a failure, got {other:?}"),
         }

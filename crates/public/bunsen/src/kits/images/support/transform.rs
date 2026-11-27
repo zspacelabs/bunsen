@@ -332,10 +332,7 @@ impl ImageEvalTransformConfig {
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -450,7 +447,7 @@ mod tests {
     fn test_try_crop_and_normalize_rejects_the_wrong_channels() {
         let device = cpu_device();
         let t = ImageEvalTransformConfig::new();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("1-channel images for a 3-channel transform")
             .assert_err(&t.try_crop_and_normalize(Tensor::<4>::zeros([1, 1, 256, 256], &device)));
     }
@@ -458,7 +455,7 @@ mod tests {
     #[test]
     fn test_try_validate_rejects_a_bad_crop_pct() {
         for crop_pct in [0.0, -0.5, 1.5, f64::NAN] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains("crop_pct")
                 .assert_err(
                     &ImageEvalTransformConfig::new()

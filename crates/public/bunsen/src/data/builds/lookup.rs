@@ -264,7 +264,7 @@ mod tests {
         spec: &str,
         reason: &str,
     ) {
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .has_cause::<ParseError>()
             .message_contains(reason)
             .assert_err(&LookupExpr::parse(spec));

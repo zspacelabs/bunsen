@@ -335,10 +335,7 @@ impl ProbeSpec {
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::support::model_config::{
             ChatTemplateSource,
             GenerationPolicy,
@@ -396,7 +393,7 @@ mod tests {
             (vec![2], None, Some(64))
         );
 
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .assert_err(&GenerationConfigProbe.probe(b"[1]", &args(None)));
     }
 
@@ -417,7 +414,7 @@ mod tests {
             TokenizerConfigProbe.probe(object, &args(None)).unwrap(),
             json!({"generation": {"stop_ids": [2]}})
         );
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("no added token")
             .assert_err(&TokenizerConfigProbe.probe(br#"{"eos_token": "?"}"#, &args(None)));
     }
@@ -535,14 +532,14 @@ mod tests {
             family,
             "a file the checkpoint lacks is skipped"
         );
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_contains("no probe \"sampling_card\"")
             .assert_err(&probe_loaded(
                 &loaded,
                 &[entry("sampling_card", "generation_config", &["base"])],
                 &family,
             ));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_contains("no preset \"fast\"")
             .assert_err(&probe_loaded(
                 &loaded,
@@ -562,10 +559,10 @@ mod tests {
             .probe(config, &args(Some("<end_of_turn>")))
             .unwrap();
         assert_eq!(probed_policy(&patch).stop_ids, [107]);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("<start_of_turn>")
             .assert_err(&TokenizerConfigProbe.probe(config, &args(Some("<start_of_turn>"))));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("reads no token")
             .assert_err(&GenerationConfigProbe.probe(b"{}", &args(Some("<eos>"))));
     }

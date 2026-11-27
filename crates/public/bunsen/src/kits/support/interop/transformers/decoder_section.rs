@@ -122,10 +122,7 @@ impl TransformersDecoderSection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     fn read(json: &str) -> BunsenResult<TransformersDecoderSection> {
         TransformersDecoderSection::read(&TransformersConfigJson::parse(json).unwrap())
@@ -221,7 +218,7 @@ mod tests {
     /// A missing size names its field.
     #[test]
     fn test_read_missing_field() {
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("intermediate_size")
             .assert_err(&read(
                 r#"{"hidden_size": 8, "num_hidden_layers": 1, "num_attention_heads": 2,

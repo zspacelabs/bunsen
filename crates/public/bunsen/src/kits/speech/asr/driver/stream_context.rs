@@ -970,10 +970,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::speech::{
             asr::driver::{
                 DecodeTriggers,
@@ -1714,7 +1711,7 @@ mod tests {
             }
         }
         let driver = driver(ToyEngine::new(None), EmissionPolicy::offline());
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("sample_rate")
             .assert_err(&driver.with_speakers(
                 Arc::new(Elsewhere),
@@ -1760,7 +1757,7 @@ mod tests {
 
         // Alone, the one request gets no decode.
         let mut ctx = open(&driver);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("AsrEngine::decode")
             .assert_err(&ctx.write_read(&ramp(40)));
 
@@ -1770,7 +1767,7 @@ mod tests {
         for ctx in &mut contexts {
             ctx.write(&ramp(40)).unwrap();
         }
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("AsrEngine::decode")
             .assert_err(&driver.advance_ready(&mut contexts));
     }
@@ -1782,7 +1779,7 @@ mod tests {
             triggers: DecodeTriggers::new().with_window_full(false),
             ..EmissionPolicy::offline()
         };
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("nothing would ever decode")
             .assert_err(&AsrStreamDriver::new(engine.clone(), never));
 
@@ -1792,14 +1789,13 @@ mod tests {
                 .with_interval(Some(Duration::ZERO)),
             ..EmissionPolicy::conservative()
         };
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
-            .assert_err(&AsrStreamDriver::new(engine.clone(), zero));
+        ErrorMatcher::illegal().assert_err(&AsrStreamDriver::new(engine.clone(), zero));
 
         let ungated = EmissionPolicy {
             triggers: DecodeTriggers::new().with_interval(Some(Duration::from_millis(60))),
             ..EmissionPolicy::offline()
         };
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("endpoint")
             .assert_err(&AsrStreamDriver::new(engine.clone(), ungated));
 
@@ -1807,27 +1803,27 @@ mod tests {
             commit: CommitRule::Agreement { runs: 2 },
             ..EmissionPolicy::offline()
         };
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("not implemented")
             .assert_err(&AsrStreamDriver::new(engine.clone(), agreement));
 
         // Endpoints without a VAD; a clock at another rate.
         let bare = AsrStreamDriver::new(engine.clone(), EmissionPolicy::conservative()).unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("with_vad")
             .assert_err(&bare.new_context(StreamClock::uniform(RATE), LevelPolicy::PerWindow));
         let offline = AsrStreamDriver::new(engine.clone(), EmissionPolicy::offline()).unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(
+        ErrorMatcher::illegal().assert_err(
             &offline.new_context(StreamClock::uniform(RATE * 2), LevelPolicy::PerWindow),
         );
 
         // A filter at another rate, or another chunk.
-        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(
+        ErrorMatcher::illegal().assert_err(
             &offline
                 .clone()
                 .with_vad(Arc::new(EnergyVad), gate().with_sample_rate(RATE * 2)),
         );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&offline.clone().with_vad(
+        ErrorMatcher::illegal().assert_err(&offline.clone().with_vad(
             Arc::new(EnergyVad),
             gate().with_samples_per_chunk(CHUNK * 2),
         ));
@@ -1836,7 +1832,7 @@ mod tests {
         let mut ctx = open(&offline);
         ctx.end_read().unwrap();
         assert!(ctx.end_read().unwrap().is_empty());
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("the stream has ended")
             .assert_err(&ctx.write(&[0.0; 4]));
     }

@@ -445,7 +445,7 @@ mod tests {
             ("IQ== 1", "does not start at zero"),
         ] {
             let err = TiktokenRanks::parse(text).expect_err(why);
-            ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            ErrorMatcher::invalid_resource()
                 .has_cause::<ParseError>()
                 .assert(&err);
         }
@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn test_parse_errors_name_the_line() {
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .cause(predicate("at line 2", |e: &ParseError| {
                 e.at.as_deref() == Some("line 2")
             }))
@@ -476,7 +476,7 @@ Ig== x
         .unwrap();
         let at = format!("{}:2", path.display());
 
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .cause(predicate("at the file's line 2", move |e: &ParseError| {
                 e.at.as_deref() == Some(at.as_str())
             }))
@@ -485,7 +485,7 @@ Ig== x
 
     #[test]
     fn test_load_reports_a_missing_file() {
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .cause(predicate("a missing path", |e: &LookupError| {
                 e.problem == LookupProblem::Missing && e.key == "/nonexistent/whisper.tiktoken"
             }))

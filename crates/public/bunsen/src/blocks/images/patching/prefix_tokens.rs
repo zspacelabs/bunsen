@@ -283,10 +283,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::{
             assert_tensors_close,
             cpu_device,
@@ -439,7 +436,7 @@ mod tests {
     fn test_degenerate_configs_are_illegal() {
         let device = cpu_device();
         for config in [PrefixTokensConfig::new(0, 4), PrefixTokensConfig::new(8, 0)] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .assert_err(&ModuleInit::<PrefixTokens>::try_init(&config, &device));
         }
     }

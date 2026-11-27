@@ -259,7 +259,7 @@ mod tests {
                 .is_ok()
         );
         assert!(ConstraintError::check_chain("Net", "stages", []).is_ok());
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Illegal)
+        crate::errors::testing::ErrorMatcher::illegal()
             .cause(crate::errors::testing::predicate(
                 "the break at 1",
                 |e: &ConstraintError| {

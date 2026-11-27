@@ -248,12 +248,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::{
-                ErrorMatcher,
-                text,
-            },
+        errors::testing::{
+            ErrorMatcher,
+            text,
         },
         support::testing::{
             cpu_device,
@@ -286,7 +283,7 @@ mod tests {
     /// A convolution of fewer than 2 taps is refused.
     #[test]
     fn test_init_refuses_a_short_kernel() {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq("a causal convolution of at least 2 taps; got 1"))
             .assert_err(&DeltaNetStateConfig::new(2, 10, 1, 3, 5, 6).try_init(&cpu_device()));
     }

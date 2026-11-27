@@ -60,10 +60,7 @@ pub fn voxtral_token_layout_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_voxtral_token_layout_config() {
@@ -85,7 +82,7 @@ mod tests {
                 .with_delay_ms(960)
                 .with_left_pad_positions(16)
         );
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("[STREAMING_WORD]")
             .assert_err(&voxtral_token_layout_config(
                 &TekkenMirror::from_json(&json.replace("[STREAMING_WORD]", "[OTHER]")).unwrap(),

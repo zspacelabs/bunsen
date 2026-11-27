@@ -171,10 +171,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::speech::vad::silero_vad::SileroVadSignalConfig,
         support::testing::performance_device,
     };
@@ -209,7 +206,7 @@ mod tests {
             SileroVadContextConfig::new(0),
         ] {
             assert_eq!(cfg.context_size(), 0);
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .has_cause::<ConstraintError>()
                 .assert_err(&cfg.try_init(&vad_at(cfg.sample_rate), &device));
         }

@@ -167,10 +167,7 @@ mod tests {
     use super::*;
     use crate::{
         data::formats::safetensors_header,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::speech::asr::whisper::WhisperMeta,
         support::testing::cpu_device,
     };
@@ -415,7 +412,7 @@ mod tests {
         assert_same_weights(&model, &loaded);
 
         let encoder_only = SafetensorsCheckpoint::single(&s1);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("no model.decoder.embed_tokens.weight")
             .assert_err(&scanner.scan_cfg(&encoder_only));
         let decoder_only = SafetensorsCheckpoint::single(&s2);
@@ -434,7 +431,7 @@ mod tests {
         bytes.extend_from_slice(&[0u8; 24]);
         std::fs::write(&path, bytes).unwrap();
 
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("no model.encoder.conv1.weight")
             .assert_err(
                 &SafetensorsWhisperScanner::new().scan_cfg(&SafetensorsCheckpoint::single(&path)),

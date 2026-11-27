@@ -153,10 +153,7 @@ mod tests {
                 ResourceSet,
             },
         },
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
     };
 
     /// Labels must name the head's classes; a card without labels fits any
@@ -168,7 +165,7 @@ mod tests {
         let labelled =
             card.with_labels(Some(ImageLabelSet::try_parse("n01\nn02\n", None).unwrap()));
         assert!(labelled.clone().try_for_classes(2).is_ok());
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("2 labels for a head of 1000 classes")
             .assert_err(&labelled.try_for_classes(1000));
     }
@@ -252,7 +249,7 @@ mod tests {
         let lemmas = dir.path().join("lemmas.txt");
         std::fs::write(&lemmas, "n1\tone\n").unwrap();
         let build = BuildRef::from(ResourceSet::given("mine", "checkpoint", &lemmas));
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("binds label_names without labels")
             .assert_err(&ImageModelCard::try_from_build(
                 &build,

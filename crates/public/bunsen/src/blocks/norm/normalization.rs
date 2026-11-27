@@ -335,10 +335,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::DTypeMapper,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -500,7 +497,7 @@ mod tests {
         let odd: BunsenResult<BunsenNormalization> = BunsenNormalizationConfig::from(config)
             .with_num_features(5)
             .try_init(&device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("5 channels in 2 groups")
             .assert_err(&odd);
     }

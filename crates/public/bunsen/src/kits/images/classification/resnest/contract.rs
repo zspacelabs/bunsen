@@ -124,10 +124,7 @@ mod tests {
             ConvChainMeta,
             ResidualConvConfig,
         },
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::images::classification::resnet::BottleneckPolicyConfig,
     };
 
@@ -155,7 +152,7 @@ mod tests {
     #[test]
     fn test_illegal_policies() {
         let illegal = |config: ResNeStContractConfig, message: &str| {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains(message)
                 .assert_err(&config.try_to_structure());
         };

@@ -172,10 +172,7 @@ impl<T: TokenType> Detokenizer for WordchipperDetokenizer<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     /// Five ids, including an empty one and a gap: the party popper's four
     /// bytes split across ids 1 and 2.
@@ -229,14 +226,14 @@ mod tests {
         let detok = tiny::<u16>();
 
         for bad in [-1, 7, i64::from(u16::MAX) + 1, i64::MAX, i64::MIN] {
-            ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            ErrorMatcher::invalid_resource()
                 .message_contains(&format!("token id {bad} "))
                 .assert_err(&detok.detokenize(&[0, bad, 3]));
         }
 
         // Inside the range but not in the table: the decode stops, and that
         // is reported rather than swallowed, as the same kind of failure.
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("token id 5 ")
             .has_cause::<WCError>()
             .assert_err(&detok.detokenize(&[0, 5, 3]));
@@ -250,7 +247,7 @@ mod tests {
         );
 
         // An id that does not fit the token type is refused at build time.
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .message_contains("token id 70000")
             .assert_err(&WordchipperDetokenizer::<u16>::from_spans([(

@@ -607,12 +607,9 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        errors::{
-            BunsenErrorKind,
-            testing::{
-                ErrorMatcher,
-                text,
-            },
+        errors::testing::{
+            ErrorMatcher,
+            text,
         },
         support::testing::{
             DeviceMemoryGuard,
@@ -774,7 +771,7 @@ mod tests {
             let built: BunsenResult<RotaryEmbedding> = RotaryEmbeddingConfig::new(8, 4)
                 .with_base(base)
                 .try_init(&device);
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .display(text::contains("RotaryEmbeddingConfig.base"))
                 .assert_err(&built);
         }

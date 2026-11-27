@@ -31,7 +31,7 @@
 //!     .context("loading the corpus")
 //! }
 //!
-//! ErrorMatcher::kind(BunsenErrorKind::Lookup)
+//! ErrorMatcher::lookup()
 //!     .message_contains("no shard set")
 //!     .frame_contains("loading")
 //!     .cause(predicate("a missing \"large\"", |c: &LookupError| {
@@ -45,12 +45,21 @@
 //! matchers: [`text`] on strings, [`value`] on values, and the combinators
 //! [`all_of`], [`any_of`], [`not`], [`anything`] and [`predicate`]. A
 //! `predicate` takes any closure, which is where a test binds the fields of a
-//! typed cause it cares about.
+//! typed cause it cares about. They live in
+//! [`support::testing::matching`](crate::support::testing::matching), the
+//! matchers of every kind, and are re-exported here.
+//!
+//! A matcher per kind reads as the error's own constructor
+//! (`ErrorMatcher::illegal()` for `BunsenError::illegal`), and
+//! [`constraint`](ErrorMatcher::constraint) matches a refusal by the
+//! [`ConstraintError`](crate::errors::ConstraintError) it carries, so a test
+//! need not match the message's words.
 
 mod error_matcher;
-mod matcher;
-pub mod text;
-pub mod value;
 
 pub use error_matcher::*;
-pub use matcher::*;
+
+// The generic matcher core lives in `support::testing::matching`; it is
+// re-exported here, so `errors::testing::{predicate, text, value, ..}` keep
+// their paths.
+pub use crate::support::testing::matching::*;

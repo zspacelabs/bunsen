@@ -59,10 +59,7 @@ pub fn deit_contract_config(config: &TimmModelConfigMirror) -> BunsenResult<DeiT
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
     };
 
@@ -93,7 +90,7 @@ mod tests {
                 "{name}"
             );
         }
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("timm's vit_base_patch16_224: the deit kit builds")
             .assert_err(&deit_contract_config(&config("vit_base_patch16_224", 224)));
     }

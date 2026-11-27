@@ -365,10 +365,7 @@ impl Tokenizer for BunsenTokenizer {
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::support::tokens::testing::{
             toy_byte_level_json,
             toy_sentencepiece_json,
@@ -505,7 +502,7 @@ mod tests {
         let gap = toy_byte_level_json().replace("\"id\":300", "\"id\":304");
         assert!(gap.contains("\"id\":304"));
         let gap = gap.replace("\"id\":301", "\"id\":305");
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("without gaps")
             .assert_err(&BunsenTokenizer::from_json(&gap));
 

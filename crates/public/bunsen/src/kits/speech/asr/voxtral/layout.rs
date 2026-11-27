@@ -193,10 +193,7 @@ impl VoxtralTokenLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_defaults_are_the_published_models() {
@@ -239,7 +236,7 @@ mod tests {
             );
         }
         for ms in [0, 100, 1280, 2000] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains("delay_ms")
                 .assert_err(&VoxtralTokenLayoutConfig::new().with_delay_ms(ms).try_init());
         }

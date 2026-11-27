@@ -915,7 +915,7 @@ mod tests {
 
         assert_eq!(schema.check_column_index("bar").unwrap(), 1);
 
-        let missing = ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        let missing = ErrorMatcher::lookup()
             .display(text::eq("no column \"nope\"; there are: foo, bar"))
             .cause(predicate("a missing \"nope\"", |l: &LookupError| {
                 l.key == "nope" && l.problem == LookupProblem::Missing
@@ -923,11 +923,11 @@ mod tests {
         missing.assert_err(&schema.check_column_index("nope"));
         missing.assert_err(&schema.rename_column("nope", "baz"));
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq("duplicate column \"bar\""))
             .assert_err(&schema.rename_column("foo", "bar"));
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq(
                 "build plan input: no column \"nope\"; there are: foo, bar",
             ))
@@ -947,7 +947,7 @@ mod tests {
             .with_outputs(&[("y", "b")]);
         assert_eq!(plan.translate_input_name("x").unwrap(), "a");
 
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .display(text::eq("no input parameter \"y\"; there are: x"))
             .assert_err(&plan.translate_input_name("y"));
     }
@@ -987,14 +987,14 @@ mod tests {
         let mut schema = FirehoseTableSchema::from_columns(&[ColumnSchema::new::<i32>("foo")]);
         let before = schema.clone();
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq("duplicate column \"foo\""))
             .cause(predicate("a duplicate \"foo\"", |l: &LookupError| {
                 l.key == "foo" && l.problem == LookupProblem::Duplicate
             }))
             .assert_err(&schema.try_add_column(ColumnSchema::new::<String>("foo")));
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq("Invalid identifier: 'not an ident'"))
             .assert_err(&schema.try_add_column(ColumnSchema {
                 name: "not an ident".to_string(),

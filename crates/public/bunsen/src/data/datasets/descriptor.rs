@@ -426,7 +426,6 @@ impl ShardSetDescriptor {
 mod tests {
     use super::*;
     use crate::errors::{
-        BunsenErrorKind,
         LookupProblem,
         testing::{
             ErrorMatcher,
@@ -486,7 +485,7 @@ mod tests {
 
         let mut short = d.clone();
         short.digests = ShardDigests::Table(vec![TINY_SHA256[0].to_string(); 11]);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display_contains(
                 "tiny: ShardSetDescriptor.digests: digests.len() (11) must be == count (12)",
             )
@@ -499,7 +498,7 @@ mod tests {
         let mut table = vec![TINY_SHA256[0].to_string(); 12];
         table[3] = TINY_SHA256[0].to_uppercase();
         bad.digests = ShardDigests::Table(table);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("shard 3's digest")
             .frame_contains("tiny")
             .assert_err(&bad.validate());
@@ -537,24 +536,23 @@ mod tests {
             d.digest(ShardId(0)),
             Some("6a3450ea745ee6b6830c09819c0f2c72682eba443022de595bcb50ceb3092c22")
         );
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .assert_err(&ShardSetDescriptor::from_builtin("openai/whisper/tiny"));
+        ErrorMatcher::lookup().assert_err(&ShardSetDescriptor::from_builtin("openai/whisper/tiny"));
     }
 
     #[test]
     fn test_validate_names_the_problem() {
         let mut d = tiny();
         d.template = "shard.bin".to_string();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("exactly once")
             .assert_err(&d.validate());
         d.template = "{index}-{index}".to_string();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("not 2 times")
             .assert_err(&d.validate());
 
         let zero_or_empty = |field: &'static str| {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .frame_contains("tiny")
                 .cause(predicate(field, move |c: &ConstraintError| {
                     c.field == field && c.rule == Rule::ZeroOrEmpty
@@ -624,16 +622,16 @@ mod tests {
             "empty at the end"
         );
 
-        let out_of_range = ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        let out_of_range = ErrorMatcher::illegal()
             .frame_contains("tiny")
             .has_cause::<ConstraintError>();
         out_of_range
             .message_contains("shard index 13 is outside -12..=12")
             .assert_err(&d.select(&[Slice::from(..13)]));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("shard index -13 is outside -12..=12")
             .assert_err(&d.select(&[Slice::from(-13..)]));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("is reversed")
             .assert_err(&d.select(&[Slice::with_step(5, Some(0), -1)]));
     }
@@ -667,7 +665,7 @@ mod tests {
         assert!(unpinned.get("shard_003.bin").unwrap().sha256.is_none());
         assert_eq!(unpinned.len(), 1);
 
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .display_contains("tiny: shard 12 is out of range; there are 12")
             .cause(predicate("shard 12 of 12", |l: &LookupError| {
                 l.problem == LookupProblem::OutOfRange { len: 12 }

@@ -277,10 +277,7 @@ pub fn qwen3_5_config_from_path(path: &Path) -> BunsenResult<Qwen3_5Config> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     /// The checkpoints' names land on the model's canonical names, the
     /// vision tower and the prediction head dropped.
@@ -519,7 +516,7 @@ mod tests {
         ] {
             let json = QWEN3_5_0_8B.replace(from, to);
             assert_ne!(json, QWEN3_5_0_8B, "{from}");
-            ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            ErrorMatcher::unsupported()
                 .message_contains(field)
                 .assert_err(&qwen3_5_config_from_str(&json));
         }

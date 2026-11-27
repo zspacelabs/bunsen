@@ -755,7 +755,7 @@ mod tests {
             ],
         );
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .cause(predicate(
                 "w1 in groups 0 and 2",
                 move |e: &GroupOptimizerError| {
@@ -785,7 +785,7 @@ mod tests {
             (bias(&net.body), "body.bias".to_string()),
             (bias(&net.head), "head.bias".to_string()),
         ];
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("2 float parameter(s)")
             .details_contains("head.bias")
             .cause(predicate(

@@ -333,7 +333,7 @@ mod tests {
         assert_eq!(samples.len(), EXPECTED);
 
         // A sample-rate mismatch is an error, not a silent resample.
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("tone.wav: the sample rate is 16000; it must be 8000")
             .assert_err(&load_audio_mono_sr(wav(), 8000));
     }
@@ -362,7 +362,7 @@ mod tests {
             audio.channels,
             vec![vec![0.25, 0.5, 0.0], vec![-0.25, 0.0, 0.5]]
         );
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("2 channels")
             .assert_err(&load_audio_mono_sr(&path, 22_050));
 
@@ -395,7 +395,7 @@ mod tests {
         );
 
         // A sample-rate mismatch is an error, not a silent resample.
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("tone.mp3: the sample rate is 16000; it must be 44100")
             .assert_err(&load_audio_mono_sr(mp3(), 44100));
     }
@@ -405,7 +405,7 @@ mod tests {
     fn test_missing_file_is_a_lookup() {
         for name in ["no-such-file.wav", "no-such-file.mp3"] {
             let path = bunsen_test_audio::testdata_dir().join(name);
-            ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            ErrorMatcher::lookup()
                 .message_contains(name)
                 .has_cause::<LookupError>()
                 .assert_err(&load_audio_mono_sr(&path, 16000));

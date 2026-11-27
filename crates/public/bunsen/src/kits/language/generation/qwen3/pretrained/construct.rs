@@ -119,7 +119,7 @@ mod tests {
             .unwrap()
             .resource_set();
         gguf.resources.get_mut(CHECKPOINT).unwrap().format = Some("gguf".to_string());
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
+        crate::errors::testing::ErrorMatcher::unsupported()
             .message_contains("gguf")
             .assert_err(&Qwen3ConstructConfig::for_resource_set(&gguf));
     }
@@ -177,7 +177,7 @@ mod tests {
             assert_eq!(r.presets, ["no-thinking"], "{row}");
             assert!(!r.config.generation.stop_ids.is_empty(), "{row}");
             assert!(r.config.generation.template_kwargs.is_empty(), "{row}");
-            crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Policy)
+            crate::errors::testing::ErrorMatcher::policy()
                 .message_contains("fixed at `no-thinking`")
                 .assert_err(&policy(&format!("{row}[thinking]")));
         }

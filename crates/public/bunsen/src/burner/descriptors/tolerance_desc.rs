@@ -324,7 +324,6 @@ impl ToleranceDesc {
 mod test {
     use super::*;
     use crate::errors::{
-        BunsenErrorKind,
         ValueMismatch,
         testing::ErrorMatcher,
     };
@@ -385,16 +384,16 @@ mod test {
         TolerancePolicy::Relative { relative: 1.0 }.validate()?;
         TolerancePolicy::Absolute { absolute: 0.0 }.validate()?;
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_eq("TolerancePolicy.relative: 2 is outside [0.0, 1.0]")
             .has_cause::<ConstraintError>()
             .assert_err(&TolerancePolicy::Relative { relative: 2.0 }.validate());
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_eq("TolerancePolicy.absolute: -1 is outside >= 0.0")
             .assert_err(&TolerancePolicy::Absolute { absolute: -1.0 }.validate());
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("TolerancePolicy.absolute")
             .assert_err(
                 &TolerancePolicy::RelAbs {
@@ -447,7 +446,7 @@ mod test {
 
     #[test]
     fn test_new_rejects_non_float_dtype() {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("is not a float type")
             .assert_err(&ToleranceDesc::try_from_dtype(
                 DType::I32,
@@ -457,7 +456,7 @@ mod test {
 
     #[test]
     fn test_new_rejects_invalid_policy() {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("is outside [0.0, 1.0]")
             .assert_err(&ToleranceDesc::new(
                 FloatDType::F32,
@@ -494,7 +493,7 @@ mod test {
 
         let result = ToleranceDesc::of::<f32>(TolerancePolicy::Strict)?
             .try_assert_tensor_data_approx_eq(&a, &b, true);
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_eq("1 of 1 values differ")
             .details_contains("position 0: 1 != 1.001")
             .has_cause::<ValueMismatch>()

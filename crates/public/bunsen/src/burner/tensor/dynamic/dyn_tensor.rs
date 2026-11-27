@@ -735,7 +735,6 @@ mod tests {
             tensor::dynamic::*,
         },
         errors::{
-            BunsenErrorKind,
             ConstraintError,
             SlicingError,
             testing::{
@@ -1039,13 +1038,13 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
 
         let values: Tensor<1> = Tensor::zeros([3], &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("values rank (1) must be == tensor rank (2)")
             .has_cause::<ConstraintError>()
             .assert_err(&arange_2x3(&device).slice_assign::<2, _, _>(s![0..1, ..], values));
 
         let values: Tensor<2> = Tensor::zeros([1, 3], &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .cause(predicate("InvalidRank", |e: &SlicingError| {
                 matches!(e, SlicingError::InvalidRank { .. })
             }))
@@ -1059,7 +1058,7 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
 
         let values: Tensor<2> = Tensor::zeros([1, 3], &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .cause(predicate("OutOfBounds", |e: &SlicingError| {
                 matches!(e, SlicingError::OutOfBounds { .. })
             }))
@@ -1109,7 +1108,7 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
 
         let values: Tensor<2> = Tensor::ones([2, 3], &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .cause(predicate("InvalidRank", |e: &SlicingError| {
                 matches!(e, SlicingError::InvalidRank { .. })
             }))

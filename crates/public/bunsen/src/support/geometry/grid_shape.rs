@@ -110,16 +110,16 @@ mod tests {
             }
         );
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_eq("cannot parse grid shape \"10,10,10\": must be WIDTH,HEIGHT or SIZE")
             .has_cause::<ParseError>()
             .assert_err(&GridShape2D::from_str("10,10,10"));
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_eq("cannot parse grid height \"x\": invalid digit found in string")
             .assert_err(&GridShape2D::from_str("10,x"));
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("cannot parse grid size \"-1\"")
             .assert_err(&GridShape2D::from_str("-1"));
     }

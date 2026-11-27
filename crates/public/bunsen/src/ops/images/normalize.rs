@@ -77,10 +77,7 @@ pub fn normalize(
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -104,7 +101,7 @@ mod tests {
     fn test_try_normalize_rejects_a_mismatched_mean() {
         let device = cpu_device();
         let images = Tensor::<4>::zeros([1, 3, 2, 2], &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("a mean of 1 and a std of 3 values")
             .assert_err(&try_normalize(images, &[0.5], &[0.5; 3]));
     }
@@ -113,7 +110,7 @@ mod tests {
     fn test_try_normalize_rejects_a_zero_std() {
         let device = cpu_device();
         let images = Tensor::<4>::zeros([1, 1, 2, 2], &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("std of 0")
             .assert_err(&try_normalize(images, &[0.5], &[0.0]));
     }

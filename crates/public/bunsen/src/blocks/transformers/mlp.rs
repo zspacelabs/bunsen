@@ -225,7 +225,7 @@ mod tests {
         let ff: TransformerFeedForward = config.init(&device);
         assert_eq!(ff.n_embed(), 4);
         let resize: TransformerFeedForwardConfig = BunsenMlpConfig::new(4, 8, 2).into();
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Illegal)
+        crate::errors::testing::ErrorMatcher::illegal()
             .message_contains("as wide out as in")
             .assert_err(&ModuleInit::<TransformerFeedForward>::try_init(
                 &resize, &device,

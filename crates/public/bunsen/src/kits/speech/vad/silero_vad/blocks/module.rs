@@ -1026,7 +1026,6 @@ mod tests {
             ErrorMatcher,
             predicate,
         },
-        prelude::*,
         support::testing::{
             DeviceMemoryGuard,
             performance_device,
@@ -1099,7 +1098,7 @@ mod tests {
             encoder: encoder_config(64, 128, 64),
             ..SileroVadSignalConfig::standard_16khz().to_structure()
         };
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&bad.validate());
     }
@@ -1109,10 +1108,10 @@ mod tests {
     #[test]
     fn test_try_to_structure_rejects_zero_freq_bins() {
         let signal = SileroVadSignalConfig::new(16000, 0);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&signal.try_to_stft());
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&signal.try_to_structure());
     }
@@ -1123,10 +1122,10 @@ mod tests {
     #[test]
     fn test_try_to_structure_rejects_one_freq_bin() {
         let signal = SileroVadSignalConfig::new(16000, 1);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&signal.try_to_stft());
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&signal.try_to_structure());
     }
@@ -1140,7 +1139,7 @@ mod tests {
             stft_stride: 0,
             ..SileroVadSignalConfig::standard_16khz().to_stft()
         };
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&stft.try_to_structure());
     }
@@ -1171,7 +1170,7 @@ mod tests {
             ("d_hidden", standard.clone().with_d_hidden(0)),
             ("d_bottleneck", standard.clone().with_d_bottleneck(0)),
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .cause(predicate(
                     format!("a zero {field}"),
                     move |c: &ConstraintError| c.field == field && c.rule == Rule::ZeroOrEmpty,
@@ -1181,7 +1180,7 @@ mod tests {
 
         // The signal policy reaches the same check through its refinement.
         let signal = SileroVadSignalConfig::standard_16khz().with_d_hidden(0);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&signal.try_to_structure());
     }

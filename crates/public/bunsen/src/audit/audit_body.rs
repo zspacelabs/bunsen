@@ -163,7 +163,6 @@ mod tests {
     use crate::{
         burner::descriptors::TolerancePolicy,
         errors::{
-            BunsenErrorKind,
             LookupError,
             LookupProblem,
             ParseError,
@@ -255,7 +254,7 @@ mod tests {
     #[test]
     fn test_verifier_rejects_a_changed_value() {
         let mut verifier = record(&Body::PLAIN).into_verifier();
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .frame_contains("audit mismatch at event 0 (\"x\")")
             .assert_err(&verify(&mut verifier, &Body::SHIFTED));
     }
@@ -263,7 +262,7 @@ mod tests {
     #[test]
     fn test_verifier_rejects_an_extra_event() {
         let mut verifier = record(&Body::PLAIN).into_verifier();
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("unexpected audit event")
             .has_cause::<ValueMismatch>()
             .assert_err(&verify(&mut verifier, &Body::EXTRA));
@@ -273,7 +272,7 @@ mod tests {
     fn test_verifier_rejects_a_missing_event() {
         let mut verifier = record(&Body::EXTRA).into_verifier();
         verify(&mut verifier, &Body::PLAIN).unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("saw 2 of 3 events")
             .has_cause::<ValueMismatch>()
             .assert_err(&verifier.finish());
@@ -282,7 +281,7 @@ mod tests {
     #[test]
     fn test_load_missing_stream_is_not_found() {
         let dir = tempfile::tempdir().unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .cause(predicate("a missing path", |c: &LookupError| {
                 c.problem == LookupProblem::Missing && c.key.ends_with("nope.cbor")
             }))
@@ -294,7 +293,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("garbage.cbor");
         std::fs::write(&path, b"\xff\xff not cbor").unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .has_cause::<ParseError>()
             .assert_err(&AuditStreamVerifier::load(&path));
     }

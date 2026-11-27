@@ -130,7 +130,7 @@ mod tests {
             .unwrap()
             .resource_set();
         gguf.resources.get_mut("checkpoint.index").unwrap().format = Some("gguf".to_string());
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
+        crate::errors::testing::ErrorMatcher::unsupported()
             .message_contains("gguf")
             .assert_err(&Qwen3_5ConstructConfig::for_resource_set(&gguf));
     }

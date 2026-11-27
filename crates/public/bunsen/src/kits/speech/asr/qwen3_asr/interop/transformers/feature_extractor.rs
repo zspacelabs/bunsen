@@ -179,10 +179,7 @@ impl Qwen3AsrFeatureExtractorMirror {
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::speech::asr::qwen3_asr::Qwen3AsrFrontEndMeta,
     };
 
@@ -295,11 +292,11 @@ mod tests {
                 "hop_length",
             ),
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            ErrorMatcher::unsupported()
                 .message_contains(field)
                 .assert_err(&mirror.front_end_config());
         }
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("nb_max_frames")
             .assert_err(
                 &Qwen3AsrFeatureExtractorMirror {
@@ -324,7 +321,7 @@ mod tests {
                 "n_window",
             ),
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            ErrorMatcher::invalid_resource()
                 .message_contains(field)
                 .assert_err(&mirror.check_model(&Qwen3AsrConfig::qwen3_asr_0_6b()));
         }

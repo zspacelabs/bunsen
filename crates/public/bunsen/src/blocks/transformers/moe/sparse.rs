@@ -201,10 +201,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         ops::transformers::moe::{
             ExpertDispatchStrategy,
             expert_dispatch,
@@ -270,16 +267,16 @@ mod tests {
             ExpertStackConfig::new(4, 6, 12),
         )
         .with_latent(Some(6));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported).assert_err(
+        ErrorMatcher::unsupported().assert_err(
             &base
                 .clone()
                 .with_shared(Some(SharedExpertConfig::new(16)))
                 .try_init(&device),
         );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("experts 6 wide")
             .assert_err(&base.clone().with_latent(None).try_init(&device));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("routed over 5")
             .assert_err(
                 &SparseMoeConfig {

@@ -356,10 +356,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::{
             assert_tensors_close,
             cpu_device,
@@ -472,10 +469,10 @@ mod tests {
                 ChoiceBiasMode::Add,
             ))),
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::Unsupported).assert_err(&config.try_init(&device));
+            ErrorMatcher::unsupported().assert_err(&config.try_init(&device));
         }
         for top_k in [0, 5] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .assert_err(&TopKRouterConfig::new(4, 4, top_k).try_init(&device));
         }
     }

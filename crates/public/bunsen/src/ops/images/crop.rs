@@ -196,10 +196,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -239,7 +236,7 @@ mod tests {
     fn test_try_center_crop_rejects_a_larger_crop() {
         let device = cpu_device();
         let images = Tensor::<4>::zeros([1, 3, 4, 4], &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("5x4 center crop of 4x4")
             .assert_err(&try_center_crop(images, [5, 4]));
     }
@@ -279,7 +276,7 @@ mod tests {
     fn test_try_center_crop_or_pad_rejects_a_short_fill() {
         let device = cpu_device();
         let images = Tensor::<4>::zeros([1, 3, 2, 2], &device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("1 values for images of 3 channels")
             .assert_err(&try_center_crop_or_pad(images, [3, 3], &[0.0]));
     }

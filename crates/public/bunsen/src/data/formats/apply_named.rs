@@ -464,10 +464,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -572,7 +569,7 @@ mod tests {
             .assert_eq(&whole.b.weight.val().to_data(), true);
 
         let partial = tensors().into_iter().filter(|t| t.name != "b.bias");
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("lack 1")
             .assert_err(&apply_in_batches(
                 &mut two(&device),
@@ -716,7 +713,7 @@ mod tests {
             ".qkv.weight",
             [".q.weight", ".k.weight", ".v.weight"],
         )];
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("attn.qkv.weight: 4 rows")
             .assert_err(&split_rows(
                 vec![tensor("attn.qkv.weight", 4, 2, 0.0)],
