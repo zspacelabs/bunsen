@@ -231,7 +231,7 @@ fn stream(
             StreamClock,
             TranscriptEvent,
         },
-        parakeet::{
+        parakeet::driver::{
             ParakeetEngine,
             ParakeetStreamDriver,
         },

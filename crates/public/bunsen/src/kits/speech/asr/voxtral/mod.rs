@@ -13,8 +13,8 @@
 //!   [`VoxtralTextModel`](blocks::VoxtralTextModel) on the shared
 //!   [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock),
 //!   and a [`VoxtralProjector`](blocks::VoxtralProjector) between them.
-//! - [`VoxtralFrontEnd`]: the feature extractor, Whisper's log-mels under a
-//!   fixed level.
+//! - [`VoxtralFrontEnd`](blocks::VoxtralFrontEnd): the feature extractor,
+//!   Whisper's log-mels under a fixed level.
 //! - [`VoxtralTokenLayout`]: the stream's special tokens, its delay (480 ms by
 //!   default; any multiple of 80 ms up to 1200, or 2400), the padding around an
 //!   utterance, and the prompt.
@@ -48,13 +48,11 @@ pub mod driver;
 
 mod construct;
 mod decode;
-mod front_end;
 mod layout;
 mod timed_decode;
 mod transcript;
 pub use construct::*;
 pub use decode::*;
-pub use front_end::*;
 pub use layout::*;
 pub use timed_decode::*;
 pub use transcript::*;

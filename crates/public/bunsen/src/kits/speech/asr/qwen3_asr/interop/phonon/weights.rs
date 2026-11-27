@@ -514,7 +514,7 @@ pub fn load_qwen3_asr(
 ) -> BunsenResult<(
     crate::kits::speech::asr::qwen3_asr::Qwen3Asr,
     ByteLevelVocabulary,
-    Option<crate::kits::speech::asr::qwen3_asr::Qwen3AsrFrontEndConfig>,
+    Option<crate::kits::speech::asr::qwen3_asr::blocks::Qwen3AsrFrontEndConfig>,
 )> {
     use crate::kits::speech::asr::qwen3_asr::{
         interop::transformers::build_qwen3_asr,

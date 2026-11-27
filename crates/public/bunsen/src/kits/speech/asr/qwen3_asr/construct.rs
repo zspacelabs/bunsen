@@ -9,9 +9,6 @@ use serde::{
 };
 
 use super::{
-    Qwen3AsrFrontEnd,
-    Qwen3AsrFrontEndConfig,
-    Qwen3AsrFrontEndMeta,
     Qwen3AsrGreedyDecoderConfig,
     Qwen3AsrPromptConfig,
     Qwen3AsrReplyForm,
@@ -33,7 +30,14 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::tokens::ByteLevelVocabulary,
+    kits::{
+        speech::asr::qwen3_asr::blocks::{
+            Qwen3AsrFrontEnd,
+            Qwen3AsrFrontEndConfig,
+            Qwen3AsrFrontEndMeta,
+        },
+        support::tokens::ByteLevelVocabulary,
+    },
 };
 
 /// The audio placeholder's piece: a model's `audio_token` is its id.
@@ -45,7 +49,7 @@ const AUDIO_PAD: &str = "<|audio_pad|>";
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Qwen3AsrPolicy {
     /// The longest window, in seconds, that the
-    /// [`Qwen3AsrEngine`](super::Qwen3AsrEngine) decodes at once: at most the
+    /// [`Qwen3AsrEngine`](super::driver::Qwen3AsrEngine) decodes at once: at most the
     /// front end's [`chunk_seconds`](Qwen3AsrFrontEndConfig::chunk_seconds);
     /// the default front end's by default.
     pub window_seconds: f64,

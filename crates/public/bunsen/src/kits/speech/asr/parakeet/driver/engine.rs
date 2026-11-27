@@ -7,28 +7,30 @@ use burn::{
     tensor::Device,
 };
 
-use super::{
-    ParakeetConstruct,
-    ParakeetFeatures,
-    ParakeetFrontEnd,
-    ParakeetFrontEndMeta,
-    ParakeetTdtMeta,
-    TdtGreedyDecoderConfig,
-    TdtHypothesis,
-    WORD_MARK,
-};
 use crate::{
     errors::BunsenResult,
     kits::speech::{
-        asr::driver::{
-            AsrEngine,
-            AsrStreamContext,
-            AsrStreamDriver,
-            DecodeRequest,
-            WindowDecode,
-            WordSpan,
-            token_ids,
-            window_frames_in,
+        asr::{
+            driver::{
+                AsrEngine,
+                AsrStreamContext,
+                AsrStreamDriver,
+                DecodeRequest,
+                WindowDecode,
+                WordSpan,
+                token_ids,
+                window_frames_in,
+            },
+            parakeet::{
+                ParakeetConstruct,
+                ParakeetFeatures,
+                ParakeetFrontEnd,
+                ParakeetFrontEndMeta,
+                ParakeetTdtMeta,
+                TdtGreedyDecoderConfig,
+                TdtHypothesis,
+                WORD_MARK,
+            },
         },
         support::MomentsLevel,
     },
@@ -70,7 +72,7 @@ pub struct ParakeetEngine {
 
 impl ParakeetEngine {
     /// The engine of `construct`, on the model's device, with windows of at
-    /// most its policy's [`window_seconds`](super::ParakeetPolicy::window_seconds).
+    /// most its policy's [`window_seconds`](crate::kits::speech::asr::parakeet::ParakeetPolicy::window_seconds).
     ///
     /// # Errors
     /// As [`with_window_seconds`](Self::with_window_seconds), for the

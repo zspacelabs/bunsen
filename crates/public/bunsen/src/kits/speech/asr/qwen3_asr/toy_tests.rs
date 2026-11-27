@@ -11,7 +11,6 @@ use burn::prelude::*;
 
 use super::{
     Qwen3AsrConstruct,
-    Qwen3AsrFrontEndConfig,
     Qwen3AsrGreedyDecoderConfig,
     Qwen3AsrPromptConfig,
     blocks::{
@@ -28,7 +27,10 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::testing::ErrorMatcher,
-    kits::language::generation::qwen3::Qwen3Config,
+    kits::{
+        language::generation::qwen3::Qwen3Config,
+        speech::asr::qwen3_asr::blocks::Qwen3AsrFrontEndConfig,
+    },
     ops::transformers::attention::{
         KVCache,
         KVCacheConfig,

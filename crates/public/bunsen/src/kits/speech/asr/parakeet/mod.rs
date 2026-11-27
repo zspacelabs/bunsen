@@ -22,10 +22,11 @@
 //!   transcripts.
 //! - [`ParakeetConstruct`]: a loaded model with its front end and vocabulary,
 //!   and [`transcribe`](ParakeetConstruct::transcribe).
-//! - [`ParakeetEngine`]: a construct as the
+//! - [`ParakeetEngine`](driver::ParakeetEngine): a construct as the
 //!   [`asr_driver`](crate::kits::speech::asr::driver) core's engine, over
-//!   [`ParakeetFeatures`], its front end streamed; a [`ParakeetStreamDriver`]
-//!   streams audio through it, under any
+//!   [`ParakeetFeatures`], its front end streamed; a
+//!   [`ParakeetStreamDriver`](driver::ParakeetStreamDriver) streams audio
+//!   through it, under any
 //!   [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy).
 //! - [`pretrained`] (features `store` and `cache`): the index of named
 //!   checkpoints, `fermion/phonon-2` the default, and the factory that loads
@@ -36,14 +37,13 @@
 //!   archive's weights and vocabulary.
 
 pub mod blocks;
+pub mod driver;
 
 mod construct;
 mod decode;
-mod engine;
 mod vocab;
 pub use construct::*;
 pub use decode::*;
-pub use engine::*;
 pub use vocab::*;
 
 /// Parakeet's feature extractor: `NeMo`'s mel front end, whose defaults are

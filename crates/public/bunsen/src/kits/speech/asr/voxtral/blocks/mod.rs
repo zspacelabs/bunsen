@@ -9,11 +9,13 @@
 //! [`VoxtralTextModel`] (delay-conditioned `CausalDecoderBlock`s).
 
 mod audio_encoder;
+mod front_end;
 mod model;
 mod projector;
 mod text_model;
 
 pub use audio_encoder::*;
+pub use front_end::*;
 pub use model::*;
 pub use projector::*;
 pub use text_model::*;

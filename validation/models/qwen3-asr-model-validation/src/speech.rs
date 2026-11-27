@@ -7,7 +7,7 @@
 
 use bunsen::{
     kits::speech::{
-        asr::qwen3_asr::Qwen3AsrFrontEndMeta,
+        asr::qwen3_asr::blocks::Qwen3AsrFrontEndMeta,
         support::testing::wer::{
             normalize_transcript,
             word_error_rate,
@@ -200,7 +200,7 @@ mod driver {
                 StreamClock,
                 TranscriptEvent,
             },
-            qwen3_asr::{
+            qwen3_asr::driver::{
                 Qwen3AsrEngine,
                 Qwen3AsrStreamDriver,
             },
@@ -270,7 +270,7 @@ mod stream_driver_transcribes_like_transformers {
                 StreamClock,
                 TranscriptEvent,
             },
-            qwen3_asr::{
+            qwen3_asr::driver::{
                 Qwen3AsrEngine,
                 Qwen3AsrStreamDriver,
             },
@@ -342,7 +342,7 @@ fn stream_quiet_cut(name: &str) -> String {
             StreamClock,
             TranscriptEvent,
         },
-        qwen3_asr::{
+        qwen3_asr::driver::{
             Qwen3AsrEngine,
             Qwen3AsrStreamDriver,
         },

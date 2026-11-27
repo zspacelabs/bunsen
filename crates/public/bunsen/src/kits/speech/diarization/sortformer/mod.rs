@@ -43,11 +43,11 @@ pub mod blocks;
 mod cache;
 mod construct;
 mod stream;
-mod streaming;
+mod streaming_config;
 pub use cache::*;
 pub use construct::*;
 pub use stream::*;
-pub use streaming::*;
+pub use streaming_config::*;
 
 #[cfg(feature = "store")]
 pub mod pretrained;

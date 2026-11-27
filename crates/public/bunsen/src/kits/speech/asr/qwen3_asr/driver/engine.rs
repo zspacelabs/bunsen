@@ -7,24 +7,26 @@ use burn::{
     tensor::Device,
 };
 
-use super::{
-    Qwen3AsrConstruct,
-    Qwen3AsrFrontEndMeta,
-    Qwen3AsrTranscript,
-};
 use crate::{
     errors::BunsenResult,
     kits::speech::{
-        asr::driver::{
-            AsrEngine,
-            AsrStreamContext,
-            AsrStreamDriver,
-            DecodeRequest,
-            SpeakerCutConfig,
-            WindowDecode,
-            quiet_cut,
-            token_ids,
-            window_frames_in,
+        asr::{
+            driver::{
+                AsrEngine,
+                AsrStreamContext,
+                AsrStreamDriver,
+                DecodeRequest,
+                SpeakerCutConfig,
+                WindowDecode,
+                quiet_cut,
+                token_ids,
+                window_frames_in,
+            },
+            qwen3_asr::{
+                Qwen3AsrConstruct,
+                Qwen3AsrTranscript,
+                blocks::Qwen3AsrFrontEndMeta,
+            },
         },
         support::{
             MaxLevel,
@@ -89,7 +91,7 @@ pub struct Qwen3AsrEngine {
 
 impl Qwen3AsrEngine {
     /// The engine of `construct`, on the model's device, with windows of at
-    /// most its policy's [`window_seconds`](super::Qwen3AsrPolicy::window_seconds)
+    /// most its policy's [`window_seconds`](crate::kits::speech::asr::qwen3_asr::Qwen3AsrPolicy::window_seconds)
     /// ([`max_window`](Qwen3AsrConstruct::max_window) by default), each full
     /// one cut at a quiet point.
     ///
@@ -213,8 +215,8 @@ impl Qwen3AsrEngine {
 
     /// Lays a reply out for the core: its transcript, one segment over the
     /// window, or a skip when it has none. An
-    /// [`Unheaded`](super::Qwen3AsrReplyForm::Unheaded) reply is committed as
-    /// all transcript, as [`parse`](super::Qwen3AsrPromptConfig::parse) reads
+    /// [`Unheaded`](crate::kits::speech::asr::qwen3_asr::Qwen3AsrReplyForm::Unheaded) reply is committed as
+    /// all transcript, as [`parse`](crate::kits::speech::asr::qwen3_asr::Qwen3AsrPromptConfig::parse) reads
     /// it; the driver has no channel to flag it on.
     fn lay_out(
         &self,
@@ -372,7 +374,6 @@ mod tests {
                         TranscriptEvent,
                     },
                     qwen3_asr::{
-                        Qwen3AsrFrontEndConfig,
                         Qwen3AsrGreedyDecoderConfig,
                         Qwen3AsrPromptConfig,
                         Qwen3AsrReplyForm,
@@ -380,6 +381,7 @@ mod tests {
                             Qwen3Asr,
                             Qwen3AsrAudioEncoderConfig,
                             Qwen3AsrConfig,
+                            Qwen3AsrFrontEndConfig,
                         },
                     },
                 },

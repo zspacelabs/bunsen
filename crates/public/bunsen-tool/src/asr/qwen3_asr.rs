@@ -10,8 +10,10 @@ use bunsen::{
         driver::TranscriptSegment,
         qwen3_asr::{
             Qwen3AsrConstruct,
-            Qwen3AsrEngine,
-            Qwen3AsrStreamDriver,
+            driver::{
+                Qwen3AsrEngine,
+                Qwen3AsrStreamDriver,
+            },
         },
     },
 };
