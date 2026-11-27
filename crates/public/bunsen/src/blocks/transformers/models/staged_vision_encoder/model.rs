@@ -53,9 +53,10 @@ use crate::{
         Rekey,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
         ResultContext,
+        Rule,
     },
 };
 
@@ -168,58 +169,88 @@ impl StagedVisionEncoderStructureConfig {
     pub fn try_validate(&self) -> BunsenResult<()> {
         self.patch_embed.try_validate()?;
         if self.stages.is_empty() {
-            return Err(BunsenError::illegal(
-                "a staged vision encoder with no stages",
-            ));
+            return Err(ConstraintError::zero_or_empty(
+                "StagedVisionEncoderStructureConfig",
+                "stages",
+            )
+            .into());
         }
         let mut grid = self.patch_embed.patches_resolution();
         let mut width = self.patch_embed.d_output();
         for (i, stage) in self.stages.iter().enumerate() {
             if let Some(merge) = &stage.downsample {
                 if merge.grid != grid || merge.d_input != width {
-                    return Err(BunsenError::illegal(format!(
-                        "stage {i}'s merge is over a {:?} grid {} wide; the stage before puts \
-                         out a {grid:?} grid {width} wide",
-                        merge.grid, merge.d_input
-                    )));
+                    return Err(ConstraintError::new(
+                        "StagedVisionEncoderStructureConfig",
+                        "stages",
+                        Rule::Chain {
+                            index: i,
+                            out: format!("a {grid:?} grid {width} wide"),
+                            r#in: format!(
+                                "a {:?} grid {} wide, to its merge",
+                                merge.grid, merge.d_input
+                            ),
+                        },
+                    )
+                    .into());
                 }
                 grid = merge.output_grid();
                 width = merge.d_output;
             }
             if stage.stack.d_model() != width {
-                return Err(BunsenError::illegal(format!(
-                    "stage {i}'s blocks are {} wide; its input is {width}",
-                    stage.stack.d_model()
-                )));
+                return Err(ConstraintError::new(
+                    "StagedVisionEncoderStructureConfig",
+                    "stages",
+                    Rule::Chain {
+                        index: i,
+                        out: format!("{width} wide"),
+                        r#in: format!("{} wide, to its blocks", stage.stack.d_model()),
+                    },
+                )
+                .into());
             }
             if stage.stack.routes.is_some() {
-                return Err(BunsenError::illegal(format!(
-                    "stage {i}'s blocks have attention-residual routes"
-                )));
+                return Err(ConstraintError::custom(
+                    "StagedVisionEncoderStructureConfig",
+                    format!("stages[{i}].stack.routes"),
+                    "a vision encoder's blocks have no attention-residual routes",
+                )
+                .into());
             }
             for (j, layer) in stage.stack.layers.iter().enumerate() {
                 if let crate::blocks::transformers::mixers::TokenMixerConfig::Window(w) =
                     &layer.attn
                     && w.grid != grid
                 {
-                    return Err(BunsenError::illegal(format!(
-                        "stage {i}'s block {j} attends over a {:?} grid; the stage's is \
-                         {grid:?}",
-                        w.grid
-                    )));
+                    return Err(ConstraintError::new(
+                        "StagedVisionEncoderStructureConfig",
+                        format!("stages[{i}].stack.layers[{j}].attn.grid"),
+                        Rule::Relation {
+                            lhs: ("the block's grid".into(), format!("{:?}", w.grid)),
+                            op: "==",
+                            rhs: ("the stage's grid".into(), format!("{grid:?}")),
+                        },
+                    )
+                    .into());
                 }
             }
         }
         if self.head.d_features != width || self.head.distilled {
-            return Err(BunsenError::illegal(format!(
-                "the head reads {} features{}; the last stage is {width} wide",
-                self.head.d_features,
-                if self.head.distilled {
-                    ", distilled"
-                } else {
-                    ""
-                }
-            )));
+            return Err(ConstraintError::custom(
+                "StagedVisionEncoderStructureConfig",
+                "head",
+                format!(
+                    "the head reads {} features{}; the last stage is {width} wide, and a staged \
+                 encoder's head is not distilled",
+                    self.head.d_features,
+                    if self.head.distilled {
+                        ", distilled"
+                    } else {
+                        ""
+                    }
+                ),
+            )
+            .into());
         }
         TokenPool::try_new(self.pool, 0).context("the pool, over a grid with no prefix")?;
         Ok(())

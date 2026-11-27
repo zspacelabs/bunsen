@@ -5,8 +5,6 @@
 //! token of four times the channels, reduced to the next stage's width, and
 //! normed (before the reduction in Swin V1, after it in V2).
 
-use alloc::format;
-
 use burn::{
     config::Config,
     module::Module,
@@ -26,8 +24,8 @@ use crate::{
     burner::module::ModuleInit,
     contracts::unpack_shape_contract,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     ops::images::windows::merge_2x2,
 };
@@ -73,11 +71,14 @@ impl ModuleInit<PatchMerge> for PatchMergeConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<PatchMerge> {
-        if self.d_input == 0 || self.d_output == 0 || self.grid.contains(&0) {
-            return Err(BunsenError::illegal(format!(
-                "PatchMergeConfig: {} to {} wide over a {:?} grid",
-                self.d_input, self.d_output, self.grid
-            )));
+        for (field, zero) in [
+            ("d_input", self.d_input == 0),
+            ("d_output", self.d_output == 0),
+            ("grid", self.grid.contains(&0)),
+        ] {
+            if zero {
+                return Err(ConstraintError::zero_or_empty("PatchMergeConfig", field).into());
+            }
         }
         let norm_features = match self.norm_first {
             true => 4 * self.d_input,

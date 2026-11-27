@@ -1,7 +1,10 @@
 //! # `ConvSeq2d` - sequence of [`ConvBlock2d`].
 
 use alloc::{
-    string::String,
+    string::{
+        String,
+        ToString,
+    },
     vec::Vec,
 };
 
@@ -28,10 +31,10 @@ use crate::{
         Rekey,
     },
     errors::{
-        BunsenError,
         BunsenResult,
         ConstraintError,
         ResultContext,
+        Rule,
     },
 };
 
@@ -109,7 +112,7 @@ pub trait ConvSeq2dMeta {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause, if the sequence is empty or has a channel
     /// mismatch between adjacent blocks.
-    fn validate(&self) -> BunsenResult<()> {
+    fn try_validate(&self) -> BunsenResult<()> {
         let metas = self.block_metas();
         if metas.is_empty() {
             return Err(ConstraintError::zero_or_empty("ConvSeq2d", "blocks").into());
@@ -184,10 +187,19 @@ pub trait ConvSeq2dMeta {
     ) -> BunsenResult<[usize; 4]> {
         let [batch_size, in_channels, in_height, in_width] = input_shape;
         if in_channels != self.in_channels() {
-            return Err(BunsenError::illegal(format!(
-                "ConvSeq2d expected in_channels ({}), got ({in_channels})",
-                self.in_channels(),
-            )));
+            return Err(ConstraintError::new(
+                "ConvSeq2d",
+                "input_shape",
+                Rule::Relation {
+                    lhs: ("in_channels".into(), in_channels.to_string()),
+                    op: "==",
+                    rhs: (
+                        "the first conv's in_channels".into(),
+                        self.in_channels().to_string(),
+                    ),
+                },
+            )
+            .into());
         }
         let [out_height, out_width] = self.try_output_resolution([in_height, in_width])?;
         Ok([batch_size, self.out_channels(), out_height, out_width])
@@ -395,10 +407,10 @@ impl ConvSeq2d {
     ///
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the blocks do
     /// not form a legal sequence; see
-    /// [`ConvSeq2dMeta::validate`].
+    /// [`ConvSeq2dMeta::try_validate`].
     pub fn try_new(blocks: Vec<ConvBlock2d>) -> BunsenResult<Self> {
         let seq = Self { blocks };
-        seq.validate()?;
+        seq.try_validate()?;
         Ok(seq)
     }
 
@@ -559,7 +571,7 @@ mod tests {
         empty.assert_err(&ConvSeq2d::try_new(vec![]));
 
         // The config-level meta validates the same way.
-        empty.assert_err(&ConvSeq2dConfig::new(vec![]).validate());
+        empty.assert_err(&ConvSeq2dConfig::new(vec![]).try_validate());
     }
 
     #[test]
@@ -668,7 +680,7 @@ mod tests {
     #[test]
     fn test_output_shape_channel_mismatch() {
         let seq = ConvSeq2d::try_new(vec![block(2, 4, 1)]).unwrap();
-        assert!(seq.try_output_shape([1, 3, 8, 8]).is_err());
+        ErrorMatcher::illegal().assert_err(&seq.try_output_shape([1, 3, 8, 8]));
     }
 
     #[test]

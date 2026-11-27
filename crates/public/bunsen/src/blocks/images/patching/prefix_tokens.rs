@@ -23,8 +23,8 @@ use burn::{
 use crate::{
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
 };
 
@@ -143,11 +143,10 @@ impl ModuleInit<PrefixTokens> for PrefixTokensConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<PrefixTokens> {
-        if self.d_model == 0 || self.n_patches == 0 {
-            return Err(BunsenError::illegal(format!(
-                "prefix tokens of width {} over {} patches",
-                self.d_model, self.n_patches
-            )));
+        for (field, value) in [("d_model", self.d_model), ("n_patches", self.n_patches)] {
+            if value == 0 {
+                return Err(ConstraintError::zero_or_empty("PrefixTokensConfig", field).into());
+            }
         }
         let d = self.d_model;
         let param = |len: usize, std: f64| {

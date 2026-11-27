@@ -244,14 +244,14 @@ impl CausalDecoderBlockConfig {
             ))
             .with_layer_scale(self.layer_scale)
             .with_drop_path(self.drop_path)
-            .init(self.attn.try_init(layer_index, device)?, n_embed, device),
+            .try_init(self.attn.try_init(layer_index, device)?, n_embed, device)?,
             mlp: sandwich(ResidualSublayerConfig::placed(
                 self.norm_placement,
                 Some(self.norm.clone()),
             ))
             .with_layer_scale(self.layer_scale)
             .with_drop_path(self.drop_path)
-            .init(self.mlp.try_init(device)?, n_embed, device),
+            .try_init(self.mlp.try_init(device)?, n_embed, device)?,
             mlp_scale: self
                 .mlp_scale
                 .as_ref()

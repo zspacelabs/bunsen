@@ -1,6 +1,9 @@
 //! A learned query's attention over a sequence, pooling it to one vector.
 
-use alloc::format;
+use alloc::{
+    format,
+    string::ToString,
+};
 
 use burn::{
     config::Config,
@@ -36,8 +39,9 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     ops::transformers::attention::cross_attn,
 };
@@ -72,17 +76,38 @@ impl ModuleInit<LatentAttentionPool> for LatentAttentionPoolConfig {
         device: &Device,
     ) -> BunsenResult<LatentAttentionPool> {
         let d = self.d_model;
-        if self.n_heads == 0 || !d.is_multiple_of(self.n_heads) {
-            return Err(BunsenError::illegal(format!(
-                "a latent attention pool: {} heads don't divide a width of {d}",
-                self.n_heads
-            )));
+        if self.n_heads == 0 {
+            return Err(
+                ConstraintError::zero_or_empty("LatentAttentionPoolConfig", "n_heads").into(),
+            );
         }
-        if self.mlp.d_input != d || self.mlp.d_output != d {
-            return Err(BunsenError::illegal(format!(
-                "a latent attention pool {d} wide with an MLP of {} to {}",
-                self.mlp.d_input, self.mlp.d_output
-            )));
+        if !d.is_multiple_of(self.n_heads) {
+            return Err(ConstraintError::new(
+                "LatentAttentionPoolConfig",
+                "d_model",
+                Rule::NotMultiple {
+                    value: d,
+                    of: format!("n_heads ({})", self.n_heads),
+                },
+            )
+            .into());
+        }
+        for (field, width) in [
+            ("mlp.d_input", self.mlp.d_input),
+            ("mlp.d_output", self.mlp.d_output),
+        ] {
+            if width != d {
+                return Err(ConstraintError::new(
+                    "LatentAttentionPoolConfig",
+                    field,
+                    Rule::Relation {
+                        lhs: (field.into(), width.to_string()),
+                        op: "==",
+                        rhs: ("d_model".into(), d.to_string()),
+                    },
+                )
+                .into());
+            }
         }
         Ok(LatentAttentionPool {
             latent: Param::from_tensor(Tensor::random(
@@ -212,9 +237,9 @@ mod tests {
                     &config, &device,
                 ));
         };
-        illegal(config(8, 3), "3 heads don't divide a width of 8");
+        illegal(config(8, 3), "d_model: 8 is not a multiple of n_heads (3)");
         let mut wide = config(8, 2);
         wide.mlp.d_output = 4;
-        illegal(wide, "an MLP of 8 to 4");
+        illegal(wide, "mlp.d_output (4) must be == d_model (8)");
     }
 }

@@ -24,8 +24,8 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
 };
 
@@ -93,45 +93,60 @@ impl Res2ConvConfig {
     ///
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when it isn't.
     pub fn try_validate(&self) -> BunsenResult<()> {
-        let illegal = |message: alloc::string::String| {
-            Err(BunsenError::illegal(format!("Res2ConvConfig: {message}")))
+        let illegal = |field: &'static str, message: alloc::string::String| {
+            Err(ConstraintError::custom("Res2ConvConfig", field, message).into())
         };
         if self.scale == 0 {
-            return illegal("a scale of 0".into());
+            return Err(ConstraintError::zero_or_empty("Res2ConvConfig", "scale").into());
         }
         let want = self.scale.saturating_sub(1).max(1);
         if self.convs.len() != want {
-            return illegal(format!(
-                "{} branch convs at a scale of {}; it takes {want}",
-                self.convs.len(),
-                self.scale
-            ));
+            return illegal(
+                "convs",
+                format!(
+                    "{} branch convs at a scale of {}; it takes {want}",
+                    self.convs.len(),
+                    self.scale
+                ),
+            );
         }
         let (width, stride) = (self.width(), self.stride());
         for (idx, conv) in self.convs.iter().enumerate() {
             if conv.in_channels() != width || conv.out_channels() != width {
-                return illegal(format!(
-                    "branch conv {idx} is {} to {}; every branch is {width} to {width}",
-                    conv.in_channels(),
-                    conv.out_channels()
-                ));
+                return illegal(
+                    "convs",
+                    format!(
+                        "branch conv {idx} is {} to {}; every branch is {width} to {width}",
+                        conv.in_channels(),
+                        conv.out_channels()
+                    ),
+                );
             }
             if conv.stride()[0] != stride {
-                return illegal(format!(
-                    "branch conv {idx} strides {}; the first {stride}",
-                    conv.stride()[0]
-                ));
+                return illegal(
+                    "convs",
+                    format!(
+                        "branch conv {idx} strides {}; the first {stride}",
+                        conv.stride()[0]
+                    ),
+                );
             }
         }
         match &self.pool {
-            Some(_) if self.scale == 1 => illegal("a pool, at a scale of 1: no last chunk".into()),
-            Some(pool) if pool.strides[0] != stride => illegal(format!(
-                "the pool strides {}; the branches {stride}",
-                pool.strides[0]
-            )),
-            None if self.scale > 1 && stride != 1 => illegal(format!(
-                "no pool at stride {stride}: the last chunk would keep its size"
-            )),
+            Some(_) if self.scale == 1 => {
+                illegal("pool", "a pool, at a scale of 1: no last chunk".into())
+            }
+            Some(pool) if pool.strides[0] != stride => illegal(
+                "pool",
+                format!(
+                    "the pool strides {}; the branches {stride}",
+                    pool.strides[0]
+                ),
+            ),
+            None if self.scale > 1 && stride != 1 => illegal(
+                "pool",
+                format!("no pool at stride {stride}: the last chunk would keep its size"),
+            ),
             _ => Ok(()),
         }
     }

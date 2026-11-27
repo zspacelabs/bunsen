@@ -99,7 +99,8 @@ impl ModuleInit<TokenEmbedding> for TokenEmbeddingConfig {
             norm: self
                 .norm
                 .clone()
-                .map(|norm| norm.with_num_features(self.d_model).init(device)),
+                .map(|norm| norm.with_num_features(self.d_model).try_init(device))
+                .transpose()?,
             scale: self.scale,
         })
     }

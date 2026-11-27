@@ -15,8 +15,8 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
         ResultContext,
     },
 };
@@ -56,10 +56,16 @@ impl VisionBackboneConfig {
     pub fn try_validate(&self) -> BunsenResult<()> {
         self.net.try_validate().context("the backbone")?;
         if self.net.num_classes() != 0 {
-            return Err(BunsenError::illegal(format!(
-                "the backbone has a head of {} classes; its map is the patch embedding's input",
-                self.net.num_classes()
-            )));
+            return Err(ConstraintError::custom(
+                "VisionBackboneConfig",
+                "net.num_classes",
+                format!(
+                    "the backbone has a head of {} classes; its map is the patch embedding's \
+                     input, so it has none",
+                    self.net.num_classes()
+                ),
+            )
+            .into());
         }
         Ok(())
     }

@@ -103,7 +103,7 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
             self.norm
                 .clone()
                 .with_num_features(self.d_model)
-                .init(device)
+                .try_init(device)
         };
         let ff = || {
             BunsenMlpConfig::new(self.d_model, self.d_ff, self.d_model)
@@ -113,23 +113,23 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
         };
         let ff_sublayer = ResidualSublayerConfig::pre_norm(Some(self.norm.clone()));
         Ok(ConformerBlock {
-            feed_forward1: ff_sublayer.init(ff()?, self.d_model, device),
-            attn: ff_sublayer.init(
+            feed_forward1: ff_sublayer.try_init(ff()?, self.d_model, device)?,
+            attn: ff_sublayer.try_init(
                 RelPosSelfAttentionConfig::new(self.d_model, self.n_heads)
                     .with_bias(self.bias)
                     .try_init(device)?,
                 self.d_model,
                 device,
-            ),
-            conv: ff_sublayer.init(
+            )?,
+            conv: ff_sublayer.try_init(
                 ConformerConvolutionConfig::new(self.d_model, self.conv_kernel_size)
                     .with_bias(self.conv_bias)
                     .try_init(device)?,
                 self.d_model,
                 device,
-            ),
-            feed_forward2: ff_sublayer.init(ff()?, self.d_model, device),
-            out_norm: norm(),
+            )?,
+            feed_forward2: ff_sublayer.try_init(ff()?, self.d_model, device)?,
+            out_norm: norm()?,
         })
     }
 }

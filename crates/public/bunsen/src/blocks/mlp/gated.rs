@@ -91,7 +91,7 @@ impl ModuleInit<BunsenGatedMlp> for BunsenGatedMlpConfig {
             gate_proj: linear(self.n_embed, self.d_ff, self.bias),
             up_proj: linear(self.n_embed, self.d_ff, self.bias),
             down_proj: linear(self.d_ff, self.n_embed, self.down_bias()),
-            act: self.activation.init(device),
+            act: self.activation.try_init(device)?,
         })
     }
 }

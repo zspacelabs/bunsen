@@ -2,6 +2,7 @@
 
 use alloc::{
     format,
+    string::ToString,
     vec::Vec,
 };
 
@@ -27,8 +28,9 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     ops::conv::{
         CausalConvStreamContext,
@@ -284,10 +286,19 @@ impl ModuleInit<DacDecoderBlock> for DacDecoderBlockConfig {
     ) -> BunsenResult<DacDecoderBlock> {
         let [c_in, c_out] = self.channels;
         if let Some(unit) = self.residuals.iter().find(|u| u.channels != c_out) {
-            return Err(BunsenError::illegal(format!(
-                "a vocoder block writing {c_out} channels with a residual unit over {}",
-                unit.channels
-            )));
+            return Err(ConstraintError::new(
+                "DacDecoderBlockConfig",
+                "residuals",
+                Rule::Relation {
+                    lhs: (
+                        "a residual unit's channels".into(),
+                        unit.channels.to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("the block's output channels".into(), c_out.to_string()),
+                },
+            )
+            .into());
         }
         Ok(DacDecoderBlock {
             act: snake(c_in, device)?,
@@ -483,10 +494,16 @@ impl ModuleInit<DacDecoder> for DacDecoderConfig {
         let mut width = self.width;
         for (i, block) in self.blocks.iter().enumerate() {
             if block.channels[0] != width {
-                return Err(BunsenError::illegal(format!(
-                    "vocoder block {i} reads {} channels; it is given {width}",
-                    block.channels[0]
-                )));
+                return Err(ConstraintError::new(
+                    "DacDecoderConfig",
+                    "blocks",
+                    Rule::Chain {
+                        index: i,
+                        out: format!("{width} channels"),
+                        r#in: format!("{} channels", block.channels[0]),
+                    },
+                )
+                .into());
             }
             width = block.channels[1];
         }

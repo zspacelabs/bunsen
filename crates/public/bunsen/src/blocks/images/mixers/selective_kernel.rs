@@ -34,8 +34,8 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     support::math::make_divisible,
 };
@@ -162,39 +162,43 @@ impl SelectiveKernelConfig {
     ///
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when it isn't.
     pub fn try_validate(&self) -> BunsenResult<()> {
-        let illegal = |message: alloc::string::String| {
-            Err(BunsenError::illegal(format!(
-                "SelectiveKernelConfig: {message}"
-            )))
+        let illegal = |field: &'static str, message: alloc::string::String| {
+            Err(ConstraintError::custom("SelectiveKernelConfig", field, message).into())
         };
         let Some(first) = self.paths.first() else {
-            return illegal("no paths".into());
+            return Err(ConstraintError::zero_or_empty("SelectiveKernelConfig", "paths").into());
         };
         for (idx, path) in self.paths.iter().enumerate() {
             if path.in_channels() != first.in_channels()
                 || path.out_channels() != first.out_channels()
                 || path.stride() != first.stride()
             {
-                return illegal(format!(
-                    "path {idx} is {} to {} at stride {}; path 0 {} to {} at {}",
-                    path.in_channels(),
-                    path.out_channels(),
-                    path.stride()[0],
-                    first.in_channels(),
-                    first.out_channels(),
-                    first.stride()[0]
-                ));
+                return illegal(
+                    "paths",
+                    format!(
+                        "path {idx} is {} to {} at stride {}; path 0 {} to {} at {}",
+                        path.in_channels(),
+                        path.out_channels(),
+                        path.stride()[0],
+                        first.in_channels(),
+                        first.out_channels(),
+                        first.stride()[0]
+                    ),
+                );
             }
         }
         let (c, n) = (self.out_channels(), self.paths.len());
         let attn = self.reduce.out_channels();
         if self.reduce.in_channels() != c || self.select.channels != [attn, c * n] {
-            return illegal(format!(
-                "the attention is {} to {attn}, then {:?}; it reads {c} channels and weighs {}",
-                self.reduce.in_channels(),
-                self.select.channels,
-                c * n
-            ));
+            return illegal(
+                "reduce",
+                format!(
+                    "the attention is {} to {attn}, then {:?}; it reads {c} channels and weighs {}",
+                    self.reduce.in_channels(),
+                    self.select.channels,
+                    c * n
+                ),
+            );
         }
         Ok(())
     }

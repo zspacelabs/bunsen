@@ -18,8 +18,9 @@ use crate::{
     burner::module::ModuleInit,
     contracts::assert_shape_contract_periodically,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
 };
 
@@ -139,17 +140,26 @@ impl PatchEmbedConfig {
         let [h, w] = self.input_resolution;
         let p = self.patch_size;
         if p == 0 {
-            return Err(BunsenError::illegal("a patch size of 0"));
+            return Err(ConstraintError::zero_or_empty("PatchEmbedConfig", "patch_size").into());
         }
         if self.allow_remainder && (h < p || w < p) {
-            return Err(BunsenError::illegal(format!(
-                "{h}x{w} images don't hold a {p}x{p} patch"
-            )));
+            return Err(ConstraintError::custom(
+                "PatchEmbedConfig",
+                "input_resolution",
+                format!("{h}x{w} images don't hold a {p}x{p} patch"),
+            )
+            .into());
         }
         if !self.allow_remainder && !(h.is_multiple_of(p) && w.is_multiple_of(p)) {
-            return Err(BunsenError::illegal(format!(
-                "{h}x{w} images don't divide into {p}x{p} patches"
-            )));
+            return Err(ConstraintError::new(
+                "PatchEmbedConfig",
+                "input_resolution",
+                Rule::NotMultiple {
+                    value: if h.is_multiple_of(p) { w } else { h },
+                    of: format!("patch_size ({p})"),
+                },
+            )
+            .into());
         }
         Ok(())
     }
@@ -364,15 +374,15 @@ mod tests {
         for (config, message) in [
             (
                 PatchEmbedConfig::new([224, 223], 16, 3, 768),
-                "224x223 images don't divide into 16x16 patches",
+                "input_resolution: 223 is not a multiple of patch_size (16)",
             ),
             (
                 PatchEmbedConfig::new([224, 224], 0, 3, 768),
-                "a patch size of 0",
+                "PatchEmbedConfig.patch_size: must not be zero",
             ),
             (
                 PatchEmbedConfig::new([224, 12], 16, 3, 768).with_allow_remainder(true),
-                "224x12 images don't hold a 16x16 patch",
+                "PatchEmbedConfig.input_resolution: 224x12 images don't hold a 16x16 patch",
             ),
         ] {
             ErrorMatcher::illegal()

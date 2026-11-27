@@ -65,6 +65,7 @@ use crate::{
         BunsenResult,
         ConstraintError,
         ResultContext,
+        Rule,
     },
     ops::conv::{
         CONV_INTO_RELU_INITIALIZER,
@@ -442,10 +443,15 @@ impl ConvLayersConfig {
             ConvMixerKind::Res2 { scale } => {
                 let [c_in, c_out] = channels;
                 if scale == 0 || c_in != c_out || !c_in.is_multiple_of(scale) {
-                    return Err(BunsenError::illegal(format!(
-                        "a scale split of {scale} chunks from {c_in} to {c_out} channels: it keeps \
-                         the channels, in whole chunks"
-                    )));
+                    return Err(ConstraintError::custom(
+                        "ConvLayersConfig",
+                        "mixer",
+                        format!(
+                            "a scale split of {scale} chunks from {c_in} to {c_out} channels: it \
+                             keeps the channels, in whole chunks"
+                        ),
+                    )
+                    .into());
                 }
                 let width = c_in / scale;
                 let convs = (0..scale.saturating_sub(1).max(1))
@@ -467,17 +473,27 @@ impl ConvLayersConfig {
                     || rd_divisor == 0
                     || rd_ratio <= 0.0
                 {
-                    return Err(BunsenError::illegal(format!(
-                        "a selective kernel of kernels {kernels:?}, its attention {rd_ratio} of the \
-                         channels in {rd_divisor}s: its kernels are odd and at least 3"
-                    )));
+                    return Err(ConstraintError::custom(
+                        "ConvLayersConfig",
+                        "mixer",
+                        format!(
+                            "a selective kernel of kernels {kernels:?}, its attention {rd_ratio} of \
+                             the channels in {rd_divisor}s: its kernels are odd and at least 3, its \
+                             attention positive"
+                        ),
+                    )
+                    .into());
                 }
                 if split_input && !channels[0].is_multiple_of(kernels.len()) {
-                    return Err(BunsenError::illegal(format!(
-                        "a selective kernel's {} input channels split across {} paths",
-                        channels[0],
-                        kernels.len()
-                    )));
+                    return Err(ConstraintError::new(
+                        "ConvLayersConfig",
+                        "mixer",
+                        Rule::NotMultiple {
+                            value: channels[0],
+                            of: format!("the selective kernel's {} paths", kernels.len()),
+                        },
+                    )
+                    .into());
                 }
                 Ok(SelectiveKernelConfig::timm(
                     channels,
@@ -500,10 +516,15 @@ impl ConvLayersConfig {
                 rd_divisor,
             } => {
                 if radix == 0 || rd_divisor == 0 || rd_ratio <= 0.0 {
-                    return Err(BunsenError::illegal(format!(
-                        "a split attention of radix {radix}, its attention {rd_ratio} of its input \
-                         in {rd_divisor}s"
-                    )));
+                    return Err(ConstraintError::custom(
+                        "ConvLayersConfig",
+                        "mixer",
+                        format!(
+                            "a split attention of radix {radix}, its attention {rd_ratio} of its \
+                             input in {rd_divisor}s: the radix, the ratio and the divisor are positive"
+                        ),
+                    )
+                    .into());
                 }
                 Ok(SplitAttnConfig::timm(
                     channels,

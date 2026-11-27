@@ -162,14 +162,20 @@ fn test_disagreeing_parts_are_illegal() {
     };
     let mut config = tiny();
     config.stages[1].downsample = Some(PatchMergeConfig::new([4, 4], 8, 16, norm()));
-    illegal(config, "stage 1's merge is over a [4, 4] grid");
+    illegal(config, "stage 1 takes a [4, 4] grid 8 wide, to its merge");
     let mut config = tiny();
     config.stages[1].stack = stage_stack(16, 4, [8, 8], 2);
-    illegal(config, "attends over a [8, 8] grid; the stage's is [4, 4]");
+    illegal(
+        config,
+        "the block's grid ([8, 8]) must be == the stage's grid ([4, 4])",
+    );
     let mut config = tiny();
     config.head = ClassifierHeadConfig::new(8, 5);
     illegal(config, "the head reads 8 features");
     let mut config = tiny();
     config.stages.clear();
-    illegal(config, "no stages");
+    illegal(
+        config,
+        "StagedVisionEncoderStructureConfig.stages: must not be zero or empty",
+    );
 }

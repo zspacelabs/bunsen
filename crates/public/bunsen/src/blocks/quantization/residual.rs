@@ -28,8 +28,8 @@ use crate::{
         unpack_shape_contract,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
 };
 
@@ -98,9 +98,11 @@ impl ModuleInit<ResidualVectorQuantizer> for ResidualVectorQuantizerConfig {
         device: &Device,
     ) -> BunsenResult<ResidualVectorQuantizer> {
         if self.codebooks == 0 {
-            return Err(BunsenError::illegal(
-                "a residual quantizer of no codebooks; at least one",
-            ));
+            return Err(ConstraintError::zero_or_empty(
+                "ResidualVectorQuantizerConfig",
+                "codebooks",
+            )
+            .into());
         }
         let codebook = EuclideanCodebookConfig::new(self.size, self.dim).with_epsilon(self.epsilon);
         Ok(ResidualVectorQuantizer {
@@ -260,10 +262,13 @@ impl ModuleInit<SplitResidualVectorQuantizer> for SplitResidualVectorQuantizerCo
         device: &Device,
     ) -> BunsenResult<SplitResidualVectorQuantizer> {
         if self.first_codebooks == 0 || self.first_codebooks >= self.codebooks {
-            return Err(BunsenError::illegal(format!(
-                "a split of {} codebooks after {}; the split is in 1..{}",
-                self.codebooks, self.first_codebooks, self.codebooks
-            )));
+            return Err(ConstraintError::out_of_range(
+                "SplitResidualVectorQuantizerConfig",
+                "first_codebooks",
+                self.first_codebooks,
+                format!("1..{}, below codebooks", self.codebooks),
+            )
+            .into());
         }
         let half = |codebooks| {
             ResidualVectorQuantizerConfig::new(codebooks, self.size, self.dim)
@@ -520,7 +525,7 @@ mod tests {
     fn test_illegal_codebooks() {
         let device = cpu_device();
         ErrorMatcher::illegal()
-            .message_contains("no codebooks")
+            .constraint("ResidualVectorQuantizerConfig", "codebooks")
             .assert_err(
                 &ModuleInit::<ResidualVectorQuantizer>::try_init(
                     &ResidualVectorQuantizerConfig::new(0, 4, 2),
@@ -530,7 +535,7 @@ mod tests {
             );
         for first in [0, 3] {
             ErrorMatcher::illegal()
-                .message_contains("the split is in 1..3")
+                .constraint("SplitResidualVectorQuantizerConfig", "first_codebooks")
                 .assert_err(
                     &ModuleInit::<SplitResidualVectorQuantizer>::try_init(
                         &SplitResidualVectorQuantizerConfig::new(3, 4, 2, 3)

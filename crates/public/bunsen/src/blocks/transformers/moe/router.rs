@@ -32,6 +32,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
     },
 };
 
@@ -196,10 +197,13 @@ impl ModuleInit<TopKRouter> for TopKRouterConfig {
             )));
         }
         if self.top_k == 0 || self.top_k > self.n_experts {
-            return Err(BunsenError::illegal(format!(
-                "top_k {} of {} experts",
-                self.top_k, self.n_experts
-            )));
+            return Err(ConstraintError::out_of_range(
+                "TopKRouterConfig",
+                "top_k",
+                self.top_k,
+                format!("1..={}, the experts", self.n_experts),
+            )
+            .into());
         }
         Ok(TopKRouter {
             gate: LinearConfig::new(self.width, self.n_experts)
@@ -208,7 +212,8 @@ impl ModuleInit<TopKRouter> for TopKRouterConfig {
             input_norm: self
                 .input_norm
                 .as_ref()
-                .map(|n| n.clone().with_num_features(self.width).init(device)),
+                .map(|n| n.clone().with_num_features(self.width).try_init(device))
+                .transpose()?,
             choice_bias: self
                 .choice_bias
                 .map(|_| Param::from_tensor(Tensor::zeros([self.n_experts], (device, DType::F32)))),

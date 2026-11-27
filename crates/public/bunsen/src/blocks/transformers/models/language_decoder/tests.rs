@@ -419,7 +419,7 @@ fn test_stack_decoder_refusals() {
     let structure = uniform(1).to_structure();
     let wide =
         LmStackDecoderConfig::new(LmHeadConfig::new(16, 40), structure.decoder.stack.clone());
-    assert!(ModuleInit::<LmStackDecoder>::try_init(&wide, &device).is_err());
+    ErrorMatcher::illegal().assert_err(&ModuleInit::<LmStackDecoder>::try_init(&wide, &device));
     let hybrid = hybrid().to_structure();
     assert!(ModuleInit::<LmStackDecoder>::try_init(&hybrid.decoder.clone(), &device).is_ok());
 }

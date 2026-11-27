@@ -1,5 +1,7 @@
 //! The pool over a vision transformer's tokens.
 
+use alloc::string::ToString;
+
 use burn::{
     config::Config,
     module::Module,
@@ -10,8 +12,9 @@ use burn::{
 use crate::{
     blocks::pooling::LatentAttentionPool,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
 };
 
@@ -109,15 +112,28 @@ impl TokenPool {
         n_prefix: usize,
     ) -> BunsenResult<Self> {
         if kind == TokenPoolConfig::Map {
-            return Err(BunsenError::illegal(
+            return Err(ConstraintError::custom(
+                "TokenPool::try_new",
+                "kind",
                 "a Map pool has parameters: it is built with its latent attention pool",
-            ));
+            )
+            .into());
         }
         let read = kind.prefix_read();
         if read > n_prefix {
-            return Err(BunsenError::illegal(alloc::format!(
-                "a {kind:?} pool reads {read} prefix tokens: there are {n_prefix}"
-            )));
+            return Err(ConstraintError::new(
+                "TokenPool::try_new",
+                "n_prefix",
+                Rule::Relation {
+                    lhs: (
+                        alloc::format!("the {kind:?} pool's prefix reads"),
+                        read.to_string(),
+                    ),
+                    op: "<=",
+                    rhs: ("n_prefix".into(), n_prefix.to_string()),
+                },
+            )
+            .into());
         }
         Ok(Self {
             kind,
@@ -243,10 +259,10 @@ mod tests {
         let pool = TokenPool::try_new(TokenPoolConfig::Distilled, 2).unwrap();
         assert_eq!(tensor_to_vec_as::<f32, _>(&pool.forward(tokens)), [3., 4.]);
         ErrorMatcher::illegal()
-            .message_contains("reads 2 prefix tokens: there are 1")
+            .message_contains("prefix reads (2) must be <= n_prefix (1)")
             .assert_err(&TokenPool::try_new(TokenPoolConfig::Distilled, 1));
         ErrorMatcher::illegal()
-            .message_contains("reads 1 prefix tokens: there are 0")
+            .message_contains("prefix reads (1) must be <= n_prefix (0)")
             .assert_err(&TokenPool::try_new(TokenPoolConfig::Token, 0));
     }
 }

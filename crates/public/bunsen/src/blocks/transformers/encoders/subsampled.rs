@@ -256,6 +256,7 @@ mod tests {
                 testing::rope_stack,
             },
         },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -334,6 +335,6 @@ mod tests {
             EncoderSubsamplingConfig::Stacking(FeatureStackingConfig::new(6, 16).with_factor(2)),
             rope_stack(8, 2, 1).into(),
         );
-        assert!(config.try_init(&cpu_device()).is_err());
+        ErrorMatcher::illegal().assert_err(&config.try_init(&cpu_device()));
     }
 }

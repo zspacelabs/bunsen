@@ -114,9 +114,9 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
             .try_init(device)?;
 
         Ok(CrossDecoderBlock {
-            attn: sublayer.init(attn, self.d_model, device),
-            cross_attn: sublayer.init(cross_attn, self.d_model, device),
-            mlp: sublayer.init(mlp, self.d_model, device),
+            attn: sublayer.try_init(attn, self.d_model, device)?,
+            cross_attn: sublayer.try_init(cross_attn, self.d_model, device)?,
+            mlp: sublayer.try_init(mlp, self.d_model, device)?,
         })
     }
 }
