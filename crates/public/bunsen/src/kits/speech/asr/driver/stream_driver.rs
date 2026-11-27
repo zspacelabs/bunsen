@@ -81,10 +81,12 @@ impl<E: AsrEngine> AsrStreamDriver<E> {
     fn check_emission(emission: &EmissionPolicy) -> BunsenResult<()> {
         let triggers = &emission.triggers;
         if !triggers.window_full && !triggers.endpoint {
-            return Err(BunsenError::illegal(
-                "EmissionPolicy.triggers: with neither the window_full nor the endpoint \
-                 trigger nothing would ever decode",
-            ));
+            return Err(crate::errors::ConstraintError::custom(
+                "EmissionPolicy",
+                "triggers",
+                "with neither the window_full nor the endpoint trigger nothing would ever decode",
+            )
+            .into());
         }
         if triggers.interval.is_some_and(|i| i.is_zero()) {
             return Err(BunsenError::from(ConstraintError::zero_or_empty(
@@ -94,11 +96,13 @@ impl<E: AsrEngine> AsrStreamDriver<E> {
             .with_details("an interval of zero would draft on every push"));
         }
         if triggers.interval.is_some() && !triggers.endpoint {
-            return Err(BunsenError::illegal(
-                "EmissionPolicy.triggers: the interval trigger drafts only while speech is in \
-                 progress, which only the endpoint trigger's voice-activity gate tracks; turn \
-                 endpoint on as well",
-            ));
+            return Err(crate::errors::ConstraintError::custom(
+                "EmissionPolicy",
+                "triggers",
+                "the interval trigger drafts only while speech is in progress, which only the \
+                 endpoint trigger's voice-activity gate tracks; turn endpoint on as well",
+            )
+            .into());
         }
         if let CommitRule::Agreement { .. } = emission.commit {
             return Err(BunsenError::unsupported(

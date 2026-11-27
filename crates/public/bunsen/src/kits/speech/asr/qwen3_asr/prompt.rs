@@ -214,6 +214,7 @@ impl Qwen3AsrPromptConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     fn vocab() -> ByteLevelVocabulary {
         let vocab = r#"{"language": 0, "ĠEnglish": 1, "ĠNone": 2, "ĠAnd": 3, "Ġso": 4}"#;
@@ -280,7 +281,7 @@ mod tests {
         assert_eq!(t.text, "And so");
         assert_eq!(t.form, Qwen3AsrReplyForm::Unheaded, "no text token");
 
-        assert!(config.parse(vec![5, 40], &[6], &vocab).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&config.parse(vec![5, 40], &[6], &vocab));
     }
 
     #[test]

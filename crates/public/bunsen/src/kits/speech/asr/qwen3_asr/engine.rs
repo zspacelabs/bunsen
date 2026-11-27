@@ -350,7 +350,10 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
-        errors::BunsenErrorKind,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         kits::{
             language::generation::qwen3::Qwen3Config,
             speech::{
@@ -546,7 +549,7 @@ mod tests {
         assert_eq!(state.language.as_deref(), Some("English"));
 
         assert_eq!(engine.text(&[12, 13]).unwrap().as_deref(), Some("t12t13"));
-        assert!(engine.text(&[-1]).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&engine.text(&[-1]));
     }
 
     /// Streamed in pieces under the offline policy, a clip shorter than a

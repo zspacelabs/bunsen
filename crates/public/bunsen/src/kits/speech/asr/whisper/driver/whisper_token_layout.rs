@@ -161,14 +161,14 @@ impl WhisperTokenLayoutConfig {
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause, if the layout does not
-    /// [`validate`](Self::validate), or `num_languages` is zero or exceeds
+    /// [`try_validate`](Self::try_validate), or `num_languages` is zero or exceeds
     /// the languages it has.
     pub fn special_ids(
         &self,
         n_base: usize,
         num_languages: usize,
     ) -> BunsenResult<WhisperSpecialIds> {
-        self.validate()?;
+        self.try_validate()?;
         if num_languages == 0 || num_languages > self.languages.len() {
             return Err(ConstraintError::out_of_range(
                 "WhisperTokenLayoutConfig::special_ids",
@@ -740,8 +740,8 @@ mod tests {
 
     #[test]
     fn test_new_rejects_bad_language_counts() {
-        assert!(WhisperSpecialIds::new(50257, 0).is_err());
-        assert!(WhisperSpecialIds::new(50257, 101).is_err());
+        ErrorMatcher::illegal().assert_err(&WhisperSpecialIds::new(50257, 0));
+        ErrorMatcher::illegal().assert_err(&WhisperSpecialIds::new(50257, 101));
     }
 
     /// The checkpoint's vocabulary size alone picks the layout.
@@ -770,9 +770,9 @@ mod tests {
         assert_eq!(ids.num_languages, 99);
 
         // Too small, zero languages, too many languages.
-        assert!(WhisperSpecialIds::from_vocab_size(32).is_err());
-        assert!(WhisperSpecialIds::from_vocab_size(51765).is_err());
-        assert!(WhisperSpecialIds::from_vocab_size(51867).is_err());
+        ErrorMatcher::illegal().assert_err(&WhisperSpecialIds::from_vocab_size(32));
+        ErrorMatcher::illegal().assert_err(&WhisperSpecialIds::from_vocab_size(51765));
+        ErrorMatcher::illegal().assert_err(&WhisperSpecialIds::from_vocab_size(51867));
     }
 
     #[test]
@@ -1032,7 +1032,7 @@ mod tests {
                 "<|startoftranscript|><|en|><|transcribe|><|0.00|>ok<|2.00|><|endoftext|>",
             );
             assert_eq!(detok.detokenize(&[0, 1, 2, 3]).unwrap(), "ok 🎉 done");
-            assert!(detok.detokenize(&[ids.n_vocab() as i64]).is_err());
+            ErrorMatcher::invalid_resource().assert_err(&detok.detokenize(&[ids.n_vocab() as i64]));
         }
     }
 }

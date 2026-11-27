@@ -175,6 +175,7 @@ impl Detokenizer for ParakeetVocabulary {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     fn toy() -> ParakeetVocabulary {
         ParakeetVocabulary::new(
@@ -200,8 +201,8 @@ mod tests {
         assert!(!vocab.is_special(6), "a lone `<` is a piece, not a special");
         assert_eq!(vocab.transcript(&[1, 2, 3, 4, 5, 0]).unwrap(), "the moon.");
         assert_eq!(vocab.detokenize(&[2, 1, 6]).unwrap(), " the<|endoftext|><");
-        assert!(vocab.transcript(&[7]).is_err());
-        assert!(vocab.detokenize(&[-1]).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&vocab.transcript(&[7]));
+        ErrorMatcher::invalid_resource().assert_err(&vocab.detokenize(&[-1]));
     }
 
     #[test]
@@ -213,8 +214,8 @@ mod tests {
         assert_eq!(a, b);
         assert_eq!(a.transcript(&[1, 2]).unwrap(), "ab");
 
-        assert!(ParakeetVocabulary::from_nemo_config("{}").is_err());
+        ErrorMatcher::invalid_resource().assert_err(&ParakeetVocabulary::from_nemo_config("{}"));
         let gap = r#"{"model": {"vocab": {"a": 0, "b": 2}}}"#;
-        assert!(ParakeetVocabulary::from_tokenizer_json(gap).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&ParakeetVocabulary::from_tokenizer_json(gap));
     }
 }

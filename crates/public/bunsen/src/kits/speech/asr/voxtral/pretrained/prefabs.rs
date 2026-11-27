@@ -22,13 +22,16 @@ impl Prefabs for VoxtralRealtimeConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::asr::voxtral::blocks::VoxtralRealtimeMeta;
+    use crate::{
+        errors::testing::ErrorMatcher,
+        kits::speech::asr::voxtral::blocks::VoxtralRealtimeMeta,
+    };
 
     #[test]
     fn test_prefabs() {
         let config = VoxtralRealtimeConfig::expect_prefab("voxtral-mini-4b-realtime-2602");
         assert_eq!(config.d_audio(), 1280);
         assert_eq!(config.d_text(), 3072);
-        assert!(VoxtralRealtimeConfig::try_prefab("voxtral-9b").is_err());
+        ErrorMatcher::lookup().assert_err(&VoxtralRealtimeConfig::try_prefab("voxtral-9b"));
     }
 }

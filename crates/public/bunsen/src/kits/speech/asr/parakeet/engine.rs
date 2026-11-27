@@ -304,6 +304,7 @@ mod tests {
             },
         },
         burner::module::ModuleInit,
+        errors::testing::ErrorMatcher,
         kits::speech::{
             asr::{
                 driver::{
@@ -496,7 +497,7 @@ mod tests {
         assert!(silent.skip && silent.segments.is_empty());
 
         assert_eq!(engine.text(&[5, 6]).unwrap().as_deref(), Some("why we"));
-        assert!(engine.text(&[-1]).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&engine.text(&[-1]));
     }
 
     /// Streamed in pieces, a clip longer than a window commits segments in

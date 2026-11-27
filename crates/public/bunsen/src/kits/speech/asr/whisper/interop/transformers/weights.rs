@@ -418,7 +418,7 @@ mod tests {
             .message_contains("no model.decoder.embed_tokens.weight")
             .assert_err(&scanner.scan_cfg(&encoder_only));
         let decoder_only = SafetensorsCheckpoint::single(&s2);
-        assert!(scanner.scan_cfg(&decoder_only).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&scanner.scan_cfg(&decoder_only));
     }
 
     /// A safetensors file of something else is refused by name, from its

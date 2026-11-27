@@ -50,6 +50,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
+        errors::testing::ErrorMatcher,
         kits::{
             speech::{
                 asr::{
@@ -192,7 +193,7 @@ mod tests {
     fn test_text() {
         let engine = VoxtralEngine::new(Arc::new(toy_construct(&performance_device()))).unwrap();
         assert_eq!(engine.text(&[4, 8, 3, 9]).unwrap().as_deref(), Some(" a b"));
-        assert!(engine.text(&[-1]).is_err());
-        assert!(engine.text(&[45]).is_err());
+        ErrorMatcher::invalid_resource().assert_err(&engine.text(&[-1]));
+        ErrorMatcher::invalid_resource().assert_err(&engine.text(&[45]));
     }
 }

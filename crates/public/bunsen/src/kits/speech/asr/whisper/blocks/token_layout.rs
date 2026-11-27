@@ -103,7 +103,7 @@ impl WhisperTokenLayoutConfig {
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause naming the field that is off.
-    pub fn validate(&self) -> BunsenResult<()> {
+    pub fn try_validate(&self) -> BunsenResult<()> {
         const OWNER: &str = "WhisperTokenLayoutConfig";
         for (field, found, roles, expected) in [
             (
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn test_defaults_are_upstreams() {
         let layout = WhisperTokenLayoutConfig::new();
-        assert!(layout.validate().is_ok());
+        assert!(layout.try_validate().is_ok());
         assert_eq!(layout.languages.len(), 100);
         assert_eq!(layout.leading_specials[0], "<|endoftext|>");
         assert_eq!(layout.control_tokens[5], "<|notimestamps|>");
@@ -221,23 +221,17 @@ mod tests {
                 &layout
                     .clone()
                     .with_leading_specials(vec!["<|eot|>".to_string()])
-                    .validate(),
+                    .try_validate(),
             );
-        assert!(
-            layout
+        ErrorMatcher::illegal().assert_err(
+            &layout
                 .clone()
                 .with_control_tokens(Vec::new())
-                .validate()
-                .is_err()
+                .try_validate(),
         );
-        assert!(
-            layout
-                .clone()
-                .with_languages(Vec::new())
-                .validate()
-                .is_err()
-        );
-        assert!(layout.clone().with_timestamp_tokens(0).validate().is_err());
-        assert!(layout.with_timestamp_step_seconds(0.0).validate().is_err());
+        ErrorMatcher::illegal()
+            .assert_err(&layout.clone().with_languages(Vec::new()).try_validate());
+        ErrorMatcher::illegal().assert_err(&layout.clone().with_timestamp_tokens(0).try_validate());
+        ErrorMatcher::illegal().assert_err(&layout.with_timestamp_step_seconds(0.0).try_validate());
     }
 }
