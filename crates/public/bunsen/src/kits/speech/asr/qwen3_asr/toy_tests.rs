@@ -212,7 +212,6 @@ fn test_toy_cached_decode_matches_uncached() {
     let mut embeds = toy.model.prompt_embeds(&toy.ids(), audio).unwrap();
     let generated = Qwen3AsrGreedyDecoderConfig::new(vec![])
         .with_max_new_tokens(6)
-        .init()
         .decode(&toy.model, embeds.clone());
     assert_eq!(generated.len(), 6);
 

@@ -15,7 +15,7 @@
 //!   log-mels, built from a [`ParakeetFrontEndConfig`]: `NeMo`'s
 //!   [`NemoMelFrontEnd`](crate::kits::speech::support::nemo::NemoMelFrontEnd)
 //!   under its defaults.
-//! - [`TdtGreedyDecoder`]: greedy decoding of the transducer, batched, to
+//! - [`TdtGreedyDecoderConfig`]: greedy decoding of the transducer, batched, to
 //!   [`TdtHypothesis`] tokens with their frames.
 //! - [`ParakeetVocabulary`]: the `SentencePiece` pieces, as a
 //!   [`Detokenizer`](crate::kits::support::tokens::Detokenizer) and as

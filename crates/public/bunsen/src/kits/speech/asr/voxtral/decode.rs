@@ -45,6 +45,42 @@ pub struct VoxtralDecodeState {
     pub audio: Tensor<3>,
 }
 
+impl VoxtralDecodeState {
+    /// The state a decode over `audio` opens with: a stack cache covering
+    /// every position, of `storage`, and the condition for a text
+    /// `delay_positions` behind the audio.
+    ///
+    /// # Arguments
+    /// * `audio` - `[rows, positions, d_text]` audio embeddings.
+    pub fn new(
+        model: &VoxtralRealtime,
+        audio: Tensor<3>,
+        delay_positions: usize,
+        storage: KVCacheStorage,
+        device: &Device,
+    ) -> Self {
+        let lm = &model.language_model;
+        let [rows, positions] = crate::contracts::unpack_shape_contract!(
+            ["rows", "positions", "d_text"],
+            &audio.dims(),
+            &["rows", "positions"],
+            &[(
+                "d_text",
+                crate::kits::speech::asr::voxtral::blocks::VoxtralRealtimeMeta::d_text(model)
+            )]
+        );
+        Self {
+            cache: lm
+                .lm
+                .decoder
+                .stack
+                .decode_cache(rows, positions, storage, device),
+            cond: lm.delay_condition(delay_positions, device),
+            audio,
+        }
+    }
+}
+
 /// A [`VoxtralRealtime`] as [`decode_cached`] steps it: each id is embedded,
 /// the next position's audio added, and the text model run one position
 /// through the cache.
@@ -127,17 +163,7 @@ impl VoxtralGreedyDecoder {
         audio: Tensor<3>,
         device: &Device,
     ) -> VoxtralDecodeState {
-        let lm = &model.language_model;
-        let positions = audio.dims()[1];
-        VoxtralDecodeState {
-            cache: lm
-                .lm
-                .decoder
-                .stack
-                .decode_cache(1, positions, self.storage, device),
-            cond: lm.delay_condition(layout.delay_positions(), device),
-            audio,
-        }
+        VoxtralDecodeState::new(model, audio, layout.delay_positions(), self.storage, device)
     }
 
     /// Decodes an utterance.

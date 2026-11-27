@@ -81,17 +81,14 @@ impl TimedDecode for VoxtralRealtime {
             device,
         );
         let audio = self.audio_embeds(features);
-        let lm = &self.language_model;
         let delay = VoxtralTokenLayoutConfig::new().init().delay_positions();
-        state.decode = Some(VoxtralDecodeState {
-            cache: lm
-                .lm
-                .decoder
-                .stack
-                .decode_cache(rows, positions, state.storage, device),
-            cond: lm.delay_condition(delay, device),
-            audio: audio.clone(),
-        });
+        state.decode = Some(VoxtralDecodeState::new(
+            self,
+            audio.clone(),
+            delay,
+            state.storage,
+            device,
+        ));
         Some(audio.slice_dim(1, 0..1).reshape([rows, self.d_text()]))
     }
 

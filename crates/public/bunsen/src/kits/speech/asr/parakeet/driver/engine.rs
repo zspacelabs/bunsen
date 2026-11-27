@@ -27,7 +27,6 @@ use crate::{
                 ParakeetFrontEnd,
                 ParakeetFrontEndMeta,
                 ParakeetTdtMeta,
-                TdtGreedyDecoderConfig,
                 TdtHypothesis,
                 WORD_MARK,
             },
@@ -286,10 +285,10 @@ impl AsrEngine for ParakeetEngine {
             .collect();
         let model = &self.construct.model;
         let (encoded, encoded_lengths) = model.encode(Tensor::cat(rows, 0), Some(&lengths));
-        let hypotheses =
-            TdtGreedyDecoderConfig::new()
-                .init()
-                .decode(model, encoded, &encoded_lengths);
+        let hypotheses = self
+            .construct
+            .decoder
+            .decode(model, encoded, &encoded_lengths);
         Ok(hypotheses
             .into_iter()
             .zip(lengths)
@@ -392,6 +391,7 @@ mod tests {
             model,
             front_end: ParakeetFrontEndConfig::new().with_n_mels(24).init(device),
             vocab: ParakeetVocabulary::new(pieces.map(String::from).to_vec()),
+            decoder: crate::kits::speech::asr::parakeet::TdtGreedyDecoderConfig::new(),
             policy: Default::default(),
             presets: Default::default(),
         }

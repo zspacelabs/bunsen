@@ -25,7 +25,9 @@ use crate::{
 /// assistant's turn.
 const EOS: [&str; 2] = ["<|endoftext|>", "<|im_end|>"];
 
-/// Config for [`Qwen3AsrGreedyDecoder`].
+/// Greedy decoding of a prompt: a cached prefill, then
+/// [`decode_cached`] under a [`GreedySearch`] that stops on any of the end
+/// tokens, until one or the budget.
 #[derive(Config, Debug)]
 pub struct Qwen3AsrGreedyDecoderConfig {
     /// The tokens that end a decode; the last one generated is kept. A
@@ -52,30 +54,6 @@ impl Qwen3AsrGreedyDecoderConfig {
         Ok(Self::new(eos))
     }
 
-    /// Builds the decoder.
-    pub fn init(&self) -> Qwen3AsrGreedyDecoder {
-        Qwen3AsrGreedyDecoder {
-            config: self.clone(),
-        }
-    }
-}
-
-/// Greedy decoding of a prompt: a cached prefill, then
-/// [`decode_cached`] under a [`GreedySearch`] that stops on any of the end
-/// tokens, until one or the budget.
-///
-/// Built by [`Qwen3AsrGreedyDecoderConfig`].
-#[derive(Clone, Debug)]
-pub struct Qwen3AsrGreedyDecoder {
-    config: Qwen3AsrGreedyDecoderConfig,
-}
-
-impl Qwen3AsrGreedyDecoder {
-    /// The config this was built from.
-    pub fn config(&self) -> &Qwen3AsrGreedyDecoderConfig {
-        &self.config
-    }
-
     /// Decodes a prompt.
     ///
     /// # Arguments
@@ -93,10 +71,10 @@ impl Qwen3AsrGreedyDecoder {
         let lm = &model.language_model;
         let device = embeds.device();
         let seq = embeds.dims()[1];
-        let budget = self.config.max_new_tokens;
+        let budget = self.max_new_tokens;
         let mut state = lm.decode_state(1, seq + budget, KVCacheStorage::Auto, &device);
         let first = lm.prefill(embeds, &mut state);
-        let stops: Vec<i64> = self.config.eos.iter().map(|&t| t as i64).collect();
+        let stops: Vec<i64> = self.eos.iter().map(|&t| t as i64).collect();
         // A finished row is fed a filler, which is never stepped for one row.
         let filler = stops.first().copied().unwrap_or(0);
         let mut search = GreedySearch::new(stops.iter().copied(), filler);

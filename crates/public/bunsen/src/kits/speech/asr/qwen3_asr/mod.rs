@@ -11,7 +11,7 @@
 //!   [`kits::language::generation::qwen3`](crate::kits::language::generation::qwen3).
 //! - [`Qwen3AsrFrontEnd`](blocks::Qwen3AsrFrontEnd): the feature extractor,
 //!   Whisper's.
-//! - [`Qwen3AsrGreedyDecoder`]: greedy decoding through a KV cache.
+//! - [`Qwen3AsrGreedyDecoderConfig`]: greedy decoding through a KV cache.
 //! - [`Qwen3AsrPromptConfig`]: the chat prompt around an utterance's audio, and
 //!   parsing the reply into a [`Qwen3AsrTranscript`].
 //! - [`Qwen3AsrConstruct`]: a model with its front end, vocabulary, prompt and
