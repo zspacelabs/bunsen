@@ -27,6 +27,7 @@ use crate::{
         LmKvForwardHidden,
     },
     burner::module::ModuleInit,
+    errors::testing::ErrorMatcher,
     kits::language::generation::qwen3::Qwen3Config,
     ops::transformers::attention::{
         KVCache,
@@ -185,11 +186,7 @@ fn test_toy_text_model() {
 fn test_prompt_must_match_audio() {
     let toy = Toy::load();
     let audio = toy.model.encode_audio(toy.features(), FEATURE_LEN);
-    assert!(
-        toy.model
-            .prompt_embeds(&[1, AUDIO_TOKEN, 2], audio)
-            .is_err()
-    );
+    ErrorMatcher::illegal().assert_err(&toy.model.prompt_embeds(&[1, AUDIO_TOKEN, 2], audio));
 }
 
 /// A prefill and then one step per position, through a cache of every

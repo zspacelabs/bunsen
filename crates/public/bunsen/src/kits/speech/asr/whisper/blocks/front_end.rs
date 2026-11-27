@@ -9,7 +9,6 @@ use burn::{
 use crate::{
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
         ConstraintError,
     },
@@ -85,7 +84,7 @@ impl WhisperFrontEndConfig {
     /// or window is zero (with a [`ConstraintError`] cause), or the rate does
     /// not put the hop and the window on whole samples. At the default 10 ms
     /// and 25 ms that is any rate not a multiple of 200 Hz.
-    pub fn validate(&self) -> BunsenResult<()> {
+    pub fn try_validate(&self) -> BunsenResult<()> {
         const OWNER: &str = "WhisperFrontEndConfig";
         for (field, value) in [
             ("sample_rate", self.sample_rate),
@@ -101,10 +100,15 @@ impl WhisperFrontEndConfig {
             ("window_ms", "window", self.window_ms),
         ] {
             if !(self.sample_rate * ms).is_multiple_of(1000) {
-                return Err(BunsenError::illegal(format!(
-                    "{OWNER}.{field}: a {ms} ms {what} is not a whole number of samples at {} Hz",
-                    self.sample_rate,
-                )));
+                return Err(crate::errors::ConstraintError::custom(
+                    OWNER,
+                    field,
+                    format!(
+                        "a {ms} ms {what} is not a whole number of samples at {} Hz",
+                        self.sample_rate,
+                    ),
+                )
+                .into());
             }
         }
         Ok(())
@@ -139,13 +143,13 @@ impl WhisperFrontEndConfig {
     /// * `n_mels` - the encoder's mel channel count, from the checkpoint.
     ///
     /// # Errors
-    /// As [`validate`](Self::validate): the rate must put the grid on whole
+    /// As [`try_validate`](Self::try_validate): the rate must put the grid on whole
     /// samples.
     pub fn mel_converter_options(
         &self,
         n_mels: usize,
     ) -> BunsenResult<PerceptiveAudioConverterConfig> {
-        self.validate()?;
+        self.try_validate()?;
         Ok(PerceptiveAudioConverterConfig::default()
             .with_sample_rate(self.sample_rate)
             .with_n_fft(self.n_fft())
@@ -237,6 +241,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        errors::testing::ErrorMatcher,
         kits::speech::asr::whisper::blocks::{
             AUDIO_ENCODER_STRIDE,
             WhisperTokenLayoutConfig,
@@ -254,7 +259,7 @@ mod tests {
         assert_eq!(front_end.sample_rate, 16_000);
         assert_eq!((front_end.hop(), front_end.n_fft()), (160, 400));
         assert_eq!(front_end.range_clamp_db, 8.0);
-        assert!(front_end.validate().is_ok());
+        assert!(front_end.try_validate().is_ok());
     }
 
     #[test]
@@ -262,26 +267,26 @@ mod tests {
         let at = |rate: usize| WhisperFrontEndConfig::new().with_sample_rate(rate);
 
         assert_eq!((at(8_000).hop(), at(8_000).n_fft()), (80, 200));
-        assert!(at(8_000).validate().is_ok());
+        assert!(at(8_000).try_validate().is_ok());
         assert_eq!((at(48_000).hop(), at(48_000).n_fft()), (480, 1_200));
 
-        assert!(at(44_100).validate().is_err(), "not a whole hop");
-        assert!(at(0).validate().is_err());
-        assert!(at(16_000).with_hop_ms(0).validate().is_err());
+        assert!(at(44_100).try_validate().is_err(), "not a whole hop");
+        ErrorMatcher::illegal().assert_err(&at(0).try_validate());
+        ErrorMatcher::illegal().assert_err(&at(16_000).with_hop_ms(0).try_validate());
         assert!(
-            at(16_000).with_window_ms(3).validate().is_ok(),
+            at(16_000).with_window_ms(3).try_validate().is_ok(),
             "3 ms is 48 whole samples"
         );
         assert!(
             at(16_000)
                 .with_hop_ms(3)
                 .with_window_ms(7)
-                .validate()
+                .try_validate()
                 .is_ok(),
             "any whole-sample grid passes; the 10 ms / 25 ms pairing is convention, not checked"
         );
         assert!(
-            at(22_050).with_hop_ms(10).validate().is_err(),
+            at(22_050).with_hop_ms(10).try_validate().is_err(),
             "220.5 samples"
         );
     }
@@ -348,12 +353,8 @@ mod tests {
                 .is_err(),
             "not a whole hop"
         );
-        assert!(
-            front_end()
-                .with_sample_rate(0)
-                .mel_converter_options(80)
-                .is_err()
-        );
+        ErrorMatcher::illegal()
+            .assert_err(&front_end().with_sample_rate(0).mel_converter_options(80));
     }
 
     /// The default hop is one timestamp step per encoder position.

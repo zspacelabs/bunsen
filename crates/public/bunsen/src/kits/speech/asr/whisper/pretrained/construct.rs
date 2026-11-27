@@ -472,7 +472,10 @@ impl ConstructInit for WhisperConstructConfig {
         if let Some(part) = loaded.get(VOCABULARY) {
             bundle = bundle.with_ranks(TiktokenRanks::load(&part.path)?);
         }
-        bundle.validate().as_policy().with_context(|| model.id())?;
+        bundle
+            .try_validate()
+            .as_policy()
+            .with_context(|| model.id())?;
         Ok(Arc::new(bundle))
     }
 }

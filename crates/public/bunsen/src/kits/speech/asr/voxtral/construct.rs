@@ -133,8 +133,8 @@ impl VoxtralConstruct {
     /// `delay_ms` behind the audio.
     ///
     /// # Errors
-    /// As [`VoxtralTokenLayoutConfig::validate`]: a delay the model does not
-    /// take.
+    /// As [`VoxtralTokenLayoutConfig::try_validate`]: a delay the model does
+    /// not take.
     pub fn with_delay_ms(
         mut self,
         delay_ms: usize,

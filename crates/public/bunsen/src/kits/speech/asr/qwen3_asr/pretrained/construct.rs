@@ -167,6 +167,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
 mod tests {
 
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
@@ -188,8 +189,8 @@ mod tests {
                 .resource_set(),
         );
         assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
-        assert!(Qwen3AsrReader::for_kind(Some("gguf")).is_err());
-        assert!(Qwen3AsrReader::for_kind(None).is_err());
+        ErrorMatcher::unsupported().assert_err(&Qwen3AsrReader::for_kind(Some("gguf")));
+        ErrorMatcher::unsupported().assert_err(&Qwen3AsrReader::for_kind(None));
     }
 
     /// Every row resolves to the default policy, which has no named presets;

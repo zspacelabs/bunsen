@@ -135,8 +135,9 @@ pub struct SearchConfig {
 }
 
 impl SearchConfig {
-    /// Checks the knobs the searches take: at least one beam, a positive
-    /// patience, a temperature that is not negative, at least one sample.
+    /// Checks the knobs the searches take: at least one beam, a patience that
+    /// collects a candidate (`round(beam_size * patience) >= 1`), a
+    /// temperature that is not negative, at least one sample.
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
@@ -148,9 +149,21 @@ impl SearchConfig {
             return Err(ConstraintError::zero_or_empty(OWNER, "beam_size").into());
         }
         if let Some(patience) = self.patience
-            && patience.partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater)
+            && (patience.is_nan() || (self.beam_size as f64 * patience).round() < 1.0)
         {
-            return Err(ConstraintError::out_of_range(OWNER, "patience", patience, "> 0").into());
+            // `round(beam_size * patience) >= 1` is `patience >= 0.5 /
+            // beam_size`.
+            return Err(ConstraintError::out_of_range(
+                OWNER,
+                "patience",
+                patience,
+                alloc::format!(
+                    "[{}, ..) with {} beams, to collect a candidate",
+                    0.5 / self.beam_size as f64,
+                    self.beam_size
+                ),
+            )
+            .into());
         }
         if self.temperature.is_nan() || self.temperature < 0.0 {
             return Err(ConstraintError::out_of_range(

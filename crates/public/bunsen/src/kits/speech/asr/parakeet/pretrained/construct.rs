@@ -158,6 +158,7 @@ impl ConstructInit for ParakeetConstructConfig {
 mod tests {
 
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
@@ -179,8 +180,8 @@ mod tests {
                 .resource_set(),
         );
         assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
-        assert!(ParakeetReader::for_kind(Some("pytorch fp16")).is_err());
-        assert!(ParakeetReader::for_kind(None).is_err());
+        ErrorMatcher::unsupported().assert_err(&ParakeetReader::for_kind(Some("pytorch fp16")));
+        ErrorMatcher::unsupported().assert_err(&ParakeetReader::for_kind(None));
     }
 
     /// Every row resolves to the default policy, which has no named presets;

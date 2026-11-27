@@ -61,7 +61,7 @@ impl VoxtralTokenLayoutConfig {
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause naming `delay_ms`, otherwise.
-    pub fn validate(&self) -> BunsenResult<()> {
+    pub fn try_validate(&self) -> BunsenResult<()> {
         let ok = self.position_ms > 0
             && self.delay_ms > 0
             && self.delay_ms.is_multiple_of(self.position_ms)
@@ -85,9 +85,9 @@ impl VoxtralTokenLayoutConfig {
     /// Builds the layout.
     ///
     /// # Errors
-    /// As [`validate`](Self::validate).
+    /// As [`try_validate`](Self::try_validate).
     pub fn try_init(&self) -> BunsenResult<VoxtralTokenLayout> {
-        self.validate()?;
+        self.try_validate()?;
         Ok(VoxtralTokenLayout {
             config: self.clone(),
         })
@@ -231,7 +231,7 @@ mod tests {
             assert!(
                 VoxtralTokenLayoutConfig::new()
                     .with_delay_ms(ms)
-                    .validate()
+                    .try_validate()
                     .is_ok()
             );
         }

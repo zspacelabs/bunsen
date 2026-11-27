@@ -125,7 +125,7 @@ impl WhisperConstruct {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause naming the disagreement. A caller that
     /// loaded the parts from a checkpoint re-marks it.
-    pub fn validate(&self) -> BunsenResult<()> {
+    pub fn try_validate(&self) -> BunsenResult<()> {
         let ids = self.layout.ids();
         if ids.n_vocab() > self.model.vocab_size() {
             return Err(ConstraintError::new(
@@ -234,7 +234,7 @@ mod tests {
         let shown = bundle.to_string();
         assert!(shown.contains(" mels, vocabulary "), "{shown}");
         assert!(shown.ends_with(" layers, ids only"), "{shown}");
-        bundle.validate().unwrap();
+        bundle.try_validate().unwrap();
         assert!(bundle.ranks.is_none());
         assert!(bundle.default_filters().is_empty());
         #[cfg(feature = "tokenizer")]
@@ -248,7 +248,7 @@ mod tests {
         let ranks = TiktokenRanks::parse("IA== 0\nb2s= 1\n").unwrap();
         let bundle = WhisperConstruct::new(tiny_model(), tiny_layout()).with_ranks(ranks);
         assert!(bundle.to_string().ends_with(" ranks"), "{bundle}");
-        bundle.validate().unwrap();
+        bundle.try_validate().unwrap();
         assert!(!bundle.default_filters().is_empty());
         #[cfg(feature = "tokenizer")]
         {
@@ -268,7 +268,7 @@ mod tests {
             .with_ranks(TiktokenRanks::parse("IA== 0\n").unwrap());
         ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
-            .assert_err(&short.validate());
+            .assert_err(&short.try_validate());
     }
 
     /// A layout with more ids than the model has is refused, and a model
@@ -282,7 +282,7 @@ mod tests {
         ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .message_contains("51865")
-            .assert_err(&too_big.validate());
+            .assert_err(&too_big.try_validate());
         ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&WhisperConstruct::from_model(tiny_model()));

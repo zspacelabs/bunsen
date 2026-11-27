@@ -25,13 +25,16 @@ impl Prefabs for Qwen3AsrConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::asr::qwen3_asr::blocks::Qwen3AsrMeta;
+    use crate::{
+        errors::testing::ErrorMatcher,
+        kits::speech::asr::qwen3_asr::blocks::Qwen3AsrMeta,
+    };
 
     #[test]
     fn test_prefabs() {
         let config = Qwen3AsrConfig::expect_prefab("qwen3-asr-0.6b");
         assert_eq!(config.d_audio(), 896);
         assert_eq!(config.d_text(), 1024);
-        assert!(Qwen3AsrConfig::try_prefab("qwen3-asr-9b").is_err());
+        ErrorMatcher::lookup().assert_err(&Qwen3AsrConfig::try_prefab("qwen3-asr-9b"));
     }
 }

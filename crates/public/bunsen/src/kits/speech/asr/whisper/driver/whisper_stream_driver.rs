@@ -10,9 +10,9 @@ use burn::{
 
 use crate::{
     errors::{
-        BunsenError,
         BunsenResult,
         ConstraintError,
+        ResultContext,
     },
     kits::{
         speech::asr::{
@@ -205,13 +205,13 @@ impl WhisperStreamDriverConfig {
     /// # Errors
     /// - [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the layout
     ///   does not fit the model or its vocabulary (see
-    ///   [`WhisperConstruct::validate`]), if a language or task is given for an
-    ///   English-only layout, or if the configuration breaks a rule: no trigger
-    ///   that decodes, a zero `interval`, the `interval` trigger without
-    ///   `endpoint` (which could never draft), a zero `search.beam_size` or
-    ///   `fallback.ladder.best_of`, no fallback temperature, or a
-    ///   `search.patience` that collects no candidates. A broken field rule
-    ///   carries a [`ConstraintError`].
+    ///   [`WhisperConstruct::try_validate`]), if a language or task is given
+    ///   for an English-only layout, or if the configuration breaks a rule: no
+    ///   trigger that decodes, a zero `interval`, the `interval` trigger
+    ///   without `endpoint` (which could never draft), a zero
+    ///   `search.beam_size` or `fallback.ladder.best_of`, no fallback
+    ///   temperature, or a `search.patience` that collects no candidates. A
+    ///   broken field rule carries a [`ConstraintError`].
     /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup) if the language is
     ///   not one the layout has (see [`WhisperTokenLayout::sot_sequence`]).
     /// - [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for
@@ -224,13 +224,16 @@ impl WhisperStreamDriverConfig {
         bundle: Arc<WhisperConstruct>,
         device: &Device,
     ) -> BunsenResult<WhisperStreamDriver> {
-        bundle.validate()?;
+        bundle.try_validate()?;
         let special_ids = *bundle.layout.ids();
 
         if !special_ids.is_multilingual() && self.language.is_some() {
-            return Err(BunsenError::illegal(
-                "WhisperStreamDriverConfig.language: an English-only checkpoint takes no language",
-            ));
+            return Err(crate::errors::ConstraintError::custom(
+                "WhisperStreamDriverConfig",
+                "language",
+                "an English-only checkpoint takes no language",
+            )
+            .into());
         }
         let task = special_ids.is_multilingual().then_some(self.task);
         // A multilingual checkpoint with no language detects it per
@@ -253,10 +256,9 @@ impl WhisperStreamDriverConfig {
         }
 
         const OWNER: &str = "WhisperStreamDriverConfig";
-        let search = &self.search;
-        if search.beam_size == 0 {
-            return Err(ConstraintError::zero_or_empty(OWNER, "search.beam_size").into());
-        }
+        self.search
+            .try_validate()
+            .context("WhisperStreamDriverConfig.search")?;
         if self.fallback.ladder.temperatures.is_empty() {
             return Err(
                 ConstraintError::zero_or_empty(OWNER, "fallback.ladder.temperatures").into(),
@@ -264,21 +266,6 @@ impl WhisperStreamDriverConfig {
         }
         if self.fallback.ladder.best_of == Some(0) {
             return Err(ConstraintError::zero_or_empty(OWNER, "fallback.ladder.best_of").into());
-        }
-        if (search.beam_size as f64 * search.patience.unwrap_or(1.0)).round() < 1.0 {
-            // `round(beam_size * patience) >= 1` is `patience >= 0.5 /
-            // beam_size`.
-            return Err(ConstraintError::out_of_range(
-                OWNER,
-                "search.patience",
-                search.patience.unwrap_or(1.0),
-                format!(
-                    "[{}, ..) with {} beams, to collect a candidate",
-                    0.5 / search.beam_size as f64,
-                    search.beam_size,
-                ),
-            )
-            .into());
         }
 
         let audio_converter = bundle
