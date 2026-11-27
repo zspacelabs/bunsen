@@ -11,10 +11,7 @@ use bunsen_app::{
 use log::LevelFilter;
 
 use crate::{
-    classify::{
-        DEFAULT_IMAGE_MODEL,
-        ImageFamily,
-    },
+    classify::DEFAULT_IMAGE_MODEL,
     support::{
         print_model_row,
         print_providers,
@@ -45,12 +42,11 @@ impl ClassifyListCommand {
         println!("cache: {}", cache.cache_dir().display());
         println!();
         println!("# image checkpoints (the default: {DEFAULT_IMAGE_MODEL})");
-        for family in ImageFamily::ALL {
+        for kit in bunsen::kits::images::classification::pretrained::image_kit_factories()? {
             println!();
-            println!("## {}", family.name());
-            let listed = family.rows()?;
-            print_providers(&listed.providers);
-            for (id, row) in &listed.rows {
+            println!("## {}", kit.kit());
+            print_providers(&kit.providers());
+            for (id, row) in &kit.rows()? {
                 print_model_row(&cache, id, row, DEFAULT_IMAGE_MODEL, self.urls);
             }
         }
