@@ -11,9 +11,11 @@
 //!   stream's clock; [`AsrStreamDriver::advance_ready`] batches the decodes of
 //!   many streams through one engine.
 //! - [`AsrEngine`]: what a model gives the core: its streaming features
-//!   ([`StreamingFeatures`]; [`LogMelFeatures`] streams the log-mels the
-//!   Whisper family reads), the decode of a window ([`DecodeRequest`] to
-//!   [`WindowDecode`]), its text, and any per-stream carry.
+//!   ([`StreamingFeatures`](crate::kits::speech::support::StreamingFeatures);
+//!   [`LogMelFeatures`](crate::kits::speech::support::log_mel::LogMelFeatures)
+//!   streams the log-mels the Whisper family reads), the decode of a window
+//!   ([`DecodeRequest`] to [`WindowDecode`]), its text, and any per-stream
+//!   carry.
 //! - [`TranscriptSegment`] and [`TranscriptEvent`]: what a driver emits, a
 //!   committed segment or a draft one.
 //! - [`EmissionPolicy`]: when a driver decodes ([`DecodeTriggers`]) and what it
@@ -34,9 +36,9 @@
 //!   [`SpeakerAttribution`] rule: [`MeanActivity`], `NeMo`'s, or
 //!   [`TurnOverlap`]. An engine that decodes windows whole can cut them at a
 //!   change of speaker first ([`SpeakerCutConfig::cut`]).
-//! - [`LevelPolicy`] and [`LevelStatistic`]: what a window's features are
-//!   scaled against, the window's own frames or everything the stream has seen,
-//!   summarized as the model needs ([`MaxLevel`], [`MomentsLevel`]).
+//! - [`LevelPolicy`]: which frames a window's features are scaled against, the
+//!   window's own or everything the stream has seen, summarized as the model
+//!   needs ([`LevelStatistic`](crate::kits::speech::support::LevelStatistic)).
 //!
 //! [`support`] holds the internals underneath; nothing in it is part of the
 //! API.
@@ -49,7 +51,6 @@ pub mod support;
 mod emission_policy;
 mod engine;
 mod level;
-mod log_mel_features;
 mod quiet_cut;
 mod speaker_attribution;
 mod speaker_cut;
@@ -65,7 +66,6 @@ mod word_spans;
 pub use emission_policy::*;
 pub use engine::*;
 pub use level::*;
-pub use log_mel_features::*;
 pub use quiet_cut::*;
 pub use speaker_attribution::*;
 pub use speaker_cut::*;

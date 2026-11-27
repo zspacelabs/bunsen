@@ -11,7 +11,6 @@ use burn::{
 
 use super::{
     WHISPER_DEFAULT_D_HEAD,
-    WhisperFrontEndConfig,
     WhisperTokenLayoutConfig,
 };
 use crate::{
@@ -29,13 +28,16 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    kits::speech::asr::whisper::blocks::{
-        AudioEncoder,
-        AudioEncoderConfig,
-        AudioEncoderMeta,
-        TextDecoder,
-        TextDecoderConfig,
-        TextDecoderMeta,
+    kits::speech::{
+        asr::whisper::blocks::{
+            AudioEncoder,
+            AudioEncoderConfig,
+            AudioEncoderMeta,
+            TextDecoder,
+            TextDecoderConfig,
+            TextDecoderMeta,
+        },
+        support::log_mel::LogMelFrontEndConfig,
     },
 };
 
@@ -58,8 +60,8 @@ pub struct WhisperApiConfig {
     /// A checkpoint does not record it; it is the convention of the
     /// pipeline that trained it, and the loader declares it. Every
     /// sample-domain quantity of the front end is derived from it.
-    #[config(default = "WhisperFrontEndConfig::new()")]
-    pub front_end: WhisperFrontEndConfig,
+    #[config(default = "LogMelFrontEndConfig::new()")]
+    pub front_end: LogMelFrontEndConfig,
 
     /// The token layout the checkpoint's vocabulary follows: what its size
     /// does not say &mdash; the language codes, the spellings, the timestamp
@@ -124,7 +126,7 @@ impl ToStructureConfig for WhisperApiConfig {
 /// * [`Whisper`]
 pub trait WhisperMeta {
     /// The audio front end the model's log-mels are computed with.
-    fn front_end(&self) -> &WhisperFrontEndConfig;
+    fn front_end(&self) -> &LogMelFrontEndConfig;
 
     /// The token layout the model's vocabulary follows.
     fn token_layout(&self) -> &WhisperTokenLayoutConfig;
@@ -177,7 +179,7 @@ pub trait WhisperMeta {
 #[derive(Config, Debug)]
 pub struct WhisperStructureConfig {
     /// The audio front end the model's log-mels are computed with.
-    pub front_end: WhisperFrontEndConfig,
+    pub front_end: LogMelFrontEndConfig,
 
     /// The token layout the model's vocabulary follows.
     pub token_layout: WhisperTokenLayoutConfig,
@@ -190,7 +192,7 @@ pub struct WhisperStructureConfig {
 }
 
 impl WhisperMeta for WhisperStructureConfig {
-    fn front_end(&self) -> &WhisperFrontEndConfig {
+    fn front_end(&self) -> &LogMelFrontEndConfig {
         &self.front_end
     }
 
@@ -262,7 +264,7 @@ pub struct Whisper {
     /// `init`, it survives a checkpoint load, and the config carries it
     /// across a record round trip.
     #[module(skip)]
-    front_end: WhisperFrontEndConfig,
+    front_end: LogMelFrontEndConfig,
 
     /// The token layout the vocabulary follows. Likewise not part of the
     /// record.
@@ -277,7 +279,7 @@ pub struct Whisper {
 }
 
 impl WhisperMeta for Whisper {
-    fn front_end(&self) -> &WhisperFrontEndConfig {
+    fn front_end(&self) -> &LogMelFrontEndConfig {
         &self.front_end
     }
 
@@ -429,7 +431,7 @@ mod tests {
         let device = cpu_device();
 
         let config = WhisperApiConfig::new(8, 16, 128, 16, 1, 16, 1);
-        assert_eq!(config.front_end, WhisperFrontEndConfig::new());
+        assert_eq!(config.front_end, LogMelFrontEndConfig::new());
         assert_eq!(config.token_layout, WhisperTokenLayoutConfig::new());
         assert_eq!(config.to_structure().sample_rate(), 16_000);
         let model: Whisper = config.try_init(&device).unwrap();
@@ -437,7 +439,7 @@ mod tests {
         assert_eq!(model.token_layout().languages.len(), 100);
 
         let config = config
-            .with_front_end(WhisperFrontEndConfig::new().with_sample_rate(8_000))
+            .with_front_end(LogMelFrontEndConfig::new().with_sample_rate(8_000))
             .with_token_layout(WhisperTokenLayoutConfig::new().with_timestamp_tokens(751));
         assert_eq!(config.to_structure().sample_rate(), 8_000);
         let model: Whisper = config.try_init(&device).unwrap();
@@ -484,7 +486,7 @@ mod tests {
 
         let policy = WhisperApiConfig::new(8, 16, 64, 16, 1, 12, 2)
             .with_d_head(16)
-            .with_front_end(WhisperFrontEndConfig::new().with_sample_rate(8_000))
+            .with_front_end(LogMelFrontEndConfig::new().with_sample_rate(8_000))
             .with_token_layout(WhisperTokenLayoutConfig::new().with_timestamp_tokens(751));
 
         let structure = policy.to_structure();

@@ -10,9 +10,10 @@ use burn::{
 use crate::{
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::speech::asr::whisper::{
-        blocks::WhisperFrontEndConfig,
-        driver::support::drop_last_frame,
+    kits::speech::support::log_mel::{
+        LogMelFrontEndConfig,
+        drop_last_frame,
+        log_mels_of,
     },
     ops::signal::perceptive_audio::{
         PerceptiveAudioConverter,
@@ -50,18 +51,19 @@ pub struct VoxtralFrontEndConfig {
     #[config(default = "1.5")]
     pub global_log_mel_max: f64,
 
-    /// The Whisper front end this one is, but for the level.
-    #[config(default = "WhisperFrontEndConfig::new()")]
-    pub whisper: WhisperFrontEndConfig,
+    /// The log-mel grid and clamp range this one shares with Whisper, but
+    /// for the level.
+    #[config(default = "LogMelFrontEndConfig::new()")]
+    pub log_mel: LogMelFrontEndConfig,
 }
 
 impl VoxtralFrontEndMeta for VoxtralFrontEndConfig {
     fn sample_rate(&self) -> usize {
-        self.whisper.sample_rate
+        self.log_mel.sample_rate
     }
 
     fn hop(&self) -> usize {
-        self.whisper.hop()
+        self.log_mel.hop()
     }
 
     fn n_mels(&self) -> usize {
@@ -79,7 +81,7 @@ impl ModuleInit<VoxtralFrontEnd> for VoxtralFrontEndConfig {
         device: &Device,
     ) -> BunsenResult<VoxtralFrontEnd> {
         Ok(VoxtralFrontEnd {
-            converter: self.whisper.try_init_audio_converter(self.n_mels, device)?,
+            converter: self.log_mel.try_init_audio_converter(self.n_mels, device)?,
             config: self.clone(),
         })
     }
@@ -95,7 +97,7 @@ impl ModuleInit<VoxtralFrontEnd> for VoxtralFrontEndConfig {
 /// audio enters, so the features of a stream are the features of each of its
 /// parts.
 ///
-/// It is [`WhisperFrontEndConfig`]'s converter and packaging, shared. The
+/// It is [`LogMelFrontEndConfig`]'s converter and packaging, shared. The
 /// converter's tables are bare tensors: moved by `to_device`, not recorded,
 /// and skipped by `ModuleMapper` passes.
 ///
@@ -148,7 +150,7 @@ impl VoxtralFrontEnd {
             &[("n_mels", self.n_mels())]
         );
         let level = Tensor::<1>::full([batch], self.global_log_mel_max(), &window.device());
-        self.config.whisper.package_window(window, level)
+        self.config.log_mel.package_window(window, level)
     }
 
     /// `frames` packaged frames of silence: the floor every channel of
@@ -162,7 +164,7 @@ impl VoxtralFrontEnd {
         device: &Device,
     ) -> Tensor<3> {
         // Anything at or under the floor packages to the floor.
-        let floor = self.global_log_mel_max() - self.config.whisper.range_clamp_db;
+        let floor = self.global_log_mel_max() - self.config.log_mel.range_clamp_db;
         self.package(Tensor::full(
             [1, frames, self.n_mels()],
             floor - 1.0,
@@ -190,11 +192,7 @@ impl VoxtralFrontEnd {
     ) -> BunsenResult<Tensor<3>> {
         let n = samples.len();
         let wave = Tensor::<2>::from_data(TensorData::new(samples.to_vec(), [1, n]), device);
-        let (mels, context) = self.converter.new_context(1).transform(wave)?;
-        let joined = match context.finish() {
-            Some(tail) => Tensor::cat(vec![mels, tail], 1),
-            None => mels,
-        };
+        let joined = log_mels_of(&self.converter, wave)?;
         let features = self.package(drop_last_frame(joined));
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
@@ -220,7 +218,7 @@ mod tests {
         let config = VoxtralFrontEndConfig::new()
             .with_n_mels(80)
             .with_global_log_mel_max(2.0)
-            .with_whisper(WhisperFrontEndConfig::new().with_range_clamp_db(6.0));
+            .with_log_mel(LogMelFrontEndConfig::new().with_range_clamp_db(6.0));
         let front: VoxtralFrontEnd = config.init(&device);
         assert_eq!(front.sample_rate(), config.sample_rate());
         assert_eq!(front.hop(), config.hop());

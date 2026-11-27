@@ -13,8 +13,9 @@
 //! A checkpoint records its weights, and through their shapes the geometry;
 //! it does not record the conventions it was trained under. Two configs on
 //! the model declare them, defaulting to upstream's:
-//! [`WhisperFrontEndConfig`], the audio front end (rate, mel grid, clamp
-//! range), and [`WhisperTokenLayoutConfig`], the token layout (languages,
+//! [`LogMelFrontEndConfig`](crate::kits::speech::support::log_mel::LogMelFrontEndConfig),
+//! the audio front end (rate, mel grid, clamp range), and
+//! [`WhisperTokenLayoutConfig`], the token layout (languages,
 //! base vocabularies, spellings, timestamp grid). Everything the driver
 //! derives in samples or ids comes from those two, not from constants.
 //!
@@ -27,14 +28,12 @@
 pub const WHISPER_DEFAULT_D_HEAD: usize = 64;
 
 mod audio_encoder;
-mod front_end;
 mod geometry;
 mod text_decoder;
 mod token_layout;
 mod whisper_model;
 
 pub use audio_encoder::*;
-pub use front_end::*;
 pub use geometry::*;
 pub use text_decoder::*;
 pub use token_layout::*;

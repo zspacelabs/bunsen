@@ -25,7 +25,6 @@ use crate::{
             SpeakerAttribution,
             SpeechRegion,
             StreamClock,
-            StreamingFeatures,
             TranscriptEvent,
             TranscriptSegment,
             VoiceActivityFilter,
@@ -37,6 +36,7 @@ use crate::{
             SpeakerActivity,
             SpeakerActivityStream,
         },
+        support::StreamingFeatures,
     },
 };
 
@@ -975,14 +975,16 @@ mod tests {
             asr::driver::{
                 DecodeTriggers,
                 EmissionPolicy,
-                MaxLevel,
-                StreamingFeatures,
                 TimedTokens,
                 VoiceActivityFilterConfig,
                 VoiceActivityModel,
             },
             diarization::SpeakerActivityModel,
-            support::testing::ScriptedDiarizer,
+            support::{
+                MaxLevel,
+                StreamingFeatures,
+                testing::ScriptedDiarizer,
+            },
         },
         support::testing::{
             assert_scalar_close,

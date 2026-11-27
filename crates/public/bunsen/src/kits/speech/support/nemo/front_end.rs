@@ -13,7 +13,7 @@ use crate::{
         tensor::round_to_bf16,
     },
     errors::BunsenResult,
-    kits::speech::asr::driver::StreamingFeatures,
+    kits::speech::support::StreamingFeatures,
     ops::{
         signal::{
             kernels::window::StftWindowConfig,
@@ -337,7 +337,7 @@ impl NemoMelFrontEnd {
 /// exactly, however the samples are split; under
 /// [`PerFeature`](FeatureNormalization::PerFeature) normalization is the
 /// caller's, as a stream driver scales a window by its
-/// [`MomentsLevel`](crate::kits::speech::asr::driver::MomentsLevel).
+/// [`MomentsLevel`](crate::kits::speech::support::MomentsLevel).
 ///
 /// `[1, frames, n_mels]` per push.
 #[derive(Clone, Debug)]

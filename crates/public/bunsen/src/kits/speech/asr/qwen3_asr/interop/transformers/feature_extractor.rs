@@ -12,12 +12,12 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::asr::{
-        qwen3_asr::{
+    kits::speech::{
+        asr::qwen3_asr::{
             Qwen3AsrConfig,
             Qwen3AsrFrontEndConfig,
         },
-        whisper::blocks::WhisperFrontEndConfig,
+        support::log_mel::LogMelFrontEndConfig,
     },
 };
 
@@ -117,7 +117,7 @@ impl Qwen3AsrFeatureExtractorMirror {
             }
             Ok(samples * 1000 / sr)
         };
-        let whisper = WhisperFrontEndConfig::new()
+        let whisper = LogMelFrontEndConfig::new()
             .with_sample_rate(sr)
             .with_hop_ms(ms("hop_length", self.hop_length)?)
             .with_window_ms(ms("n_fft", self.n_fft)?);
@@ -141,7 +141,7 @@ impl Qwen3AsrFeatureExtractorMirror {
         let config = Qwen3AsrFrontEndConfig::new()
             .with_n_mels(self.feature_size)
             .with_chunk_seconds(self.chunk_length)
-            .with_whisper(whisper);
+            .with_log_mel(whisper);
         Ok(match self.min_length {
             Some(min) => config.with_min_valid_samples(min),
             None => config,
@@ -245,9 +245,9 @@ mod tests {
                 config.n_mels,
                 config.chunk_seconds,
                 config.min_valid_samples,
-                config.whisper.sample_rate,
-                config.whisper.hop_ms,
-                config.whisper.window_ms
+                config.log_mel.sample_rate,
+                config.log_mel.hop_ms,
+                config.log_mel.window_ms
             ),
             (80, 20, 1000, 8000, 10, 25)
         );

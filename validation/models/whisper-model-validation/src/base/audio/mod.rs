@@ -39,14 +39,16 @@ use bunsen::{
             asr::whisper::{
                 Whisper,
                 WhisperMeta,
-                blocks::WhisperFrontEndConfig,
                 driver::{
                     WhisperTask,
                     WhisperTokenLayout,
                 },
                 pretrained::WhisperVocabulary,
             },
-            support::testing::wer::text_error_rate,
+            support::{
+                log_mel::LogMelFrontEndConfig,
+                testing::wer::text_error_rate,
+            },
         },
         support::tokens::{
             Detokenizer,
@@ -330,7 +332,7 @@ pub fn clip_mels(
     values.resize(windows * N_SAMPLES, 0.0);
     let n = values.len();
 
-    let front_end = WhisperFrontEndConfig::new().with_sample_rate(SAMPLE_RATE);
+    let front_end = LogMelFrontEndConfig::new().with_sample_rate(SAMPLE_RATE);
     let converter: PerceptiveAudioConverter = front_end
         .mel_converter_options(N_MELS)
         .expect("a Whisper rate")

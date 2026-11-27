@@ -1,9 +1,12 @@
-//! # The audio front end a checkpoint was trained with.
+//! # The log-mel front end: a mel grid fixed in time, floored under a level.
 
 use burn::{
     Tensor,
     config::Config,
-    tensor::Device,
+    tensor::{
+        Device,
+        kind::Basic,
+    },
 };
 
 use crate::{
@@ -12,12 +15,9 @@ use crate::{
         BunsenResult,
         ConstraintError,
     },
-    kits::speech::asr::{
-        driver::{
-            LevelStatistic,
-            MaxLevel,
-        },
-        whisper::driver::support::drop_last_frame,
+    kits::speech::support::{
+        LevelStatistic,
+        MaxLevel,
     },
     ops::signal::perceptive_audio::{
         AffineCompress,
@@ -26,14 +26,15 @@ use crate::{
     },
 };
 
-/// The audio front end a checkpoint's log-mels were computed with.
+/// The log-mel front end a checkpoint's features were computed with.
 ///
-/// Whisper's log-mels are a grid fixed in time (a 25 ms window every
+/// Whisper-family log-mels are a grid fixed in time (a 25 ms window every
 /// 10 ms), computed at 16 kHz and floored 8 dB under a reference maximum.
 /// A checkpoint records none of that; it is the convention of the pipeline
-/// that trained it. This declares it on the model
-/// ([`WhisperApiConfig::front_end`](super::WhisperApiConfig::front_end)),
-/// defaulting to upstream's, so every sample-domain number is derived from
+/// that trained it. A model declares it
+/// ([`WhisperApiConfig::front_end`](crate::kits::speech::asr::whisper::blocks::WhisperApiConfig::front_end),
+/// and the Qwen3-ASR and Voxtral front ends' `log_mel`), defaulting to
+/// upstream Whisper's, so every sample-domain number is derived from
 /// it rather than written down, and a checkpoint trained differently can
 /// say so. It also builds what it drives: the mel converter
 /// ([`try_init_audio_converter`](Self::try_init_audio_converter)) and the
@@ -43,15 +44,15 @@ use crate::{
 /// The grid is in time; [`hop`](Self::hop) and [`n_fft`](Self::n_fft) put
 /// it on samples at [`sample_rate`](Self::sample_rate).
 #[derive(Config, Debug, PartialEq)]
-pub struct WhisperFrontEndConfig {
+pub struct LogMelFrontEndConfig {
     /// The sample rate, in Hz.
     #[config(default = "16_000")]
     pub sample_rate: usize,
 
-    /// The hop between mel frames, in milliseconds. One timestamp step over
-    /// the encoder's stride
-    /// ([`AUDIO_ENCODER_STRIDE`](super::AUDIO_ENCODER_STRIDE)), so that one
-    /// encoder position is one timestamp token.
+    /// The hop between mel frames, in milliseconds. For Whisper, one
+    /// timestamp step over the encoder's stride
+    /// ([`AUDIO_ENCODER_STRIDE`](crate::kits::speech::asr::whisper::blocks::AUDIO_ENCODER_STRIDE)),
+    /// so that one encoder position is one timestamp token.
     #[config(default = "10")]
     pub hop_ms: usize,
 
@@ -66,7 +67,7 @@ pub struct WhisperFrontEndConfig {
     pub range_clamp_db: f64,
 }
 
-impl WhisperFrontEndConfig {
+impl LogMelFrontEndConfig {
     /// The hop, in samples.
     pub fn hop(&self) -> usize {
         self.sample_rate * self.hop_ms / 1000
@@ -85,7 +86,7 @@ impl WhisperFrontEndConfig {
     /// not put the hop and the window on whole samples. At the default 10 ms
     /// and 25 ms that is any rate not a multiple of 200 Hz.
     pub fn try_validate(&self) -> BunsenResult<()> {
-        const OWNER: &str = "WhisperFrontEndConfig";
+        const OWNER: &str = "LogMelFrontEndConfig";
         for (field, value) in [
             ("sample_rate", self.sample_rate),
             ("hop_ms", self.hop_ms),
@@ -178,8 +179,18 @@ impl WhisperFrontEndConfig {
         window: Tensor<3>,
         reference: Tensor<1>,
     ) -> Tensor<3> {
-        let [batch, _, _] = window.dims();
-        assert_eq!(reference.dims(), [batch], "one reference per batch row");
+        let [batch, frames, n_mels] = crate::contracts::unpack_shape_contract!(
+            ["batch", "frames", "n_mels"],
+            &window.dims(),
+            &["batch", "frames", "n_mels"]
+        );
+        // One reference per batch row.
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch"],
+            &reference.dims(),
+            &[("batch", batch)]
+        );
 
         // Each row against its own reference: the batch is independent
         // streams, and one row must not see another's peak.
@@ -191,10 +202,17 @@ impl WhisperFrontEndConfig {
         // `[batch, frames, n_mels]`
         let floored = window.max_pair(floor);
 
-        AffineCompress::default()
-            .apply(floored)
-            // `[batch, n_mels, frames]`
-            .swap_dims(1, 2)
+        // `[batch, n_mels, frames]`
+        let packaged = AffineCompress::default().apply(floored).swap_dims(1, 2);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "n_mels", "frames"],
+            &packaged.dims(),
+            &[("batch", batch), ("n_mels", n_mels), ("frames", frames)]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (frames, n_mels);
+        packaged
     }
 
     /// Packages a joined log-mel spectrogram into encoder input, whole.
@@ -232,22 +250,77 @@ impl WhisperFrontEndConfig {
     }
 }
 
+/// Drops the trailing frame of a whole stream's log-mels.
+///
+/// # Arguments
+/// * `stream` - `[batch, frames, n_mels]`.
+///
+/// # Returns
+/// `[batch, frames - 1, n_mels]`.
+///
+/// # Panics
+/// If `frames` is less than 2: one frame leaves nothing to package.
+pub fn drop_last_frame<K>(stream: Tensor<3, K>) -> Tensor<3, K>
+where
+    K: Basic,
+{
+    let frames = stream.dims()[1];
+    assert!(
+        frames >= 2,
+        "package_mels needs at least 2 frames, got {frames}: one is dropped, \
+         and the clamp reduces over what remains",
+    );
+    stream.slice_dim(1, 0..frames as isize - 1)
+}
+
+/// The log-mels of whole waveforms: `wave` through a fresh context of
+/// `converter`, the tail its finish flushes joined on.
+///
+/// # Arguments
+/// * `wave` - `[batch, samples]`, in the dtype the caller computes in.
+///
+/// # Returns
+/// `[batch, frames, n_mels]`, before any packaging.
+///
+/// # Errors
+/// As [`PerceptiveAudioConversionContext::transform`](crate::ops::signal::perceptive_audio::PerceptiveAudioConversionContext::transform).
+pub fn log_mels_of(
+    converter: &PerceptiveAudioConverter,
+    wave: Tensor<2>,
+) -> BunsenResult<Tensor<3>> {
+    let [batch] =
+        crate::contracts::unpack_shape_contract!(["batch", "samples"], &wave.dims(), &["batch"]);
+    let (mels, context) = converter.new_context(batch).transform(wave)?;
+    let joined = match context.finish() {
+        Some(tail) => Tensor::cat(vec![mels, tail], 1),
+        None => mels,
+    };
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
+        ["batch", "frames", "n_mels"],
+        &joined.dims(),
+        &[("batch", batch)]
+    );
+    Ok(joined)
+}
+
 #[cfg(test)]
 mod tests {
     use burn::{
-        prelude::TensorData,
-        tensor::Tolerance,
+        prelude::{
+            TensorData,
+            s,
+        },
+        tensor::{
+            Int,
+            Tolerance,
+        },
     };
 
     use super::*;
     use crate::{
         errors::testing::ErrorMatcher,
-        kits::speech::asr::whisper::blocks::{
-            AUDIO_ENCODER_STRIDE,
-            WhisperTokenLayoutConfig,
-        },
         support::testing::{
-            assert_scalar_close,
             assert_tensor_close_to_vec,
             cpu_device,
         },
@@ -255,7 +328,7 @@ mod tests {
 
     #[test]
     fn test_defaults_are_upstreams() {
-        let front_end = WhisperFrontEndConfig::new();
+        let front_end = LogMelFrontEndConfig::new();
         assert_eq!(front_end.sample_rate, 16_000);
         assert_eq!((front_end.hop(), front_end.n_fft()), (160, 400));
         assert_eq!(front_end.range_clamp_db, 8.0);
@@ -264,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_grid_scales_with_the_rate() {
-        let at = |rate: usize| WhisperFrontEndConfig::new().with_sample_rate(rate);
+        let at = |rate: usize| LogMelFrontEndConfig::new().with_sample_rate(rate);
 
         assert_eq!((at(8_000).hop(), at(8_000).n_fft()), (80, 200));
         assert!(at(8_000).try_validate().is_ok());
@@ -292,8 +365,8 @@ mod tests {
     }
 
     /// The default front end: what every packaging test pins.
-    fn front_end() -> WhisperFrontEndConfig {
-        WhisperFrontEndConfig::new()
+    fn front_end() -> LogMelFrontEndConfig {
+        LogMelFrontEndConfig::new()
     }
 
     fn package_mels(joined: Tensor<3>) -> Tensor<3> {
@@ -355,15 +428,6 @@ mod tests {
         );
         ErrorMatcher::illegal()
             .assert_err(&front_end().with_sample_rate(0).mel_converter_options(80));
-    }
-
-    /// The default hop is one timestamp step per encoder position.
-    #[test]
-    fn test_hop_is_one_timestamp_step_per_encoder_position() {
-        let hop_seconds = front_end().hop_ms as f64 / 1000.0;
-        let step_seconds =
-            WhisperTokenLayoutConfig::new().timestamp_step_seconds / AUDIO_ENCODER_STRIDE as f64;
-        assert_scalar_close(hop_seconds, step_seconds, 1e-12);
     }
 
     /// The clamp range is the front end's, not a constant.
@@ -542,5 +606,19 @@ mod tests {
             &[2.0, 1.0],
             Tolerance::absolute(1e-6),
         );
+    }
+
+    #[test]
+    fn test_drop_last_frame() {
+        let device = cpu_device();
+        let stream: Tensor<3, Int> = Tensor::<1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+
+        let actual: Tensor<3, Int> = drop_last_frame(stream.clone());
+
+        let expected: Tensor<3, Int> = stream.slice(s![.., ..-1, ..]);
+
+        actual
+            .to_data_as::<i32>()
+            .assert_eq(&expected.to_data_as::<i32>(), true);
     }
 }
