@@ -29,6 +29,7 @@ use crate::{
     burner::module::ModuleInit,
     support::testing::{
         ToyFixture,
+        matching::TensorMatcher,
         performance_device,
         testdata,
     },
@@ -152,17 +153,10 @@ fn assert_close(
     want: Tensor<3>,
     lengths: &[usize],
 ) {
-    assert_eq!(got.dims(), want.dims(), "{what}: shape");
-    let [_, _, width] = got.dims();
-    for (b, &n) in lengths.iter().enumerate() {
-        got.clone()
-            .slice([b..b + 1, 0..n, 0..width])
-            .into_data()
-            .assert_approx_eq::<f32>(
-                &want.clone().slice([b..b + 1, 0..n, 0..width]).into_data(),
-                Tolerance::rel_abs(1e-4, 1e-4),
-            );
-    }
+    TensorMatcher::close_to(&want, Tolerance::rel_abs(1e-4, 1e-4))
+        .valid_prefix(1, lengths)
+        .named(what)
+        .assert(&got);
 }
 
 /// The toy's geometry is the fixture's.

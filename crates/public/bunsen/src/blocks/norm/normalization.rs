@@ -336,7 +336,10 @@ mod tests {
     use crate::{
         burner::module::DTypeMapper,
         errors::testing::ErrorMatcher,
-        support::testing::cpu_device,
+        support::testing::{
+            cpu_device,
+            matching::TensorMatcher,
+        },
     };
 
     fn input(device: &Device) -> Tensor<2> {
@@ -370,11 +373,9 @@ mod tests {
         let norm = BunsenNormalizationConfig::from(RmsNormConfig::new(4)).init(&device);
         let reference = norm.forward(input(&device));
         let half = norm.forward(input(&device).cast(DType::BF16));
-        assert_eq!(half.dtype(), DType::BF16);
-        half.cast(DType::F32).into_data().assert_approx_eq::<f32>(
-            &reference.into_data(),
-            burn::tensor::Tolerance::absolute(2e-2),
-        );
+        TensorMatcher::close_to(&reference, burn::tensor::Tolerance::absolute(2e-2))
+            .dtype(DType::BF16)
+            .assert(&half);
     }
 
     /// A gain kept in f32 meets a bf16 input in the input's dtype: no mixed
@@ -436,11 +437,9 @@ mod tests {
             burn::tensor::Tolerance::absolute(1e-6),
         );
         let half = ours.forward(x.clone().cast(DType::BF16));
-        assert_eq!(half.dtype(), DType::BF16);
-        half.cast(DType::F32).into_data().assert_approx_eq::<f32>(
-            &burns.forward(x).into_data(),
-            burn::tensor::Tolerance::absolute(2e-2),
-        );
+        TensorMatcher::close_to(&burns.forward(x), burn::tensor::Tolerance::absolute(2e-2))
+            .dtype(DType::BF16)
+            .assert(&half);
     }
 
     /// A config's serde form is burn's `NormalizationConfig`'s, so saved
