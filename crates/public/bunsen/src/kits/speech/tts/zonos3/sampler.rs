@@ -8,17 +8,15 @@ use alloc::vec::Vec;
 use burn::{
     Tensor,
     config::Config,
-    tensor::DType,
 };
 
 use crate::kits::support::decoding::{
-    LogitFilter,
+    CodeSampler,
     MinP,
     RepetitionPenalty,
     SuppressTokens,
     TopK,
     TopP,
-    sample_softmax,
 };
 
 /// The lowest temperature [`Zonos3Sampler`] samples at: a lower one, zero
@@ -121,23 +119,27 @@ impl Zonos3SamplerConfig {
         let temperature = self.temperature.max(ZONOS3_MIN_TEMPERATURE);
         let eoa = eoa_id as i64;
         Zonos3Sampler {
-            masked: SuppressTokens::new(
-                (codebook_size as i64..audio_vocab as i64).filter(|&id| id != eoa),
-            ),
-            penalty: RepetitionPenalty::new(self.repetition_penalty)
-                .with_window(self.repetition_window)
-                .with_exempt(codebook_size as i64..audio_vocab as i64),
-            repetition_codebooks: self.repetition_codebooks,
-            top_k: TopK { k: self.top_k },
-            top_p: TopP {
-                p: self.top_p,
+            code: CodeSampler {
+                suppress: Some(SuppressTokens::new(
+                    (codebook_size as i64..audio_vocab as i64).filter(|&id| id != eoa),
+                )),
+                penalty: Some(
+                    RepetitionPenalty::new(self.repetition_penalty)
+                        .with_window(self.repetition_window)
+                        .with_exempt(codebook_size as i64..audio_vocab as i64),
+                ),
+                penalized_rows: Some(self.repetition_codebooks),
+                top_k: Some(TopK { k: self.top_k }),
+                top_p: Some(TopP {
+                    p: self.top_p,
+                    temperature,
+                }),
+                min_p: (self.min_p > 0.0).then_some(MinP {
+                    p: self.min_p,
+                    temperature,
+                }),
                 temperature,
             },
-            min_p: (self.min_p > 0.0).then_some(MinP {
-                p: self.min_p,
-                temperature,
-            }),
-            temperature,
         }
     }
 }
@@ -152,8 +154,9 @@ impl Zonos3SamplerConfig {
 ///    the codes they generated within the window (the end of audio and the pad
 ///    never count);
 /// 3. top-k, then top-p and min-p at the temperature;
-/// 4. one draw per codebook at the temperature ([`sample_softmax`]), on the
-///    backend's random numbers (`device.seed(..)` repeats a take).
+/// 4. one draw per codebook at the temperature
+///    ([`sample_softmax`](crate::kits::support::decoding::sample_softmax)), on
+///    the backend's random numbers (`device.seed(..)` repeats a take).
 ///
 /// Top-p is [`TopP`]'s, the standard nucleus: the release's sampler also
 /// keeps a code whose preceding mass is exactly `p`, which this does not.
@@ -161,19 +164,13 @@ impl Zonos3SamplerConfig {
 /// distribution, never code for code.
 #[derive(Clone, Debug)]
 pub struct Zonos3Sampler {
-    masked: SuppressTokens,
-    penalty: RepetitionPenalty,
-    repetition_codebooks: usize,
-    top_k: TopK,
-    top_p: TopP,
-    min_p: Option<MinP>,
-    temperature: f64,
+    code: CodeSampler,
 }
 
 impl Zonos3Sampler {
     /// The temperature it samples at.
     pub fn temperature(&self) -> f64 {
-        self.temperature
+        self.code.temperature
     }
 
     /// One row's codes, one per codebook.
@@ -187,29 +184,8 @@ impl Zonos3Sampler {
         logits: Tensor<2>,
         history: &[Vec<i64>],
     ) -> Vec<i64> {
-        let [k, _] = logits.dims();
-        let logits = self.masked.apply(logits.cast(DType::F32), &[], 0);
-        let covered = self.repetition_codebooks.min(k);
-        let logits = if covered > 0 {
-            let penalized = self.penalty.apply(
-                logits.clone().slice_dim(0, 0..covered),
-                &history[..covered.min(history.len())],
-                0,
-            );
-            if covered < k {
-                Tensor::cat(vec![penalized, logits.slice_dim(0, covered..k)], 0)
-            } else {
-                penalized
-            }
-        } else {
-            logits
-        };
-        let mut logits = self.top_k.apply(logits, &[], 0);
-        logits = self.top_p.apply(logits, &[], 0);
-        if let Some(min_p) = &self.min_p {
-            logits = min_p.apply(logits, &[], 0);
-        }
-        sample_softmax(logits, self.temperature)
+        self.code
+            .choose(logits, history, &[])
             .into_data()
             .try_into_vec_as::<i64>()
             .expect("the drawn ids")

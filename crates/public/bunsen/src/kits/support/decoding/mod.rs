@@ -9,6 +9,8 @@
 //!   ones, [`TopK`], [`TopP`] and [`MinP`] the sampling truncations, and a kit
 //!   adds its own (Whisper's timestamp grammar,
 //!   [`ApplyTimestampRules`](crate::kits::speech::asr::whisper::logit_filters::ApplyTimestampRules)).
+//! - [`CodeSampler`]: those filters as one fixed chain, each stage optional,
+//!   then a draw: what a TTS model's sampler chooses its codes through.
 //! - [`TokenSearch`]: the search seam. It owns the sequences' bookkeeping, and
 //!   tells the loop how to permute its cache's rows when beams branch.
 //!   [`GreedySearch`] is the argmax, or sampling above temperature zero
@@ -35,6 +37,7 @@
 
 mod beam;
 mod cached_decode;
+mod code_sampler;
 mod filters;
 mod greedy;
 mod pool_release;
@@ -46,6 +49,7 @@ mod temperature;
 
 pub use beam::*;
 pub use cached_decode::*;
+pub use code_sampler::*;
 pub use filters::*;
 pub use greedy::*;
 pub use pool_release::*;
