@@ -11,10 +11,7 @@ use burn::{
 use super::SortformerStreamingConfig;
 use crate::{
     burner::tensor::cat_optional,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
 };
 
 /// What a compressed cache's silence slots hold.
@@ -212,11 +209,16 @@ impl SpeakerCache {
         let n_chunk = chunk.dims()[0];
         let covered = step_probs.len() / s;
         if covered < n_cache + n_fifo + n_chunk || !step_probs.len().is_multiple_of(s) {
-            return Err(BunsenError::illegal(format!(
-                "SpeakerCache::update: {} probabilities do not cover {n_cache} cache, {n_fifo} FIFO \
-                 and {n_chunk} chunk frames of {s} speakers",
-                step_probs.len()
-            )));
+            return Err(crate::errors::ConstraintError::custom(
+                "SpeakerCache::update",
+                "step_probs",
+                format!(
+                    "{} probabilities do not cover {n_cache} cache, {n_fifo} FIFO and {n_chunk} \
+                     chunk frames of {s} speakers",
+                    step_probs.len()
+                ),
+            )
+            .into());
         }
 
         let fifo = cat_optional(self.fifo.take(), Some(chunk), 0).expect("the chunk is present");
@@ -420,7 +422,10 @@ fn boost(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        errors::testing::ErrorMatcher,
+        support::testing::cpu_device,
+    };
 
     fn config() -> SortformerStreamingConfig {
         SortformerStreamingConfig::new(3, 1, 6, 12, 4)
@@ -463,7 +468,7 @@ mod tests {
             .unwrap();
         assert_eq!(first, [0.0, 1.0]);
 
-        assert!(cache.update(&[0.1; 2], frames(1, 0.0)).is_err());
+        ErrorMatcher::illegal().assert_err(&cache.update(&[0.1; 2], frames(1, 0.0)));
     }
 
     /// A running mean takes in the silent frames the FIFO pops, and only

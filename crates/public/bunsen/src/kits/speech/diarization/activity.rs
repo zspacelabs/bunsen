@@ -5,7 +5,6 @@ use core::fmt::Debug;
 use dyn_clone::DynClone;
 
 use crate::errors::{
-    BunsenError,
     BunsenResult,
     ConstraintError,
     Rule,
@@ -119,18 +118,40 @@ impl SpeakerActivity {
         next: SpeakerActivity,
     ) -> BunsenResult<()> {
         if next.frame_samples != self.frame_samples || next.n_speakers != self.n_speakers {
-            return Err(BunsenError::illegal(format!(
-                "SpeakerActivity::append: frames of {} samples over {} speakers cannot take \
-                 frames of {} over {}",
-                self.frame_samples, self.n_speakers, next.frame_samples, next.n_speakers
-            )));
+            return Err(crate::errors::ConstraintError::new(
+                "SpeakerActivity::append",
+                "next",
+                crate::errors::Rule::Relation {
+                    lhs: (
+                        "its frames".into(),
+                        format!(
+                            "{} samples over {} speakers",
+                            next.frame_samples, next.n_speakers
+                        ),
+                    ),
+                    op: "==",
+                    rhs: (
+                        "these".into(),
+                        format!(
+                            "{} samples over {} speakers",
+                            self.frame_samples, self.n_speakers
+                        ),
+                    ),
+                },
+            )
+            .into());
         }
         if !next.is_empty() && next.start != self.end() {
-            return Err(BunsenError::illegal(format!(
-                "SpeakerActivity::append: the next frames start at sample {}, not at {}",
-                next.start,
-                self.end()
-            )));
+            return Err(crate::errors::ConstraintError::new(
+                "SpeakerActivity::append",
+                "next.start",
+                crate::errors::Rule::Relation {
+                    lhs: ("next.start".into(), next.start.to_string()),
+                    op: "==",
+                    rhs: ("the end of these".into(), self.end().to_string()),
+                },
+            )
+            .into());
         }
         self.probs.extend(next.probs);
         Ok(())
@@ -224,6 +245,7 @@ dyn_clone::clone_trait_object!(<> SpeakerActivityStream);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     fn activity(
         start: usize,
@@ -245,9 +267,9 @@ mod tests {
 
     #[test]
     fn test_try_new_checks_its_shape() {
-        assert!(SpeakerActivity::try_new(0, 10, 2, vec![0.0; 3]).is_err());
-        assert!(SpeakerActivity::try_new(0, 0, 2, vec![]).is_err());
-        assert!(SpeakerActivity::try_new(0, 10, 0, vec![]).is_err());
+        ErrorMatcher::illegal().assert_err(&SpeakerActivity::try_new(0, 10, 2, vec![0.0; 3]));
+        ErrorMatcher::illegal().assert_err(&SpeakerActivity::try_new(0, 0, 2, vec![]));
+        ErrorMatcher::illegal().assert_err(&SpeakerActivity::try_new(0, 10, 0, vec![]));
     }
 
     #[test]
@@ -257,9 +279,9 @@ mod tests {
         assert_eq!(a.frames(), 3);
         assert_eq!(a.end(), 30);
 
-        assert!(a.append(activity(40, 1)).is_err());
+        ErrorMatcher::illegal().assert_err(&a.append(activity(40, 1)));
         let other = SpeakerActivity::try_new(30, 5, 2, vec![0.0; 2]).unwrap();
-        assert!(a.append(other).is_err());
+        ErrorMatcher::illegal().assert_err(&a.append(other));
         a.append(SpeakerActivity::empty(99, 10, 2)).unwrap();
         assert_eq!(a.frames(), 3);
     }

@@ -175,6 +175,7 @@ impl core::fmt::Display for SortformerFamily {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_template_class() {
@@ -198,16 +199,16 @@ mod tests {
     fn test_check() {
         let c = SortformerStreamingConfig::new(3, 1, 6, 12, 4);
         c.check(3).unwrap();
-        assert!(c.check(7).is_err());
+        ErrorMatcher::illegal().assert_err(&c.check(7));
         let empty_chunk = SortformerStreamingConfig {
             chunk_len: 0,
             ..c.clone()
         };
-        assert!(empty_chunk.check(3).is_err());
+        ErrorMatcher::illegal().assert_err(&empty_chunk.check(3));
         let no_period = SortformerStreamingConfig {
             update_period: 0,
             ..c
         };
-        assert!(no_period.check(3).is_err());
+        ErrorMatcher::illegal().assert_err(&no_period.check(3));
     }
 }

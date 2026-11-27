@@ -314,11 +314,19 @@ impl SortformerStream {
         config: SortformerStreamingConfig,
     ) -> BunsenResult<Self> {
         if front_end.n_mels() != model.n_mels() {
-            return Err(BunsenError::illegal(format!(
-                "SortformerStream: the front end makes {} mels, the model reads {}",
-                front_end.n_mels(),
-                model.n_mels()
-            )));
+            return Err(crate::errors::ConstraintError::new(
+                "SortformerStream",
+                "front_end",
+                crate::errors::Rule::Relation {
+                    lhs: (
+                        "the front end's mels".into(),
+                        front_end.n_mels().to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("the model's mels".into(), model.n_mels().to_string()),
+                },
+            )
+            .into());
         }
         let device = model.devices()[0].clone();
         let hop = front_end.hop();

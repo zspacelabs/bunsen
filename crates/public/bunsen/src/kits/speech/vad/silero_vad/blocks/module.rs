@@ -373,7 +373,7 @@ impl SileroVadStructureConfig {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause, if the encoder input does not match the
     /// magnitude bin count, or if the LSTM / head widths are inconsistent.
-    pub fn validate(&self) -> BunsenResult<()> {
+    pub fn try_validate(&self) -> BunsenResult<()> {
         self.encoder.try_validate()?;
 
         let hidden = self.d_hidden();
@@ -425,7 +425,7 @@ impl ModuleInit<SileroVad> for SileroVadStructureConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<SileroVad> {
-        self.validate()?;
+        self.try_validate()?;
         Ok(SileroVad {
             sample_rate: self.sample_rate,
             input_pad: self.input_pad,
@@ -1059,7 +1059,7 @@ mod tests {
             assert_eq!(cfg.encoder.in_channels(), cfg.n_freq());
             assert_eq!(cfg.d_hidden(), 128);
             assert_eq!(cfg.d_bottleneck(), 64);
-            cfg.validate().unwrap();
+            cfg.try_validate().unwrap();
         }
 
         {
@@ -1087,7 +1087,7 @@ mod tests {
             assert_eq!(cfg.encoder.in_channels(), cfg.n_freq());
             assert_eq!(cfg.d_hidden(), 128);
             assert_eq!(cfg.d_bottleneck(), 64);
-            cfg.validate().unwrap();
+            cfg.try_validate().unwrap();
         }
     }
 
@@ -1100,7 +1100,7 @@ mod tests {
         };
         ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
-            .assert_err(&bad.validate());
+            .assert_err(&bad.try_validate());
     }
 
     /// With no frequency bins, the STFT stride (`n_freq - 1`) underflows:

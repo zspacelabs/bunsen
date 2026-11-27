@@ -110,7 +110,10 @@ impl core::fmt::Display for RttmSegment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::assert_scalar_close;
+    use crate::{
+        errors::testing::ErrorMatcher,
+        support::testing::assert_scalar_close,
+    };
 
     #[test]
     fn test_round_trip() {
@@ -154,7 +157,9 @@ mod tests {
 
     #[test]
     fn test_parse_refuses_a_bad_line() {
-        assert!(RttmSegment::parse("SPEAKER f 1 x 0.5 <NA> <NA> A <NA> <NA>").is_err());
-        assert!(RttmSegment::parse("SPEAKER f 1 1.0").is_err());
+        ErrorMatcher::invalid_resource().assert_err(&RttmSegment::parse(
+            "SPEAKER f 1 x 0.5 <NA> <NA> A <NA> <NA>",
+        ));
+        ErrorMatcher::invalid_resource().assert_err(&RttmSegment::parse("SPEAKER f 1 1.0"));
     }
 }
