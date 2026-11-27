@@ -28,7 +28,7 @@ use bunsen::{
         WhisperApiConfig,
         WhisperGeometry,
         WhisperMeta,
-        interop::openai_whisper::PytorchWhisperScanner,
+        interop::WhisperScanDefaults,
         pretrained::{
             CHECKPOINT,
             GeometryMismatch,
@@ -224,14 +224,14 @@ fn test_the_bundled_base_scans_as_the_base_prefab() {
     assert_eq!(geometry.n_heads(), 8);
 }
 
-/// The scanner is honored: one that declares another head size scans
+/// The scan defaults are honored: ones that declare another head size scan
 /// the bundled file to another geometry, which a named model rejects
 /// and a given one reports.
 #[test]
-fn test_scan_honors_the_scanner() {
+fn test_scan_honors_the_scan_defaults() {
     let base = bind_whisper_onnx::base_pt();
-    let hook =
-        WhisperConstructConfig::new().with_scanner(PytorchWhisperScanner::new().with_d_head(32));
+    let hook = WhisperConstructConfig::new()
+        .with_scan_defaults(WhisperScanDefaults::new().with_d_head(32));
 
     let named = resolve_model("openai/base").unwrap();
     ErrorMatcher::invalid_resource()

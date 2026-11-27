@@ -233,7 +233,7 @@ mod tests {
         let resolved = factory.resolve("hub:openai/whisper-base", &offline_cache_in(dir.path()));
         assert!(matches!(
             resolved.unwrap().config.reader,
-            WhisperReader::Safetensors(_)
+            WhisperReader::Safetensors
         ));
     }
 

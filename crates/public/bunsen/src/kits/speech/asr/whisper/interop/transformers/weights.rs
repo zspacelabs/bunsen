@@ -1,9 +1,6 @@
 //! Reading a `transformers` Whisper checkpoint.
 
-use burn::{
-    config::Config,
-    tensor::Device,
-};
+use burn::tensor::Device;
 
 use super::whisper_rekey;
 use crate::{
@@ -11,25 +8,27 @@ use crate::{
         CanonicalKeys,
         ModuleInit,
     },
-    data::formats::SafetensorsCheckpoint,
+    data::{
+        builds::CHECKPOINT,
+        formats::SafetensorsCheckpoint,
+        resources::LoadedResourceSet,
+    },
     errors::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::{
-        asr::whisper::blocks::{
+    kits::speech::asr::whisper::{
+        blocks::{
             AUDIO_ENCODER_STRIDE,
-            WHISPER_DEFAULT_D_HEAD,
             Whisper,
             WhisperApiConfig,
-            WhisperTokenLayoutConfig,
         },
-        support::log_mel::LogMelFrontEndConfig,
+        interop::WhisperScanDefaults,
     },
 };
 
-/// Reads a `transformers` Whisper checkpoint: `model.safetensors`, or its
-/// shards.
+/// The config of a `transformers` Whisper checkpoint, `model.safetensors` or
+/// its shards, scanned from the files' headers.
 ///
 /// `transformers` exports a Whisper model as `model.safetensors`, or as
 /// shards with an index, under its own parameter names:
@@ -37,120 +36,111 @@ use crate::{
 /// has `encoder.blocks.N.attn.query.weight`, `fc1` for `mlp.0`,
 /// `embed_positions.weight` for `positional_embedding`, and so on. This
 /// reads that layout: the geometry from the files' headers alone
-/// ([`scan_cfg`](Self::scan_cfg)), the weights through the generic
+/// ([`whisper_config_from_headers`]), the weights through the generic
 /// [`SafetensorsCheckpoint`] with the names mapped to bunsen's
 /// ([`whisper_rekey`]). The tied output projection, when a repo carries
 /// it, is left unused: bunsen's decoder projects through its token embedding,
 /// as upstream's does.
 ///
-/// [`WhisperReader`](crate::kits::speech::asr::whisper::pretrained::WhisperReader) picks this for a checkpoint
-/// whose `kind` is safetensors, which is what the `hf:` provider serves.
-#[derive(Debug, Config)]
-pub struct SafetensorsWhisperScanner {
-    /// The audio front end to declare on the scanned config.
-    ///
-    /// A checkpoint does not record it; `OpenAI`'s were all trained with
-    /// the default, and so is every conversion of them.
-    #[config(default = "LogMelFrontEndConfig::new()")]
-    pub front_end: LogMelFrontEndConfig,
+/// [`WhisperReader::Safetensors`](crate::kits::speech::asr::whisper::pretrained::WhisperReader::Safetensors)
+/// reads through these, for a checkpoint whose `kind` is safetensors, which is
+/// what the `hf:` provider serves.
+///
+/// The geometry comes from the tensors' shapes, the layer counts from their
+/// names; `defaults` declares the rest. No tensor data is read.
+///
+/// # Errors
+/// As [`SafetensorsCheckpoint::headers`];
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+/// naming a tensor the layout requires and the checkpoint lacks, or has at
+/// another rank.
+pub fn whisper_config_from_headers(
+    checkpoint: &SafetensorsCheckpoint,
+    defaults: &WhisperScanDefaults,
+) -> BunsenResult<WhisperApiConfig> {
+    let header = checkpoint.headers()?;
+    let name = || {
+        checkpoint
+            .shards
+            .first()
+            .map(|s| s.display().to_string())
+            .unwrap_or_default()
+    };
+    let shape = |tensor: &str, rank: usize| -> BunsenResult<&[usize]> {
+        let shape = header
+            .get(tensor)
+            .map(|e| e.shape.as_slice())
+            .ok_or_else(|| {
+                BunsenError::invalid_resource(format!(
+                    "{}: not a transformers Whisper checkpoint: no {tensor}",
+                    name()
+                ))
+            })?;
+        if shape.len() == rank {
+            Ok(shape)
+        } else {
+            Err(BunsenError::invalid_resource(format!(
+                "{}: {tensor} has shape {shape:?}, not rank {rank}",
+                name()
+            )))
+        }
+    };
 
-    /// The token layout to declare on the scanned config: upstream's.
-    #[config(default = "WhisperTokenLayoutConfig::new()")]
-    pub token_layout: WhisperTokenLayoutConfig,
+    let conv1 = shape("model.encoder.conv1.weight", 3)?;
+    let (d_model, n_mels) = (conv1[0], conv1[1]);
+    let vocab_size = shape("model.decoder.embed_tokens.weight", 2)?[0];
+    let max_audio_ctx = shape("model.encoder.embed_positions.weight", 2)?[0] * AUDIO_ENCODER_STRIDE;
+    let max_text_ctx = shape("model.decoder.embed_positions.weight", 2)?[0];
+    let layers = |side: &str| {
+        let prefix = format!("model.{side}.layers.");
+        header
+            .keys()
+            .filter(|k| k.starts_with(&prefix) && k.ends_with(".self_attn.k_proj.weight"))
+            .count()
+    };
 
-    /// Head dimensionality: every `OpenAI` checkpoint's is 64, and a
-    /// checkpoint does not record it.
-    #[config(default = "WHISPER_DEFAULT_D_HEAD")]
-    pub d_head: usize,
+    Ok(defaults.declare(WhisperApiConfig::new(
+        n_mels,
+        vocab_size,
+        d_model,
+        max_audio_ctx,
+        layers("encoder"),
+        max_text_ctx,
+        layers("decoder"),
+    )))
 }
 
-impl SafetensorsWhisperScanner {
-    /// Scans a checkpoint for its config from the files' headers: the
-    /// geometry from the tensors' shapes, the layer counts from their
-    /// names. No tensor data is read.
-    ///
-    /// # Errors
-    /// As [`SafetensorsCheckpoint::headers`];
-    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
-    /// naming a tensor the layout requires and the checkpoint lacks, or has
-    /// at another rank.
-    pub fn scan_cfg(
-        &self,
-        checkpoint: &SafetensorsCheckpoint,
-    ) -> BunsenResult<WhisperApiConfig> {
-        let header = checkpoint.headers()?;
-        let name = || {
-            checkpoint
-                .shards
-                .first()
-                .map(|s| s.display().to_string())
-                .unwrap_or_default()
-        };
-        let shape = |tensor: &str, rank: usize| -> BunsenResult<&[usize]> {
-            let shape = header
-                .get(tensor)
-                .map(|e| e.shape.as_slice())
-                .ok_or_else(|| {
-                    BunsenError::invalid_resource(format!(
-                        "{}: not a transformers Whisper checkpoint: no {tensor}",
-                        name()
-                    ))
-                })?;
-            if shape.len() == rank {
-                Ok(shape)
-            } else {
-                Err(BunsenError::invalid_resource(format!(
-                    "{}: {tensor} has shape {shape:?}, not rank {rank}",
-                    name()
-                )))
-            }
-        };
+/// Loads `checkpoint`'s tensors into `module`, under [`whisper_rekey`].
+///
+/// # Errors
+/// As [`SafetensorsCheckpoint::tensors`] and
+/// [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to).
+pub fn load_whisper_tensors(
+    module: &mut Whisper,
+    checkpoint: &SafetensorsCheckpoint,
+) -> BunsenResult<()> {
+    let rekey = whisper_rekey().then(module.canonical_rekey());
+    rekey.apply_to(module, checkpoint.tensors()?)?;
+    Ok(())
+}
 
-        let conv1 = shape("model.encoder.conv1.weight", 3)?;
-        let (d_model, n_mels) = (conv1[0], conv1[1]);
-        let vocab_size = shape("model.decoder.embed_tokens.weight", 2)?[0];
-        let max_audio_ctx =
-            shape("model.encoder.embed_positions.weight", 2)?[0] * AUDIO_ENCODER_STRIDE;
-        let max_text_ctx = shape("model.decoder.embed_positions.weight", 2)?[0];
-        let layers = |side: &str| {
-            let prefix = format!("model.{side}.layers.");
-            header
-                .keys()
-                .filter(|k| k.starts_with(&prefix) && k.ends_with(".self_attn.k_proj.weight"))
-                .count()
-        };
-
-        Ok(WhisperApiConfig::new(
-            n_mels,
-            vocab_size,
-            d_model,
-            max_audio_ctx,
-            layers("encoder"),
-            max_text_ctx,
-            layers("decoder"),
-        )
-        .with_d_head(self.d_head)
-        .with_front_end(self.front_end.clone())
-        .with_token_layout(self.token_layout.clone()))
-    }
-
-    /// Loads a checkpoint into a model at the precision the files store.
-    ///
-    /// # Errors
-    /// As [`scan_cfg`](Self::scan_cfg),
-    /// [`SafetensorsCheckpoint::tensors`] and
-    /// [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to).
-    pub fn load(
-        &self,
-        checkpoint: &SafetensorsCheckpoint,
-        device: &Device,
-    ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
-        let cfg = self.scan_cfg(checkpoint)?;
-        let mut module: Whisper = cfg.try_init(device)?;
-        let rekey = whisper_rekey().then(module.canonical_rekey());
-        rekey.apply_to(&mut module, checkpoint.tensors()?)?;
-        Ok((module, cfg))
-    }
+/// The checkpoint in `loaded`, under [`CHECKPOINT`], as a model of `config`
+/// on `device`: loaded at the files' precision, then placed under `policy`.
+///
+/// # Errors
+/// As [`SafetensorsCheckpoint::from_loaded`], [`ModuleInit::try_init`] for
+/// `config`, [`load_whisper_tensors`] and
+/// [`LoadPolicy::place`](crate::data::formats::LoadPolicy::place).
+pub fn load_whisper(
+    loaded: &LoadedResourceSet,
+    config: &WhisperApiConfig,
+    device: &Device,
+    policy: crate::data::formats::LoadPolicy,
+) -> BunsenResult<Whisper> {
+    let checkpoint = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?;
+    let mut module: Whisper = config.try_init(device)?;
+    load_whisper_tensors(&mut module, &checkpoint)?;
+    policy.place(module, device, |_| true)
 }
 
 #[cfg(test)]
@@ -375,12 +365,12 @@ mod tests {
         assert_eq!(header["model.decoder.embed_tokens.weight"].shape, [64, 16]);
 
         let checkpoint = SafetensorsCheckpoint::single(&path);
-        let scanner = SafetensorsWhisperScanner::new().with_d_head(D_HEAD);
-        let cfg = scanner.scan_cfg(&checkpoint).unwrap();
+        let defaults = WhisperScanDefaults::new().with_d_head(D_HEAD);
+        let cfg = whisper_config_from_headers(&checkpoint, &defaults).unwrap();
         assert_eq!(cfg.geometry(), toy().geometry());
 
-        let (loaded, cfg) = scanner.load(&checkpoint, &device).unwrap();
-        assert_eq!(cfg.geometry(), toy().geometry());
+        let mut loaded: Whisper = cfg.init(&device);
+        load_whisper_tensors(&mut loaded, &checkpoint).unwrap();
         assert_eq!(loaded.n_mels(), 80);
         assert_eq!(loaded.vocab_size(), 64);
         assert_same_weights(&model, &loaded);
@@ -409,18 +399,20 @@ mod tests {
         let checkpoint = SafetensorsCheckpoint {
             shards: vec![s1.clone(), s2.clone()],
         };
-        let scanner = SafetensorsWhisperScanner::new().with_d_head(D_HEAD);
-        let cfg = scanner.scan_cfg(&checkpoint).unwrap();
+        let defaults = WhisperScanDefaults::new().with_d_head(D_HEAD);
+        let cfg = whisper_config_from_headers(&checkpoint, &defaults).unwrap();
         assert_eq!(cfg.geometry(), toy().geometry());
-        let (loaded, _) = scanner.load(&checkpoint, &device).unwrap();
+        let mut loaded: Whisper = cfg.init(&device);
+        load_whisper_tensors(&mut loaded, &checkpoint).unwrap();
         assert_same_weights(&model, &loaded);
 
         let encoder_only = SafetensorsCheckpoint::single(&s1);
         ErrorMatcher::invalid_resource()
             .message_contains("no model.decoder.embed_tokens.weight")
-            .assert_err(&scanner.scan_cfg(&encoder_only));
+            .assert_err(&whisper_config_from_headers(&encoder_only, &defaults));
         let decoder_only = SafetensorsCheckpoint::single(&s2);
-        ErrorMatcher::invalid_resource().assert_err(&scanner.scan_cfg(&decoder_only));
+        ErrorMatcher::invalid_resource()
+            .assert_err(&whisper_config_from_headers(&decoder_only, &defaults));
     }
 
     /// A safetensors file of something else is refused by name, from its
@@ -437,8 +429,9 @@ mod tests {
 
         ErrorMatcher::invalid_resource()
             .message_contains("no model.encoder.conv1.weight")
-            .assert_err(
-                &SafetensorsWhisperScanner::new().scan_cfg(&SafetensorsCheckpoint::single(&path)),
-            );
+            .assert_err(&whisper_config_from_headers(
+                &SafetensorsCheckpoint::single(&path),
+                &WhisperScanDefaults::new(),
+            ));
     }
 }

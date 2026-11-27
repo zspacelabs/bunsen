@@ -1,8 +1,10 @@
 use bunsen::{
+    burner::module::ModuleInit,
     data::formats::SafetensorsCheckpoint,
     kits::speech::asr::whisper::interop::{
-        openai_whisper::PytorchWhisperScanner,
-        transformers::SafetensorsWhisperScanner,
+        WhisperScanDefaults,
+        openai_whisper,
+        transformers,
     },
     support::testing::cpu_device,
 };
@@ -18,15 +20,15 @@ use burn::store::{
 #[test]
 fn test_the_transformers_checkpoint_is_base_pt() {
     let device = cpu_device();
-    let (pt, pt_cfg) = PytorchWhisperScanner::new()
-        .load(bind_whisper_onnx::base_pt(), &device)
-        .unwrap();
-    let (hf, hf_cfg) = SafetensorsWhisperScanner::new()
-        .load(
-            &SafetensorsCheckpoint::single(bind_whisper_onnx::base_safetensors()),
-            &device,
-        )
-        .unwrap();
+    let defaults = WhisperScanDefaults::new();
+    let pt_cfg =
+        openai_whisper::whisper_config_from_path(bind_whisper_onnx::base_pt(), &defaults).unwrap();
+    let mut pt: bunsen::kits::speech::asr::whisper::Whisper = pt_cfg.init(&device);
+    openai_whisper::load_whisper_tensors(&mut pt, bind_whisper_onnx::base_pt()).unwrap();
+    let checkpoint = SafetensorsCheckpoint::single(bind_whisper_onnx::base_safetensors());
+    let hf_cfg = transformers::whisper_config_from_headers(&checkpoint, &defaults).unwrap();
+    let mut hf: bunsen::kits::speech::asr::whisper::Whisper = hf_cfg.init(&device);
+    transformers::load_whisper_tensors(&mut hf, &checkpoint).unwrap();
     assert_eq!(hf_cfg.geometry(), pt_cfg.geometry());
 
     let params = |m: &bunsen::kits::speech::asr::whisper::Whisper| {
