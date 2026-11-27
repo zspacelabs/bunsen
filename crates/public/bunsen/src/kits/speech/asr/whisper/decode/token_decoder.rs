@@ -201,13 +201,14 @@ impl Whisper {
         config: &DecodeConfig,
         filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<DecodedTokens> {
-        let [n_audio, _, frames] = mels.dims();
-        assert!(n_audio > 0, "decode needs at least one row");
-        assert_eq!(
-            frames,
-            self.max_audio_ctx(),
-            "window must be the model's audio context width",
+        // A window is the model's audio context wide.
+        let [n_audio] = crate::contracts::unpack_shape_contract!(
+            ["n_audio", "n_mels", "frames"],
+            &mels.dims(),
+            &["n_audio"],
+            &[("frames", self.max_audio_ctx())]
         );
+        assert!(n_audio > 0, "decode needs at least one row");
         let xa = self.forward_encoder(mels);
         self.decode_features_full(xa, config, filters)
     }
@@ -222,13 +223,14 @@ impl Whisper {
         decoder: &mut dyn TokenSearch,
         filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<Vec<i64>> {
-        let [n_audio, _, frames] = mels.dims();
-        assert!(n_audio > 0, "decode needs at least one row");
-        assert_eq!(
-            frames,
-            self.max_audio_ctx(),
-            "window must be the model's audio context width",
+        // A window is the model's audio context wide.
+        let [n_audio] = crate::contracts::unpack_shape_contract!(
+            ["n_audio", "n_mels", "frames"],
+            &mels.dims(),
+            &["n_audio"],
+            &[("frames", self.max_audio_ctx())]
         );
+        assert!(n_audio > 0, "decode needs at least one row");
         let xa = self.forward_encoder(mels);
         self.decode_features_with(xa, config, decoder, filters)
     }
@@ -451,7 +453,11 @@ impl Whisper {
         mels: Tensor<3>,
         config: &GreedyDecodeConfig,
     ) -> Vec<i64> {
-        assert_eq!(mels.dims()[0], 1, "decode_window handles a batch of one");
+        crate::contracts::assert_shape_contract!(
+            ["batch", "n_mels", "frames"],
+            &mels.dims(),
+            &[("batch", 1)]
+        );
 
         self.decode_window_batched(mels, config)
             .pop()
