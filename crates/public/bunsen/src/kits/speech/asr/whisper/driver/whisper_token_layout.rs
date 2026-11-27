@@ -592,12 +592,9 @@ impl WhisperTokenLayout {
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::{
-                ErrorMatcher,
-                predicate,
-            },
+        errors::testing::{
+            ErrorMatcher,
+            predicate,
         },
         kits::speech::asr::whisper::{
             blocks::CONTROL_TOKENS,
@@ -953,17 +950,13 @@ mod tests {
                 .unwrap(),
             [50258, 50359],
         );
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .cause(predicate("a missing \"xx\"", |e: &LookupError| {
                 e.key == "xx" && e.candidates.len() == 99
             }))
             .assert_err(&multilingual.sot_sequence(Some("xx"), None, true));
         // yue needs the 100-language layout.
-        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&multilingual.sot_sequence(
-            Some("yue"),
-            None,
-            true,
-        ));
+        ErrorMatcher::lookup().assert_err(&multilingual.sot_sequence(Some("yue"), None, true));
 
         let english = WhisperTokenLayout::from_vocab_size(51864).unwrap();
         assert_eq!(english.sot_sequence(None, None, true).unwrap(), [50257]);
@@ -971,12 +964,8 @@ mod tests {
             english.sot_sequence(None, None, false).unwrap(),
             [50257, 50362]
         );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&english.sot_sequence(
-            Some("en"),
-            None,
-            true,
-        ));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&english.sot_sequence(
+        ErrorMatcher::illegal().assert_err(&english.sot_sequence(Some("en"), None, true));
+        ErrorMatcher::illegal().assert_err(&english.sot_sequence(
             None,
             Some(WhisperTask::Transcribe),
             true,
@@ -1010,7 +999,7 @@ mod tests {
         let (ranks, _) = tiny();
         let wrong = WhisperTokenLayout::new(WhisperSpecialIds::new(4, 2).unwrap());
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&wrong.token_spans(&ranks));
     }

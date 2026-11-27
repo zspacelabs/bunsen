@@ -919,7 +919,7 @@ mod tests {
             entry("model-00002-of-00002.safetensors", 1, Some(SHARD_2)),
             entry("model.safetensors.index.json", 71_000, None),
         ];
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("incomplete set of shards")
             .frame_contains("hf:ivrit-ai/whisper-large-v3")
             .assert_err(&hf.build_from_listing("ivrit-ai/whisper-large-v3", &incomplete));
@@ -936,7 +936,7 @@ mod tests {
             entry("model-00001-of-00003.safetensors", 1, Some(SHARD_1)),
             entry("model-00002-of-00003.safetensors", 1, Some(SHARD_2)),
         ];
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("incomplete set of shards")
             .message_contains("missing model-00003-of-00003.safetensors")
             .assert_err(&hf.build_from_listing("org/repo", &listing));
@@ -946,7 +946,7 @@ mod tests {
             entry("model.safetensors.index.json", 71_000, None),
             entry("model-00001-of-00012.safetensors", 1, Some(SHARD_1)),
         ];
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("missing model-00002-of-00012.safetensors, ")
             .message(text::ends_with(
                 "model-00009-of-00012.safetensors, and 3 more",
@@ -965,7 +965,7 @@ mod tests {
             entry("tf_model.h5", 10, Some(SHARD_2)),
             entry("README.md", 10, None),
         ];
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("no model.safetensors")
             .message_contains("pytorch_model.bin, tf_model.h5")
             .assert_err(&hf.build_from_listing("some/repo", &listing));
@@ -977,12 +977,12 @@ mod tests {
             "openai/whisper/tiny",
             "",
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains("org/repo")
                 .has_cause::<ParseError>()
                 .assert_err(&hf.build_from_listing(bad, &[]));
         }
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("through a cache")
             .assert_err(&hf.lookup("openai/whisper-tiny"));
         assert!(hf.list().is_empty());
@@ -1039,16 +1039,16 @@ mod tests {
 
         let mut two = listing.clone();
         two.push(entry("other.nemo", 10, Some(SHARD_1)));
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("2 .nemo files")
             .message_contains("other.nemo")
             .frame_contains("hf:org/repo")
             .assert_err(&hf.build_from_listing("org/repo", &two));
 
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("the repo has: diar_streaming_sortformer_4spk-v2.nemo")
             .assert_err(&HfProvider::new().build_from_listing("org/repo", &listing));
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("or one *.nemo at main; the repo has: no weights")
             .assert_err(&hf.build_from_listing("org/repo", &listing[..2]));
     }
@@ -1217,13 +1217,13 @@ mod tests {
         let offline = cache_at(true);
         let again = hf.resolve("org/repo", &offline).unwrap().unwrap();
         assert_eq!(again, row);
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .display(text::starts_with("hf:org/other: file listing: "))
             .message_contains("the cache is offline")
             .assert_err(&hf.resolve("org/other", &offline));
 
         let gone = HfProvider::new().with_origin(origin_of(serve_status("any", 401)));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .display(text::starts_with(
                 "hf:nobody/nothing: the repo does not exist, or is gated",
             ))

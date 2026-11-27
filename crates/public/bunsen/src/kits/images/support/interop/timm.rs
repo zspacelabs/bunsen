@@ -192,10 +192,7 @@ pub fn timm_model_config_from_path(path: &Path) -> BunsenResult<TimmModelConfigM
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     /// `timm/resnet50.a1_in1k`'s `config.json`, as the hub serves it.
     const RESNET50_A1: &str = r#"{
@@ -242,14 +239,14 @@ mod tests {
     fn test_eval_transform_config_refuses_a_training_filter() {
         let mut config = timm_model_config_from_str(RESNET50_A1).unwrap();
         config.pretrained_cfg.interpolation = "random".into();
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("\"random\" interpolation")
             .assert_err(&config.pretrained_cfg.eval_transform_config());
     }
 
     #[test]
     fn test_a_non_timm_file_is_an_invalid_resource() {
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("timm config.json")
             .assert_err(&timm_model_config_from_str("{\"model_type\": \"bert\"}"));
     }

@@ -278,7 +278,7 @@ mod tests {
             .unwrap()
             .provider("resnet-classifier")
             .unwrap();
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
+        crate::errors::testing::ErrorMatcher::lookup()
             .message_contains("`resnet34` is ambiguous: torchvision/resnet34, timm/resnet34")
             .assert_err(&resnet.lookup("resnet34"));
         assert_eq!(

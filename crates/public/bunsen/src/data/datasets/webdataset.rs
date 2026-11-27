@@ -128,10 +128,7 @@ pub fn try_read_webdataset(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     /// A tar of `members`, in order, at `path`.
     fn write_tar(
@@ -179,7 +176,7 @@ mod tests {
         assert_eq!(kept[0].field("json"), None);
         assert_eq!(kept[0].text("cls").unwrap(), "7");
         assert_eq!(kept[1].text("cls").unwrap(), "8");
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .frame_contains("sample a")
             .assert_err(&kept[0].text("txt"));
     }
@@ -189,7 +186,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let shard = dir.path().join("shard.tar");
         write_tar(&shard, &[("noext", b"x")]);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("a member without a field: noext")
             .assert_err(&try_read_webdataset(&shard, None, None));
     }

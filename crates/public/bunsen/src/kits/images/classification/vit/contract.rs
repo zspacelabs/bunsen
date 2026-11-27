@@ -494,10 +494,7 @@ mod tests {
         },
         burner::module::ModuleInit,
         data::pretrained::Prefabs,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -569,7 +566,7 @@ mod tests {
     #[test]
     fn test_illegal_policies() {
         let illegal = |config: ViTContractConfig, message: &str| {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains(message)
                 .assert_err(&config.try_to_structure());
         };
@@ -631,7 +628,7 @@ mod tests {
 
         let mut gray = config;
         gray.in_channels = 1;
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("1 image channels, its backbone's 3")
             .assert_err(&gray.try_to_structure());
     }

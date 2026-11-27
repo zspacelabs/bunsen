@@ -343,7 +343,7 @@ mod tests {
     fn test_policy_and_front_end() {
         let bundle = bundle();
         assert!(bundle.to_string().starts_with("Nemotron-3-Diarization: "));
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Policy)
+        crate::errors::testing::ErrorMatcher::policy()
             .message_contains("select a `latency` preset")
             .assert_err(&bundle.streaming());
         assert_eq!(bundle.turns(), &TurnFilterConfig::none());

@@ -34,7 +34,6 @@ use crate::{
         ToStructureConfig,
     },
     errors::{
-        BunsenErrorKind,
         BunsenResult,
         ConstraintError,
         testing::ErrorMatcher,
@@ -339,7 +338,7 @@ fn test_avg_conv_shortcuts_are_timms() {
 fn test_try_init_rejects_bad_trees() {
     let device = cpu_device();
     let structure = resnet_like(&[1, 1], 8, ConvUnitKind::Basic).to_structure();
-    let illegal = || ErrorMatcher::kind(BunsenErrorKind::Illegal).has_cause::<ConstraintError>();
+    let illegal = || ErrorMatcher::illegal().has_cause::<ConstraintError>();
     let init = |s: ConvNetStructureConfig| -> BunsenResult<ConvNetModel> { s.try_init(&device) };
 
     illegal()
@@ -495,10 +494,10 @@ fn test_drop_block_schedules_match_timm() {
 fn test_drop_block_schedules_reject_one_stage() {
     let model: ConvNetModel = resnet_like(&[2], 8, ConvUnitKind::Basic).init(&cpu_device());
 
-    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+    ErrorMatcher::illegal()
         .message_contains("at least 2 stages")
         .assert_err(&model.clone().try_with_stochastic_drop_block(0.1));
-    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+    ErrorMatcher::illegal()
         .frame_contains("drop_prob")
         .assert_err(&model.clone().try_with_stochastic_drop_block(1.5));
 
@@ -547,7 +546,7 @@ fn test_mixer_attention_lowers_as_regnets() {
 
     let mut wrong = structure.stages[0].units[0].clone();
     wrong.attn = Some(ChannelAttentionConfig::Se(SqueezeExciteConfig::new(8, 2)));
-    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+    ErrorMatcher::illegal()
         .message_contains("mixer out_channels")
         .assert_err(&wrong.try_validate());
 }
@@ -662,7 +661,7 @@ fn test_preact_and_unshortcut_units() {
             .shortcut
             .clone()
     });
-    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+    ErrorMatcher::illegal()
         .message_contains("a unit with no residual has no shortcut")
         .assert_err(&wrong.try_validate());
 }
@@ -831,12 +830,12 @@ fn test_res2_mixer() {
 
     let mut basic = resnet_like(&[1], 8, ConvUnitKind::Basic);
     basic.layers.mixer = ConvMixerKind::Res2 { scale: 2 };
-    ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+    ErrorMatcher::unsupported()
         .message_contains("a Res2 { scale: 2 } mixer in a Basic unit")
         .assert_err(&basic.try_to_structure());
     let mut uneven = resnet_like(&[1], 8, ConvUnitKind::Bottleneck);
     uneven.layers.mixer = ConvMixerKind::Res2 { scale: 3 };
-    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+    ErrorMatcher::illegal()
         .message_contains("a scale split of 3 chunks from 8 to 8 channels")
         .assert_err(&uneven.try_to_structure());
 }

@@ -320,14 +320,14 @@ mod tests {
             "an unnamed resource is untouched"
         );
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("tiny.en.pt")
             .message_contains("other.pt")
             .assert_err(
                 &map.clone()
                     .with_local_files("bundled", &[("checkpoint", Path::new("/x/other.pt"))]),
             );
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .has_cause::<LookupError>()
             .assert_err(
                 &map.with_local_files("bundled", &[("config", Path::new("/x/config.json"))]),
@@ -440,7 +440,7 @@ mod tests {
         );
         fused.validate().unwrap();
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_eq("duplicate resource \"checkpoint\"")
             .frame_contains("fusing a/tiny.en.pt into a/tiny.en.pt")
             .cause(predicate(
@@ -482,7 +482,7 @@ mod tests {
         let mut map = ResourceSet::given("flags", "checkpoint", "/models/my.pt");
         assert_eq!(map.keys(), ["checkpoint"]);
         assert_eq!(map.try_get("checkpoint").unwrap().file, "my.pt");
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .display(text::eq(
                 "flags: no resource \"vocabulary\"; there are: checkpoint",
             ))
@@ -497,7 +497,7 @@ mod tests {
 
         let empty = ResourceSet::new("empty");
         assert!(empty.is_empty());
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .display(text::eq("empty: no resource \"x\""))
             .assert_err(&empty.try_get("x"));
         empty.validate().unwrap();
@@ -513,7 +513,7 @@ mod tests {
             "vocabulary".to_string(),
             Resource::given("checkpoint", "/x.pt"),
         );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq(
                 "m: resource \"checkpoint\" is filed under \"vocabulary\"",
             ))
@@ -526,7 +526,7 @@ mod tests {
             .unwrap()
             .sources
             .clear();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq(
                 "m: checkpoint: Resource.sources: must not be zero or empty",
             ))

@@ -414,10 +414,7 @@ mod tests {
             tensor::device_float_dtype,
         },
         contracts::assert_shape_contract,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::{
             DeviceMemoryGuard,
             cpu_device,
@@ -514,7 +511,7 @@ mod tests {
         structure.decoder = TextDecoderConfig::new(16, 32, 12, 1).with_d_head(16);
 
         let bad: BunsenResult<Whisper> = structure.try_init(&device);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&bad);
     }

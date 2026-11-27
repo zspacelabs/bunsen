@@ -59,10 +59,7 @@ pub fn swin_v2_contract_config(
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
     };
 
@@ -97,7 +94,7 @@ mod tests {
                 "{name}"
             );
         }
-        let unsupported = || ErrorMatcher::kind(BunsenErrorKind::Unsupported);
+        let unsupported = || ErrorMatcher::unsupported();
         unsupported()
             .message_contains("timm's swin_tiny_patch4_window7_224")
             .assert_err(&swin_v2_contract_config(&config(

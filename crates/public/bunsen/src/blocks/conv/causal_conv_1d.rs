@@ -565,10 +565,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::{
             assert_tensors_close,
             cpu_device,
@@ -968,7 +965,7 @@ mod tests {
     fn test_illegal_strides() {
         let device = cpu_device();
         for stride in [0, 6] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains("stride is in 1..=5")
                 .assert_err(
                     &ModuleInit::<CausalConv1d>::try_init(
@@ -981,7 +978,7 @@ mod tests {
                 );
         }
         for stride in [0, 5] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains("stride is in 1..=4")
                 .assert_err(
                     &ModuleInit::<CausalConvTranspose1d>::try_init(

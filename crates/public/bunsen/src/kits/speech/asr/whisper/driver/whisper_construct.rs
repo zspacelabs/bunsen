@@ -201,10 +201,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::speech::asr::whisper::{
             WhisperGeometry,
             blocks::WhisperTokenLayoutConfig,
@@ -269,7 +266,7 @@ mod tests {
 
         let short = WhisperConstruct::new(tiny_model(), tiny_layout())
             .with_ranks(TiktokenRanks::parse("IA== 0\n").unwrap());
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&short.validate());
     }
@@ -282,11 +279,11 @@ mod tests {
             tiny_model(),
             WhisperTokenLayout::from_vocab_size(51865).unwrap(),
         );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .message_contains("51865")
             .assert_err(&too_big.validate());
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&WhisperConstruct::from_model(tiny_model()));
     }

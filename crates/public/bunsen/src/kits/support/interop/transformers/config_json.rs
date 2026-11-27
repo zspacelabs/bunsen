@@ -314,10 +314,7 @@ impl TransformersConfigJson {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_fields_and_errors() {
@@ -335,13 +332,13 @@ mod tests {
 
         let sub = c.section("sub").unwrap();
         assert_eq!(sub.usize("d").unwrap(), 8);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("`sub.missing`")
             .assert_err(&sub.usize("missing"));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("`model_type` is \"x\"")
             .assert_err(&c.expect_str("model_type", "y"));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("`sub.d` is 8")
             .assert_err(&sub.expect_eq("d", 8, 16));
         assert!(TransformersConfigJson::parse("[1]").is_err());
@@ -369,10 +366,10 @@ mod tests {
             8.0
         );
         assert!(c.section_opt("none").unwrap().is_none());
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("`name`")
             .assert_err(&c.f64_opt("name"));
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("`cap`")
             .assert_err(&c.section_opt("cap"));
     }

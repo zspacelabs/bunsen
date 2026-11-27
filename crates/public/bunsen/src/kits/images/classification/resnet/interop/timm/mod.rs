@@ -68,10 +68,7 @@ pub fn resnet_contract_config(
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
     };
 
@@ -108,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_unbuilt_architectures_are_unsupported() {
-        let unsupported = || ErrorMatcher::kind(BunsenErrorKind::Unsupported);
+        let unsupported = || ErrorMatcher::unsupported();
         unsupported()
             .message_contains("timm's resnest50d")
             .assert_err(&resnet_contract_config(&config("resnest50d", 1000)));

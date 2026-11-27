@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_try_parse_rejects_bad_files() {
-        let invalid = || ErrorMatcher::kind(BunsenErrorKind::InvalidResource);
+        let invalid = || ErrorMatcher::invalid_resource();
         invalid()
             .message_contains("an empty synset list")
             .assert_err(&ImageLabelSet::try_parse("", None));
@@ -219,10 +219,10 @@ mod tests {
         std::fs::write(&synsets, "n1\n").unwrap();
         let lemmas = dir.path().join("lemmas.txt");
         std::fs::write(&lemmas, "n2\ttwo\n").unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .frame_contains("synsets.txt")
             .assert_err(&ImageLabelSet::try_from_files(&synsets, Some(&lemmas)));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&ImageLabelSet::try_from_files(
+        ErrorMatcher::lookup().assert_err(&ImageLabelSet::try_from_files(
             dir.path().join("missing"),
             None::<&Path>,
         ));

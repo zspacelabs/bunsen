@@ -310,10 +310,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -396,7 +393,7 @@ mod tests {
     fn test_illegal_heads() {
         let device = cpu_device();
         let illegal = |config: ClassifierHeadConfig| {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .assert_err(&ModuleInit::<ClassifierHead>::try_init(&config, &device));
         };
         illegal(ClassifierHeadConfig::new(0, 3));

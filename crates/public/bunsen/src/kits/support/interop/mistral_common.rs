@@ -150,10 +150,7 @@ impl TekkenMirror {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     /// Four specials, then " In" (`IElu`), " the" (`IHRoZQ==`), and an
     /// entry past the vocabulary size.
@@ -188,22 +185,22 @@ mod tests {
         assert!(v.is_special(3) && !v.is_special(4));
         assert_eq!(v.text(&[4, 5]).unwrap(), " In the");
         assert_eq!(v.text(&[1]).unwrap(), "<s>");
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("outside the vocabulary")
             .assert_err(&v.text(&[6]));
     }
 
     #[test]
     fn test_refuses_a_malformed_file() {
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("tekken.json")
             .assert_err(&TekkenMirror::from_json("{}"));
         let bad = TEKKEN.replace("IElu", "I@lu");
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("not base64")
             .assert_err(&TekkenMirror::from_json(&bad).and_then(|m| m.tekken_vocabulary()));
         let bad = TEKKEN.replace(r#""rank": 3, "token_str""#, r#""rank": 9, "token_str""#);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("not below the 4 specials")
             .assert_err(&TekkenMirror::from_json(&bad).and_then(|m| m.tekken_vocabulary()));
     }

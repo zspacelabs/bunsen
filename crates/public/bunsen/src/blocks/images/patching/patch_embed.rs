@@ -307,7 +307,6 @@ mod tests {
     use crate::{
         blocks::norm::BunsenLayerNormConfig,
         errors::{
-            BunsenErrorKind,
             WithOkOrPanic,
             testing::ErrorMatcher,
         },
@@ -376,7 +375,7 @@ mod tests {
                 "224x12 images don't hold a 16x16 patch",
             ),
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains(message)
                 .assert_err(&ModuleInit::<PatchEmbed>::try_init(&config, &device));
         }

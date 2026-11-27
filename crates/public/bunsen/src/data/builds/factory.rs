@@ -781,7 +781,7 @@ a:
         assert_eq!(factory.providers().len(), 1);
         assert!(factory.provider(CATALOG).is_some());
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq("kit: duplicate provider \"catalog\""))
             .cause(predicate("a duplicate provider", |c: &LookupError| {
                 c.problem == LookupProblem::Duplicate
@@ -827,11 +827,11 @@ a:
             ("catalog", "a/large-v2")
         );
 
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .display(text::starts_with("catalog: no pretrained \"a/tiny\""))
             .message_contains("catalog:a/small")
             .assert_err(&factory.lookup("catalog:a/tiny"));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .display(text::starts_with("kit: no provider \"nobody\""))
             .cause(predicate("the providers there are", |c: &LookupError| {
                 c.candidates == ["catalog", "hub"]
@@ -863,7 +863,7 @@ a:
             ("catalog", "a/small")
         );
         // A spelling two builds of the first catalog match is its error.
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_contains("`small` is ambiguous: a/small, b/small")
             .assert_err(&factory.lookup("small"));
         let (provider, row) = factory.lookup("only-here").unwrap();
@@ -881,7 +881,7 @@ a:
         let (_, row) = factory.lookup("a/s").unwrap();
         assert_eq!(row.name.to_string(), "a/small");
 
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .display(text::starts_with("kit: no pretrained \"gigantic\""))
             .message_contains("catalog:a/small")
             .message_contains("second:a/only-here")
@@ -914,10 +914,10 @@ a:
         );
         assert_eq!(hub.lookups(), 1);
 
-        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("whisper-base"));
+        ErrorMatcher::lookup().assert_err(&factory.lookup("whisper-base"));
         assert_eq!(hub.lookups(), 1, "a bare name never reached the hub");
 
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .display(text::eq("hub: no pretrained \"nonsense\""))
             .cause(predicate("no candidates", |c: &LookupError| {
                 c.candidates.is_empty()
@@ -933,9 +933,9 @@ a:
         let factory = BuildFactory::<CheckpointPath>::new()
             .with_providers([Arc::new(Failing) as _, well_known()])
             .unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::Unavailable).assert_err(&factory.lookup("failing:x"));
+        ErrorMatcher::unavailable().assert_err(&factory.lookup("failing:x"));
         // The failing provider answers bare names, and is asked first.
-        ErrorMatcher::kind(BunsenErrorKind::Unavailable).assert_err(&factory.lookup("small"));
+        ErrorMatcher::unavailable().assert_err(&factory.lookup("small"));
         assert_eq!(
             factory.lookup("catalog:tiny").unwrap().1.name.to_string(),
             "b/tiny"
@@ -969,11 +969,10 @@ a:
 
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_contains("catalog:a/small")
             .assert_err(&factory.resolve(file.to_str().unwrap(), &cache));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .assert_err(&factory.resolve("catalog:a/gigantic", &cache));
+        ErrorMatcher::lookup().assert_err(&factory.resolve("catalog:a/gigantic", &cache));
     }
 
     /// `load` runs the whole pathway through the hook the resource set
@@ -1069,7 +1068,7 @@ l:
         assert_eq!(*loaded.handle, other);
 
         // Offline, and nothing local.
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .frame_contains("loading kit \"catalog:a/small\"")
             .message_contains("the cache is offline")
             .assert_err(&factory.load(
@@ -1123,13 +1122,13 @@ l:
     #[test]
     fn test_a_selection_needs_a_kit_that_resolves_presets() {
         let factory = factory();
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_eq("the kit kit takes no presets or patch, but the lookup asks for `[fast]`")
             .assert_err(&factory.lookup("a/small[fast]"));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("{beam: 1}")
             .assert_err(&factory.lookup("a/small{beam: 1}"));
-        ErrorMatcher::kind(BunsenErrorKind::Policy).assert_err(&factory.lookup("a/small[fast"));
+        ErrorMatcher::policy().assert_err(&factory.lookup("a/small[fast"));
     }
 
     /// For a kit that resolves presets, the box is checked against the
@@ -1169,14 +1168,13 @@ l:
             "{summary}"
         );
 
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_contains("no preset `slow`; there are: fast")
             .assert_err(&factory.resolve("a/small[slow]", &cache));
         // A build with no presets of its own leaves the box to the hook.
         let model = factory.resolve("a/bare[anything]", &cache).unwrap();
         assert_eq!(model.model.selection().unwrap().presets, ["anything"]);
         // An empty box is a malformed expression, not an empty selection.
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
-            .assert_err(&factory.resolve("a/small[]", &cache));
+        ErrorMatcher::policy().assert_err(&factory.resolve("a/small[]", &cache));
     }
 }

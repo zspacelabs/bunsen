@@ -75,10 +75,7 @@ mod tests {
             VisionEncoderModel,
         },
         burner::module::ModuleInit,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -106,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_a_distilled_avg_pool_is_illegal() {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("reads the class and distillation tokens")
             .assert_err(
                 &DeiTContractConfig::new(tiny().with_global_pool(TokenPoolConfig::Avg))

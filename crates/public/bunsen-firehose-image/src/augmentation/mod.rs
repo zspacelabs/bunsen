@@ -450,7 +450,7 @@ mod tests {
     fn test_plugin_builder_errors() {
         let builder = GlobalRegistryBuilder {};
 
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .cause(predicate("a missing \"nope\"", |l: &LookupError| {
                 l.key == "nope"
                     && l.problem == LookupProblem::Missing
@@ -465,7 +465,7 @@ mod tests {
                     .map(|_| ()),
             );
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .frame_contains(STAGE_SEQUENCE)
             .has_cause::<serde_json::Error>()
             .assert_err(

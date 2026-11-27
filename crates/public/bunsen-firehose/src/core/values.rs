@@ -258,8 +258,7 @@ mod tests {
 
     #[test]
     fn test_try_boxable() {
-        let not_boxable = ErrorMatcher::kind(BunsenErrorKind::Illegal)
-            .message_contains("must be serialized, not boxed");
+        let not_boxable = ErrorMatcher::illegal().message_contains("must be serialized, not boxed");
         not_boxable.assert_err(&try_boxable::<serde_json::Value>());
         not_boxable.assert_err(&try_boxable::<&'static str>());
         not_boxable.assert_err(&try_boxable::<&str>());
@@ -305,7 +304,7 @@ mod tests {
 
         assert_eq!(vb.parse_as::<String>()?, "abc");
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .frame_contains("parsing \"abc\" as a `i32`")
             .message_eq("invalid type: string \"abc\", expected i32")
             .has_cause::<serde_json::Error>()
@@ -388,7 +387,7 @@ mod tests {
 
         assert_eq!(vb.as_ref::<MyStruct>()?, &my_struct);
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_eq(
                 "Failed to downcast boxed value to `alloc::vec::Vec<alloc::string::String>`",
             )

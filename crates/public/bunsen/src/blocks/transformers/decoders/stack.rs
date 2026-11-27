@@ -1256,10 +1256,7 @@ mod tests {
                 CausalSelfAttentionConfig,
             },
         },
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::{
             DeviceMemoryGuard,
             assert_tensors_close,
@@ -1372,7 +1369,7 @@ mod tests {
         ));
         let mut config = config;
         config.layers[1].norm_placement = NormPlacement::Post;
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("routes take pre-norm layers")
             .assert_err(&ModuleInit::<DecoderStack>::try_init(
                 &config,
@@ -1427,7 +1424,7 @@ mod tests {
             .collect();
         assert_eq!(windows, [Some(4), Some(4), None, Some(4)]);
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("layer_kinds[1]")
             .assert_err(
                 &PatternedStackConfig {
@@ -1468,7 +1465,7 @@ mod tests {
             assert_eq!(a.layer_windows(), b.layer_windows());
         }
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("layer_kinds[1]")
             .assert_err(
                 &DecoderStackVariantConfig::from(PatternedStackConfig {
@@ -1590,13 +1587,13 @@ mod tests {
     fn test_layer_rotary_refusals() {
         let device = crate::support::testing::cpu_device();
         let short = uniform(2).to_structure().with_layer_rotary(vec![None]);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("layer_rotary.len")
             .assert_err(&ModuleInit::<DecoderStack>::try_init(&short, &device));
         let missing = uniform(2)
             .to_structure()
             .with_layer_rotary(vec![None, Some(0)]);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("layer_rotary[1]")
             .assert_err(&ModuleInit::<DecoderStack>::try_init(&missing, &device));
     }
@@ -1606,7 +1603,7 @@ mod tests {
     fn test_structure_refusals() {
         let device = performance_device();
         let empty = uniform(0).to_structure();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("layers")
             .assert_err(&ModuleInit::<DecoderStack>::try_init(&empty, &device));
         let mut mixed = uniform(2).to_structure();
@@ -1616,7 +1613,7 @@ mod tests {
                 .into(),
             BunsenGatedMlpConfig::new(24, 32).into(),
         );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("layers[1].n_embed")
             .assert_err(&ModuleInit::<DecoderStack>::try_init(&mixed, &device));
     }

@@ -113,7 +113,7 @@ mod tests {
             DType::QFloat(QuantScheme::default())
         );
 
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_eq(&format!(
                 "parsing a QFloat QuantScheme is not supported: \"{:?}\"",
                 DType::QFloat(QuantScheme::default())
@@ -122,7 +122,7 @@ mod tests {
                 format!("{:?}", DType::QFloat(QuantScheme::default())).as_str(),
             ));
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_eq("cannot parse dtype \"f99\"")
             .has_cause::<ParseError>()
             .assert_err(&dtype_from_str(" f99 "));

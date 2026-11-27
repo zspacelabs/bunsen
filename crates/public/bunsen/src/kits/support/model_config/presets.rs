@@ -181,7 +181,6 @@ mod tests {
             },
         },
         errors::{
-            BunsenErrorKind,
             LookupError,
             testing::ErrorMatcher,
         },
@@ -323,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_an_unknown_preset_lists_the_candidates() {
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_contains(
                 "no preset `thinkin`; there are: thinking, no-thinking, yarn-128k, wide, narrow",
             )
@@ -332,14 +331,14 @@ mod tests {
 
     #[test]
     fn test_a_preset_selected_twice() {
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("the preset `wide` is selected twice")
             .assert_err(&resolved(PresetSelection::of(["wide", "wide"])));
     }
 
     #[test]
     fn test_two_members_of_an_axis() {
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains(
                 "`thinking` and `no-thinking` are both on the axis `thinking-mode`: select one",
             )
@@ -348,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_selected_presets_that_set_one_path() {
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("the presets `wide` and `narrow` each set `beam`: select one")
             .assert_err(&resolved(PresetSelection::of(["wide", "narrow"])));
     }
@@ -356,7 +355,7 @@ mod tests {
     #[test]
     fn test_a_patch_naming_an_unknown_field() {
         let r = resolved(PresetSelection::default().with_patch(json!({"sampling": {"top_q": 1}})));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_contains("sampling.top_q")
             .has_cause::<LookupError>()
             .assert_err(&r);
@@ -368,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_a_result_that_does_not_deserialize() {
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("invalid config")
             .assert_err(&resolved(
                 PresetSelection::default().with_patch(json!({"beam": "five"})),
@@ -447,7 +446,7 @@ mod tests {
         assert_eq!((r.config.beam, r.config.yarn), (5, Some(2.0)));
 
         set.common = json!({"bean": 3});
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_contains("bean")
             .assert_err(&resolve_presets(&base(), &set, &PresetSelection::default()));
     }

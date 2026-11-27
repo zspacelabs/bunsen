@@ -91,10 +91,7 @@ mod tests {
                 ResourceSet,
             },
         },
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::speech::asr::whisper::pretrained::{
             CHECKPOINT,
             WHISPER_KIT,
@@ -140,8 +137,8 @@ mod tests {
             factory.lookup("catalog:openai/tiny").unwrap().1.name,
             "openai/whisper/tiny"
         );
-        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("nobody:base"));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("gigantic"));
+        ErrorMatcher::lookup().assert_err(&factory.lookup("nobody:base"));
+        ErrorMatcher::lookup().assert_err(&factory.lookup("gigantic"));
     }
 
     /// A spec resolves to a deferred row, by ref, bare name or alias, with
@@ -180,7 +177,7 @@ mod tests {
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.resolve(spec, &cache));
+        ErrorMatcher::lookup().assert_err(&factory.resolve(spec, &cache));
         let given = DeferredBuild::<WhisperConstructConfig>::from_resource_set(ResourceSet::given(
             spec, CHECKPOINT, &file,
         ))
@@ -188,20 +185,17 @@ mod tests {
         assert_eq!(given.id(), spec);
         assert!(given.model.build().is_none());
 
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .assert_err(&factory.resolve("openai/gigantic", &cache));
+        ErrorMatcher::lookup().assert_err(&factory.resolve("openai/gigantic", &cache));
 
         // A Hugging Face ref is resolved through the cache: offline, with
         // no listing cached, it is refused naming the ref; the index alone
         // does not answer it; a bare `org/repo` never reaches the hub.
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .display_contains("hf:openai/whisper-tiny")
             .assert_err(&factory.resolve("hf:openai/whisper-tiny", &cache));
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
-            .assert_err(&factory.lookup("hf:openai/whisper-tiny"));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .assert_err(&factory.lookup("openai/whisper-tiny"));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&factory.lookup("hf:whisper-tiny"));
+        ErrorMatcher::policy().assert_err(&factory.lookup("hf:openai/whisper-tiny"));
+        ErrorMatcher::lookup().assert_err(&factory.lookup("openai/whisper-tiny"));
+        ErrorMatcher::illegal().assert_err(&factory.lookup("hf:whisper-tiny"));
     }
 
     /// A provider that lists nothing joins the defaults: its refs answer
@@ -244,7 +238,7 @@ mod tests {
     /// Registering the defaults twice is the error a duplicate name is.
     #[test]
     fn test_the_defaults_have_no_duplicate() {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(
+        ErrorMatcher::illegal().assert_err(
             &default_whisper_factory()
                 .unwrap()
                 .with_providers(default_whisper_providers()),

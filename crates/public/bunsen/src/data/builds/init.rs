@@ -223,7 +223,6 @@ mod tests {
             },
         },
         errors::{
-            BunsenErrorKind,
             LookupError,
             LookupProblem,
             testing::{
@@ -429,7 +428,7 @@ mod tests {
             crate::data::formats::LoadPolicy::load_as_stored(),
         )
         .unwrap_err();
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .frame_contains("loading paths \"mine\"")
             .cause(predicate("a missing \"config\"", |c: &LookupError| {
                 c.key == "config" && c.candidates == ["checkpoint"]
@@ -449,7 +448,7 @@ mod tests {
             crate::data::formats::LoadPolicy::load_as_stored(),
         )
         .unwrap_err();
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .cause(predicate("the absent path", move |c: &LookupError| {
                 c.problem == LookupProblem::Missing && c.key == absent.display().to_string()
             }))

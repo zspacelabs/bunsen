@@ -520,10 +520,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::{
             DeviceMemoryGuard,
             cpu_device,
@@ -566,7 +563,7 @@ mod tests {
                 .with_fft_size(1536)
                 .with_win_len(768),
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .has_cause::<ConstraintError>()
                 .assert_err(&bad.validate());
         }

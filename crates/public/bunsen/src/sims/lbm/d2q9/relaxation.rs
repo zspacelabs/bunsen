@@ -160,10 +160,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::{
             DeviceMemoryGuard,
             performance_device,
@@ -196,7 +193,7 @@ mod tests {
             RelaxationParam::Tau(0.49),
             RelaxationParam::Tau(f64::NAN),
         ] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .has_cause::<ConstraintError>()
                 .assert_err(&bad.try_validate());
         }

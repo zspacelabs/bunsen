@@ -66,10 +66,7 @@ pub fn default_silero_factory() -> BunsenResult<BuildFactory<SileroConstructConf
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     /// Upstream's row is the factory's only one, and `vad`, a prefix of its
     /// name, finds nothing.
@@ -78,7 +75,7 @@ mod tests {
         let factory = default_silero_factory().unwrap();
         assert_eq!(factory.kit(), SILERO_KIT);
         assert_eq!(factory.ids(), ["catalog:silero/silero_vad/vad-16k"]);
-        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("vad"));
+        ErrorMatcher::lookup().assert_err(&factory.lookup("vad"));
     }
 
     /// Upstream's row is pinned to one URL, and answers by its qualified and

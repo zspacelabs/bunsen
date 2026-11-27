@@ -475,7 +475,6 @@ mod tests {
             AuditProbeVecRecorder,
         },
         errors::{
-            BunsenErrorKind,
             WithOkOrPanic,
             testing::{
                 ErrorMatcher,
@@ -524,7 +523,7 @@ mod tests {
             tolerance: ToleranceDesc::of::<f32>(TolerancePolicy::Balanced).unwrap(),
         });
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_eq("event params differ from the expected event's")
             .details_contains("actual: AssertTensorEq\nexpected: AssertTensorApproxEx")
             .has_cause::<ValueMismatch>()
@@ -532,7 +531,7 @@ mod tests {
             .frame_details_contains("event: AuditEvent::AssertTensorEq \"x\"")
             .assert_err(&match_events_at(Some(4), &actual, &expected));
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .frame(text::eq("audit mismatch (\"x\")"))
             .assert_err(&try_match_events(&actual, &expected));
     }

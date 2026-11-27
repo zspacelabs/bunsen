@@ -227,10 +227,7 @@ pub fn nanochat_gpt_rekey() -> Rekey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     fn meta(window: Option<&str>) -> NanoChatMetaMirror {
         NanoChatMetaMirror {
@@ -267,7 +264,7 @@ mod tests {
         );
 
         let err = NanoChatMetaMirror::from_json(r#"{"step": 1}"#).unwrap_err();
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert(&err);
+        ErrorMatcher::invalid_resource().assert(&err);
     }
 
     /// The generation follows the state dict and the meta together, and a
@@ -287,8 +284,8 @@ mod tests {
             NanoChatGeneration::Upstream2026
         );
 
-        let unsupported = ErrorMatcher::kind(BunsenErrorKind::Unsupported)
-            .message_contains("between upstream's 2025 and 2026 models");
+        let unsupported =
+            ErrorMatcher::unsupported().message_contains("between upstream's 2025 and 2026 models");
         // The meta says 2026, the state dict 2025; and the other way round.
         unsupported.assert(&meta(Some("L")).generation(&v2025).unwrap_err());
         unsupported.assert(&meta(None).generation(&v2026).unwrap_err());

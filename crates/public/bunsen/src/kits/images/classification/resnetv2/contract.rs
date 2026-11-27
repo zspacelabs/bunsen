@@ -328,10 +328,7 @@ mod tests {
             },
         },
         burner::module::ModuleInit,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -432,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_illegal_policies() {
-        let illegal = || ErrorMatcher::kind(BunsenErrorKind::Illegal);
+        let illegal = || ErrorMatcher::illegal();
         illegal()
             .message_contains("3 stages of layers and 4 of channels")
             .assert_err(&ResNetV2ContractConfig::new(vec![3, 4, 6], 1000).try_to_structure());

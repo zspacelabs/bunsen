@@ -215,7 +215,7 @@ mod tests {
                 .window_seconds,
             20.0
         );
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
+        crate::errors::testing::ErrorMatcher::lookup()
             .message_contains("no preset")
             .assert_err(&policy(&format!("{row}[fast]")));
     }

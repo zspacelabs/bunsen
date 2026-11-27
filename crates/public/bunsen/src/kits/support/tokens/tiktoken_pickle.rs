@@ -228,10 +228,7 @@ impl BunsenTokenizer {
 mod tests {
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::support::tokens::{
             Detokenizer,
             Tokenizer,
@@ -270,10 +267,10 @@ mod tests {
     fn test_refuses_what_is_not_an_encoding() {
         let not_a_dict =
             serde_pickle::value_to_vec(&Value::List(vec![]), Default::default()).unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("not a tiktoken Encoding")
             .assert_err(&BunsenTokenizer::from_tiktoken_pickle(&not_a_dict));
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("not a pickle")
             .assert_err(&BunsenTokenizer::from_tiktoken_pickle(b"junk"));
     }

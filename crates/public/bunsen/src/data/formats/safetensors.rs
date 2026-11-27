@@ -475,7 +475,7 @@ mod tests {
         // allocated for.
         let junk = dir.path().join("junk.safetensors");
         std::fs::write(&junk, b"not a safetensors file at all").unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("cannot parse safetensors file")
             .has_cause::<ParseError>()
             .assert_err(&safetensors_header(&junk));
@@ -483,12 +483,12 @@ mod tests {
         // Shorter than the length prefix: not safetensors either.
         let short = dir.path().join("short.safetensors");
         std::fs::write(&short, b"abc").unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("shorter than its 8-byte length prefix")
             .assert_err(&safetensors_header(&short));
 
         // Not there at all: a lookup of the path.
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .has_cause::<LookupError>()
             .assert_err(&safetensors_header(&dir.path().join("absent.safetensors")));
     }
@@ -568,17 +568,17 @@ mod tests {
             ("checkpoint.index", &index_path),
             ("checkpoint.00001", &s1),
         ]);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_eq("the map's shards are not the ones the index names")
             .details_contains("model-00002-of-00002.safetensors")
             .frame_contains("sharded")
             .assert_err(&SafetensorsCheckpoint::from_loaded(&short, "checkpoint"));
         let no_index = loaded(vec![("checkpoint.00001", &s1)]);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .message_contains("no \"checkpoint.index\"")
             .assert_err(&SafetensorsCheckpoint::from_loaded(&no_index, "checkpoint"));
         let nothing = loaded(vec![("config", &index_path)]);
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .has_cause::<LookupError>()
             .assert_err(&SafetensorsCheckpoint::from_loaded(&nothing, "checkpoint"));
     }

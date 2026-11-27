@@ -181,10 +181,7 @@ impl WhisperTokenLayoutConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_languages_table() {
@@ -215,7 +212,7 @@ mod tests {
     fn test_validate_rejects_missing_roles() {
         let layout = WhisperTokenLayoutConfig::new();
         // The message puts the layout's count first, the roles' second.
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .message_eq(
                 "WhisperTokenLayoutConfig: leading_specials.len() (1) must be == LEADING_SPECIALS.len() (2)",

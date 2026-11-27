@@ -174,7 +174,6 @@ mod tests {
     };
 
     use bunsen::errors::{
-        BunsenErrorKind,
         BunsenResult,
         LookupError,
         LookupProblem,
@@ -281,7 +280,7 @@ mod tests {
             Arc::new(MapOpEnvironment::from_operators(vec![add_operator_op_binding()]).unwrap())
                 as Arc<dyn FirehoseOperatorEnvironment>;
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("'x' expected type")
             .assert_err(&OperationRunner::new_for_plan(
                 Arc::new(schema.clone()),
@@ -309,7 +308,7 @@ mod tests {
 
         let env = MapOpEnvironment::from_operators(vec![add_operator_op_binding()]).unwrap();
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("'result' expected type")
             .assert_err(&OperationRunner::new_for_plan(
                 Arc::new(schema.clone()),
@@ -324,7 +323,7 @@ mod tests {
 
         assert!(env.lookup_operator_factory(ADD).is_ok());
 
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .cause(predicate("a missing \"nope\"", |l: &LookupError| {
                 l.key == "nope"
                     && l.problem == LookupProblem::Missing
@@ -332,7 +331,7 @@ mod tests {
             }))
             .assert_err(&env.lookup_operator_factory("nope").map(|_| ()));
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .cause(predicate("a duplicate ADD", |l: &LookupError| {
                 l.key == ADD && l.problem == LookupProblem::Duplicate
             }))
@@ -465,7 +464,7 @@ mod tests {
         ]);
         let before = schema.clone();
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display_contains("duplicate column \"c\"")
             .assert_err(&plan_add_to(&mut schema, "c"));
         assert_eq!(schema, before);
@@ -479,7 +478,7 @@ mod tests {
         ]);
         let before = schema.clone();
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display_contains("Invalid identifier: 'not an ident'")
             .assert_err(&plan_add_to(&mut schema, "not an ident"));
         assert_eq!(schema, before);

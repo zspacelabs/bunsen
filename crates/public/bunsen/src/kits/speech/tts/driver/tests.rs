@@ -293,7 +293,7 @@ fn test_instruction() {
     );
 
     let refusing = driver(false, TtsDriverConfig::new());
-    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+    ErrorMatcher::illegal()
         .message_contains("strip_instruction")
         .assert_err(&refusing.synthesize(&request));
     assert!(refusing.engine().seen().is_empty());
@@ -315,13 +315,13 @@ fn test_instruction() {
 #[test]
 fn test_refusals() {
     let driver = driver(false, TtsDriverConfig::new());
-    ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(
+    ErrorMatcher::lookup().assert_err(
         &driver.synthesize(&TtsRequest::new("hi").with_voice(TtsVoiceChoice::Stock("eve".into()))),
     );
-    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+    ErrorMatcher::illegal()
         .message_contains("klingon")
         .assert_err(&driver.synthesize(&TtsRequest::new("hi").with_language("klingon")));
-    ErrorMatcher::kind(BunsenErrorKind::Unsupported).assert_err(
+    ErrorMatcher::unsupported().assert_err(
         &driver.synthesize(
             &TtsRequest::new("hi").with_voice(TtsVoiceChoice::Described("calm".into())),
         ),
@@ -387,15 +387,14 @@ fn test_takes() {
         1
     );
 
-    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+    ErrorMatcher::illegal()
         .message_contains("no text")
         .assert_err(&driver.synthesize(&TtsRequest::new("  ")));
     for bad in [
         TtsDriverConfig::new().with_max_take_chars(0),
         TtsDriverConfig::new().with_take_gap_seconds(-1.0),
     ] {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
-            .assert_err(&TtsDriver::new(Scripted::new(false), bad).map(|_| ()));
+        ErrorMatcher::illegal().assert_err(&TtsDriver::new(Scripted::new(false), bad).map(|_| ()));
     }
 }
 
@@ -503,7 +502,7 @@ fn test_chunk_policy() {
         TtsChunkPolicy::new().with_first(0),
         TtsChunkPolicy::new().with_first(4).with_max(3),
     ] {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&bad.check());
+        ErrorMatcher::illegal().assert_err(&bad.check());
     }
 }
 
@@ -587,7 +586,7 @@ fn test_synthesizer_stream() {
         synthesizer.synthesize(&request).unwrap().samples
     );
 
-    ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(
+    ErrorMatcher::illegal().assert_err(
         &synthesizer
             .stream(&request, TtsChunkPolicy::new().with_first(0))
             .map(|_| ()),

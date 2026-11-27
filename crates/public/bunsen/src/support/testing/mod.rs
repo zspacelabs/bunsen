@@ -84,6 +84,13 @@
 //!   [`max_abs_error`](TensorRecord::max_abs_error), the worst sample's
 //!   distance, which `assert_matches` also returns for a test to report.
 //!
+//! # Matchers
+//!
+//! [`matching`]: checks that describe themselves (hamcrest's style), the
+//! core every fluent matcher builds on;
+//! [`ErrorMatcher`](crate::errors::testing::ErrorMatcher) is its matcher of
+//! errors.
+//!
 //! # Speech
 //!
 //! Speech scoring is with the speech kits, in
@@ -118,6 +125,7 @@ mod common_assertions;
 mod common_devices;
 mod device_memory;
 mod dtype_assertions;
+pub mod matching;
 mod seeded;
 mod tensor_record;
 #[cfg(feature = "store")]

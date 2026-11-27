@@ -53,10 +53,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_partial_path_keeps_every_dot() {
@@ -98,7 +95,7 @@ mod tests {
                 .file_type()
                 .is_symlink()
         );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("not a file path")
             .assert_err(&link_or_copy(&src, Path::new("/")));
     }

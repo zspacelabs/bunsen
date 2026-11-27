@@ -446,7 +446,6 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         errors::{
-            BunsenErrorKind,
             ConstraintError,
             LookupError,
             testing::ErrorMatcher,
@@ -874,10 +873,10 @@ mod tests {
         assert!(empty.end_read().unwrap().is_empty());
         assert!(empty.end_read().unwrap().is_empty(), "flush is idempotent");
         // No pushing after flush, nor feeding.
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("the stream has ended")
             .assert_err(&empty.write_read(&[0.0; 16]));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("the stream has ended")
             .assert_err(&empty.write(&[0.0; 16]));
         assert!(empty.is_finished());
@@ -1456,7 +1455,7 @@ mod tests {
                 WhisperTokenLayout::new(tiny_layout()),
                 &device,
             );
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("not implemented")
             .assert_err(&refused);
     }
@@ -1478,7 +1477,7 @@ mod tests {
                 WhisperTokenLayout::new(tiny_layout()),
                 &device,
             );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("endpoint")
             .assert_err(&refused);
     }
@@ -1519,7 +1518,7 @@ mod tests {
             "drafting is the third deployment target",
         );
         // An interval of zero.
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(
                 &base
@@ -1532,7 +1531,7 @@ mod tests {
                     ))
                     .init_with_layout(tiny_model_on(&device), policy.clone(), &device),
             );
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .has_cause::<LookupError>()
             .assert_err(
                 &base
@@ -1547,13 +1546,13 @@ mod tests {
             .with_emission(EmissionPolicy::conservative())
             .init_with_layout(tiny_model_on(&device), policy, &device)
             .unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("voice-activity model")
             .assert_err(&conservative.new_context(clock(), LevelPolicy::PerWindow));
 
         // A clock at the wrong rate is refused at the stream, not later.
         let driver: WhisperStreamDriver = driver(&device, false);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&driver.new_context(StreamClock::uniform(8_000), LevelPolicy::PerWindow));
     }
@@ -1641,8 +1640,7 @@ mod tests {
             };
             let filter = silero_policy;
 
-            let mismatch =
-                ErrorMatcher::kind(BunsenErrorKind::Illegal).has_cause::<ConstraintError>();
+            let mismatch = ErrorMatcher::illegal().has_cause::<ConstraintError>();
             // The rate check reads the model's geometry, not its weights.
             let eight: SileroVad = crate::burner::module::ModuleInit::init(
                 &crate::kits::speech::vad::silero_vad::SileroVadSignalConfig::standard_8khz(),

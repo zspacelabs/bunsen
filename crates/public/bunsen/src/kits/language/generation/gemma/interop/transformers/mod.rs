@@ -321,10 +321,7 @@ pub fn gemma_config_from_path(path: &Path) -> BunsenResult<GemmaConfig> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_gemma_rekey() {
@@ -472,18 +469,18 @@ mod tests {
 
     #[test]
     fn test_refusals() {
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("model_type")
             .assert_err(&gemma_config_from_str(r#"{"model_type": "llama"}"#));
         let bidirectional = GEMMA3_4B.replace(
             r#""final_logit_softcapping": null,"#,
             r#""final_logit_softcapping": null, "use_bidirectional_attention": true,"#,
         );
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("use_bidirectional_attention")
             .assert_err(&gemma_config_from_str(&bidirectional));
         let yarn = GEMMA3_4B.replace(r#""rope_type": "linear""#, r#""rope_type": "yarn""#);
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("yarn")
             .assert_err(&gemma_config_from_str(&yarn));
     }

@@ -345,10 +345,7 @@ mod tests {
         },
         burner::module::ModuleInit,
         data::pretrained::Prefabs,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -455,7 +452,7 @@ mod tests {
     #[test]
     fn test_try_init_rejects_bad_stages() {
         let device = cpu_device();
-        let illegal = || ErrorMatcher::kind(BunsenErrorKind::Illegal);
+        let illegal = || ErrorMatcher::illegal();
         let none: BunsenResult<ConvNetModel> = ResNetContractConfig::new(vec![], 7)
             .with_channels(vec![])
             .try_init(&device);

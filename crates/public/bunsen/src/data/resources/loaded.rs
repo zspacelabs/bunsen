@@ -162,7 +162,6 @@ mod tests {
             Resource,
         },
         errors::{
-            BunsenErrorKind,
             LookupError,
             testing::{
                 ErrorMatcher,
@@ -220,7 +219,7 @@ mod tests {
     fn test_expect_names_the_keys_there_are() {
         let loaded = loaded();
         let err = loaded.expect("config").unwrap_err();
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .cause(predicate("a missing \"config\"", |c: &LookupError| {
                 c.key == "config" && c.candidates == ["checkpoint", "vocabulary"]
             }))
@@ -234,7 +233,7 @@ mod tests {
             map: ResourceSet::new("empty"),
             parts: BTreeMap::new(),
         };
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_eq("no resource \"x\"")
             .frame_contains("empty")
             .assert_err(&empty.expect("x"));
@@ -299,7 +298,7 @@ mod tests {
                 })
                 .collect(),
         };
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("same.bin")
             .frame_contains("clash")
             .assert_err(&clash.materialize(dir.path().join("clash")));

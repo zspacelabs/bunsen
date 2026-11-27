@@ -40,10 +40,7 @@ use crate::{
         ModuleInit,
         ToStructureConfig,
     },
-    errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    },
+    errors::testing::ErrorMatcher,
     support::testing::{
         assert_tensors_close,
         cpu_device,
@@ -159,7 +156,7 @@ fn test_res_post_norm_blocks() {
 fn test_disagreeing_parts_are_illegal() {
     let device = cpu_device();
     let illegal = |config: StagedVisionEncoderStructureConfig, message: &str| {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains(message)
             .assert_err(&ModuleInit::<StagedVisionEncoderModel>::try_init(
                 &config, &device,

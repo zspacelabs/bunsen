@@ -365,7 +365,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::testing::text;
+    use crate::support::testing::matching::text;
 
     #[test]
     fn test_combinators() {

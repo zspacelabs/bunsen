@@ -67,7 +67,6 @@ mod tests {
     use crate::{
         data::cache::testing::ABC_SHA256,
         errors::{
-            BunsenErrorKind,
             LookupError,
             LookupProblem,
             testing::{
@@ -85,7 +84,7 @@ mod tests {
 
         assert_eq!(sha256_of(&path).unwrap(), ABC_SHA256);
         verify_sha256(&path, ABC_SHA256).unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .cause(predicate("an at-rest mismatch", |m: &DigestMismatch| {
                 m.origin == DigestOrigin::AtRest && m.found == ABC_SHA256
             }))
@@ -97,7 +96,7 @@ mod tests {
     fn test_a_missing_file_is_a_lookup() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("missing");
-        let missing = ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        let missing = ErrorMatcher::lookup()
             .cause(predicate("a missing path", |l: &LookupError| {
                 l.problem == LookupProblem::Missing
             }));

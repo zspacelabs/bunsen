@@ -513,7 +513,7 @@ mod tests {
             .with_max_new_tokens(16)
             .with_context(Some(20));
         let mut session = chat.session(config, &cpu_device());
-        bunsen::errors::testing::ErrorMatcher::kind(bunsen::errors::BunsenErrorKind::Policy)
+        bunsen::errors::testing::ErrorMatcher::policy()
             .message_contains("overrun")
             .assert_err(&session.send("hello hello hello", &mut |_| {}));
         assert!(session.messages().is_empty());

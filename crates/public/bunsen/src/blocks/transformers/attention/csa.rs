@@ -974,12 +974,9 @@ mod tests {
         },
         burner::module::ModuleInit,
         contracts::assert_shape_contract,
-        errors::{
-            BunsenErrorKind,
-            testing::{
-                ErrorMatcher,
-                predicate,
-            },
+        errors::testing::{
+            ErrorMatcher,
+            predicate,
         },
         ops::transformers::attention::KVCacheConfig,
         support::testing::{
@@ -1234,7 +1231,7 @@ mod tests {
     #[test]
     fn test_try_validate_refusals() {
         let refused = |config: CausalSelfAttentionConfig, field: &'static str| {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .cause(predicate(field, move |e: &ConstraintError| {
                     e.field == field
                 }))

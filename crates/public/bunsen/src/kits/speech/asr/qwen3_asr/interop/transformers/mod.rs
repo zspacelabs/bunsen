@@ -281,7 +281,7 @@ mod tests {
             "\"tie_word_embeddings\": true",
             "\"tie_word_embeddings\": false",
         );
-        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
+        crate::errors::testing::ErrorMatcher::unsupported()
             .message_contains("tie_word_embeddings")
             .assert_err(&qwen3_asr_config_from_str(&untied));
     }

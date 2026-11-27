@@ -79,12 +79,9 @@ pub fn parse_path_ident(ident: &str) -> BunsenResult<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::errors::{
-        BunsenErrorKind,
-        testing::{
-            ErrorMatcher,
-            text,
-        },
+    use bunsen::errors::testing::{
+        ErrorMatcher,
+        text,
     };
 
     use super::*;
@@ -105,10 +102,10 @@ mod tests {
         assert!(check_ident("a_9").is_ok());
         assert!(check_ident("_abc9").is_ok());
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq("Invalid identifier: ''"))
             .assert_err(&check_ident(""));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq("Invalid identifier: '9a'"))
             .assert_err(&check_ident("9a"));
     }
@@ -124,10 +121,10 @@ mod tests {
             vec!["a".to_string(), "b2".to_string(), "c".to_string()]
         );
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq("Invalid path identifier: 'a'"))
             .assert_err(&parse_path_ident("a"));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .display(text::eq("Invalid path identifier: '9a::x'"))
             .assert_err(&parse_path_ident("9a::x"));
     }

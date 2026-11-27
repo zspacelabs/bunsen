@@ -359,10 +359,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -506,7 +503,7 @@ mod tests {
             BunsenActivationConfig::Relu,
         );
         config.paths.truncate(1);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("then [4, 16]; it reads 8 channels and weighs 8")
             .assert_err(&config.try_validate());
     }

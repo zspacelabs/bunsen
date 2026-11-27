@@ -510,7 +510,7 @@ mod preset_tests {
 
         for row in ["openai/tiny.en", "openai/large-v3-turbo"] {
             assert!(policy(row).unwrap().presets.is_empty(), "{row}");
-            crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
+            crate::errors::testing::ErrorMatcher::lookup()
                 .message_contains("no preset `translate`")
                 .assert_err(&policy(&format!("{row}[translate]")));
         }
@@ -601,18 +601,16 @@ mod reader_tests {
         ));
 
         map.resources.get_mut(CHECKPOINT).unwrap().format = Some("burnpack".to_string());
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .frame_contains("checkpoint")
             .display_contains("checkpoint: no reader for a \"burnpack\"")
             .assert_err(&WhisperConstructConfig::for_resource_set(&map));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported).assert_err(&DeferredBuild::<
-            WhisperConstructConfig,
-        >::from_resource_set(
-            map
-        ));
-
-        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(
-            &WhisperConstructConfig::for_resource_set(&ResourceSet::new("empty")),
+        ErrorMatcher::unsupported().assert_err(
+            &DeferredBuild::<WhisperConstructConfig>::from_resource_set(map),
         );
+
+        ErrorMatcher::lookup().assert_err(&WhisperConstructConfig::for_resource_set(
+            &ResourceSet::new("empty"),
+        ));
     }
 }

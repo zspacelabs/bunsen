@@ -64,7 +64,7 @@ mod tests {
     fn test_shape_from_xml_attr_rejects_non_usize() {
         use crate::errors::testing::ErrorMatcher;
 
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_eq("cannot parse shape attribute \"2 x\": invalid digit found in string")
             .has_cause::<ParseError>()
             .assert_err(&shape_from_xml_attr("2 x"));

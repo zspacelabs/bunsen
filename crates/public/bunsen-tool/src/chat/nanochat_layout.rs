@@ -132,10 +132,7 @@ impl NanoChatLayout {
 #[cfg(test)]
 mod tests {
     use bunsen::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::support::tokens::{
             BunsenTokenizer,
             testing::toy_tiktoken_pickle,
@@ -190,7 +187,7 @@ mod tests {
     #[test]
     fn test_refuses_what_upstream_cannot_render() {
         let (tok, layout) = toy();
-        let illegal = ErrorMatcher::kind(BunsenErrorKind::Illegal);
+        let illegal = ErrorMatcher::illegal();
         illegal.assert_err(&layout.render(&tok, &[]));
         illegal.assert_err(&layout.render(&tok, &[ChatMessage::system("hello")]));
         illegal.assert_err(&layout.render(&tok, &[ChatMessage::assistant("hello")]));

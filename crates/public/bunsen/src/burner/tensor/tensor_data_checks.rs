@@ -276,12 +276,9 @@ fn values_result(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::{
-            ErrorMatcher,
-            predicate,
-        },
+    use crate::errors::testing::{
+        ErrorMatcher,
+        predicate,
     };
 
     #[test]
@@ -289,7 +286,7 @@ mod tests {
         let a = TensorData::from([1.0f32]);
         let b = TensorData::from([1.0f64]);
         a.try_assert_eq(&b, false).unwrap();
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_eq("data types differ: F32 != F64")
             .assert_err(&a.try_assert_eq(&b, true));
     }
@@ -298,7 +295,7 @@ mod tests {
     fn test_try_assert_eq_shape() {
         let a = TensorData::from([1.0f32, 2.0]);
         let b = TensorData::from([[1.0f32, 2.0]]);
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_eq("shapes differ: [2] != [1, 2]")
             .assert_err(&a.try_assert_eq(&b, true));
     }
@@ -309,7 +306,7 @@ mod tests {
         let b = TensorData::from([1.0f32; 7]);
         let five = TensorData::from([1.0f32, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0]);
 
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_eq("7 of 7 values differ")
             .details_contains("position 4: 0 != 1\n... and 2 more")
             .cause(predicate("five listed", |m: &ValueMismatch| {
@@ -326,7 +323,7 @@ mod tests {
     fn test_try_assert_approx_eq() {
         let a = TensorData::from([1.0f32, 2.0]);
         let b = TensorData::from([1.0f32, 2.5]);
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_eq("1 of 2 values differ")
             .details_contains("position 1: 2 != 2.5")
             .assert_err(&a.try_assert_approx_eq(&b, Tolerance::<f32>::balanced(), true));

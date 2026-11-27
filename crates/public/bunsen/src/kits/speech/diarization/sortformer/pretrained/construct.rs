@@ -428,10 +428,7 @@ mod tests {
                     Source,
                 },
             },
-            errors::{
-                BunsenErrorKind,
-                testing::ErrorMatcher,
-            },
+            errors::testing::ErrorMatcher,
         };
         let toy = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("testdata/nemo/toy_sortformer_v2.nemo");
@@ -493,7 +490,7 @@ mod tests {
         assert_eq!(yaml.matches(modules).count(), 1);
         let edited = yaml.replace(modules, "  fc_d_model: 32\n  tf_d_model: 8\n  chunk");
         let map = remote(archive(&edited));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("sortformer_modules.fc_d_model")
             .frame_contains("remote.nemo")
             .assert_err(&hook.plan(&BuildRef::from(map.clone()), &cache));

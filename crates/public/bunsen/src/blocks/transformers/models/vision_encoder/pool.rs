@@ -191,10 +191,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -226,7 +223,7 @@ mod tests {
             Some(TokenPoolConfig::Map)
         );
         assert_eq!(TokenPoolConfig::from_timm("prr"), None);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("a Map pool has parameters")
             .assert_err(&TokenPool::try_new(TokenPoolConfig::Map, 0));
     }
@@ -248,10 +245,10 @@ mod tests {
                 .unwrap(),
             [3., 4.]
         );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("reads 2 prefix tokens: there are 1")
             .assert_err(&TokenPool::try_new(TokenPoolConfig::Distilled, 1));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("reads 1 prefix tokens: there are 0")
             .assert_err(&TokenPool::try_new(TokenPoolConfig::Token, 0));
     }

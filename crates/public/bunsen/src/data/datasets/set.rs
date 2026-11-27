@@ -302,7 +302,6 @@ mod tests {
             datasets::ShardDigests,
         },
         errors::{
-            BunsenErrorKind,
             LookupProblem,
             testing::{
                 ErrorMatcher,
@@ -359,10 +358,10 @@ mod tests {
         let set = ShardSet::at_dir(&cache, desc, dir.path().join("elsewhere"));
         assert_eq!(set.root(), dir.path().join("elsewhere"));
         assert!(!set.is_cached(ShardId(0)));
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .display_contains("served: shard 0 is not at ")
             .assert_err(&set.locate(ShardId(0), false));
-        let out_of_range = ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        let out_of_range = ErrorMatcher::lookup()
             .display_contains("served: shard 3 is out of range; there are 3")
             .cause(predicate("shard 3 of 3", |l: &LookupError| {
                 l.key == "3" && l.problem == LookupProblem::OutOfRange { len: 3 }
@@ -480,7 +479,7 @@ mod tests {
         assert_eq!(fs::read(&good).unwrap(), b"abc");
 
         let bad = set.fetch(ShardId(1));
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .frame_contains("served: shard 1")
             .cause(predicate("a digest failure", |f: &FetchFailure| {
                 matches!(f, FetchFailure::Digest(_))

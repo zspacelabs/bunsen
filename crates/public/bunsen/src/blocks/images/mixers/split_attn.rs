@@ -322,10 +322,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -428,7 +425,7 @@ mod tests {
             BunsenActivationConfig::Relu,
         );
         config.radix = 4;
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("the conv is 16 wide in 2 groups; 4 splits of 1 groups")
             .assert_err(&config.try_validate());
     }

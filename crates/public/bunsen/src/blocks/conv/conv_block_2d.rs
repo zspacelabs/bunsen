@@ -450,10 +450,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -515,7 +512,7 @@ mod tests {
 
         // No legal output when the kernel cannot fit.
         let too_big = block(Conv2dConfig::new([2, 4], [5, 5]).with_padding(PaddingConfig2d::Valid));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("input resolution ([3, 3])")
             .assert_err(&too_big.try_output_resolution([3, 3]));
     }
@@ -624,7 +621,7 @@ mod tests {
             Conv2dConfig::new([2, 4], [3, 3]).with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1)),
         )
         .with_same_pad(true);
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("a SAME-padded conv pads its input")
             .assert_err(&padded.try_init(&device));
     }

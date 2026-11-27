@@ -94,10 +94,7 @@ mod tests {
             ConvChainMeta,
             ResidualConvConfig,
         },
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::images::classification::resnet::BottleneckPolicyConfig,
     };
 
@@ -121,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_illegal_policies() {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("a Res2Net's blocks are bottlenecks")
             .assert_err(
                 &Res2NetContractConfig::new(ResNetContractConfig::new(vec![2, 2, 2, 2], 1000))

@@ -458,13 +458,13 @@ mod tests {
     fn test_validate_paths_rejects_unknown_fields() {
         let base = json!({"sampling": {"temperature": 0.7, "top_p": 0.8}});
         let result = validate_paths(&base, &json!({"sampling": {"tempurature": 1.0}}));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_eq("no field \"sampling.tempurature\"; there are: temperature, top_p")
             .has_cause::<LookupError>()
             .assert_err(&result);
 
         let result = validate_paths(&base, &json!({"beam": 1}));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_eq("no field \"beam\"; there are: sampling")
             .assert_err(&result);
     }

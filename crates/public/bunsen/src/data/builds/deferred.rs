@@ -307,10 +307,7 @@ mod tests {
                 ResourceCacheOptions,
             },
         },
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -382,7 +379,7 @@ mod tests {
         let named = DeferredBuild::<CheckpointPath>::new(named()).unwrap();
         assert_eq!(named.id(), "catalog:a/small");
         assert_eq!(named.status(&cache)["checkpoint"], CacheStatus::Remote);
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .frame_contains("loading kit \"catalog:a/small\"")
             .message_contains("the cache is offline")
             .assert_err(&named.load(
@@ -535,7 +532,7 @@ mod tests {
             "converted: w1",
             "no fetch: the cache is offline"
         );
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_contains("the cache is offline")
             .assert_err(&load(&off));
     }

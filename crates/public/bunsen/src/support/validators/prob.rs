@@ -85,11 +85,11 @@ mod tests {
 
     #[test]
     fn test_probability_rejects_nan() {
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_eq("probability: NaN is outside [0.0, 1.0]")
             .has_cause::<ConstraintError>()
             .assert_err(&try_probability(f32::NAN));
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .assert_err(&try_probability(f64::NAN));
     }

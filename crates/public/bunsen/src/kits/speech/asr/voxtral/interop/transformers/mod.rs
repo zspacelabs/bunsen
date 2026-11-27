@@ -191,10 +191,7 @@ mod tests {
     use super::*;
     use crate::{
         blocks::transformers::models::language_decoder::LmDecoderMeta,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::speech::asr::voxtral::blocks::{
             VoxtralAudioEncoderMeta,
             VoxtralRealtimeMeta,
@@ -296,10 +293,10 @@ mod tests {
             "\"tie_word_embeddings\": true",
             "\"tie_word_embeddings\": false",
         );
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("tie_word_embeddings")
             .assert_err(&voxtral_realtime_config_from_str(&untied));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("model_type")
             .assert_err(&voxtral_realtime_config_from_str(
                 &CONFIG_JSON.replace("\"voxtral_realtime\"", "\"voxtral\""),

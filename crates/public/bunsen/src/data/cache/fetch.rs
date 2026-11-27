@@ -448,7 +448,7 @@ mod tests {
         let result = fetch_verified(&url, &dest, ABC_SHA256, &observers(&observer));
 
         let origin = DigestOrigin::Download { url: url.clone() };
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+        ErrorMatcher::invalid_resource()
             .cause(predicate(
                 "a digest failure from the URL",
                 move |f: &FetchFailure| matches!(f, FetchFailure::Digest(m) if m.origin == origin),
@@ -476,7 +476,7 @@ mod tests {
 
         let result = fetch_verified(&url, &dest, ABC_SHA256, &observers(&observer));
 
-        ErrorMatcher::kind(BunsenErrorKind::Unavailable)
+        ErrorMatcher::unavailable()
             .cause(predicate("a transport failure", |f: &FetchFailure| {
                 matches!(f, FetchFailure::Transport { .. })
             }))
@@ -494,7 +494,7 @@ mod tests {
             ABC_SHA256,
             &observers(&observer),
         );
-        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        ErrorMatcher::illegal()
             .message_contains("not a file path")
             .assert_err(&result);
         assert!(observer.events().is_empty());
@@ -530,7 +530,7 @@ mod tests {
         let result = fetch_file(&url, &dest, None, &[]);
 
         let key = url.clone();
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .message_eq(&format!("{url}: not found"))
             .cause(predicate("a missing URL", move |l: &LookupError| {
                 l.problem == LookupProblem::Missing && l.key == key
@@ -553,7 +553,7 @@ mod tests {
 
         let result = fetch_file(&url, &dest, None, &observers(&observer));
 
-        ErrorMatcher::kind(BunsenErrorKind::Unavailable)
+        ErrorMatcher::unavailable()
             .has_cause::<FetchFailure>()
             .assert_err(&result);
         assert!(!dest.exists());
@@ -569,7 +569,6 @@ mod tests {
     fn test_fetch_prefix() {
         let url = serve_ranges("f.bin", b"abcdef", 1);
         assert_eq!(fetch_prefix(&url, 4).unwrap(), b"abcd");
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .assert_err(&fetch_prefix(&serve_status("f.bin", 404), 4));
+        ErrorMatcher::lookup().assert_err(&fetch_prefix(&serve_status("f.bin", 404), 4));
     }
 }

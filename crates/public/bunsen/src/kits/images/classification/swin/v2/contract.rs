@@ -188,10 +188,7 @@ mod tests {
             StagedVisionEncoderModel,
         },
         burner::module::ModuleInit,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -223,7 +220,7 @@ mod tests {
     #[test]
     fn test_illegal_policies() {
         let illegal = |config: SwinV2ContractConfig, message: &str| {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains(message)
                 .assert_err(&config.try_to_structure());
         };

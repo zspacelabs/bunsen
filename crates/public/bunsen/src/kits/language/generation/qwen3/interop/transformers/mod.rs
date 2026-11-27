@@ -139,10 +139,7 @@ pub fn qwen3_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
-    };
+    use crate::errors::testing::ErrorMatcher;
 
     /// `transformers`' Qwen3 decoder-layer names, onto the block's own.
     #[test]
@@ -294,7 +291,7 @@ mod tests {
             ),
         ] {
             assert!(small.contains(from), "{from}");
-            ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            ErrorMatcher::unsupported()
                 .message_contains(field)
                 .assert_err(&qwen3_config_from_str(&small.replace(from, to)));
         }
@@ -303,7 +300,7 @@ mod tests {
         // a stated one off, as `transformers` reads it.
         let windowed = small.replace("\"sliding_window\": null", "\"sliding_window\": 4096");
         assert!(qwen3_config_from_str(&windowed).is_ok(), "switched off");
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+        ErrorMatcher::unsupported()
             .message_contains("sliding_window")
             .assert_err(&qwen3_config_from_str(&windowed.replace(
                 "\"use_sliding_window\": false",

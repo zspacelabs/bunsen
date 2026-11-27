@@ -112,7 +112,6 @@ pub trait Prefabs: Sized + 'static {
 mod tests {
     use super::*;
     use crate::errors::{
-        BunsenErrorKind,
         LookupError,
         testing::{
             ErrorMatcher,
@@ -147,7 +146,7 @@ mod tests {
     /// A miss names the table and what it holds.
     #[test]
     fn test_a_miss_names_what_there_is() {
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+        ErrorMatcher::lookup()
             .display(text::eq(
                 "toys: no prefab \"huge\"; there are: narrow, wide",
             ))

@@ -18,7 +18,6 @@ use bunsen::{
         },
     },
     errors::{
-        BunsenErrorKind,
         BunsenResult,
         testing::{
             ErrorMatcher,
@@ -125,7 +124,7 @@ fn test_plan_checks_a_declared_vocabulary() {
     let wrong = base_checkpoint()
         .fuse(WhisperVocabulary::Gpt2.resource_set(), Fuse::Strict)
         .unwrap();
-    ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+    ErrorMatcher::invalid_resource()
         .message_contains("gpt2.tiktoken")
         .message_contains("multilingual.tiktoken")
         .assert_err(&WhisperConstructConfig::new().plan(&BuildRef::from(wrong), &cache));
@@ -187,7 +186,7 @@ fn test_plan_checks_the_prefab_a_name_promises() {
     hook.plan(&given, &cache).unwrap();
 
     let tiny = hook.clone().with_expected(Some(geometry_of("tiny")));
-    ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+    ErrorMatcher::invalid_resource()
         .message_contains("promised")
         .cause(predicate(
             "tiny expected, base found",
@@ -235,7 +234,7 @@ fn test_scan_honors_the_scanner() {
         WhisperConstructConfig::new().with_scanner(PytorchWhisperScanner::new().with_d_head(32));
 
     let named = resolve_model("openai/base").unwrap();
-    ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+    ErrorMatcher::invalid_resource()
         .has_cause::<GeometryMismatch>()
         .assert_err(&hook.scan(&named, &loaded(base)));
 
@@ -250,7 +249,7 @@ fn test_scan_honors_the_scanner() {
 #[test]
 fn test_a_checkpoint_under_the_wrong_name_is_rejected() {
     let model = resolve_model("openai/tiny").unwrap();
-    ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+    ErrorMatcher::invalid_resource()
         .cause(predicate(
             "a mismatch under openai/whisper/tiny",
             |m: &GeometryMismatch| m.model.contains("openai/whisper/tiny"),

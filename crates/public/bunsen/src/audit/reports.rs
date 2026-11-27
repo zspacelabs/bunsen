@@ -421,7 +421,7 @@ mod tests {
             Path::new("r").join("flex").join("a/b.cbor")
         );
         for name in ["", "../x", "/abs"] {
-            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            ErrorMatcher::illegal()
                 .message_contains("must be a relative path without `..`")
                 .assert_err(&options.report_path("flex", name));
         }
@@ -450,7 +450,7 @@ mod tests {
         assert_eq!(BaselineMode::parse("").unwrap(), BaselineMode::Auto);
         assert_eq!(BaselineMode::parse("Record").unwrap(), BaselineMode::Record);
         assert_eq!(BaselineMode::parse("verify").unwrap(), BaselineMode::Verify);
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
+        ErrorMatcher::policy()
             .message_eq("cannot parse baseline mode \"replay\": expected auto, record, or verify")
             .has_cause::<ParseError>()
             .assert_err(&BaselineMode::parse("replay"));
@@ -494,7 +494,7 @@ mod tests {
         assert_eq!(report.get("error").unwrap()[1], -2.5e-300);
 
         let bad_csv = |at: Option<&str>| {
-            let m = ErrorMatcher::kind(BunsenErrorKind::InvalidResource);
+            let m = ErrorMatcher::invalid_resource();
             let at = at.map(str::to_string);
             m.cause(predicate(
                 "a series CSV parse error",
@@ -510,8 +510,7 @@ mod tests {
         bad_csv(Some("row 0"))
             .frame_contains("reading ")
             .assert_err(&SeriesReport::read(&path));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .assert_err(&SeriesReport::read(&dir.path().join("absent.csv")));
+        ErrorMatcher::lookup().assert_err(&SeriesReport::read(&dir.path().join("absent.csv")));
     }
 
     #[test]
