@@ -1,7 +1,5 @@
 //! [`Qwen3TtsCodecUpsample`]: one of the codec decoder's upsampling stages, and its config.
 
-use alloc::format;
-
 use burn::{
     config::Config,
     prelude::*,
@@ -17,10 +15,7 @@ use crate::{
         CausalConvTranspose1dMeta,
     },
     burner::module::ModuleInit,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
 };
 
 /// Common meta for [`Qwen3TtsCodecUpsample`] and
@@ -81,10 +76,16 @@ impl ModuleInit<Qwen3TtsCodecUpsample> for Qwen3TtsCodecUpsampleConfig {
     ) -> BunsenResult<Qwen3TtsCodecUpsample> {
         let [w, r] = [self.width, self.factor];
         if self.block.width != w {
-            return Err(BunsenError::illegal(format!(
-                "an upsampler of width {w} with a ConvNeXt block of width {}",
-                self.block.width
-            )));
+            return Err(crate::errors::ConstraintError::new(
+                "Qwen3TtsCodecUpsampleConfig",
+                "block.width",
+                crate::errors::Rule::Relation {
+                    lhs: ("block.width".into(), self.block.width.to_string()),
+                    op: "==",
+                    rhs: ("width".into(), w.to_string()),
+                },
+            )
+            .into());
         }
         Ok(Qwen3TtsCodecUpsample {
             up: CausalConvTranspose1dConfig::new([w, w], r)

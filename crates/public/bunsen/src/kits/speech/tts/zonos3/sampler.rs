@@ -64,18 +64,60 @@ impl Zonos3SamplerConfig {
     /// The sampler, for codebooks of `codebook_size` codes followed by the
     /// end of audio (`eoa_id`) and pads up to `audio_vocab`.
     ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`](crate::errors::ConstraintError), if the end of
+    /// audio is not past the codes and in the vocabulary, or the repetition
+    /// penalty is not positive.
+    pub fn try_init(
+        &self,
+        codebook_size: usize,
+        eoa_id: usize,
+        audio_vocab: usize,
+    ) -> crate::errors::BunsenResult<Zonos3Sampler> {
+        use crate::errors::ConstraintError;
+        if !(codebook_size..audio_vocab).contains(&eoa_id) {
+            return Err(ConstraintError::out_of_range(
+                "Zonos3SamplerConfig::try_init",
+                "eoa_id",
+                eoa_id,
+                alloc::format!("{codebook_size}..{audio_vocab}: past the codes, in the vocabulary"),
+            )
+            .into());
+        }
+        if self.repetition_penalty.is_nan() || self.repetition_penalty <= 0.0 {
+            return Err(ConstraintError::out_of_range(
+                "Zonos3SamplerConfig",
+                "repetition_penalty",
+                self.repetition_penalty,
+                "> 0",
+            )
+            .into());
+        }
+        Ok(self.init_unchecked(codebook_size, eoa_id, audio_vocab))
+    }
+
+    /// [`try_init`](Self::try_init), panicking with its error's report.
+    ///
     /// # Panics
-    /// If the end of audio is not past the codes, or not in the vocabulary.
+    /// As `try_init`'s errors.
     pub fn init(
         &self,
         codebook_size: usize,
         eoa_id: usize,
         audio_vocab: usize,
     ) -> Zonos3Sampler {
-        assert!(
-            (codebook_size..audio_vocab).contains(&eoa_id),
-            "the end of audio is past the codes, in the vocabulary"
-        );
+        use crate::errors::WithOkOrPanic;
+        self.try_init(codebook_size, eoa_id, audio_vocab)
+            .ok_or_panic()
+    }
+
+    fn init_unchecked(
+        &self,
+        codebook_size: usize,
+        eoa_id: usize,
+        audio_vocab: usize,
+    ) -> Zonos3Sampler {
         let temperature = self.temperature.max(ZONOS3_MIN_TEMPERATURE);
         let eoa = eoa_id as i64;
         Zonos3Sampler {
@@ -208,6 +250,27 @@ mod tests {
         );
         let raised = sampler(&Zonos3SamplerConfig::new().with_temperature(0.0));
         assert_eq!(raised.temperature(), ZONOS3_MIN_TEMPERATURE);
+    }
+
+    /// An end of audio among the codes or past the vocabulary, or a penalty
+    /// that is not positive, is refused by name.
+    #[test]
+    fn test_try_init_refusals() {
+        let config = Zonos3SamplerConfig::new();
+        for eoa in [3, 6] {
+            crate::errors::testing::ErrorMatcher::illegal()
+                .constraint("Zonos3SamplerConfig::try_init", "eoa_id")
+                .assert_err(&config.try_init(4, eoa, 6).map(|_| ()));
+        }
+        crate::errors::testing::ErrorMatcher::illegal()
+            .constraint("Zonos3SamplerConfig", "repetition_penalty")
+            .assert_err(
+                &config
+                    .clone()
+                    .with_repetition_penalty(0.0)
+                    .try_init(4, 4, 6)
+                    .map(|_| ()),
+            );
     }
 
     #[test]

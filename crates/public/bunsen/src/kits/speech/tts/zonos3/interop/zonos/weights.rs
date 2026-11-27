@@ -379,6 +379,7 @@ mod tests {
     use burn::prelude::TensorData;
 
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     fn tensor(
         name: &str,
@@ -423,7 +424,7 @@ mod tests {
                 embedding(),
             ],
         ] {
-            assert!(zonos3_voices(bad).is_err());
+            ErrorMatcher::invalid_resource().assert_err(&zonos3_voices(bad));
         }
     }
 }

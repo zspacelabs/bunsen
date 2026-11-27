@@ -305,7 +305,10 @@ mod tests {
     use crate::{
         burner::module::ToStructureConfig,
         data::formats::nemo::NemoArchive,
-        errors::BunsenErrorKind,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         kits::speech::{
             diarization::sortformer::SortformerV2Config,
             support::nemo::FeatureNormalization,
@@ -368,8 +371,10 @@ mod tests {
             "target: nemo.collections.asr.models.rnnt_bpe_models.EncDecRNNTBPEModel\n",
         )
         .unwrap_err();
-        assert_eq!(err.kind(), BunsenErrorKind::Unsupported, "{err}");
-        assert!(err.to_string().contains("EncDecRNNTBPEModel"), "{err}");
+        // {err}
+        ErrorMatcher::unsupported()
+            .display_contains("EncDecRNNTBPEModel")
+            .assert(&err);
         assert_eq!(
             NemoSortformerMirror::from_yaml("target: [")
                 .unwrap_err()
@@ -438,7 +443,8 @@ mod tests {
             let config: NemoSortformerMirror =
                 parse_nemo_yaml(&yaml.replacen(from, to, 1)).unwrap();
             let err = config.sortformer_structure_config().unwrap_err();
-            assert_eq!(err.kind(), BunsenErrorKind::Unsupported, "{field}: {err}");
+            // {field}: {err}
+            ErrorMatcher::unsupported().assert(&err);
             assert!(err.to_string().contains(field), "{field}: {err}");
         }
     }

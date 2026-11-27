@@ -296,6 +296,7 @@ mod tests {
     use crate::{
         blocks::signals::DacDecoderMeta,
         burner::module::ToStructureConfig,
+        errors::testing::ErrorMatcher,
         kits::speech::tts::qwen3_tts::blocks::Qwen3TtsCodecDecoderMeta,
     };
 
@@ -350,7 +351,7 @@ mod tests {
             },
         ] {
             let error = Qwen3TtsCodecDecoderMirror::codec_decoder_config(&json).unwrap_err();
-            assert_eq!(error.kind(), crate::errors::BunsenErrorKind::Unsupported);
+            ErrorMatcher::unsupported().assert(&error);
         }
     }
 
@@ -370,9 +371,6 @@ mod tests {
             assert_eq!(config.samples_per_frame(), 1920);
         }
         let error = codec(Some(1921)).codec_decoder_config().unwrap_err();
-        assert_eq!(
-            error.kind(),
-            crate::errors::BunsenErrorKind::InvalidResource
-        );
+        ErrorMatcher::invalid_resource().assert(&error);
     }
 }

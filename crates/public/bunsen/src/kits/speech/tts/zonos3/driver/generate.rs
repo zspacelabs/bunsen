@@ -380,10 +380,22 @@ impl<T: Tokenizer> Zonos3Engine<T> {
         config: Zonos3EngineConfig,
     ) -> BunsenResult<Self> {
         if config.silence_prefill_frames > config.silence_prefill_max_frames {
-            return Err(BunsenError::illegal(format!(
-                "a silence prefill of {} frames is past the limit of {}",
-                config.silence_prefill_frames, config.silence_prefill_max_frames
-            )));
+            return Err(crate::errors::ConstraintError::new(
+                "Zonos3EngineConfig",
+                "silence_prefill_frames",
+                crate::errors::Rule::Relation {
+                    lhs: (
+                        "silence_prefill_frames".into(),
+                        config.silence_prefill_frames.to_string(),
+                    ),
+                    op: "<=",
+                    rhs: (
+                        "silence_prefill_max_frames".into(),
+                        config.silence_prefill_max_frames.to_string(),
+                    ),
+                },
+            )
+            .into());
         }
         let language = construct.language_tag(&config.default_language)?;
         if !construct.voices.contains_key(&config.default_voice) {
@@ -412,7 +424,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
                     .map(|&value| condition_bucket(&c.edges, value))
             })
             .collect();
-        let sampler = Self::sampler(&construct, &config.sampler);
+        let sampler = Self::sampler(&construct, &config.sampler)?;
         let capabilities = TtsCapabilities {
             languages: construct
                 .language_tags
@@ -446,9 +458,9 @@ impl<T: Tokenizer> Zonos3Engine<T> {
     fn sampler(
         construct: &Zonos3Construct,
         config: &Zonos3SamplerConfig,
-    ) -> Zonos3Sampler {
+    ) -> BunsenResult<Zonos3Sampler> {
         let lm = &construct.lm_config;
-        config.init(lm.codebook_size, lm.eoa_id(), lm.audio_vocab())
+        config.try_init(lm.codebook_size, lm.eoa_id(), lm.audio_vocab())
     }
 
     /// The model.
@@ -553,17 +565,21 @@ impl<T: Tokenizer> Zonos3Engine<T> {
         request: &Zonos3Request,
         overrides: &TtsSamplingOverrides,
     ) -> BunsenResult<Zonos3Codes> {
-        self.generate_codes_sampled(request, &self.sampler_with(overrides))
+        self.generate_codes_sampled(request, &self.try_sampler_with(overrides)?)
     }
 
     /// The sampler a take with `overrides` draws by: the config's, the
     /// overrides over it (none, the engine's own).
-    pub fn sampler_with(
+    ///
+    /// # Errors
+    /// As [`Zonos3SamplerConfig::try_init`]: an override it refuses, such as
+    /// a repetition penalty that is not positive.
+    pub fn try_sampler_with(
         &self,
         overrides: &TtsSamplingOverrides,
-    ) -> Zonos3Sampler {
+    ) -> BunsenResult<Zonos3Sampler> {
         if *overrides == TtsSamplingOverrides::default() {
-            return self.sampler.clone();
+            return Ok(self.sampler.clone());
         }
         let mut config = self.config.sampler.clone();
         if let Some(t) = overrides.temperature {
@@ -582,6 +598,19 @@ impl<T: Tokenizer> Zonos3Engine<T> {
             config.repetition_penalty = r;
         }
         Self::sampler(&self.construct, &config)
+    }
+
+    /// [`try_sampler_with`](Self::try_sampler_with), panicking with its
+    /// error's report.
+    ///
+    /// # Panics
+    /// As `try_sampler_with`'s errors.
+    pub fn sampler_with(
+        &self,
+        overrides: &TtsSamplingOverrides,
+    ) -> Zonos3Sampler {
+        use crate::errors::WithOkOrPanic;
+        self.try_sampler_with(overrides).ok_or_panic()
     }
 
     /// [`generate_codes`](Self::generate_codes), sampled by `sampler`.

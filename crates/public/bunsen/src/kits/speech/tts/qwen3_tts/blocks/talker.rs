@@ -27,10 +27,7 @@ use crate::{
         },
     },
     burner::module::ModuleInit,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::language::generation::qwen3::{
         Qwen3Config,
         Qwen3Model,
@@ -122,10 +119,22 @@ impl ModuleInit<Qwen3TtsTalker> for Qwen3TtsTalkerConfig {
     ) -> BunsenResult<Qwen3TtsTalker> {
         let p = &self.text_projection;
         if [p.d_input, p.d_output] != [self.text_width, self.lm.d_model] {
-            return Err(BunsenError::illegal(format!(
-                "a text projection {} -> {}; the talker's is {} -> {}",
-                p.d_input, p.d_output, self.text_width, self.lm.d_model
-            )));
+            return Err(crate::errors::ConstraintError::new(
+                "Qwen3TtsTalkerConfig",
+                "text_projection",
+                crate::errors::Rule::Relation {
+                    lhs: (
+                        "the projection".into(),
+                        format!("{} -> {}", p.d_input, p.d_output),
+                    ),
+                    op: "==",
+                    rhs: (
+                        "text_width -> lm.d_model".into(),
+                        format!("{} -> {}", self.text_width, self.lm.d_model),
+                    ),
+                },
+            )
+            .into());
         }
         let Qwen3Model { lm } = self.lm.try_init(device)?;
         Ok(Qwen3TtsTalker {

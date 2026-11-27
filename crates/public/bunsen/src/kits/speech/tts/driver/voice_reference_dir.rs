@@ -278,7 +278,10 @@ impl TtsVoiceReference {
 mod tests {
     use super::*;
     use crate::{
-        errors::BunsenErrorKind,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         support::{
             audio::save_wav_mono,
             testing::assert_scalar_close,
@@ -348,15 +351,16 @@ mod tests {
         let dir = work.path().join("src");
         let err =
             TtsVoiceReference::collect(&dir, none, &TtsVoiceAnnotations::default()).unwrap_err();
-        assert_eq!(err.kind(), BunsenErrorKind::Illegal);
+        ErrorMatcher::illegal().assert(&err);
         TtsVoiceReference::collect(&dir, &[&a], &TtsVoiceAnnotations::default()).unwrap();
         let err =
             TtsVoiceReference::collect(&dir, &[&a], &TtsVoiceAnnotations::default()).unwrap_err();
-        assert_eq!(err.kind(), BunsenErrorKind::Illegal, "not written over");
+        // not written over
+        ErrorMatcher::illegal().assert(&err);
         let twice = work.path().join("twice");
         let err = TtsVoiceReference::collect(&twice, &[&a, &a], &TtsVoiceAnnotations::default())
             .unwrap_err();
-        assert_eq!(err.kind(), BunsenErrorKind::Illegal);
+        ErrorMatcher::illegal().assert(&err);
 
         // A trim outside the clip.
         let path = dir.join(TTS_VOICE_REFERENCE_FILE);
@@ -368,7 +372,7 @@ mod tests {
         }];
         write_record(&dir, &record).unwrap();
         let err = TtsVoiceReference::read_dir(&dir).unwrap_err();
-        assert_eq!(err.kind(), BunsenErrorKind::InvalidResource);
+        ErrorMatcher::invalid_resource().assert(&err);
         record.clips[0].edits = vec![TtsClipEdit::Trim {
             start: 100,
             end: 600,

@@ -52,7 +52,40 @@ pub struct Qwen3TtsSamplerConfig {
 
 impl Qwen3TtsSamplerConfig {
     /// The sampler, never choosing `suppressed`.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`](crate::errors::ConstraintError), if the repetition
+    /// penalty is not positive.
+    pub fn try_init(
+        &self,
+        suppressed: impl IntoIterator<Item = i64>,
+    ) -> crate::errors::BunsenResult<Qwen3TtsSampler> {
+        if self.repetition_penalty.is_nan() || self.repetition_penalty <= 0.0 {
+            return Err(crate::errors::ConstraintError::out_of_range(
+                "Qwen3TtsSamplerConfig",
+                "repetition_penalty",
+                self.repetition_penalty,
+                "> 0",
+            )
+            .into());
+        }
+        Ok(self.init_unchecked(suppressed))
+    }
+
+    /// [`try_init`](Self::try_init), panicking with its error's report.
+    ///
+    /// # Panics
+    /// As `try_init`'s errors.
     pub fn init(
+        &self,
+        suppressed: impl IntoIterator<Item = i64>,
+    ) -> Qwen3TtsSampler {
+        use crate::errors::WithOkOrPanic;
+        self.try_init(suppressed).ok_or_panic()
+    }
+
+    fn init_unchecked(
         &self,
         suppressed: impl IntoIterator<Item = i64>,
     ) -> Qwen3TtsSampler {

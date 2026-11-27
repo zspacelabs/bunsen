@@ -458,8 +458,9 @@ fn test_clone_mode() {
         "xvector"
     );
     let err = capabilities.clone_mode(&without, Some("icl")).unwrap_err();
-    assert_eq!(err.kind(), BunsenErrorKind::Illegal);
-    assert!(format!("{err}").contains("transcript"), "{err}");
+    ErrorMatcher::illegal()
+        .display_contains("transcript")
+        .assert(&err);
     assert_eq!(
         capabilities
             .clone_mode(&with, Some("nope"))
@@ -487,7 +488,7 @@ fn test_clone_mode() {
 fn test_build_voice_unsupported() {
     let driver = TtsDriver::new(Scripted::new(false), TtsDriverConfig::new()).unwrap();
     let err = TtsSynthesizer::build_voice(&driver, &reference(None), None).unwrap_err();
-    assert_eq!(err.kind(), BunsenErrorKind::Unsupported);
+    ErrorMatcher::unsupported().assert(&err);
 }
 
 /// The chunk policy's ramp: 1, 2, 4, 8, then 15 at a time; a policy of no

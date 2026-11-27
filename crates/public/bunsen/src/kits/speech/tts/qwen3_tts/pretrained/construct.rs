@@ -182,6 +182,7 @@ impl ConstructInit for Qwen3TtsConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     /// The hook takes every catalog row's resource set, and refuses one
     /// that lacks a part.
@@ -211,6 +212,7 @@ mod tests {
         ] {
             partial.insert(map.get(key).unwrap().clone());
         }
-        assert!(Qwen3TtsConstructConfig::for_resource_set(&partial).is_err());
+        ErrorMatcher::unsupported()
+            .assert_err(&Qwen3TtsConstructConfig::for_resource_set(&partial));
     }
 }

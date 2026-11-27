@@ -121,7 +121,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::testing::assert_rekeys,
-        errors::BunsenErrorKind,
+        errors::testing::ErrorMatcher,
     };
 
     fn section(extra: &str) -> TransformersConfigJson {
@@ -186,7 +186,8 @@ mod tests {
             r#", "rope_scaling": {"mrope_section": [16, 16, 16], "rope_type": "default"}"#,
         ))
         .unwrap_err();
-        assert_eq!(error.kind(), BunsenErrorKind::Unsupported);
-        assert!(error.to_string().contains("mrope_section"));
+        ErrorMatcher::unsupported()
+            .display_contains("mrope_section")
+            .assert(&error);
     }
 }

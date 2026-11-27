@@ -167,7 +167,11 @@ impl<T: Tokenizer> Qwen3TtsEngine<T> {
         config: Qwen3TtsEngineConfig,
     ) -> BunsenResult<Self> {
         if config.decode.unwrap_or(construct.decode).chunk == 0 {
-            return Err(BunsenError::illegal("a decode chunk of no frames"));
+            return Err(crate::errors::ConstraintError::zero_or_empty(
+                "Qwen3TtsEngineConfig",
+                "decode.chunk",
+            )
+            .into());
         }
         if let Some(voice) = &config.default_voice {
             construct.prompt.speaker(&voice.to_lowercase())?;

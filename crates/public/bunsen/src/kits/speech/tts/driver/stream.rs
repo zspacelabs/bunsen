@@ -19,10 +19,7 @@ use super::{
     TtsTakeInfo,
     TtsTakeRequest,
 };
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
-};
+use crate::errors::BunsenResult;
 
 /// How a take's stream groups its final frames into codec decodes: the
 /// first decode as soon as [`first`](Self::first) frames are final, then
@@ -60,11 +57,22 @@ impl TtsChunkPolicy {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), naming the
     /// field.
     pub fn check(&self) -> BunsenResult<()> {
-        if self.first == 0 || self.max < self.first {
-            return Err(BunsenError::illegal(format!(
-                "a stream's decodes of {} frames first, at most {}",
-                self.first, self.max
-            )));
+        if self.first == 0 {
+            return Err(
+                crate::errors::ConstraintError::zero_or_empty("TtsChunkPolicy", "first").into(),
+            );
+        }
+        if self.max < self.first {
+            return Err(crate::errors::ConstraintError::new(
+                "TtsChunkPolicy",
+                "max",
+                crate::errors::Rule::Relation {
+                    lhs: ("max".into(), self.max.to_string()),
+                    op: ">=",
+                    rhs: ("first".into(), self.first.to_string()),
+                },
+            )
+            .into());
         }
         Ok(())
     }

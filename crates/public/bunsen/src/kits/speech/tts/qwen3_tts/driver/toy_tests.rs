@@ -16,6 +16,7 @@ use crate::{
     errors::{
         BunsenErrorKind,
         BunsenResult,
+        testing::ErrorMatcher,
     },
     kits::{
         speech::tts::{
@@ -418,7 +419,7 @@ fn test_refusals() {
         Qwen3TtsEngineConfig::new().with_default_voice(Some("nobody".into())),
     )
     .unwrap_err();
-    assert_eq!(error.kind(), BunsenErrorKind::Lookup);
+    ErrorMatcher::lookup().assert(&error);
 
     let error = Qwen3TtsEngine::new(
         construct(Qwen3TtsModelKind::CustomVoice, false),
@@ -426,11 +427,8 @@ fn test_refusals() {
         Qwen3TtsEngineConfig::new().with_decode(Some(Qwen3TtsDecodeConfig::new().with_chunk(0))),
     )
     .unwrap_err();
-    assert_eq!(
-        error.kind(),
-        BunsenErrorKind::Illegal,
-        "a decode chunk of no frames"
-    );
+    // a decode chunk of no frames
+    ErrorMatcher::illegal().assert(&error);
 }
 
 /// A model that takes an instruction gets it; a `VoiceDesign` model speaks in
