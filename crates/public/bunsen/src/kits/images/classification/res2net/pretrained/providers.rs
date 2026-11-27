@@ -1,14 +1,8 @@
 //! # `Res2Net` pretrained providers
 
-use alloc::{
-    sync::Arc,
-    vec,
-};
+use alloc::sync::Arc;
 
-use crate::data::builds::{
-    BuildProvider,
-    HfProvider,
-};
+use crate::data::builds::BuildProvider;
 
 /// The `Res2Net` kit's name: its rows' `kit` tag.
 pub const RES2NET_KIT: &str = "res2net";
@@ -31,12 +25,18 @@ pub const RES2NET_CATALOG_CONTRACT: &str = "res2net-classifier";
 /// `model.safetensors` and its `config.json`, whose architecture names the
 /// geometry.
 pub fn default_res2net_providers() -> Vec<Arc<dyn BuildProvider>> {
-    vec![
-        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
-            RES2NET_CATALOG_CONTRACT,
-        )),
-        Arc::new(HfProvider::new()),
-    ]
+    crate::kits::images::support::pretrained::timm_providers(RES2NET_CATALOG_CONTRACT)
+}
+
+/// `Res2Net`'s factory: [`default_res2net_providers`] behind
+/// [`Res2NetConstructConfig`](super::Res2NetConstructConfig).
+///
+/// # Errors
+/// As [`BuildFactory::register`](crate::data::builds::BuildFactory::register), if two of the defaults share a name,
+/// which the tests pin they do not.
+pub fn default_res2net_factory()
+-> crate::errors::BunsenResult<crate::data::builds::BuildFactory<super::Res2NetConstructConfig>> {
+    crate::data::builds::BuildFactory::new().with_providers(default_res2net_providers())
 }
 
 #[cfg(test)]
@@ -50,7 +50,10 @@ mod tests {
             pretrained::Prefabs,
         },
         kits::images::{
-            classification::res2net::Res2NetContractConfig,
+            classification::res2net::{
+                Res2NetContractConfig,
+                pretrained::RES2NET_KIT,
+            },
             support::card::{
                 LABEL_NAMES,
                 LABELS,
@@ -91,5 +94,14 @@ mod tests {
             by_labels,
             BTreeMap::from([("imagenet/synsets-1k".into(), 9),])
         );
+    }
+
+    /// The default factory is the catalog provider, then `hf:`, serving the
+    /// kit.
+    #[test]
+    fn test_the_defaults_register() {
+        let factory = default_res2net_factory().unwrap();
+        assert_eq!(factory.kit(), RES2NET_KIT);
+        assert_eq!(factory.providers().len(), 2);
     }
 }

@@ -10,19 +10,12 @@
 //! - **Loading** (feature `store`): `load_regnet_tensors`; with `cache`,
 //!   `load_regnet`, a resource set's checkpoint.
 
-use alloc::format;
-
 use crate::{
-    blocks::images::models::conv_net::GlobalPool2dConfig,
     burner::module::{
         Indices,
         Rekey,
     },
-    data::pretrained::Prefabs,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::images::{
         classification::regnet::RegNetContractConfig,
         support::interop::timm::TimmModelConfigMirror,
@@ -46,20 +39,13 @@ pub use weights::*;
 pub fn regnet_contract_config(
     config: &TimmModelConfigMirror
 ) -> BunsenResult<RegNetContractConfig> {
-    let architecture = config.architecture.as_str();
-    let mut contract = RegNetContractConfig::prefab(architecture).ok_or_else(|| {
-        BunsenError::unsupported(format!(
-            "timm's {architecture}: the regnet kit builds {}",
-            RegNetContractConfig::prefab_names().join(", ")
-        ))
-    })?;
-    if let Some(pool) = config.global_pool.as_deref() {
-        contract.global_pool = GlobalPool2dConfig::from_timm(pool).ok_or_else(|| {
-            BunsenError::unsupported(format!(
-                "timm's {architecture} with a {pool:?} pool: the regnet kit pools by avg, max, \
-                 avgmax or catavgmax"
-            ))
-        })?;
+    use crate::kits::images::support::interop::timm::{
+        timm_conv_global_pool,
+        timm_prefab,
+    };
+    let mut contract: RegNetContractConfig = timm_prefab(config, "regnet")?;
+    if let Some(pool) = timm_conv_global_pool(config, "regnet")? {
+        contract.global_pool = pool;
     }
     contract.num_classes = config.num_classes;
     Ok(contract)
@@ -128,6 +114,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::testing::assert_rekeys,
+        data::pretrained::Prefabs,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
         support::testing::assert_config_eq,

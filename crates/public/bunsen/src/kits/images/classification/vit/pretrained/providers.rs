@@ -1,14 +1,8 @@
 //! # `ViT` pretrained providers
 
-use alloc::{
-    sync::Arc,
-    vec,
-};
+use alloc::sync::Arc;
 
-use crate::data::builds::{
-    BuildProvider,
-    HfProvider,
-};
+use crate::data::builds::BuildProvider;
 
 /// The `ViT` kit's name: its rows' `kit` tag.
 pub const VIT_KIT: &str = "vit";
@@ -31,12 +25,17 @@ pub const VIT_CATALOG_CONTRACT: &str = "vit-classifier";
 /// `model.safetensors` and its `config.json`, whose architecture names the
 /// geometry.
 pub fn default_vit_providers() -> Vec<Arc<dyn BuildProvider>> {
-    vec![
-        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
-            VIT_CATALOG_CONTRACT,
-        )),
-        Arc::new(HfProvider::new()),
-    ]
+    crate::kits::images::support::pretrained::timm_providers(VIT_CATALOG_CONTRACT)
+}
+
+/// `ViT`'s factory: [`default_vit_providers`] behind [`ViTConstructConfig`](super::ViTConstructConfig).
+///
+/// # Errors
+/// As [`BuildFactory::register`](crate::data::builds::BuildFactory::register), if two of the defaults share a name,
+/// which the tests pin they do not.
+pub fn default_vit_factory()
+-> crate::errors::BunsenResult<crate::data::builds::BuildFactory<super::ViTConstructConfig>> {
+    crate::data::builds::BuildFactory::new().with_providers(default_vit_providers())
 }
 
 #[cfg(test)]
@@ -50,7 +49,10 @@ mod tests {
             pretrained::Prefabs,
         },
         kits::images::{
-            classification::vit::ViTContractConfig,
+            classification::vit::{
+                ViTContractConfig,
+                pretrained::VIT_KIT,
+            },
             support::card::{
                 LABEL_NAMES,
                 LABELS,
@@ -99,5 +101,14 @@ mod tests {
                 ("imagenet/synsets-21k-miil".into(), 1),
             ])
         );
+    }
+
+    /// The default factory is the catalog provider, then `hf:`, serving the
+    /// kit.
+    #[test]
+    fn test_the_defaults_register() {
+        let factory = default_vit_factory().unwrap();
+        assert_eq!(factory.kit(), VIT_KIT);
+        assert_eq!(factory.providers().len(), 2);
     }
 }

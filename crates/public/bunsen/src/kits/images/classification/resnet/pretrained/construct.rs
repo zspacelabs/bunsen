@@ -1,37 +1,22 @@
 //! # Constructing a `ResNet` pretrained
 
-use alloc::sync::Arc;
-
 use burn::tensor::Device;
 
 use crate::{
     blocks::images::models::conv_net::ConvNetModel,
-    data::{
-        builds::{
-            BuildRef,
-            ConstructInit,
-            GEOMETRY,
-        },
-        resources::{
-            LoadedResourceSet,
-            ResourceSet,
-        },
-    },
-    errors::{
-        BunsenError,
-        BunsenResult,
-        ConstraintError,
-        ResultContext,
-        Rule,
-    },
+    data::resources::LoadedResourceSet,
+    errors::BunsenResult,
     kits::images::{
         classification::resnet::{
             ResNetContractConfig,
             pretrained::RESNET_KIT,
         },
-        support::card::{
-            ImageModelCard,
-            ImageModelConstruct,
+        support::{
+            interop::timm::TimmModelConfigMirror,
+            pretrained::{
+                TimmConstructConfig,
+                TimmImageContract,
+            },
         },
     },
 };
@@ -39,11 +24,11 @@ use crate::{
 /// How a `ResNet` pretrained is built: the config the model is
 /// initialised from before the checkpoint is read into it.
 ///
-/// `ResNet`'s [`ConstructInit`] hook, behind
+/// `ResNet`'s [`ConstructInit`](crate::data::builds::ConstructInit) hook, behind
 /// [`default_resnet_factory`](super::default_resnet_factory). It
 /// builds a [`ConvNetModel`] from the config, reads the checkpoint into it with
 /// [`load_resnet`](crate::kits::images::classification::resnet::interop::torchvision::load_resnet),
-/// and reads the build's [`ImageModelCard`]: its eval transform and labels.
+/// and reads the build's [`ImageModelCard`](crate::kits::images::support::card::ImageModelCard): its eval transform and labels.
 ///
 /// A `PyTorch` checkpoint does not describe its own geometry, so the config
 /// comes from [`with_config`](Self::with_config), which wins and is what a
@@ -53,102 +38,31 @@ use crate::{
 /// config on the deferred model's `hook`, then load it;
 /// `examples/resnet_tiny` swaps the activation this way before the
 /// weights land.
-#[derive(Clone, Debug, Default)]
-pub struct ResNetConstructConfig {
-    /// The config to build from, overriding the prefab's.
-    pub config: Option<ResNetContractConfig>,
-}
+pub type ResNetConstructConfig = TimmConstructConfig<ResNetContractConfig>;
 
-impl ResNetConstructConfig {
-    /// Builds from the prefab the row names.
-    pub fn new() -> Self {
-        Self::default()
-    }
+impl TimmImageContract for ResNetContractConfig {
+    type Model = ConvNetModel;
 
-    /// Sets the config to build from, which wins over the build's stated
-    /// geometry.
-    pub fn with_config(
-        mut self,
-        config: ResNetContractConfig,
-    ) -> Self {
-        self.config = Some(config);
-        self
-    }
-
-    /// The config `model` is built from: the explicit one, else the
-    /// geometry the build states, else its loaded timm `config.json`'s.
-    ///
-    /// # Errors
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when the stated
-    /// geometry doesn't read as a config (never replaced by a `config.json`);
-    /// as [`resnet_contract_config`](super::super::interop::timm::resnet_contract_config);
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
-    /// [`ConstraintError`] cause ([`Rule::Missing`] on `config`), when there
-    /// is none: a given checkpoint needs [`with_config`](Self::with_config).
-    pub fn config_for(
-        &self,
-        model: &BuildRef,
-        loaded: Option<&LoadedResourceSet>,
-    ) -> BunsenResult<ResNetContractConfig> {
-        use crate::{
-            data::builds::CONFIG,
-            kits::images::{
-                classification::resnet::interop::timm::resnet_contract_config,
-                support::interop::timm::timm_model_config_from_path,
-            },
-        };
-        if let Some(config) = &self.config {
-            return Ok(config.clone());
-        }
-        if let Some(config) = model.stated(GEOMETRY)? {
-            return Ok(config);
-        }
-        if let Some(timm) = loaded.and_then(|l| l.get(CONFIG)) {
-            return resnet_contract_config(&timm_model_config_from_path(&timm.path)?);
-        }
-        Err(BunsenError::from(ConstraintError::new(
-            "ResNetConstructConfig",
-            "config",
-            Rule::Missing,
-        ))
-        .context(format!(
-            "{}: states no geometry to build from; a given checkpoint needs `with_config`",
-            model.id()
-        )))
-    }
-}
-
-impl ConstructInit for ResNetConstructConfig {
-    type Construct = ImageModelConstruct<ConvNetModel>;
-
+    const CONSTRUCT: &'static str = "ResNetConstructConfig";
     const KIT: &'static str = RESNET_KIT;
 
-    /// Every row is a `PyTorch` state dict; the config comes at
-    /// construction, from the row's prefab or the caller's.
-    fn for_resource_set(_map: &ResourceSet) -> BunsenResult<Self> {
-        Ok(Self::new())
+    fn num_classes(&self) -> usize {
+        self.num_classes
     }
 
-    /// Initialises the config's model, reads the checkpoint into it (a
-    /// `PyTorch` state dict, or a timm safetensors file), and reads the
-    /// build's card.
-    fn try_init(
-        &self,
-        model: &BuildRef,
-        loaded: &LoadedResourceSet,
-        device: &Device,
-        load: crate::data::formats::LoadPolicy,
-    ) -> BunsenResult<Arc<ImageModelConstruct<ConvNetModel>>> {
-        use crate::kits::images::classification::resnet::interop::torchvision;
+    fn from_timm_config(config: &TimmModelConfigMirror) -> BunsenResult<Self> {
+        crate::kits::images::classification::resnet::interop::timm::resnet_contract_config(config)
+    }
 
-        let config = self.config_for(model, Some(loaded))?;
-        let card = ImageModelCard::try_from_build(model, loaded)?
-            .try_for_classes(config.num_classes)
-            .with_context(|| format!("{}'s labels", model.id()))?;
-        // A timm safetensors file or a torchvision state dict: one layout,
-        // read by its format.
-        let model = torchvision::load_resnet(loaded, &config, device, load)?;
-        Ok(Arc::new(ImageModelConstruct { model, card }))
+    fn load(
+        loaded: &LoadedResourceSet,
+        config: &Self,
+        device: &Device,
+        policy: crate::data::formats::LoadPolicy,
+    ) -> BunsenResult<ConvNetModel> {
+        crate::kits::images::classification::resnet::interop::torchvision::load_resnet(
+            loaded, config, device, policy,
+        )
     }
 }
 
@@ -156,7 +70,14 @@ impl ConstructInit for ResNetConstructConfig {
 mod tests {
     use super::*;
     use crate::{
-        data::pretrained::Prefabs,
+        data::{
+            builds::GEOMETRY,
+            pretrained::Prefabs,
+        },
+        errors::{
+            ConstraintError,
+            Rule,
+        },
         kits::images::classification::resnet::{
             ResNetContractConfig,
             pretrained::{

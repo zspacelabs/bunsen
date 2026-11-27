@@ -1,30 +1,11 @@
 //! # Constructing a Swin V1 pretrained
 
-use alloc::sync::Arc;
-
 use burn::tensor::Device;
 
 use crate::{
     blocks::transformers::models::staged_vision_encoder::StagedVisionEncoderModel,
-    data::{
-        builds::{
-            BuildRef,
-            CONFIG,
-            ConstructInit,
-            GEOMETRY,
-        },
-        resources::{
-            LoadedResourceSet,
-            ResourceSet,
-        },
-    },
-    errors::{
-        BunsenError,
-        BunsenResult,
-        ConstraintError,
-        ResultContext,
-        Rule,
-    },
+    data::resources::LoadedResourceSet,
+    errors::BunsenResult,
     kits::images::{
         classification::swin::{
             interop::timm::load_swin,
@@ -38,11 +19,11 @@ use crate::{
             },
         },
         support::{
-            card::{
-                ImageModelCard,
-                ImageModelConstruct,
+            interop::timm::TimmModelConfigMirror,
+            pretrained::{
+                TimmConstructConfig,
+                TimmImageContract,
             },
-            interop::timm::timm_model_config_from_path,
         },
     },
 };
@@ -50,97 +31,38 @@ use crate::{
 /// How a Swin V1 pretrained is built: the config the model is initialised from
 /// before the checkpoint is read into it.
 ///
-/// Swin V1's [`ConstructInit`] hook, behind
+/// Swin V1's [`ConstructInit`](crate::data::builds::ConstructInit) hook, behind
 /// [`default_swin_v1_factory`](super::default_swin_v1_factory). It builds a
 /// [`StagedVisionEncoderModel`] from the config, reads the checkpoint into it
-/// with [`load_swin`], and reads the build's [`ImageModelCard`]: its eval
+/// with [`load_swin`], and reads the build's [`ImageModelCard`](crate::kits::images::support::card::ImageModelCard): its eval
 /// transform and labels.
 ///
 /// The config comes from [`with_config`](Self::with_config), which wins and
 /// is what a given path needs; else from the geometry the build states;
 /// else, for a timm hub repo, from its `config.json`
 /// ([`swin_v1_contract_config`]): its architecture, classes, pool and size.
-#[derive(Clone, Debug, Default)]
-pub struct SwinV1ConstructConfig {
-    /// The config to build from, overriding the build's.
-    pub config: Option<SwinV1ContractConfig>,
-}
+pub type SwinV1ConstructConfig = TimmConstructConfig<SwinV1ContractConfig>;
 
-impl SwinV1ConstructConfig {
-    /// Builds from the build's config.
-    pub fn new() -> Self {
-        Self::default()
-    }
+impl TimmImageContract for SwinV1ContractConfig {
+    type Model = StagedVisionEncoderModel;
 
-    /// Sets the config to build from, which wins over the build's.
-    pub fn with_config(
-        mut self,
-        config: SwinV1ContractConfig,
-    ) -> Self {
-        self.config = Some(config);
-        self
-    }
-
-    /// The config `model` is built from: the explicit one, else the
-    /// geometry the build states, else its loaded timm `config.json`'s.
-    ///
-    /// # Errors
-    /// As [`swin_v1_contract_config`];
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
-    /// [`ConstraintError`] cause ([`Rule::Missing`] on `config`), when there
-    /// is none: a given checkpoint needs [`with_config`](Self::with_config).
-    pub fn config_for(
-        &self,
-        model: &BuildRef,
-        loaded: Option<&LoadedResourceSet>,
-    ) -> BunsenResult<SwinV1ContractConfig> {
-        if let Some(config) = &self.config {
-            return Ok(config.clone());
-        }
-        if let Some(config) = model.stated(GEOMETRY)? {
-            return Ok(config);
-        }
-        if let Some(timm) = loaded.and_then(|l| l.get(CONFIG)) {
-            return swin_v1_contract_config(&timm_model_config_from_path(&timm.path)?);
-        }
-        Err(BunsenError::from(ConstraintError::new(
-            "SwinV1ConstructConfig",
-            "config",
-            Rule::Missing,
-        ))
-        .context(format!(
-            "{}: states no geometry and has no timm `config.json`; a given checkpoint needs \
-             `with_config`",
-            model.id()
-        )))
-    }
-}
-
-impl ConstructInit for SwinV1ConstructConfig {
-    type Construct = ImageModelConstruct<StagedVisionEncoderModel>;
-
+    const CONSTRUCT: &'static str = "SwinV1ConstructConfig";
     const KIT: &'static str = SWIN_V1_KIT;
 
-    /// Every row is a timm safetensors checkpoint; the config comes at
-    /// construction.
-    fn for_resource_set(_map: &ResourceSet) -> BunsenResult<Self> {
-        Ok(Self::new())
+    fn num_classes(&self) -> usize {
+        self.num_classes
     }
 
-    /// Initialises the config's model, reads the checkpoint into it, and
-    /// reads the build's card, checked against the head.
-    fn try_init(
-        &self,
-        model: &BuildRef,
+    fn from_timm_config(config: &TimmModelConfigMirror) -> BunsenResult<Self> {
+        swin_v1_contract_config(config)
+    }
+
+    fn load(
         loaded: &LoadedResourceSet,
+        config: &Self,
         device: &Device,
-        load: crate::data::formats::LoadPolicy,
-    ) -> BunsenResult<Arc<ImageModelConstruct<StagedVisionEncoderModel>>> {
-        let config = self.config_for(model, Some(loaded))?;
-        let card = ImageModelCard::try_from_build(model, loaded)?
-            .try_for_classes(config.num_classes)
-            .with_context(|| format!("{}'s labels", model.id()))?;
-        let model = load_swin(loaded, CHECKPOINT, &config, device, load)?;
-        Ok(Arc::new(ImageModelConstruct { model, card }))
+        policy: crate::data::formats::LoadPolicy,
+    ) -> BunsenResult<StagedVisionEncoderModel> {
+        load_swin(loaded, CHECKPOINT, config, device, policy)
     }
 }

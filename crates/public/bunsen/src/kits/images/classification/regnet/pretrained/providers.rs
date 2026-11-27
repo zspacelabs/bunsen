@@ -1,14 +1,8 @@
 //! # `RegNet` pretrained providers
 
-use alloc::{
-    sync::Arc,
-    vec,
-};
+use alloc::sync::Arc;
 
-use crate::data::builds::{
-    BuildProvider,
-    HfProvider,
-};
+use crate::data::builds::BuildProvider;
 
 /// The `RegNet` kit's name: its rows' `kit` tag.
 pub const REGNET_KIT: &str = "regnet";
@@ -31,12 +25,18 @@ pub const REGNET_CATALOG_CONTRACT: &str = "regnet-classifier";
 /// `model.safetensors` and its `config.json`, whose architecture names the
 /// geometry.
 pub fn default_regnet_providers() -> Vec<Arc<dyn BuildProvider>> {
-    vec![
-        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
-            REGNET_CATALOG_CONTRACT,
-        )),
-        Arc::new(HfProvider::new()),
-    ]
+    crate::kits::images::support::pretrained::timm_providers(REGNET_CATALOG_CONTRACT)
+}
+
+/// `RegNet`'s factory: [`default_regnet_providers`] behind
+/// [`RegNetConstructConfig`](super::RegNetConstructConfig).
+///
+/// # Errors
+/// As [`BuildFactory::register`](crate::data::builds::BuildFactory::register), if two of the defaults share a name,
+/// which the tests pin they do not.
+pub fn default_regnet_factory()
+-> crate::errors::BunsenResult<crate::data::builds::BuildFactory<super::RegNetConstructConfig>> {
+    crate::data::builds::BuildFactory::new().with_providers(default_regnet_providers())
 }
 
 #[cfg(test)]
@@ -50,7 +50,10 @@ mod tests {
             pretrained::Prefabs,
         },
         kits::images::{
-            classification::regnet::RegNetContractConfig,
+            classification::regnet::{
+                RegNetContractConfig,
+                pretrained::REGNET_KIT,
+            },
             support::card::{
                 LABEL_NAMES,
                 LABELS,
@@ -97,5 +100,14 @@ mod tests {
                 ("imagenet/synsets-1k".into(), 60),
             ])
         );
+    }
+
+    /// The default factory is the catalog provider, then `hf:`, serving the
+    /// kit.
+    #[test]
+    fn test_the_defaults_register() {
+        let factory = default_regnet_factory().unwrap();
+        assert_eq!(factory.kit(), REGNET_KIT);
+        assert_eq!(factory.providers().len(), 2);
     }
 }

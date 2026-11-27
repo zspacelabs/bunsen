@@ -1,14 +1,8 @@
 //! # `ResNetV2` pretrained providers
 
-use alloc::{
-    sync::Arc,
-    vec,
-};
+use alloc::sync::Arc;
 
-use crate::data::builds::{
-    BuildProvider,
-    HfProvider,
-};
+use crate::data::builds::BuildProvider;
 
 /// The `ResNetV2` kit's name: its rows' `kit` tag.
 pub const RESNETV2_KIT: &str = "resnetv2";
@@ -31,12 +25,18 @@ pub const RESNETV2_CATALOG_CONTRACT: &str = "resnetv2-classifier";
 /// `model.safetensors` and its `config.json`, whose architecture names the
 /// geometry.
 pub fn default_resnetv2_providers() -> Vec<Arc<dyn BuildProvider>> {
-    vec![
-        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
-            RESNETV2_CATALOG_CONTRACT,
-        )),
-        Arc::new(HfProvider::new()),
-    ]
+    crate::kits::images::support::pretrained::timm_providers(RESNETV2_CATALOG_CONTRACT)
+}
+
+/// `ResNetV2`'s factory: [`default_resnetv2_providers`] behind
+/// [`ResNetV2ConstructConfig`](super::ResNetV2ConstructConfig).
+///
+/// # Errors
+/// As [`BuildFactory::register`](crate::data::builds::BuildFactory::register), if two of the defaults share a name,
+/// which the tests pin they do not.
+pub fn default_resnetv2_factory()
+-> crate::errors::BunsenResult<crate::data::builds::BuildFactory<super::ResNetV2ConstructConfig>> {
+    crate::data::builds::BuildFactory::new().with_providers(default_resnetv2_providers())
 }
 
 #[cfg(test)]
@@ -50,7 +50,10 @@ mod tests {
             pretrained::Prefabs,
         },
         kits::images::{
-            classification::resnetv2::ResNetV2ContractConfig,
+            classification::resnetv2::{
+                ResNetV2ContractConfig,
+                pretrained::RESNETV2_KIT,
+            },
             support::card::{
                 LABEL_NAMES,
                 LABELS,
@@ -95,5 +98,14 @@ mod tests {
                 ("imagenet/synsets-21k-goog".into(), 6),
             ])
         );
+    }
+
+    /// The default factory is the catalog provider, then `hf:`, serving the
+    /// kit.
+    #[test]
+    fn test_the_defaults_register() {
+        let factory = default_resnetv2_factory().unwrap();
+        assert_eq!(factory.kit(), RESNETV2_KIT);
+        assert_eq!(factory.providers().len(), 2);
     }
 }

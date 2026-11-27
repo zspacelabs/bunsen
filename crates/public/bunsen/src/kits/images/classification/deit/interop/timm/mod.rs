@@ -11,14 +11,8 @@
 //!   through the vit kit's
 //!   [`load_vit_tensors`](crate::kits::images::classification::vit::interop::timm::load_vit_tensors).
 
-use alloc::format;
-
 use crate::{
-    data::pretrained::Prefabs,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::images::{
         classification::{
             deit::DeiTContractConfig,
@@ -42,13 +36,8 @@ pub use weights::*;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for an
 /// architecture the kit has no prefab of; as [`with_timm_config`].
 pub fn deit_contract_config(config: &TimmModelConfigMirror) -> BunsenResult<DeiTContractConfig> {
-    let architecture = config.architecture.as_str();
-    let contract = DeiTContractConfig::prefab(architecture).ok_or_else(|| {
-        BunsenError::unsupported(format!(
-            "timm's {architecture}: the deit kit builds {}",
-            DeiTContractConfig::prefab_names().join(", ")
-        ))
-    })?;
+    let contract: DeiTContractConfig =
+        crate::kits::images::support::interop::timm::timm_prefab(config, "deit")?;
     Ok(DeiTContractConfig {
         vit: with_timm_config(contract.vit, config)?,
         ..contract
@@ -59,6 +48,7 @@ pub fn deit_contract_config(config: &TimmModelConfigMirror) -> BunsenResult<DeiT
 mod tests {
     use super::*;
     use crate::{
+        data::pretrained::Prefabs,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
         support::testing::assert_config_eq,

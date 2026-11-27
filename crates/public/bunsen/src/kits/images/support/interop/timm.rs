@@ -265,3 +265,47 @@ mod tests {
             .assert_err(&timm_model_config_from_str("{\"model_type\": \"bert\"}"));
     }
 }
+
+/// The prefab of `config`'s architecture from `C`'s table: the lookup every
+/// timm image kit's `config.json` lowering opens with.
+///
+/// # Errors
+/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
+/// architectures `kit` builds, for one it doesn't.
+pub fn timm_prefab<C: crate::data::pretrained::Prefabs>(
+    config: &TimmModelConfigMirror,
+    kit: &str,
+) -> BunsenResult<C> {
+    let architecture = config.architecture.as_str();
+    C::prefab(architecture).ok_or_else(|| {
+        BunsenError::unsupported(alloc::format!(
+            "timm's {architecture}: the {kit} kit builds {}",
+            C::prefab_names().join(", ")
+        ))
+    })
+}
+
+/// `config`'s global pool, as a conv net pools: `None` when it names none.
+///
+/// # Errors
+/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a pool
+/// the conv nets don't build.
+pub fn timm_conv_global_pool(
+    config: &TimmModelConfigMirror,
+    kit: &str,
+) -> BunsenResult<Option<crate::blocks::images::models::conv_net::GlobalPool2dConfig>> {
+    use crate::blocks::images::models::conv_net::GlobalPool2dConfig;
+    config
+        .global_pool
+        .as_deref()
+        .map(|pool| {
+            GlobalPool2dConfig::from_timm(pool).ok_or_else(|| {
+                BunsenError::unsupported(alloc::format!(
+                    "timm's {} with a {pool:?} pool: the {kit} kit pools by avg, max, avgmax or \
+                     catavgmax",
+                    config.architecture
+                ))
+            })
+        })
+        .transpose()
+}

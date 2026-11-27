@@ -26,10 +26,11 @@ use crate::{
 /// One list per path, in order, most probable class first.
 ///
 /// # Errors
-/// [`try_load_eval_batch`]'s, for a file that does not open or transform.
-///
-/// # Panics
-/// When the card's labels do not have the model's class count.
+/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
+/// headless model (0 classes), whose output is its pooled features, not
+/// logits: embed with it instead. [`try_load_eval_batch`]'s, for a file that
+/// does not open or transform. [`try_top_k`]'s, for labels of another class
+/// count.
 pub fn classify_files(
     model: &dyn ImageClassifier,
     card: &ImageModelCard,
@@ -37,6 +38,11 @@ pub fn classify_files(
     k: usize,
     device: &Device,
 ) -> BunsenResult<Vec<Vec<ClassPrediction>>> {
+    if model.n_classes() == 0 {
+        return Err(crate::errors::BunsenError::unsupported(
+            "classifying with a headless model: it has no classes; embed its features instead",
+        ));
+    }
     let images = try_load_eval_batch(&card.transform, paths, device)?;
     try_top_k(model.forward_logits(images), k, card.labels.as_ref())
 }
@@ -88,5 +94,15 @@ mod tests {
                 Some(row[0].synset.as_deref().unwrap())
             );
         }
+
+        // A headless model has no classes to rank.
+        let headless: ConvNetModel = ResNetContractConfig::new(vec![1], 0)
+            .with_channels(vec![8])
+            .with_conv_stem_width(8)
+            .init(&device);
+        let card = ImageModelCard::new(ImageEvalTransformConfig::new().with_size([32, 32]));
+        crate::errors::testing::ErrorMatcher::unsupported()
+            .message_contains("headless")
+            .assert_err(&classify_files(&headless, &card, &paths, 2, &device));
     }
 }

@@ -1,14 +1,8 @@
 //! # `ResNet` pretrained providers
 
-use alloc::{
-    sync::Arc,
-    vec,
-};
+use alloc::sync::Arc;
 
-use crate::data::builds::{
-    BuildProvider,
-    HfProvider,
-};
+use crate::data::builds::BuildProvider;
 
 /// The `ResNet` kit's name: its rows' `kit` tag.
 pub const RESNET_KIT: &str = "resnet";
@@ -34,12 +28,18 @@ pub const RESNET_CATALOG_CONTRACT: &str = "resnet-classifier";
 /// (`hf:timm/resnet50.a1_in1k`): its `model.safetensors` and its
 /// `config.json`, whose architecture names the geometry.
 pub fn default_resnet_providers() -> Vec<Arc<dyn BuildProvider>> {
-    vec![
-        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
-            RESNET_CATALOG_CONTRACT,
-        )),
-        Arc::new(HfProvider::new()),
-    ]
+    crate::kits::images::support::pretrained::timm_providers(RESNET_CATALOG_CONTRACT)
+}
+
+/// `ResNet`'s factory: [`default_resnet_providers`] behind
+/// [`ResNetConstructConfig`](super::ResNetConstructConfig).
+///
+/// # Errors
+/// As [`BuildFactory::register`](crate::data::builds::BuildFactory::register), if two of the defaults share a name,
+/// which the tests pin they do not.
+pub fn default_resnet_factory()
+-> crate::errors::BunsenResult<crate::data::builds::BuildFactory<super::ResNetConstructConfig>> {
+    crate::data::builds::BuildFactory::new().with_providers(default_resnet_providers())
 }
 
 #[cfg(test)]
@@ -48,8 +48,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        data::pretrained::Prefabs,
-        kits::images::classification::resnet::ResNetContractConfig,
+        data::{
+            builds::BuildFactory,
+            pretrained::Prefabs,
+        },
+        kits::images::classification::resnet::{
+            ResNetContractConfig,
+            pretrained::RESNET_KIT,
+        },
     };
 
     /// Every row binds its head's `ImageNet` labels. A torchvision row states
@@ -212,6 +218,43 @@ mod tests {
                 format!("resnet-classifier: {EVAL_TRANSFORM}?: \"$object\""),
                 "resnet-classifier: geometry?: \"geometry\"".to_string(),
             ]
+        );
+    }
+
+    /// The default factory is the catalog provider, then `hf:`, serving the
+    /// kit; a torchvision row states its prefab's geometry, and a timm row
+    /// takes its geometry from its `config.json`.
+    #[test]
+    fn test_the_defaults_register() {
+        let factory = default_resnet_factory().unwrap();
+        assert_eq!(factory.kit(), RESNET_KIT);
+        assert_eq!(factory.providers().len(), 2);
+        assert_eq!(factory.ids().len(), 145);
+        let (provider, row) = factory.lookup("resnet18_a1").unwrap();
+        assert_eq!(provider, "catalog");
+        // A legacy name is an alias of the hub repo with its weights.
+        assert_eq!(row.name, "timm/resnet18.a1_in1k");
+        // The rows that state resnet34's geometry.
+        let resnet34 =
+            serde_json::to_value(ResNetContractConfig::expect_prefab("resnet34")).unwrap();
+        let for_34: Vec<String> = factory
+            .list()
+            .iter()
+            .filter(|(_, row)| {
+                row.args
+                    .get(crate::data::builds::GEOMETRY)
+                    .map(|a| &a.value)
+                    == Some(&resnet34)
+            })
+            .map(|(p, row)| format!("{p}:{}", row.name))
+            .collect();
+        assert_eq!(for_34, ["catalog:torchvision/resnet34"]);
+        assert!(
+            BuildFactory::<super::super::ResNetConstructConfig>::new()
+                .with_providers(default_resnet_providers())
+                .unwrap()
+                .with_providers(default_resnet_providers())
+                .is_err()
         );
     }
 }
