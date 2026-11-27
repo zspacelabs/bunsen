@@ -10,7 +10,7 @@ use burn::{
 };
 
 use super::{
-    WHISPER_DEFAULT_D_MODEL,
+    WHISPER_DEFAULT_D_HEAD,
     WhisperFrontEndConfig,
     WhisperTokenLayoutConfig,
 };
@@ -86,7 +86,7 @@ pub struct WhisperApiConfig {
     pub n_decoder_layers: usize,
 
     /// Head Dimensionality.
-    #[config(default = "WHISPER_DEFAULT_D_MODEL")]
+    #[config(default = "WHISPER_DEFAULT_D_HEAD")]
     pub d_head: usize,
 }
 

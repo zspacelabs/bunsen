@@ -26,7 +26,7 @@ use crate::{
     },
     kits::speech::asr::whisper::blocks::{
         AUDIO_ENCODER_STRIDE,
-        WHISPER_DEFAULT_D_MODEL,
+        WHISPER_DEFAULT_D_HEAD,
         Whisper,
         WhisperApiConfig,
         WhisperFrontEndConfig,
@@ -68,7 +68,7 @@ pub struct PytorchWhisperScanner {
     pub token_layout: WhisperTokenLayoutConfig,
 
     /// Head Dimensionality.
-    #[config(default = "WHISPER_DEFAULT_D_MODEL")]
+    #[config(default = "WHISPER_DEFAULT_D_HEAD")]
     pub d_head: usize,
 }
 

@@ -2,7 +2,7 @@
 
 use super::{
     AUDIO_ENCODER_STRIDE,
-    WHISPER_DEFAULT_D_MODEL,
+    WHISPER_DEFAULT_D_HEAD,
     WhisperApiConfig,
 };
 
@@ -63,7 +63,7 @@ impl WhisperGeometry {
             n_encoder_layers,
             max_text_ctx: OPENAI_MAX_TEXT_CTX,
             n_decoder_layers,
-            d_head: WHISPER_DEFAULT_D_MODEL,
+            d_head: WHISPER_DEFAULT_D_HEAD,
         }
     }
 
