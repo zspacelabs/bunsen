@@ -20,6 +20,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ResultContext,
     },
     kits::{
         images::support::transform::{
@@ -164,7 +165,8 @@ impl TimmPretrainedCfgMirror {
             .with_std(self.std.clone());
         transform
             .try_validate()
-            .map_err(|e| BunsenError::invalid_resource(format!("timm's pretrained_cfg: {e}")))?;
+            .as_policy()
+            .context("timm's pretrained_cfg")?;
         Ok(transform)
     }
 }
@@ -176,7 +178,7 @@ impl TimmPretrainedCfgMirror {
 /// text that is not a timm `config.json`.
 pub fn timm_model_config_from_str(text: &str) -> BunsenResult<TimmModelConfigMirror> {
     serde_json::from_str(text)
-        .map_err(|e| BunsenError::invalid_resource(format!("a timm config.json: {e}")))
+        .map_err(|e| BunsenError::invalid_resource("a timm config.json").with_cause(e))
 }
 
 /// A timm `config.json` file as its mirror.
@@ -233,6 +235,18 @@ mod tests {
                 .with_crop_pct(0.95)
                 .with_interpolation(ImageInterpolation::Bicubic)
         );
+    }
+
+    /// A setting the transform refuses is the file's fault: `Policy`, under a
+    /// frame naming timm's `pretrained_cfg`, the broken rule its cause.
+    #[test]
+    fn test_eval_transform_config_refuses_a_bad_setting() {
+        let mut config = timm_model_config_from_str(RESNET50_A1).unwrap();
+        config.pretrained_cfg.crop_pct = 0.0;
+        ErrorMatcher::policy()
+            .frame_contains("timm's pretrained_cfg")
+            .constraint("ImageEvalTransformConfig", "crop_pct")
+            .assert_err(&config.pretrained_cfg.eval_transform_config());
     }
 
     #[test]

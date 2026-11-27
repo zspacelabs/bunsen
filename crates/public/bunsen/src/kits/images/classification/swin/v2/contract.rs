@@ -1,5 +1,4 @@
 use alloc::{
-    format,
     vec,
     vec::Vec,
 };
@@ -25,8 +24,9 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     kits::images::classification::swin::common::{
         SwinStages,
@@ -133,10 +133,19 @@ impl ToStructureConfig for SwinV2ContractConfig {
     fn try_to_structure(&self) -> BunsenResult<StagedVisionEncoderStructureConfig> {
         let n = self.depths.len();
         if !self.pretrained_window_sizes.is_empty() && self.pretrained_window_sizes.len() != n {
-            return Err(BunsenError::illegal(format!(
-                "SwinV2ContractConfig: {} pretraining windows for {n} stages",
-                self.pretrained_window_sizes.len()
-            )));
+            return Err(ConstraintError::new(
+                "SwinV2ContractConfig",
+                "pretrained_window_sizes",
+                Rule::Relation {
+                    lhs: (
+                        "pretrained_window_sizes.len()".into(),
+                        self.pretrained_window_sizes.len().to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("depths.len()".into(), n.to_string()),
+                },
+            )
+            .into());
         }
         let drop_paths = swin_block_drop_paths(&self.depths, self.drop_path_rate);
         SwinStages {
@@ -226,18 +235,18 @@ mod tests {
         };
         illegal(
             SwinV2ContractConfig::new(32, 16, vec![2, 2], vec![2], 4, 10),
-            "2 stages of depths, 1 of heads",
+            "num_heads.len() (1) must be == depths.len() (2)",
         );
         illegal(
             SwinV2ContractConfig {
                 num_heads: vec![3, 4],
                 ..tiny()
             },
-            "stage 0's 3 heads",
+            "is not a multiple of stage 0's heads (3)",
         );
         illegal(
             tiny().with_pretrained_window_sizes(vec![3]),
-            "1 pretraining windows",
+            "pretrained_window_sizes.len() (1) must be == depths.len() (2)",
         );
         illegal(
             SwinV2ContractConfig {

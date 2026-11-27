@@ -10,8 +10,8 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
         ResultContext,
     },
     kits::images::classification::resnet::ResNetContractConfig,
@@ -70,9 +70,12 @@ impl SKNetContractConfig {
     /// the paths, which the kit doesn't build).
     pub fn try_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         if self.resnet.anti_alias.is_some() {
-            return Err(BunsenError::illegal(
-                "SKNetContractConfig: an anti-aliased SKNet",
-            ));
+            return Err(ConstraintError::custom(
+                "SKNetContractConfig",
+                "resnet.anti_alias",
+                "an SKNet is not anti-aliased: timm's blocks pass aa_layer to the paths, which the kit doesn't build",
+            )
+            .into());
         }
         let mut net = self.resnet.try_to_conv_net()?;
         net.layers.mixer = ConvMixerKind::SelectiveKernel {
@@ -142,7 +145,7 @@ mod tests {
     #[test]
     fn test_illegal_policies() {
         ErrorMatcher::illegal()
-            .message_contains("an anti-aliased SKNet")
+            .constraint("SKNetContractConfig", "resnet.anti_alias")
             .assert_err(
                 &SKNetContractConfig::new(
                     ResNetContractConfig::new(vec![2, 2, 2, 2], 1000)

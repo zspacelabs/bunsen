@@ -21,6 +21,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     kits::images::support::transform::{
         ImageEvalTransformConfig,
@@ -138,7 +139,7 @@ pub fn try_load_eval_batch(
     device: &Device,
 ) -> BunsenResult<Tensor<4>> {
     if paths.is_empty() {
-        return Err(BunsenError::illegal("an eval batch of no images"));
+        return Err(ConstraintError::zero_or_empty("try_load_eval_batch", "paths").into());
     }
     let inputs = paths
         .iter()

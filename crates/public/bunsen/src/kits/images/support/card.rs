@@ -69,10 +69,7 @@ impl ImageModelCard {
         model: &crate::data::builds::BuildRef,
         loaded: &crate::data::resources::LoadedResourceSet,
     ) -> crate::errors::BunsenResult<Self> {
-        use crate::errors::{
-            BunsenError,
-            BunsenErrorKind,
-        };
+        use crate::errors::BunsenError;
 
         let transform = match model.stated::<ImageEvalTransformConfig>(EVAL_TRANSFORM)? {
             Some(transform) => transform,
@@ -88,10 +85,10 @@ impl ImageModelCard {
         let labels = match loaded.get(LABELS) {
             Some(synsets) => Some(ImageLabelSet::try_from_files(&synsets.path, names)?),
             None if names.is_some() => {
-                return Err(BunsenError::new(
-                    BunsenErrorKind::InvalidResource,
-                    format!("{}: binds {LABEL_NAMES} without {LABELS}", model.id()),
-                ));
+                return Err(BunsenError::invalid_resource(format!(
+                    "{}: binds {LABEL_NAMES} without {LABELS}",
+                    model.id()
+                )));
             }
             None => None,
         };
@@ -112,10 +109,12 @@ impl ImageModelCard {
         n_classes: usize,
     ) -> crate::errors::BunsenResult<Self> {
         match &self.labels {
-            Some(labels) if labels.len() != n_classes => Err(crate::errors::BunsenError::new(
-                crate::errors::BunsenErrorKind::InvalidResource,
-                format!("{} labels for a head of {n_classes} classes", labels.len()),
-            )),
+            Some(labels) if labels.len() != n_classes => {
+                Err(crate::errors::BunsenError::invalid_resource(format!(
+                    "{} labels for a head of {n_classes} classes",
+                    labels.len()
+                )))
+            }
             _ => Ok(self),
         }
     }

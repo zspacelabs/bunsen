@@ -8,7 +8,6 @@ use std::{
 
 use crate::errors::{
     BunsenError,
-    BunsenErrorKind,
     BunsenResult,
     sys_at,
 };
@@ -47,14 +46,14 @@ impl ImageLabelSet {
     /// See the [errors convention](crate::errors#convention-try_x-and-x).
     ///
     /// # Errors
-    /// [`InvalidResource`](BunsenErrorKind::InvalidResource) for an empty
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) for an empty
     /// synset list, a blank synset line, a lemma line without a tab, or a
     /// synset the lemma table does not name.
     pub fn try_parse(
         synsets: &str,
         lemmas: Option<&str>,
     ) -> BunsenResult<Self> {
-        let invalid = |message: String| BunsenError::new(BunsenErrorKind::InvalidResource, message);
+        let invalid = |message: String| BunsenError::invalid_resource(message);
         let synsets: Vec<String> = synsets.lines().map(str::to_string).collect();
         if synsets.is_empty() {
             return Err(invalid("an empty synset list".to_string()));

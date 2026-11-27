@@ -7,8 +7,10 @@ use burn::{
 
 use crate::{
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
+        WithOkOrPanic,
     },
     ops::images::{
         try_center_crop_or_pad,
@@ -185,9 +187,11 @@ impl ImageEvalTransformConfig {
         self.try_validate()?;
         let [height, width] = image;
         if height == 0 || width == 0 {
-            return Err(BunsenError::illegal(format!(
-                "resizing a {height}x{width} image"
-            )));
+            return Err(ConstraintError::zero_or_empty(
+                "ImageEvalTransformConfig::try_resize_size",
+                "image",
+            )
+            .into());
         }
         let scale = self.scale_size();
         let keep_ratio = |longest: f64| {
@@ -223,8 +227,7 @@ impl ImageEvalTransformConfig {
         &self,
         image: [usize; 2],
     ) -> [usize; 2] {
-        self.try_resize_size(image)
-            .unwrap_or_else(|e| panic!("{e:#}"))
+        self.try_resize_size(image).ok_or_panic()
     }
 
     /// The padding colour of [`Border`](ImageCropMode::Border) mode, per
@@ -268,10 +271,16 @@ impl ImageEvalTransformConfig {
             &["batch", "channels", "height", "width"],
         );
         if channels != self.channels {
-            return Err(BunsenError::illegal(format!(
-                "{channels}-channel images for a {}-channel transform",
-                self.channels
-            )));
+            return Err(ConstraintError::new(
+                "ImageEvalTransformConfig::try_crop_and_normalize",
+                "resized",
+                Rule::Relation {
+                    lhs: ("the images' channels".into(), channels.to_string()),
+                    op: "==",
+                    rhs: ("channels".into(), self.channels.to_string()),
+                },
+            )
+            .into());
         }
         let fill = match self.crop_mode {
             ImageCropMode::Border => self.border_fill(),
@@ -293,8 +302,7 @@ impl ImageEvalTransformConfig {
         &self,
         resized: Tensor<4>,
     ) -> Tensor<4> {
-        self.try_crop_and_normalize(resized)
-            .unwrap_or_else(|e| panic!("{e:#}"))
+        self.try_crop_and_normalize(resized).ok_or_panic()
     }
 
     /// Checks the settings that every use reads.
@@ -305,24 +313,30 @@ impl ImageEvalTransformConfig {
     /// one value per channel.
     pub fn try_validate(&self) -> BunsenResult<()> {
         if !(self.crop_pct > 0.0 && self.crop_pct <= 1.0) {
-            return Err(BunsenError::illegal(format!(
-                "an eval transform's crop_pct of {}",
-                self.crop_pct
-            )));
+            return Err(ConstraintError::out_of_range(
+                "ImageEvalTransformConfig",
+                "crop_pct",
+                self.crop_pct,
+                "(0, 1]",
+            )
+            .into());
         }
         if self.size.contains(&0) {
-            return Err(BunsenError::illegal(format!(
-                "an eval transform of size {:?}",
-                self.size
-            )));
+            return Err(ConstraintError::zero_or_empty("ImageEvalTransformConfig", "size").into());
         }
-        if self.mean.len() != self.channels || self.std.len() != self.channels {
-            return Err(BunsenError::illegal(format!(
-                "an eval transform of {} channels with a mean of {} and a std of {} values",
-                self.channels,
-                self.mean.len(),
-                self.std.len()
-            )));
+        for (field, len) in [("mean", self.mean.len()), ("std", self.std.len())] {
+            if len != self.channels {
+                return Err(ConstraintError::new(
+                    "ImageEvalTransformConfig",
+                    field,
+                    Rule::Relation {
+                        lhs: (format!("{field}.len()"), len.to_string()),
+                        op: "==",
+                        rhs: ("channels".into(), self.channels.to_string()),
+                    },
+                )
+                .into());
+            }
         }
         Ok(())
     }
@@ -448,7 +462,7 @@ mod tests {
         let device = cpu_device();
         let t = ImageEvalTransformConfig::new();
         ErrorMatcher::illegal()
-            .message_contains("1-channel images for a 3-channel transform")
+            .message_contains("the images' channels (1) must be == channels (3)")
             .assert_err(&t.try_crop_and_normalize(Tensor::<4>::zeros([1, 1, 256, 256], &device)));
     }
 

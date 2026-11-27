@@ -33,8 +33,8 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
         ResultContext,
     },
     support::math::{
@@ -197,11 +197,16 @@ impl RegNetContractConfig {
             || !self.w0.is_multiple_of(quant)
             || self.depth == 0
         {
-            return Err(BunsenError::illegal(format!(
-                "RegNetContractConfig: widths need wa >= 0, wm > 1, w0 a nonzero multiple of \
-                 {quant} and a depth; wa {}, wm {}, w0 {}, depth {}",
-                self.wa, self.wm, self.w0, self.depth
-            )));
+            return Err(ConstraintError::custom(
+                "RegNetContractConfig",
+                "w0",
+                format!(
+                    "widths need wa >= 0, wm > 1, w0 a nonzero multiple of {quant} and a depth; wa \
+                 {}, wm {}, w0 {}, depth {}",
+                    self.wa, self.wm, self.w0, self.depth
+                ),
+            )
+            .into());
         }
         // torch casts the Python floats to the tensors' float32; `math.log`
         // is a double, cast the same way.
@@ -232,11 +237,19 @@ impl RegNetContractConfig {
     /// four stages.
     pub fn try_stages(&self) -> BunsenResult<Vec<RegNetStage>> {
         let widths = self.try_unit_widths()?;
-        if self.group_size == 0 || self.bottle_ratio <= 0.0 {
-            return Err(BunsenError::illegal(format!(
-                "RegNetContractConfig: a group size of {} and a bottleneck ratio of {}",
-                self.group_size, self.bottle_ratio
-            )));
+        if self.group_size == 0 {
+            return Err(
+                ConstraintError::zero_or_empty("RegNetContractConfig", "group_size").into(),
+            );
+        }
+        if self.bottle_ratio <= 0.0 {
+            return Err(ConstraintError::out_of_range(
+                "RegNetContractConfig",
+                "bottle_ratio",
+                self.bottle_ratio,
+                "> 0",
+            )
+            .into());
         }
         // `torch.unique(.., return_counts=True)`: the distinct widths in
         // order, each with its count.
@@ -250,10 +263,12 @@ impl RegNetContractConfig {
             }
         }
         if runs.len() != 4 {
-            return Err(BunsenError::illegal(format!(
-                "RegNetContractConfig: the widths make {} stages, not 4: {runs:?}",
-                runs.len()
-            )));
+            return Err(ConstraintError::custom(
+                "RegNetContractConfig",
+                "wm",
+                format!("the widths make {} stages, not 4: {runs:?}", runs.len()),
+            )
+            .into());
         }
         let b = self.bottle_ratio;
         Ok(runs
@@ -462,7 +477,7 @@ mod tests {
                 group_size: 0,
                 ..x002()
             },
-            "a group size of 0",
+            "RegNetContractConfig.group_size: must not be zero",
         );
     }
 }
