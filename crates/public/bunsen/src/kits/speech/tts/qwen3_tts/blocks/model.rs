@@ -28,12 +28,15 @@ use crate::{
     burner::module::ModuleInit,
     errors::BunsenResult,
     kits::{
-        speech::tts::qwen3_tts::{
-            prompt::{
-                Qwen3TtsPrompt,
-                Qwen3TtsPromptConfig,
+        speech::tts::{
+            TtsStop,
+            qwen3_tts::{
+                prompt::{
+                    Qwen3TtsPrompt,
+                    Qwen3TtsPromptConfig,
+                },
+                sampler::Qwen3TtsSamplerConfig,
             },
-            sampler::Qwen3TtsSamplerConfig,
         },
         support::decoding::PoolRelease,
     },
@@ -122,16 +125,6 @@ pub struct Qwen3TtsTakeConfig {
     pub min_frames: usize,
 }
 
-/// Why a take ended.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Qwen3TtsStop {
-    /// The talker chose EOS.
-    Eos,
-
-    /// It reached [`max_frames`](Qwen3TtsTakeConfig::max_frames).
-    MaxFrames,
-}
-
 /// A take's codes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Qwen3TtsCodes {
@@ -139,7 +132,7 @@ pub struct Qwen3TtsCodes {
     pub frames: Vec<Vec<u32>>,
 
     /// Why the take ended.
-    pub stop: Qwen3TtsStop,
+    pub stop: TtsStop,
 }
 
 impl Qwen3TtsCodes {
@@ -295,7 +288,7 @@ impl Qwen3TtsModel {
         &self,
         run: &mut Qwen3TtsTakeRun,
         chooser: &mut impl Qwen3TtsChooser,
-    ) -> Option<Qwen3TtsStop> {
+    ) -> Option<TtsStop> {
         assert!(run.stop.is_none(), "a step of a take that stopped");
         let device = run.hidden.device();
         let talker = &self.talker;
@@ -303,7 +296,7 @@ impl Qwen3TtsModel {
         let vocab = talker.lm.n_logits();
         let f = run.frames.len();
         if f == run.max_frames {
-            run.stop = Some(Qwen3TtsStop::MaxFrames);
+            run.stop = Some(TtsStop::Budget);
             return run.stop;
         }
         let logits = talker.logits(run.hidden.clone()).reshape([1, vocab]);
@@ -311,7 +304,7 @@ impl Qwen3TtsModel {
         let blocked: &[i64] = if f < run.min_frames { &[eos] } else { &[] };
         let first = chooser.codebook0(f, logits, blocked);
         if first == eos {
-            run.stop = Some(Qwen3TtsStop::Eos);
+            run.stop = Some(TtsStop::End);
             return run.stop;
         }
 
@@ -401,7 +394,7 @@ pub struct Qwen3TtsTakeRun {
 
     /// Why the take stopped; `None` while it runs.
     #[module(skip)]
-    pub stop: Option<Qwen3TtsStop>,
+    pub stop: Option<TtsStop>,
 }
 
 /// What chooses a take's codes from its logits

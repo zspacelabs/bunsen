@@ -2,6 +2,7 @@
 
 use bunsen::{
     kits::speech::tts::{
+        TtsStop,
         driver::{
             TtsEngine,
             TtsSamplingOverrides,
@@ -9,10 +10,7 @@ use bunsen::{
             TtsVoiceChoice,
         },
         qwen3_tts::{
-            blocks::{
-                Qwen3TtsStop,
-                Qwen3TtsTakeConfig,
-            },
+            blocks::Qwen3TtsTakeConfig,
             driver::{
                 Qwen3TtsEngine,
                 Qwen3TtsEngineConfig,
@@ -105,7 +103,7 @@ mod qwen3_tts_12hz_0_6b_customvoice {
                 .count();
             eprintln!("{name}: {agree}/{} codes agree", FRAMES * 16);
             assert_eq!(take.frames, expected, "{name}");
-            assert_eq!(take.stop, Qwen3TtsStop::MaxFrames, "{name}");
+            assert_eq!(take.stop, TtsStop::Budget, "{name}");
         }
     }
 }

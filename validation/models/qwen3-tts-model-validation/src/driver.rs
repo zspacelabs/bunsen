@@ -18,12 +18,12 @@ use bunsen::{
             },
             support::testing::tts_synthesizer_round_trip,
             tts::{
+                TtsStop,
                 driver::{
                     TtsChunkPolicy,
                     TtsEvent,
                     TtsRequest,
                     TtsSpeech,
-                    TtsStop,
                     TtsSynthesizer,
                     TtsVoiceChoice,
                 },

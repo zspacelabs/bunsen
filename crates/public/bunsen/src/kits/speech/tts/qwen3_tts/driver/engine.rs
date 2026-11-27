@@ -9,12 +9,8 @@ use alloc::{
 };
 
 use burn::{
-    Tensor,
     config::Config,
-    tensor::{
-        DType,
-        Device,
-    },
+    tensor::Device,
 };
 
 use crate::{
@@ -25,6 +21,7 @@ use crate::{
     },
     kits::{
         speech::tts::{
+            TtsStop,
             driver::{
                 TtsCapabilities,
                 TtsChunkPolicy,
@@ -32,7 +29,6 @@ use crate::{
                 TtsDriverConfig,
                 TtsEngine,
                 TtsLanguage,
-                TtsStop,
                 TtsStreamStep,
                 TtsTakeInfo,
                 TtsTakeRequest,
@@ -49,7 +45,6 @@ use crate::{
                     Qwen3TtsCodes,
                     Qwen3TtsDecodeConfig,
                     Qwen3TtsSampledChooser,
-                    Qwen3TtsStop,
                     Qwen3TtsTakeConfig,
                     Qwen3TtsTakeRun,
                 },
@@ -388,7 +383,7 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Qwen3TtsEngine<T> {
             return Ok(Vec::new());
         }
         let decode = self.config.decode.unwrap_or(self.construct.decode);
-        codec_samples(
+        crate::kits::speech::tts::driver::tts_samples(
             self.construct
                 .codec
                 .chunked_decode(take.codec_input(&self.device()), &decode),
@@ -435,8 +430,7 @@ impl<T: Tokenizer + Send + Sync> Qwen3TtsEngine<T> {
         if let Some(r) = sampling.repetition_penalty {
             talker.repetition_penalty = r;
         }
-        if let Some(seconds) = take.max_seconds {
-            let frames = (seconds * self.frame_rate()).ceil().max(1.0) as usize;
+        if let Some(frames) = take.max_frames(self.frame_rate()) {
             config.max_frames = config.max_frames.min(frames);
         }
         let request = self.prompt_request(take)?;
@@ -453,29 +447,13 @@ impl<T: Tokenizer + Send + Sync> Qwen3TtsEngine<T> {
 /// What a take of `frames` frames, stopped by `stop`, was.
 fn qwen3_tts_take_info(
     frames: usize,
-    stop: Qwen3TtsStop,
+    stop: TtsStop,
 ) -> TtsTakeInfo {
     TtsTakeInfo {
         frames,
         steps: frames,
-        stop: match stop {
-            Qwen3TtsStop::Eos => TtsStop::End,
-            Qwen3TtsStop::MaxFrames => TtsStop::Budget,
-        },
+        stop,
     }
-}
-
-/// The codec's audio, `[B, 1, N]`, as samples; refused when not finite.
-fn codec_samples(audio: Tensor<3>) -> BunsenResult<Vec<f32>> {
-    let samples: Vec<f32> = audio
-        .cast(DType::F32)
-        .into_data()
-        .try_into_vec_as::<f32>()
-        .map_err(|e| BunsenError::internal(format!("the codec's audio: {e:?}")))?;
-    if samples.iter().any(|x| !x.is_finite()) {
-        return Err(BunsenError::internal("the codec's audio is not finite"));
-    }
-    Ok(samples)
 }
 
 /// A Qwen3-TTS take as a stream ([`TtsEngine::start_stream`]): a frame a
@@ -497,13 +475,13 @@ impl<T: Tokenizer + Send + Sync> TtsTakeStream for Qwen3TtsTakeStream<'_, T> {
         let stop = construct.model.step_take(&mut self.run, &mut self.chooser);
         let ready = self.run.frames.len() - self.decoded;
         let mut samples = Vec::new();
-        if ready > 0 && (stop.is_some() || ready >= self.chunks.need(self.decoded)) {
+        if self.chunks.decode_now(ready, self.decoded, stop.is_some()) {
             let frames = Qwen3TtsCodes {
                 frames: self.run.frames[self.decoded..].to_vec(),
-                stop: Qwen3TtsStop::Eos,
+                stop: TtsStop::End,
             };
             let codes = frames.codec_input(&self.engine.device());
-            samples = codec_samples(
+            samples = crate::kits::speech::tts::driver::tts_samples(
                 construct
                     .codec
                     .forward_chunked_stream(codes, &mut self.codec),

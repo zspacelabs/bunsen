@@ -22,7 +22,10 @@ use crate::{
         BunsenResult,
         LookupError,
     },
-    kits::support::text::BunsenLanguageTag,
+    kits::{
+        speech::tts::TtsStop,
+        support::text::BunsenLanguageTag,
+    },
 };
 
 /// One language an engine speaks.
@@ -194,16 +197,24 @@ impl TtsVoiceInfo {
     }
 }
 
-/// Why a take ended.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TtsStop {
-    /// The model ended it.
-    End,
-
-    /// It ran out of frames: the budget, the request's
-    /// [`max_seconds`](super::TtsRequest::max_seconds) or the model's
-    /// context.
-    Budget,
+/// A take's codec audio as host samples: `audio`, any shape (`[.., N]`),
+/// read back as f32.
+///
+/// # Errors
+/// [`Internal`](crate::errors::BunsenErrorKind::Internal) when it does not
+/// read back, or is not finite.
+pub fn tts_samples<const D: usize>(audio: burn::Tensor<D>) -> BunsenResult<Vec<f32>> {
+    let samples: Vec<f32> = audio
+        .cast(burn::tensor::DType::F32)
+        .into_data()
+        .try_into_vec_as::<f32>()
+        .map_err(|e| crate::errors::BunsenError::internal(format!("the codec's audio: {e:?}")))?;
+    if samples.iter().any(|x| !x.is_finite()) {
+        return Err(crate::errors::BunsenError::internal(
+            "the codec's audio is not finite",
+        ));
+    }
+    Ok(samples)
 }
 
 /// What a take was.

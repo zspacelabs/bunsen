@@ -169,3 +169,16 @@ pub struct TtsTakeRequest<'a, V> {
     /// Sampling settings over the engine's.
     pub sampling: &'a TtsSamplingOverrides,
 }
+
+impl<V> TtsTakeRequest<'_, V> {
+    /// The take's frame budget at `frames_per_second`: its
+    /// [`max_seconds`](Self::max_seconds) in whole frames, rounded up and at
+    /// least one; `None` without a limit.
+    pub fn max_frames(
+        &self,
+        frames_per_second: f64,
+    ) -> Option<usize> {
+        self.max_seconds
+            .map(|seconds| (seconds * frames_per_second).ceil().max(1.0) as usize)
+    }
+}
