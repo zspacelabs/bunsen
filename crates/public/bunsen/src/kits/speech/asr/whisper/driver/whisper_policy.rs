@@ -10,7 +10,7 @@ use crate::kits::speech::asr::whisper::driver::WhisperTask;
 /// How a Whisper pretrained decodes: what its presets, and a lookup's patch,
 /// set; a [`WhisperConstruct`](super::WhisperConstruct) carries the one they
 /// resolved to, and
-/// [`WhisperStreamDriverConfig::with_policy`](super::WhisperStreamDriverConfig::with_policy)
+/// [`WhisperEngineConfig::with_policy`](super::WhisperEngineConfig::with_policy)
 /// applies it to a driver.
 ///
 /// The multilingual rows have a `task` axis (`[transcribe]`, the default,

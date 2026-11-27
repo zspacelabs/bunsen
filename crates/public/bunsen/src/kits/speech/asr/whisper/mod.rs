@@ -38,13 +38,14 @@
 //!    the factory's
 //!    [`load_construct`](crate::data::builds::BuildFactory::load_construct):
 //!    the model, its token layout and its vocabulary.
-//! 4. A [`WhisperStreamDriverConfig`](driver::WhisperStreamDriverConfig):
-//!    language, task, timestamps, search, and the
-//!    [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy).
-//! 5. A [`WhisperStreamDriver`](driver::WhisperStreamDriver) over the
-//!    construct, from
-//!    [`init_from_construct`](driver::WhisperStreamDriverConfig::init_from_construct):
-//!    shared, and never mutated.
+//! 4. A [`WhisperEngine`](driver::WhisperEngine) over the construct, from a
+//!    [`WhisperEngineConfig`](driver::WhisperEngineConfig) (language, task,
+//!    timestamps, search) and its
+//!    [`try_init`](driver::WhisperEngineConfig::try_init).
+//! 5. A [`WhisperStreamDriver`](driver::WhisperStreamDriver) over the engine
+//!    and an [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy),
+//!    from [`AsrStreamDriver::new`](crate::kits::speech::asr::driver::AsrStreamDriver::new),
+//!    as for every ASR engine: shared, and never mutated.
 //! 6. A [`WhisperStreamContext`](driver::WhisperStreamContext) per stream, from
 //!    [`new_context`](driver::WhisperStreamDriver::new_context): all of that
 //!    stream's state.
@@ -76,14 +77,16 @@
 //!     errors::BunsenResult,
 //!     kits::speech::asr::{
 //!         driver::{
+//!             AsrStreamDriver,
+//!             EmissionPolicy,
 //!             LevelPolicy,
 //!             StreamClock,
 //!             TranscriptSegment,
 //!         },
 //!         whisper::{
 //!             driver::{
+//!                 WhisperEngineConfig,
 //!                 WhisperStreamDriver,
-//!                 WhisperStreamDriverConfig,
 //!             },
 //!             pretrained::default_whisper_factory,
 //!         },
@@ -111,7 +114,8 @@
 //!         bunsen::data::formats::LoadPolicy::performance(),
 //!     )?;
 //!
-//!     WhisperStreamDriverConfig::new().init_from_construct(construct, device)
+//!     let engine = WhisperEngineConfig::new().try_init(construct, device)?;
+//!     AsrStreamDriver::new(engine, EmissionPolicy::offline())
 //! }
 //!
 //! /// One stream through the driver: mono samples at the model's rate
@@ -191,12 +195,15 @@
 //!     errors::BunsenResult,
 //!     kits::speech::{
 //!         asr::{
-//!             driver::EmissionPolicy,
+//!             driver::{
+//!                 AsrStreamDriver,
+//!                 EmissionPolicy,
+//!             },
 //!             whisper::{
 //!                 driver::{
 //!                     WhisperConstruct,
+//!                     WhisperEngineConfig,
 //!                     WhisperStreamDriver,
-//!                     WhisperStreamDriverConfig,
 //!                 },
 //!                 pretrained::{
 //!                     CHECKPOINT,
@@ -278,13 +285,11 @@
 //!         .handle;
 //!     // The 16 kHz branch, the model's rate, and the filter the preset
 //!     // resolved to.
-//!     WhisperStreamDriverConfig::new()
-//!         .with_emission(EmissionPolicy::conservative())
-//!         .init_from_construct(construct, device)?
-//!         .with_vad(
-//!             Arc::new(vad.expect_branch(16_000).clone()),
-//!             vad.vad_filter().clone(),
-//!         )
+//!     let engine = WhisperEngineConfig::new().try_init(construct, device)?;
+//!     AsrStreamDriver::new(engine, EmissionPolicy::conservative())?.with_vad(
+//!         Arc::new(vad.expect_branch(16_000).clone()),
+//!         vad.vad_filter().clone(),
+//!     )
 //! }
 //! # }
 //! ```

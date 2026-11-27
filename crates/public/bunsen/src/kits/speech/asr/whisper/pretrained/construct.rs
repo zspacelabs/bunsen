@@ -485,7 +485,7 @@ mod preset_tests {
     use super::*;
     use crate::kits::speech::asr::whisper::{
         driver::{
-            WhisperStreamDriverConfig,
+            WhisperEngineConfig,
             WhisperTask,
         },
         pretrained::default_whisper_factory,
@@ -533,7 +533,7 @@ mod preset_tests {
             condition_on_previous_text: false,
             fallback: false,
         };
-        let base = WhisperStreamDriverConfig::new();
+        let base = WhisperEngineConfig::new();
         let c = base.clone().with_policy(&policy);
         assert_eq!(c.task, WhisperTask::Translate);
         assert_eq!(c.language.as_deref(), Some("de"));

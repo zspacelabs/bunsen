@@ -13,7 +13,7 @@ use bunsen::{
                     GreedyDecodeConfig,
                     Whisper,
                     driver::{
-                        WhisperStreamDriverConfig,
+                        WhisperEngineConfig,
                         WhisperTask,
                     },
                     logit_filters::ApplyTimestampRules,
@@ -528,10 +528,24 @@ fn test_bunsen_driver_transcribes_like_openai() {
     let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
-    let driver = WhisperStreamDriverConfig::new()
+    let driver = WhisperEngineConfig::new()
         .with_language(Some("en".to_string()))
         .with_timestamps(true)
-        .init_with_layout(bunsen_model(&device), table.policy.clone(), &device)
+        .try_init(
+            std::sync::Arc::new(
+                bunsen::kits::speech::asr::whisper::driver::WhisperConstruct::new(
+                    bunsen_model(&device),
+                    table.policy.clone(),
+                ),
+            ),
+            &device,
+        )
+        .and_then(|engine| {
+            bunsen::kits::speech::asr::driver::AsrStreamDriver::new(
+                engine,
+                bunsen::kits::speech::asr::driver::EmissionPolicy::offline(),
+            )
+        })
         .expect("a multilingual layout with a language")
         .with_logit_filters(table.policy.ids().default_filters(&table.ranks));
 

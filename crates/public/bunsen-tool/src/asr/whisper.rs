@@ -25,8 +25,8 @@ use bunsen::{
         whisper::{
             driver::{
                 WhisperConstruct,
+                WhisperEngineConfig,
                 WhisperStreamDriver,
-                WhisperStreamDriverConfig,
             },
             pretrained::{
                 CHECKPOINT,
@@ -124,13 +124,12 @@ pub fn driver(
     {
         log::warn!("English-only checkpoint: language {language} does not apply");
     }
-    let driver: WhisperStreamDriver = WhisperStreamDriverConfig::new()
+    // The settings come from the command line.
+    let engine = WhisperEngineConfig::new()
         .with_policy(&policy)
-        .with_emission(emission.into())
-        .init_from_construct(construct, device)
-        // The settings come from the command line.
+        .try_init(construct, device)
         .as_policy()?;
-    Ok(driver)
+    bunsen::kits::speech::asr::driver::AsrStreamDriver::new(engine, emission.into()).as_policy()
 }
 
 /// Transcribes one recording through `driver`.

@@ -49,12 +49,13 @@
 //!    [`default_whisper_factory`](crate::kits::speech::asr::whisper::pretrained::default_whisper_factory)
 //!    and a [`ResourceCache`](crate::data::resources::ResourceCache), or over a
 //!    model already in hand.
-//! 2. A [`WhisperStreamDriverConfig`] (language, task, timestamps, search,
-//!    [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy),
-//!    fallback ladder), built into a driver over the construct by
-//!    [`init_from_construct`](WhisperStreamDriverConfig::init_from_construct).
-//!    [`with_vad`](WhisperStreamDriver::with_vad) attaches a voice-activity
-//!    model, which the real-time presets need.
+//! 2. A [`WhisperEngine`] over the construct: a [`WhisperEngineConfig`]
+//!    (language, task, timestamps, search, fallback ladder) built by
+//!    [`try_init`](WhisperEngineConfig::try_init). The driver is the engine
+//!    under an [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy),
+//!    from [`AsrStreamDriver::new`](crate::kits::speech::asr::driver::AsrStreamDriver::new),
+//!    as for every ASR engine. [`with_vad`](WhisperStreamDriver::with_vad)
+//!    attaches a voice-activity model, which the real-time presets need.
 //! 3. One context per stream, from
 //!    [`new_context`](WhisperStreamDriver::new_context), given the stream's
 //!    [`StreamClock`](crate::kits::speech::asr::driver::StreamClock) and a
@@ -144,7 +145,7 @@
 //!
 //! A segment's times are its frames put on the clock: timestamp token `i`
 //! of a window that starts at sample `s` is `clock.time_at(s + i * grid)`,
-//! where `grid` is the [`encoder_grid`](WhisperStreamDriver::encoder_grid),
+//! where `grid` is the [`encoder_grid`](WhisperEngine::encoder_grid),
 //! 320 samples at 16 kHz.
 //!
 //! # The level: where the clamp's reference comes from

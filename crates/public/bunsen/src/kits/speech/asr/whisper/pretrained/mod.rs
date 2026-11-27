@@ -23,7 +23,7 @@
 //!
 //! A construct carries the [`WhisperPolicy`](super::driver::WhisperPolicy)
 //! its presets resolved to, which a driver takes with
-//! [`with_policy`](super::driver::WhisperStreamDriverConfig::with_policy).
+//! [`with_policy`](super::driver::WhisperEngineConfig::with_policy).
 //! The multilingual checkpoints that translate (every one but the `.en`
 //! checkpoints and `large-v3-turbo`) are the catalog's `multilingual` template
 //! class, with a `task` axis: `[transcribe]`, the default, and `[translate]`.

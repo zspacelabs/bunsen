@@ -12,7 +12,7 @@ use bunsen::{
             Whisper,
             WhisperMeta,
             driver::{
-                WhisperStreamDriverConfig,
+                WhisperEngineConfig,
                 WhisperTask,
             },
             pretrained::default_whisper_factory,
@@ -74,10 +74,24 @@ fn stream_matches_one_shot() {
         .sot_sequence(Some("en"), Some(WhisperTask::Transcribe), false)
         .expect("a multilingual layout");
     let config = GreedyDecodeConfig::new(prompt, table.policy.ids().eot);
-    let driver = WhisperStreamDriverConfig::new()
+    let driver = WhisperEngineConfig::new()
         .with_language(Some("en".to_string()))
         .with_condition_on_previous_text(false)
-        .init_with_layout(model.clone(), table.policy.clone(), &device)
+        .try_init(
+            std::sync::Arc::new(
+                bunsen::kits::speech::asr::whisper::driver::WhisperConstruct::new(
+                    model.clone(),
+                    table.policy.clone(),
+                ),
+            ),
+            &device,
+        )
+        .and_then(|engine| {
+            bunsen::kits::speech::asr::driver::AsrStreamDriver::new(
+                engine,
+                bunsen::kits::speech::asr::driver::EmissionPolicy::offline(),
+            )
+        })
         .expect("a multilingual layout with a language");
 
     for fixture in FIXTURES {

@@ -19,7 +19,6 @@ use crate::{
             asr::{
                 driver::{
                     AsrStreamDriver,
-                    EmissionPolicy,
                     SpeakerCutConfig,
                 },
                 whisper::{
@@ -53,20 +52,19 @@ use crate::{
     },
 };
 
-/// Config for [`WhisperStreamDriver`]: what each window is decoded as, and
-/// when a stream emits.
+/// Config for a [`WhisperEngine`]: what each window is decoded as.
 ///
-/// Set the language, task, timestamps, search, [`EmissionPolicy`] and
-/// fallback ladder here, then build the driver over a loaded
-/// [`WhisperConstruct`] with
-/// [`init_from_construct`](Self::init_from_construct), over a bare model with
-/// [`init`](Self::init), or over a model and an explicit token layout with
-/// [`init_with_layout`](Self::init_with_layout). The driver keeps a copy of
-/// this config, and opens a
+/// Set the language, task, timestamps, search and fallback ladder here, then
+/// build the engine over a loaded [`WhisperConstruct`] with
+/// [`try_init`](Self::try_init), and the driver over the engine and an
+/// [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy) with [`AsrStreamDriver::new`], as for every ASR engine.
+/// A bare model is a construct through [`WhisperConstruct::from_model`], or
+/// [`WhisperConstruct::new`] with an explicit token layout. The engine keeps
+/// a copy of this config; the driver opens a
 /// [`WhisperStreamContext`](super::WhisperStreamContext) per stream with
 /// [`new_context`](WhisperStreamDriver::new_context).
 #[derive(Config, Debug)]
-pub struct WhisperStreamDriverConfig {
+pub struct WhisperEngineConfig {
     /// The language of the speech, as a
     /// [`LANGUAGES`](crate::kits::speech::asr::whisper::blocks::LANGUAGES)
     /// code.
@@ -110,18 +108,11 @@ pub struct WhisperStreamDriverConfig {
     #[config(default = "true")]
     pub condition_on_previous_text: bool,
 
-    /// When to decode, and when a decode is final.
-    ///
-    /// A policy with the `endpoint` trigger needs a voice-activity model,
-    /// attached with [`with_vad`](WhisperStreamDriver::with_vad).
-    #[config(default = "EmissionPolicy::offline()")]
-    pub emission: EmissionPolicy,
-
     /// With a diarizer attached, a window is cut at a change of speaker
     /// before it is decoded
     /// ([`SpeakerCutConfig::cut`](crate::kits::speech::asr::driver::SpeakerCutConfig::cut)), so a
     /// segment is one speaker's as far as the turns go; `None` decodes
-    /// windows as the emission policy cuts them.
+    /// windows as the driver's emission policy cuts them.
     #[config(default = "Some(SpeakerCutConfig::new())")]
     pub speaker_cut: Option<SpeakerCutConfig>,
 
@@ -132,7 +123,7 @@ pub struct WhisperStreamDriverConfig {
     pub fallback: WhisperFallbackConfig,
 }
 
-impl WhisperStreamDriverConfig {
+impl WhisperEngineConfig {
     /// Sets the decode fields from `policy`: the task, the language, the
     /// timestamps, the beam size (the rest of the search as it is), the token
     /// cap, the prompt carry, and the fallback (upstream's ladder, or
@@ -156,80 +147,41 @@ impl WhisperStreamDriverConfig {
             })
     }
 
-    /// Builds the driver over a model alone, deriving the token layout from
-    /// the model's vocabulary size: ids only, with no vocabulary, no text
-    /// and no default suppress list. See
-    /// [`init_from_construct`](Self::init_from_construct).
+    /// Builds the engine over a loaded construct, sharing it.
     ///
-    /// # Errors
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
-    /// [`ConstraintError`] cause, if the vocabulary size is not a Whisper
-    /// layout, or as [`init_from_construct`](Self::init_from_construct).
-    pub fn init(
-        &self,
-        model: Whisper,
-        device: &Device,
-    ) -> BunsenResult<WhisperStreamDriver> {
-        self.init_from_construct(Arc::new(WhisperConstruct::from_model(model)?), device)
-    }
-
-    /// Builds the driver over a model with an explicit token layout, and no
-    /// vocabulary.
-    ///
-    /// For a model whose vocabulary is not one of Whisper's &mdash; a test
-    /// model &mdash; or to override what [`init`](Self::init) would derive.
-    ///
-    /// # Errors
-    /// As [`init_from_construct`](Self::init_from_construct).
-    pub fn init_with_layout(
-        &self,
-        whisper_model: Whisper,
-        token_layout: WhisperTokenLayout,
-        device: &Device,
-    ) -> BunsenResult<WhisperStreamDriver> {
-        self.init_from_construct(
-            Arc::new(WhisperConstruct::new(whisper_model, token_layout)),
-            device,
-        )
-    }
-
-    /// Builds the driver over a loaded construct, sharing it.
+    /// See the [errors convention](crate::errors#convention-try_x-and-x).
     ///
     /// The model and its layout come from the construct. So do, when the
     /// construct has a vocabulary, upstream's default logit filters and, under
     /// the `tokenizer` feature, a detokenizer, so emissions carry text;
+    /// the driver's
     /// [`with_logit_filters`](WhisperStreamDriver::with_logit_filters) and
     /// [`with_detokenizer`](WhisperStreamDriver::with_detokenizer) replace
-    /// either. Several drivers over one construct are `Arc::clone`s of it.
+    /// either. Several engines over one construct are `Arc::clone`s of it.
     ///
     /// # Errors
     /// - [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the layout
     ///   does not fit the model or its vocabulary (see
     ///   [`WhisperConstruct::try_validate`]), if a language or task is given
-    ///   for an English-only layout, or if the configuration breaks a rule: no
-    ///   trigger that decodes, a zero `interval`, the `interval` trigger
-    ///   without `endpoint` (which could never draft), a zero
-    ///   `search.beam_size` or `fallback.ladder.best_of`, no fallback
+    ///   for an English-only layout, or if the configuration breaks a rule: a
+    ///   zero `search.beam_size` or `fallback.ladder.best_of`, no fallback
     ///   temperature, or a `search.patience` that collects no candidates. A
     ///   broken field rule carries a [`ConstraintError`].
     /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup) if the language is
     ///   not one the layout has (see [`WhisperTokenLayout::sot_sequence`]).
-    /// - [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for
-    ///   [`CommitRule::Agreement`](crate::kits::speech::asr::driver::CommitRule::Agreement),
-    ///   which is not implemented.
     /// - As [`LogMelFrontEndConfig::try_init_audio_converter`] for the model's
     ///   front end.
-    pub fn init_from_construct(
+    pub fn try_init(
         &self,
         construct: Arc<WhisperConstruct>,
         device: &Device,
-    ) -> BunsenResult<WhisperStreamDriver> {
+    ) -> BunsenResult<WhisperEngine> {
         construct.try_validate()?;
         let special_ids = *construct.layout.ids();
 
         if !special_ids.is_multilingual() && self.language.is_some() {
             return Err(crate::errors::ConstraintError::custom(
-                "WhisperStreamDriverConfig",
+                "WhisperEngineConfig",
                 "language",
                 "an English-only checkpoint takes no language",
             )
@@ -255,10 +207,10 @@ impl WhisperStreamDriverConfig {
             )));
         }
 
-        const OWNER: &str = "WhisperStreamDriverConfig";
+        const OWNER: &str = "WhisperEngineConfig";
         self.search
             .try_validate()
-            .context("WhisperStreamDriverConfig.search")?;
+            .context("WhisperEngineConfig.search")?;
         if self.fallback.ladder.temperatures.is_empty() {
             return Err(
                 ConstraintError::zero_or_empty(OWNER, "fallback.ladder.temperatures").into(),
@@ -290,16 +242,28 @@ impl WhisperStreamDriverConfig {
             filters,
             detokenizer,
         };
-        AsrStreamDriver::new(engine, self.emission.clone())
+        Ok(engine)
+    }
+
+    /// [`try_init`](Self::try_init), panicking.
+    ///
+    /// # Panics
+    /// As [`try_init`](Self::try_init) errs.
+    pub fn init(
+        &self,
+        construct: Arc<WhisperConstruct>,
+        device: &Device,
+    ) -> WhisperEngine {
+        crate::errors::WithOkOrPanic::ok_or_panic(self.try_init(construct, device))
     }
 }
 
 /// The Whisper stream driver: the shared, immutable half of a
 /// transcription, the core's [`AsrStreamDriver`] over a [`WhisperEngine`].
 ///
-/// Built by [`WhisperStreamDriverConfig`]
-/// ([`init_from_construct`](WhisperStreamDriverConfig::init_from_construct) and
-/// its siblings), then optionally given a voice-activity model with
+/// Built as every ASR driver is: [`AsrStreamDriver::new`] over a
+/// [`WhisperEngine`] ([`WhisperEngineConfig::try_init`]) and an
+/// [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy), then optionally given a voice-activity model with
 /// [`with_vad`](AsrStreamDriver::with_vad). Opens streams with
 /// [`new_context`](AsrStreamDriver::new_context); each
 /// [`WhisperStreamContext`](super::WhisperStreamContext) holds a clone of
@@ -321,7 +285,7 @@ pub type WhisperStreamDriver = AsrStreamDriver<WhisperEngine>;
 /// language from its first committed window.
 #[derive(Clone, Debug)]
 pub struct WhisperEngine {
-    pub(super) config: WhisperStreamDriverConfig,
+    pub(super) config: WhisperEngineConfig,
     pub(super) audio_converter: PerceptiveAudioConverter,
     /// The model, its layout and its vocabulary, shared.
     pub(super) construct: Arc<WhisperConstruct>,
@@ -339,7 +303,7 @@ pub struct WhisperEngine {
 
 impl WhisperEngine {
     /// The driver configuration.
-    pub fn config(&self) -> &WhisperStreamDriverConfig {
+    pub fn config(&self) -> &WhisperEngineConfig {
         &self.config
     }
 
@@ -445,80 +409,6 @@ impl WhisperEngine {
 }
 
 impl AsrStreamDriver<WhisperEngine> {
-    /// The driver configuration.
-    pub fn config(&self) -> &WhisperStreamDriverConfig {
-        self.engine().config()
-    }
-
-    /// The construct: the model, its layout and its vocabulary.
-    pub fn construct(&self) -> &Arc<WhisperConstruct> {
-        self.engine().construct()
-    }
-
-    /// The model.
-    pub fn whisper_model(&self) -> &Whisper {
-        self.engine().whisper_model()
-    }
-
-    /// The mel front end.
-    pub fn audio_converter(&self) -> &PerceptiveAudioConverter {
-        self.engine().audio_converter()
-    }
-
-    /// The token layout, derived from the model.
-    pub fn token_layout(&self) -> &WhisperTokenLayout {
-        self.engine().token_layout()
-    }
-
-    /// The sot sequence every window's decode opens with.
-    pub fn prompt(&self) -> &[i64] {
-        self.engine().prompt()
-    }
-
-    /// The logit filters every decode applies.
-    pub fn filters(&self) -> &[Arc<dyn LogitFilter>] {
-        self.engine().filters()
-    }
-
-    /// Whether streams detect their language, from their first committed
-    /// window.
-    pub fn detects_language(&self) -> bool {
-        self.engine().detects_language()
-    }
-
-    /// Audio frames per timestamp index: two.
-    pub fn frames_per_timestamp(&self) -> usize {
-        self.engine().frames_per_timestamp()
-    }
-
-    /// The decode of one window under this driver, given its prompt.
-    pub fn decode_config(
-        &self,
-        prompt: Vec<i64>,
-    ) -> DecodeConfig {
-        self.engine().decode_config(prompt)
-    }
-
-    /// Frames per decode window: the model's audio context.
-    pub fn window_frames(&self) -> usize {
-        self.engine().window_frames()
-    }
-
-    /// The audio front end the model's log-mels are computed with.
-    pub fn front_end(&self) -> &LogMelFrontEndConfig {
-        self.engine().front_end()
-    }
-
-    /// The devices the model lives on.
-    pub fn devices(&self) -> Vec<Device> {
-        self.engine().devices()
-    }
-
-    /// The encoder grid in samples: one timestamp step. 320 at 16 kHz.
-    pub fn encoder_grid(&self) -> usize {
-        self.engine().encoder_grid()
-    }
-
     /// Attaches a detokenizer, so emissions carry text as well as ids.
     pub fn with_detokenizer(
         self,
