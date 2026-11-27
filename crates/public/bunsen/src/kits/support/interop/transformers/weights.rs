@@ -36,14 +36,13 @@ where
     M: burn::module::Module,
     C: crate::burner::module::ModuleInit<M>,
 {
-    use crate::data::formats::{
-        SafetensorsCheckpoint,
-        stored_float_dtype,
-    };
-    let tensors = SafetensorsCheckpoint::from_loaded(loaded, checkpoint)?.tensors()?;
-    let stored = stored_float_dtype(&tensors).unwrap_or(FloatDType::F32);
-    let dtype = policy.resolve(stored, device, |d| d != FloatDType::F16)?;
-    let mut lm: M = config.try_init(device)?;
-    load_tensors(&mut lm, tensors, dtype)?;
-    Ok(lm)
+    crate::kits::support::interop::load_checkpoint_as(
+        loaded,
+        checkpoint,
+        config,
+        device,
+        policy,
+        |d| d != FloatDType::F16,
+        load_tensors,
+    )
 }

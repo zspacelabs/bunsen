@@ -47,13 +47,12 @@ pub fn load_nemotron_diarization(
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<Sortformer> {
-    use crate::{
-        burner::module::ModuleInit,
-        kits::speech::diarization::sortformer::pretrained::CHECKPOINT,
-    };
-    let tensors =
-        crate::data::formats::SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-    let mut model: Sortformer = config.try_init(device)?;
-    load_nemotron_diarization_tensors(&mut model, tensors)?;
-    policy.place(model, device, |_| true)
+    crate::kits::support::interop::load_checkpoint_placed(
+        loaded,
+        crate::kits::speech::diarization::sortformer::pretrained::CHECKPOINT,
+        config,
+        device,
+        policy,
+        load_nemotron_diarization_tensors,
+    )
 }

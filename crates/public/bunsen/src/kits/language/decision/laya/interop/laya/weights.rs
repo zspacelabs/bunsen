@@ -55,18 +55,13 @@ pub fn load_laya(
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<LayaModel> {
-    use crate::{
-        burner::module::ModuleInit,
-        data::formats::{
-            SafetensorsCheckpoint,
-            stored_float_dtype,
-        },
-        kits::language::decision::laya::pretrained::CHECKPOINT,
-    };
-    let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-    let stored = stored_float_dtype(&tensors).unwrap_or(FloatDType::F32);
-    let dtype = policy.resolve(stored, device, |_| true)?;
-    let mut model: LayaModel = config.try_init(device)?;
-    load_laya_tensors(&mut model, tensors, Some(dtype))?;
-    Ok(model)
+    crate::kits::support::interop::load_checkpoint_as(
+        loaded,
+        crate::kits::language::decision::laya::pretrained::CHECKPOINT,
+        config,
+        device,
+        policy,
+        |_| true,
+        |model, tensors, dtype| load_laya_tensors(model, tensors, Some(dtype)),
+    )
 }

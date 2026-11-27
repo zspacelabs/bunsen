@@ -39,16 +39,12 @@ pub fn load_sknet(
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<ConvNetModel> {
-    use crate::{
-        burner::module::ModuleInit,
-        data::formats::SafetensorsCheckpoint,
-        errors::ResultContext,
-        kits::images::classification::sknet::pretrained::CHECKPOINT,
-    };
-    let path = loaded.expect(CHECKPOINT)?;
-    let tensors = SafetensorsCheckpoint::single(path).tensors()?;
-    let mut model: ConvNetModel = config.try_init(device)?;
-    load_sknet_tensors(&mut model, tensors)
-        .with_context(|| format!("loading {}", path.display()))?;
-    policy.place(model, device, |_| true)
+    crate::kits::support::interop::load_checkpoint_placed(
+        loaded,
+        crate::kits::images::classification::sknet::pretrained::CHECKPOINT,
+        config,
+        device,
+        policy,
+        load_sknet_tensors,
+    )
 }

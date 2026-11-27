@@ -99,23 +99,13 @@ pub fn load_vit_into(
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<VisionEncoderModel> {
     use crate::{
-        data::{
-            formats::{
-                SafetensorsCheckpoint,
-                read_pytorch_tensors,
-            },
-            resources::SAFETENSORS,
-        },
         errors::ResultContext,
-        kits::images::classification::vit::pretrained::CHECKPOINT,
+        kits::{
+            images::classification::vit::pretrained::CHECKPOINT,
+            support::interop::checkpoint_tensors,
+        },
     };
-    let path = loaded.expect(CHECKPOINT)?;
-    let safetensors =
-        loaded.map.get(CHECKPOINT).and_then(|r| r.format.as_deref()) == Some(SAFETENSORS);
-    let applied = match safetensors {
-        true => load_vit_tensors(&mut model, SafetensorsCheckpoint::single(path).tensors()?),
-        false => load_vit_tensors(&mut model, read_pytorch_tensors(path)?),
-    };
-    applied.with_context(|| format!("loading {}", path.display()))?;
+    load_vit_tensors(&mut model, checkpoint_tensors(loaded, CHECKPOINT)?)
+        .with_context(|| format!("loading {}'s {CHECKPOINT}", loaded.map.name))?;
     policy.place(model, device, |_| true)
 }

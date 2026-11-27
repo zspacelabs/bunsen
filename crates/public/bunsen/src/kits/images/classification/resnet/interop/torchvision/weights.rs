@@ -44,15 +44,12 @@ pub fn load_resnet(
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<ConvNetModel> {
-    use crate::{
-        burner::module::ModuleInit,
-        errors::ResultContext,
-        kits::images::classification::resnet::pretrained::CHECKPOINT,
-    };
-    let path = loaded.expect(CHECKPOINT)?;
-    let tensors = crate::data::formats::read_pytorch_tensors(path)?;
-    let mut resnet: ConvNetModel = config.try_init(device)?;
-    load_resnet_tensors(&mut resnet, tensors)
-        .with_context(|| format!("loading {}", path.display()))?;
-    policy.place(resnet, device, |_| true)
+    crate::kits::support::interop::load_checkpoint_placed(
+        loaded,
+        crate::kits::images::classification::resnet::pretrained::CHECKPOINT,
+        config,
+        device,
+        policy,
+        load_resnet_tensors,
+    )
 }
