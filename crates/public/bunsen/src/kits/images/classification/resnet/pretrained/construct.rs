@@ -139,28 +139,15 @@ impl ConstructInit for ResNetConstructConfig {
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<ImageModelConstruct<ConvNetModel>>> {
-        use crate::{
-            data::resources::SAFETENSORS,
-            kits::images::classification::resnet::interop::{
-                timm,
-                torchvision,
-            },
-        };
+        use crate::kits::images::classification::resnet::interop::torchvision;
 
         let config = self.config_for(model, Some(loaded))?;
         let card = ImageModelCard::try_from_build(model, loaded)?
             .try_for_classes(config.num_classes)
             .with_context(|| format!("{}'s labels", model.id()))?;
-        let safetensors = loaded
-            .map
-            .get(super::CHECKPOINT)
-            .and_then(|r| r.format.as_deref())
-            == Some(SAFETENSORS);
-        let model = if safetensors {
-            timm::load_resnet(loaded, &config, device, load)?
-        } else {
-            torchvision::load_resnet(loaded, &config, device, load)?
-        };
+        // A timm safetensors file or a torchvision state dict: one layout,
+        // read by its format.
+        let model = torchvision::load_resnet(loaded, &config, device, load)?;
         Ok(Arc::new(ImageModelConstruct { model, card }))
     }
 }

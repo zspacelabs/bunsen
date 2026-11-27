@@ -42,6 +42,8 @@
 //! function, named the same way. It is never a method on the bunsen config,
 //! nor a `From` / `TryFrom` impl.
 
+#[cfg(feature = "store")]
+mod checkpoint;
 pub mod mistral_common;
 #[cfg(feature = "speech")]
 pub mod nemo;
@@ -51,6 +53,8 @@ pub mod transformers;
 mod weights;
 use std::path::Path;
 
+#[cfg(feature = "store")]
+pub use checkpoint::*;
 #[cfg(feature = "store")]
 pub use weights::*;
 

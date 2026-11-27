@@ -47,16 +47,12 @@ pub fn load_resnetv2(
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<ConvNetModel> {
-    use crate::{
-        burner::module::ModuleInit,
-        data::formats::SafetensorsCheckpoint,
-        errors::ResultContext,
-        kits::images::classification::resnetv2::pretrained::CHECKPOINT,
-    };
-    let path = loaded.expect(CHECKPOINT)?;
-    let tensors = SafetensorsCheckpoint::single(path).tensors()?;
-    let mut model: ConvNetModel = config.try_init(device)?;
-    load_resnetv2_tensors(&mut model, tensors)
-        .with_context(|| format!("loading {}", path.display()))?;
-    policy.place(model, device, |_| true)
+    crate::kits::support::interop::load_checkpoint_placed(
+        loaded,
+        crate::kits::images::classification::resnetv2::pretrained::CHECKPOINT,
+        config,
+        device,
+        policy,
+        load_resnetv2_tensors,
+    )
 }

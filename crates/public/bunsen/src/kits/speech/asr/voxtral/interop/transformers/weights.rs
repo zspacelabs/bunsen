@@ -45,18 +45,13 @@ pub fn load_voxtral_realtime(
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<VoxtralRealtime> {
-    use crate::{
-        burner::module::ModuleInit,
-        data::formats::{
-            SafetensorsCheckpoint,
-            stored_float_dtype,
-        },
-        kits::speech::asr::voxtral::pretrained::CHECKPOINT,
-    };
-    let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-    let stored = stored_float_dtype(&tensors).unwrap_or(FloatDType::F32);
-    let dtype = policy.resolve(stored, device, |_| true)?;
-    let mut voxtral: VoxtralRealtime = config.try_init(device)?;
-    load_voxtral_realtime_tensors(&mut voxtral, tensors, Some(dtype))?;
-    Ok(voxtral)
+    crate::kits::support::interop::load_checkpoint_as(
+        loaded,
+        crate::kits::speech::asr::voxtral::pretrained::CHECKPOINT,
+        config,
+        device,
+        policy,
+        |_| true,
+        |model, tensors, dtype| load_voxtral_realtime_tensors(model, tensors, Some(dtype)),
+    )
 }

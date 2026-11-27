@@ -55,14 +55,12 @@ pub fn load_swin(
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<StagedVisionEncoderModel> {
-    use crate::{
-        data::formats::SafetensorsCheckpoint,
-        errors::ResultContext,
-    };
-    let path = loaded.expect(checkpoint)?;
-    let tensors = SafetensorsCheckpoint::single(path).tensors()?;
-    let mut model = config.try_init(device)?;
-    load_swin_tensors(&mut model, tensors)
-        .with_context(|| format!("loading {}", path.display()))?;
-    policy.place(model, device, |_| true)
+    crate::kits::support::interop::load_checkpoint_placed(
+        loaded,
+        checkpoint,
+        config,
+        device,
+        policy,
+        load_swin_tensors,
+    )
 }
