@@ -92,6 +92,8 @@ pub fn default_qwen3_factory() -> BunsenResult<BuildFactory<Qwen3ConstructConfig
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::{
         data::{

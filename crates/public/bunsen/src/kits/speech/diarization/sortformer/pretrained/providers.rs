@@ -69,6 +69,8 @@ pub fn default_sortformer_factory() -> BunsenResult<BuildFactory<SortformerConst
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     /// Every row is pinned, and answers by its qualified and short names.

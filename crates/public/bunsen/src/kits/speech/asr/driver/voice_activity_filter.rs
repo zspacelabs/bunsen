@@ -356,23 +356,26 @@ mod tests {
         assert_eq!(fw.speech_pad_samples(), 6400);
         assert_scalar_close(fw.neg_threshold_value(), 0.35, 1e-12);
 
-        assert_float_eq::assert_float_relative_eq!(
+        assert_scalar_close(
             VoiceActivityFilterConfig::new()
                 .with_threshold(0.165) // (0.165 - 0.15) = 0.015 > 0.01
                 .neg_threshold_value(),
-            0.015
+            0.015,
+            1e-12,
         );
-        assert_float_eq::assert_float_relative_eq!(
+        assert_scalar_close(
             VoiceActivityFilterConfig::new()
                 .with_threshold(0.1) // (0.1 - 0.15) < 0.01
                 .neg_threshold_value(),
-            0.01
+            0.01,
+            1e-12,
         );
-        assert_float_eq::assert_float_relative_eq!(
+        assert_scalar_close(
             VoiceActivityFilterConfig::new()
                 .with_neg_threshold(Some(0.2))
                 .neg_threshold_value(),
-            0.2
+            0.2,
+            1e-12,
         );
     }
 

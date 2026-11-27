@@ -78,6 +78,8 @@ pub fn default_qwen3_tts_factory() -> BunsenResult<BuildFactory<Qwen3TtsConstruc
 mod tests {
     use alloc::format;
 
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     /// The rows, by their qualified names, every file pinned to one URL on

@@ -145,8 +145,6 @@ impl DropPathRateDepthTable {
 mod tests {
     use alloc::vec;
 
-    use hamcrest::*;
-
     use super::*;
     use crate::support::testing::assert_close_to_vec;
 
@@ -169,10 +167,7 @@ mod tests {
 
         assert_eq!(dpr_table.layer_depths().iter().sum::<usize>(), 9);
 
-        assert_that!(
-            &dpr_table.layer_depths().to_vec(),
-            contains(depths.clone()).exactly()
-        );
+        assert_eq!(dpr_table.layer_depths().to_vec(), depths);
 
         assert_close_to_vec(&dpr_table.layer_dprs(0), &[0.0, 0.0125], 0.001);
 

@@ -65,6 +65,8 @@ pub fn default_silero_factory() -> BunsenResult<BuildFactory<SileroConstructConf
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::errors::testing::ErrorMatcher;
 

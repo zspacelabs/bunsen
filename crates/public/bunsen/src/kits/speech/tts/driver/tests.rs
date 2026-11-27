@@ -2,6 +2,8 @@
 
 use std::sync::Mutex;
 
+use pretty_assertions::assert_eq;
+
 use super::{
     stream::TtsWholeTakeStream,
     *,

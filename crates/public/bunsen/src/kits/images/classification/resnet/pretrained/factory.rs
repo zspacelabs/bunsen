@@ -21,6 +21,8 @@ pub fn default_resnet_factory() -> BunsenResult<BuildFactory<ResNetConstructConf
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::{
         data::pretrained::Prefabs,
