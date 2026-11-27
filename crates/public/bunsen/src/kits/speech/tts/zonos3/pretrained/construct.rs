@@ -149,6 +149,7 @@ impl ConstructInit for Zonos3ConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     /// The hook takes the catalog row's resource set, and refuses one that
     /// lacks a part.
@@ -164,6 +165,6 @@ mod tests {
         for key in [CHECKPOINT, CONFIG, TOKENIZER] {
             partial.insert(map.get(key).unwrap().clone());
         }
-        assert!(Zonos3ConstructConfig::for_resource_set(&partial).is_err());
+        ErrorMatcher::unsupported().assert_err(&Zonos3ConstructConfig::for_resource_set(&partial));
     }
 }

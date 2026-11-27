@@ -59,7 +59,7 @@ impl Zonos3SpeakerEncoderMirror {
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) as
-    /// [`Zonos3SpeakerEncoderConfig::validate`].
+    /// [`Zonos3SpeakerEncoderConfig::try_validate`].
     pub fn speaker_config(&self) -> BunsenResult<Zonos3SpeakerEncoderConfig> {
         let stages = self
             .stages
@@ -98,7 +98,7 @@ impl Zonos3SpeakerEncoderMirror {
                 self.frame_shift_ms,
             ),
         );
-        config.validate()?;
+        config.try_validate()?;
         Ok(config)
     }
 }

@@ -285,7 +285,10 @@ impl Qwen3TtsGenerationMirror {
 mod tests {
     use super::*;
     use crate::{
-        errors::BunsenErrorKind,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         support::testing::testdata,
     };
 
@@ -336,7 +339,7 @@ mod tests {
         let config = model_config_from_str(&toy_model_json(32 + 1024)).expect("the toy");
         assert_eq!(config.control_rows(), 1024);
         let error = model_config_from_str(&toy_model_json(32 + 1023)).unwrap_err();
-        assert_eq!(error.kind(), BunsenErrorKind::Unsupported);
+        ErrorMatcher::unsupported().assert(&error);
     }
 
     #[test]

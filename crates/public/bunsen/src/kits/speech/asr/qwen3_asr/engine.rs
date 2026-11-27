@@ -350,10 +350,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
+        errors::testing::ErrorMatcher,
         kits::{
             language::generation::qwen3::Qwen3Config,
             speech::{
@@ -447,7 +444,8 @@ mod tests {
         let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device))).unwrap();
         for seconds in [30.5, 0.001, -1.0, f64::NAN, f64::INFINITY] {
             let error = engine.clone().with_window_seconds(seconds).unwrap_err();
-            assert_eq!(error.kind(), BunsenErrorKind::Illegal, "{seconds}");
+            // {seconds}
+            ErrorMatcher::illegal().assert(&error);
             assert!(
                 error
                     .to_string()

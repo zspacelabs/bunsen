@@ -54,10 +54,7 @@ use crate::{
         Rekey,
     },
     contracts::unpack_shape_contract,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::speech::tts::zonos3::blocks::Zonos3CodecStageConfig,
     ops::signal::{
         InverseStft,
@@ -263,16 +260,25 @@ impl ModuleInit<Zonos3Codec> for Zonos3CodecConfig {
             .resampler()
             .kernels(self.resample_orig, self.resample_new);
         if resample.width != self.resample_width {
-            return Err(BunsenError::illegal(format!(
-                "the codec's resampler, {} to {} over {} zero crossings at rolloff {}, is {} \
-                 wide; the config says {}",
-                self.resample_orig,
-                self.resample_new,
-                self.resample_zero_crossings,
-                self.resample_rolloff,
-                resample.width,
-                self.resample_width
-            )));
+            return Err(crate::errors::ConstraintError::new(
+                "Zonos3CodecConfig",
+                "resample_width",
+                crate::errors::Rule::Relation {
+                    lhs: ("resample_width".into(), self.resample_width.to_string()),
+                    op: "==",
+                    rhs: (
+                        format!(
+                            "the resampler's width, {} to {} over {} zero crossings at rolloff {}",
+                            self.resample_orig,
+                            self.resample_new,
+                            self.resample_zero_crossings,
+                            self.resample_rolloff
+                        ),
+                        resample.width.to_string(),
+                    ),
+                },
+            )
+            .into());
         }
         let codebook = |width| Zonos3CodebookDecoder {
             codebook: Initializer::Normal {

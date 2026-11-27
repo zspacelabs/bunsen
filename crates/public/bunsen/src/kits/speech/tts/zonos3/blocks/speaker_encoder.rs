@@ -210,26 +210,42 @@ impl Zonos3SpeakerEncoderConfig {
     /// next block reads `c`), or whose residual channels its input's do not
     /// divide (the grouped convolutions' groups); a hidden width the heads
     /// do not divide; a front end whose mel bins are not the network's.
-    pub fn validate(&self) -> BunsenResult<()> {
-        let illegal = |what: alloc::string::String| {
-            Err(BunsenError::illegal(format!(
-                "a ZONOS3 speaker encoder with {what}"
-            )))
+    pub fn try_validate(&self) -> BunsenResult<()> {
+        const OWNER: &str = "Zonos3SpeakerEncoderConfig";
+        let illegal = |field: &'static str, what: alloc::string::String| {
+            Err(crate::errors::ConstraintError::custom(OWNER, field, what).into())
         };
         if self.stages.is_empty() || self.stages.iter().any(Vec::is_empty) {
-            return illegal(format!("stages {:?}: none, or an empty one", self.stages));
+            return Err(crate::errors::ConstraintError::zero_or_empty(OWNER, "stages").into());
         }
-        if self.heads == 0 || !self.hidden_dim.is_multiple_of(self.heads) {
-            return illegal(format!(
-                "hidden width {} over {} heads",
-                self.hidden_dim, self.heads
-            ));
+        if self.heads == 0 {
+            return Err(crate::errors::ConstraintError::zero_or_empty(OWNER, "heads").into());
+        }
+        if !self.hidden_dim.is_multiple_of(self.heads) {
+            return Err(crate::errors::ConstraintError::new(
+                OWNER,
+                "hidden_dim",
+                crate::errors::Rule::NotMultiple {
+                    value: self.hidden_dim,
+                    of: format!("heads ({})", self.heads),
+                },
+            )
+            .into());
         }
         if self.front_end.num_mel_bins != self.feat_dim {
-            return illegal(format!(
-                "a front end of {} mel bins over a network of {}",
-                self.front_end.num_mel_bins, self.feat_dim
-            ));
+            return Err(crate::errors::ConstraintError::new(
+                OWNER,
+                "front_end.num_mel_bins",
+                crate::errors::Rule::Relation {
+                    lhs: (
+                        "front_end.num_mel_bins".into(),
+                        self.front_end.num_mel_bins.to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("feat_dim".into(), self.feat_dim.to_string()),
+                },
+            )
+            .into());
         }
         let width = self.width();
         for (s, stage) in self.geometry().iter().enumerate() {
@@ -245,30 +261,39 @@ impl Zonos3SpeakerEncoderConfig {
                 ]
                 .contains(&0)
                 {
-                    return illegal(format!("{at}: a zero"));
+                    return illegal("stages", format!("{at}: a zero"));
                 }
                 if !block.in_freqs.is_multiple_of(spec.stride_freq) {
-                    return illegal(format!("{at}: {} frequencies", block.in_freqs));
+                    return illegal("stages", format!("{at}: {} frequencies", block.in_freqs));
                 }
                 if spec.channels * block.freqs() != width {
-                    return illegal(format!(
-                        "{at}: an output width of {}, not {width}",
-                        spec.channels * block.freqs()
-                    ));
+                    return illegal(
+                        "stages",
+                        format!(
+                            "{at}: an output width of {}, not {width}",
+                            spec.channels * block.freqs()
+                        ),
+                    );
                 }
                 if spec.channels != block.in_channels * spec.stride_freq {
-                    return illegal(format!(
-                        "{at}: {} input channels; its output is its input's times its frequency \
+                    return illegal(
+                        "stages",
+                        format!(
+                            "{at}: {} input channels; its output is its input's times its frequency \
                          stride (the reduce convolution's, upstream's next block reads `c`)",
-                        block.in_channels
-                    ));
+                            block.in_channels
+                        ),
+                    );
                 }
                 if !block.res_channels().is_multiple_of(block.in_channels) {
-                    return illegal(format!(
-                        "{at}: residual channels {} in groups of its {} input channels",
-                        block.res_channels(),
-                        block.in_channels
-                    ));
+                    return illegal(
+                        "stages",
+                        format!(
+                            "{at}: residual channels {} in groups of its {} input channels",
+                            block.res_channels(),
+                            block.in_channels
+                        ),
+                    );
                 }
             }
         }
@@ -350,13 +375,13 @@ pub struct Zonos3SpeakerEncoder {
 
 impl ModuleInit<Zonos3SpeakerEncoder> for Zonos3SpeakerEncoderConfig {
     /// # Errors
-    /// See [`validate`](Zonos3SpeakerEncoderConfig::validate) and
+    /// See [`try_validate`](Zonos3SpeakerEncoderConfig::try_validate) and
     /// [`KaldiFbankConfig::try_validate`](crate::ops::signal::KaldiFbankConfig::try_validate).
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<Zonos3SpeakerEncoder> {
-        self.validate()?;
+        self.try_validate()?;
         let width = self.width();
         let stages = self
             .geometry()

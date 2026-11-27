@@ -191,6 +191,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     fn voice() -> TtsVoicePrint {
         TtsVoicePrint {
@@ -237,9 +238,9 @@ mod tests {
         voice.write(&path).unwrap();
         assert_eq!(TtsVoicePrint::read(&path).unwrap(), voice);
         assert_eq!(voice.f32_vector("embedding", 3).unwrap(), [0.5, -1.0, 2.0]);
-        assert!(voice.f32_vector("embedding", 4).is_err());
-        assert!(voice.f32_vector("ref_codes", 4).is_err());
-        assert!(voice.tensor("xvector").is_err());
+        ErrorMatcher::invalid_resource().assert_err(&voice.f32_vector("embedding", 4));
+        ErrorMatcher::invalid_resource().assert_err(&voice.f32_vector("ref_codes", 4));
+        ErrorMatcher::invalid_resource().assert_err(&voice.tensor("xvector"));
     }
 
     /// A header with another key, without one, or of another version is
@@ -257,9 +258,9 @@ mod tests {
         version.insert("bunsen.voice.version".into(), "2".into());
         for meta in [Some(extra), Some(missing), Some(version), None] {
             let bytes = serialize([("x", view())], meta).unwrap();
-            assert!(TtsVoicePrint::from_bytes(&bytes).is_err());
+            ErrorMatcher::invalid_resource().assert_err(&TtsVoicePrint::from_bytes(&bytes));
         }
-        assert!(TtsVoicePrint::from_bytes(b"not a voice").is_err());
+        ErrorMatcher::invalid_resource().assert_err(&TtsVoicePrint::from_bytes(b"not a voice"));
 
         let identity = &voice.identity;
         identity
@@ -270,6 +271,6 @@ mod tests {
             format!("{err}").contains("build it again from its reference"),
             "{err}"
         );
-        assert!(identity.check("qwen3_tts", &identity.encoder).is_err());
+        ErrorMatcher::illegal().assert_err(&identity.check("qwen3_tts", &identity.encoder));
     }
 }

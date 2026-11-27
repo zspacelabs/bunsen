@@ -2,7 +2,6 @@
 
 use alloc::{
     boxed::Box,
-    format,
     string::String,
     sync::Arc,
     vec,
@@ -185,13 +184,20 @@ impl<E: TtsEngine> TtsDriver<E> {
         config: TtsDriverConfig,
     ) -> BunsenResult<Self> {
         if config.max_take_chars == 0 {
-            return Err(BunsenError::illegal("a take of no characters"));
+            return Err(crate::errors::ConstraintError::zero_or_empty(
+                "TtsDriverConfig",
+                "max_take_chars",
+            )
+            .into());
         }
         if !(config.take_gap_seconds.is_finite() && config.take_gap_seconds >= 0.0) {
-            return Err(BunsenError::illegal(format!(
-                "a gap between takes of {} s",
-                config.take_gap_seconds
-            )));
+            return Err(crate::errors::ConstraintError::out_of_range(
+                "TtsDriverConfig",
+                "take_gap_seconds",
+                config.take_gap_seconds,
+                ">= 0, finite",
+            )
+            .into());
         }
         let normalizer = config.normalization.try_init()?;
         let mut stages: Vec<Arc<dyn TtsRequestStage>> =

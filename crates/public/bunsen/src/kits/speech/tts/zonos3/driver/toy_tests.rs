@@ -15,6 +15,7 @@ use crate::{
     errors::{
         BunsenErrorKind,
         BunsenResult,
+        testing::ErrorMatcher,
     },
     kits::{
         speech::tts::{
@@ -262,13 +263,10 @@ fn test_refusals() {
         .with_default_voice("Toy".to_string())
         .with_silence_prefill_frames(31))
     .unwrap_err();
-    assert_eq!(error.kind(), BunsenErrorKind::Illegal);
+    ErrorMatcher::illegal().assert(&error);
     let error = new(Zonos3EngineConfig::new()).unwrap_err();
-    assert_eq!(
-        error.kind(),
-        BunsenErrorKind::Lookup,
-        "no stock voice Savannah"
-    );
+    // no stock voice Savannah
+    ErrorMatcher::lookup().assert(&error);
 
     let engine = engine(Zonos3EngineConfig::new());
     assert_eq!(
@@ -280,7 +278,7 @@ fn test_refusals() {
     let error = engine
         .generate_codes(&Zonos3Request::new(long, Zonos3Speaker::None))
         .unwrap_err();
-    assert_eq!(error.kind(), BunsenErrorKind::Illegal);
+    ErrorMatcher::illegal().assert(&error);
 }
 
 /// A stock voice speaks in the config's speaker mode: its reference codes by
@@ -334,7 +332,7 @@ fn test_conditions() {
             .with_conditions(BTreeMap::from([("pitch".into(), 1.0)])),
     )
     .unwrap_err();
-    assert_eq!(error.kind(), BunsenErrorKind::Lookup);
+    ErrorMatcher::lookup().assert(&error);
 }
 
 #[test]
@@ -396,7 +394,7 @@ fn test_tts_driver() {
     let error = driver
         .synthesize(&TtsRequest::new("hi").with_voice(TtsVoiceChoice::Described("calm".into())))
         .unwrap_err();
-    assert_eq!(error.kind(), BunsenErrorKind::Unsupported);
+    ErrorMatcher::unsupported().assert(&error);
 }
 
 /// The stream is the synthesis: the same seeded takes, row for row, and
@@ -443,7 +441,7 @@ fn test_language_tags() {
         "fr-FR"
     );
     let error = construct.language_tag("klingonese").unwrap_err();
-    assert_eq!(error.kind(), BunsenErrorKind::Illegal);
+    ErrorMatcher::illegal().assert(&error);
 }
 
 /// The release's normalization refuses a language it has no grammar for
@@ -453,7 +451,7 @@ fn test_release_normalization_checks_the_language() {
     let error = zonos3_driver(engine(Zonos3EngineConfig::new()))
         .and_then(|driver| driver.synthesize(&TtsRequest::new("hi").with_language("tlh")))
         .unwrap_err();
-    assert_eq!(error.kind(), BunsenErrorKind::Unsupported);
+    ErrorMatcher::unsupported().assert(&error);
 }
 
 #[cfg(feature = "zyphra-textnorm")]

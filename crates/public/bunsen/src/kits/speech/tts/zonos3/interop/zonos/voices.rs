@@ -88,6 +88,7 @@ mod tests {
     use alloc::vec;
 
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     fn voice() -> Zonos3Voice {
         Zonos3Voice {
@@ -126,7 +127,7 @@ mod tests {
 
         let mut stray = info;
         stray.insert("Cy".into(), stray["Ada"].clone());
-        assert!(with_zonos3_voice_info(&mut voices, stray).is_err());
-        assert!(zonos3_voice_info_from_str("[]").is_err());
+        ErrorMatcher::invalid_resource().assert_err(&with_zonos3_voice_info(&mut voices, stray));
+        ErrorMatcher::invalid_resource().assert_err(&zonos3_voice_info_from_str("[]"));
     }
 }

@@ -188,7 +188,7 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Zonos3Engine<T> {
         chunks: TtsChunkPolicy,
     ) -> BunsenResult<Box<dyn TtsTakeStream + 'a>> {
         let request = self.take_request(take);
-        let run = self.start_take(&request, self.sampler_with(take.sampling))?;
+        let run = self.start_take(&request, self.try_sampler_with(take.sampling)?)?;
         let p = run.silence.len();
         Ok(Box::new(Zonos3TakeStream {
             engine: self,
