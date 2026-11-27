@@ -15,7 +15,7 @@ use crate::{
     kits::speech::{
         asr::qwen3_asr::{
             Qwen3AsrConfig,
-            Qwen3AsrFrontEndConfig,
+            blocks::Qwen3AsrFrontEndConfig,
         },
         support::log_mel::LogMelFrontEndConfig,
     },
@@ -180,7 +180,7 @@ mod tests {
     use super::*;
     use crate::{
         errors::testing::ErrorMatcher,
-        kits::speech::asr::qwen3_asr::Qwen3AsrFrontEndMeta,
+        kits::speech::asr::qwen3_asr::blocks::Qwen3AsrFrontEndMeta,
         support::testing::assert_config_eq,
     };
 

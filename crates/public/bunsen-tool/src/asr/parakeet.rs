@@ -10,8 +10,10 @@ use bunsen::{
         driver::TranscriptSegment,
         parakeet::{
             ParakeetConstruct,
-            ParakeetEngine,
-            ParakeetStreamDriver,
+            driver::{
+                ParakeetEngine,
+                ParakeetStreamDriver,
+            },
         },
     },
 };

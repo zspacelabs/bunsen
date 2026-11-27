@@ -9,9 +9,6 @@ use serde::{
 };
 
 use super::{
-    VoxtralFrontEnd,
-    VoxtralFrontEndConfig,
-    VoxtralFrontEndMeta,
     VoxtralGreedyDecoder,
     VoxtralTokenLayout,
     VoxtralTokenLayoutConfig,
@@ -25,7 +22,14 @@ use crate::{
     burner::module::ModuleInit,
     data::catalog::presets::PresetSelection,
     errors::BunsenResult,
-    kits::support::tokens::TekkenVocabulary,
+    kits::{
+        speech::asr::voxtral::blocks::{
+            VoxtralFrontEnd,
+            VoxtralFrontEndConfig,
+            VoxtralFrontEndMeta,
+        },
+        support::tokens::TekkenVocabulary,
+    },
 };
 
 /// How a Voxtral pretrained transcribes a stream: the config its lookup's

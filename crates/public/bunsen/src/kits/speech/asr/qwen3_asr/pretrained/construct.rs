@@ -35,8 +35,8 @@ use crate::{
         speech::asr::qwen3_asr::{
             Qwen3AsrConfig,
             Qwen3AsrConstruct,
-            Qwen3AsrFrontEndConfig,
             Qwen3AsrPolicy,
+            blocks::Qwen3AsrFrontEndConfig,
             interop::{
                 phonon,
                 transformers,

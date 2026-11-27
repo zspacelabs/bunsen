@@ -50,7 +50,7 @@ pub fn load_qwen3_asr(
 ) -> BunsenResult<(
     Qwen3Asr,
     crate::kits::support::tokens::ByteLevelVocabulary,
-    Option<crate::kits::speech::asr::qwen3_asr::Qwen3AsrFrontEndConfig>,
+    Option<crate::kits::speech::asr::qwen3_asr::blocks::Qwen3AsrFrontEndConfig>,
 )> {
     use crate::kits::speech::asr::qwen3_asr::pretrained::{
         CHECKPOINT,

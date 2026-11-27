@@ -94,6 +94,26 @@
 //! The Whisper driver's docs ([`whisper::driver`](asr::whisper::driver)) cover
 //! the design: the `write_read` fold, the emission policy, the stream clock,
 //! the clamp policy, and voice-activity regions as sub-streams.
+//!
+//! # A speech kit's layout
+//!
+//! Every speech kit puts the same piece in the same place:
+//!
+//! ```text
+//! {kit}/
+//!   blocks/        every Module and its config, the kit's front end included
+//!   driver/        engine.rs: the engine, its config and its seam impl
+//!                  (AsrEngine, TtsEngine), the stream aliases, and what only
+//!                  the driver uses
+//!   construct.rs   {Kit}Construct and {Kit}Policy, re-exported at the kit root
+//!   decode.rs      the kit's own decode loop, when it has one
+//!   interop/       its checkpoints' ecosystems, on the ladder of names
+//!   pretrained/    the factory, its providers and the construct hook
+//! ```
+//!
+//! What more than one kit of a task shares sits beside the task (the ASR
+//! [`driver`](asr::driver), [`vad`]'s gate); what more than one task shares,
+//! in [`support`].
 
 pub mod asr;
 pub mod diarization;

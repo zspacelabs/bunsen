@@ -9,7 +9,8 @@
 //! - [`blocks`]: the model, [`Qwen3Asr`], built from a [`Qwen3AsrConfig`]; its
 //!   text model is
 //!   [`kits::language::generation::qwen3`](crate::kits::language::generation::qwen3).
-//! - [`Qwen3AsrFrontEnd`]: the feature extractor, Whisper's.
+//! - [`Qwen3AsrFrontEnd`](blocks::Qwen3AsrFrontEnd): the feature extractor,
+//!   Whisper's.
 //! - [`Qwen3AsrGreedyDecoder`]: greedy decoding through a KV cache.
 //! - [`Qwen3AsrPromptConfig`]: the chat prompt around an utterance's audio, and
 //!   parsing the reply into a [`Qwen3AsrTranscript`].
@@ -20,9 +21,10 @@
 //! - [`token_frames`](Qwen3AsrConstruct::token_frames): when each reply token
 //!   is spoken, from the decoder's attention onto the audio, under the heads
 //!   that follow the speech ([`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`]).
-//! - [`Qwen3AsrEngine`]: a construct as the
+//! - [`Qwen3AsrEngine`](driver::Qwen3AsrEngine): a construct as the
 //!   [`asr_driver`](crate::kits::speech::asr::driver) core's engine; a
-//!   [`Qwen3AsrStreamDriver`] streams audio through it, under any
+//!   [`Qwen3AsrStreamDriver`](driver::Qwen3AsrStreamDriver) streams audio
+//!   through it, under any
 //!   [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy).
 //! - [`pretrained`] (features `store` and `cache`): the named checkpoints,
 //!   `fermion/phonon-1` the default, and the factory that loads one into a
@@ -33,18 +35,15 @@
 //!   `transformers`-named tensors, and its vocabulary.
 
 pub mod blocks;
+pub mod driver;
 
 mod alignment;
 mod construct;
 mod decode;
-mod engine;
-mod front_end;
 mod prompt;
 pub use alignment::*;
 pub use construct::*;
 pub use decode::*;
-pub use engine::*;
-pub use front_end::*;
 pub use prompt::*;
 
 #[cfg(feature = "store")]

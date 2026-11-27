@@ -193,12 +193,12 @@ batching live in [`asr_driver`](bunsen::kits::speech::asr::driver), and a
 model plugs in as an [`AsrEngine`](bunsen::kits::speech::asr::driver::AsrEngine):
 its streaming features, the decode of one window, and its text. Whisper is one
 engine;
-[`Qwen3AsrEngine`](bunsen::kits::speech::asr::qwen3_asr::Qwen3AsrEngine) is
+[`Qwen3AsrEngine`](bunsen::kits::speech::asr::qwen3_asr::driver::Qwen3AsrEngine) is
 another, driven by a
-[`Qwen3AsrStreamDriver`](bunsen::kits::speech::asr::qwen3_asr::Qwen3AsrStreamDriver)
+[`Qwen3AsrStreamDriver`](bunsen::kits::speech::asr::qwen3_asr::driver::Qwen3AsrStreamDriver)
 under the same policies. Qwen3-ASR has no timestamps, so it commits each
 window whole.
-[`ParakeetEngine`](bunsen::kits::speech::asr::parakeet::ParakeetEngine) is a
+[`ParakeetEngine`](bunsen::kits::speech::asr::parakeet::driver::ParakeetEngine) is a
 third: its transducer times every token, so a window cut at its full length
 commits up to a pause between words, and the rest is decoded again with the
 audio after it.

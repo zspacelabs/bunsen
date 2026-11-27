@@ -22,9 +22,11 @@ use crate::{
             },
             voxtral::{
                 VoxtralConstruct,
-                VoxtralFrontEndMeta,
                 VoxtralTranscript,
-                blocks::VoxtralRealtimeMeta,
+                blocks::{
+                    VoxtralFrontEndMeta,
+                    VoxtralRealtimeMeta,
+                },
             },
         },
         support::log_mel::LogMelFeatures,

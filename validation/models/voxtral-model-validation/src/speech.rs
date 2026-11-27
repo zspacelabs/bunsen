@@ -8,7 +8,7 @@
 
 use bunsen::{
     kits::speech::{
-        asr::voxtral::VoxtralFrontEndMeta,
+        asr::voxtral::blocks::VoxtralFrontEndMeta,
         support::testing::wer::{
             normalize_transcript,
             word_error_rate,

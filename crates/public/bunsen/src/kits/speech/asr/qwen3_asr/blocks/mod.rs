@@ -8,7 +8,9 @@
 //! [`Qwen3Model`](crate::kits::language::generation::qwen3::Qwen3Model) text model.
 
 mod audio_encoder;
+mod front_end;
 mod model;
 
 pub use audio_encoder::*;
+pub use front_end::*;
 pub use model::*;

@@ -22,13 +22,17 @@ use bunsen::{
                 TranscriptEvent,
             },
             parakeet::{
-                ParakeetEngine,
-                ParakeetStreamDriver,
+                driver::{
+                    ParakeetEngine,
+                    ParakeetStreamDriver,
+                },
                 pretrained::default_parakeet_factory,
             },
             qwen3_asr::{
-                Qwen3AsrEngine,
-                Qwen3AsrStreamDriver,
+                driver::{
+                    Qwen3AsrEngine,
+                    Qwen3AsrStreamDriver,
+                },
                 pretrained::default_qwen3_asr_factory,
             },
             whisper::{

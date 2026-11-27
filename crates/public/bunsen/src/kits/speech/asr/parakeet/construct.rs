@@ -28,7 +28,7 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ParakeetPolicy {
     /// The longest window, in seconds, that the
-    /// [`ParakeetEngine`](super::ParakeetEngine) decodes at once.
+    /// [`ParakeetEngine`](super::driver::ParakeetEngine) decodes at once.
     pub window_seconds: f64,
 }
 

@@ -14,7 +14,7 @@ use bunsen::{
     kits::speech::asr::qwen3_asr::{
         QWEN3_ASR_0_6B_ALIGNMENT_HEADS,
         Qwen3AsrConstruct,
-        Qwen3AsrFrontEndMeta,
+        blocks::Qwen3AsrFrontEndMeta,
     },
     support::testing::{
         DeviceMemoryGuard,

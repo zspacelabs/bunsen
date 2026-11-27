@@ -4,8 +4,7 @@ use std::sync::Arc;
 #[cfg(feature = "live")]
 use bunsen::kits::speech::{
     asr::driver::TranscriptEvent,
-    asr::parakeet::ParakeetStreamContext,
-    asr::qwen3_asr::Qwen3AsrStreamContext,
+
     asr::voxtral::driver::VoxtralStreamContext,
     asr::whisper::driver::WhisperStreamContext,
 };
@@ -18,8 +17,14 @@ use bunsen::{
     kits::speech::{
         asr::{
             driver::TranscriptSegment,
-            parakeet::ParakeetStreamDriver,
-            qwen3_asr::Qwen3AsrStreamDriver,
+            parakeet::driver::{
+                ParakeetStreamContext,
+                ParakeetStreamDriver,
+            },
+            qwen3_asr::driver::{
+                Qwen3AsrStreamContext,
+                Qwen3AsrStreamDriver,
+            },
             voxtral::driver::VoxtralStreamDriver,
             whisper::driver::WhisperStreamDriver,
         },
