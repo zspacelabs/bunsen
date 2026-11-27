@@ -154,7 +154,7 @@
 //! stream cannot see the whole clip, so where the reference comes from is
 //! the stream's [`LevelPolicy`](crate::kits::speech::asr::driver::LevelPolicy),
 //! the same policy every engine on the core uses; Whisper's statistic is a
-//! [`MaxLevel`](crate::kits::speech::asr::driver::MaxLevel). The context knows
+//! [`MaxLevel`](crate::kits::speech::support::MaxLevel). The context knows
 //! only two points: every arriving frame is offered to its
 //! [`LevelTracker`](crate::kits::speech::asr::driver::LevelTracker) once
 //! ([`observe`](crate::kits::speech::asr::driver::LevelTracker::observe), `&mut
@@ -171,10 +171,10 @@
 //! opened per region, it is the per-region one.
 //! [`PerWindow`](crate::kits::speech::asr::driver::LevelPolicy::PerWindow)
 //! floors each window against its own maximum, as
-//! [`package_mels`](crate::kits::speech::asr::whisper::blocks::WhisperFrontEndConfig::package_mels)
+//! [`package_mels`](crate::kits::speech::support::log_mel::LogMelFrontEndConfig::package_mels)
 //! does. Packaging itself, and the clamp range, belong to the model's front
 //! end
-//! ([`package_window`](crate::kits::speech::asr::whisper::blocks::WhisperFrontEndConfig::package_window));
+//! ([`package_window`](crate::kits::speech::support::log_mel::LogMelFrontEndConfig::package_window));
 //! the level supplies only the reference.
 //!
 //! # Voice activity: regions as sub-streams

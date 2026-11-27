@@ -234,4 +234,16 @@ mod tests {
         ErrorMatcher::illegal().assert_err(&layout.clone().with_timestamp_tokens(0).try_validate());
         ErrorMatcher::illegal().assert_err(&layout.with_timestamp_step_seconds(0.0).try_validate());
     }
+
+    /// The log-mel front end's default hop is one timestamp step per encoder
+    /// position.
+    #[test]
+    fn test_hop_is_one_timestamp_step_per_encoder_position() {
+        let hop_seconds = crate::kits::speech::support::log_mel::LogMelFrontEndConfig::new().hop_ms
+            as f64
+            / 1000.0;
+        let step_seconds = WhisperTokenLayoutConfig::new().timestamp_step_seconds
+            / super::super::AUDIO_ENCODER_STRIDE as f64;
+        crate::support::testing::assert_scalar_close(hop_seconds, step_seconds, 1e-12);
+    }
 }

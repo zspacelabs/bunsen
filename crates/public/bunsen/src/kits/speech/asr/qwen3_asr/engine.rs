@@ -14,18 +14,22 @@ use super::{
 };
 use crate::{
     errors::BunsenResult,
-    kits::speech::asr::driver::{
-        AsrEngine,
-        AsrStreamContext,
-        AsrStreamDriver,
-        DecodeRequest,
-        LogMelFeatures,
-        MaxLevel,
-        SpeakerCutConfig,
-        WindowDecode,
-        quiet_cut,
-        token_ids,
-        window_frames_in,
+    kits::speech::{
+        asr::driver::{
+            AsrEngine,
+            AsrStreamContext,
+            AsrStreamDriver,
+            DecodeRequest,
+            SpeakerCutConfig,
+            WindowDecode,
+            quiet_cut,
+            token_ids,
+            window_frames_in,
+        },
+        support::{
+            MaxLevel,
+            log_mel::LogMelFeatures,
+        },
     },
 };
 
@@ -176,21 +180,21 @@ impl Qwen3AsrEngine {
         window: Tensor<3>,
         level: &MaxLevel,
     ) -> Tensor<2> {
-        let whisper = &self.bundle.front_end.config.whisper;
+        let log_mel = &self.bundle.front_end.config.log_mel;
         let [_, frames, n_mels] = window.dims();
         let width = frames.max(self.padded_frames());
         let window = if frames < width {
             let floor = level
                 .max
                 .clone()
-                .sub_scalar(whisper.range_clamp_db)
+                .sub_scalar(log_mel.range_clamp_db)
                 .reshape([1, 1, 1])
                 .expand([1, width - frames, n_mels]);
             Tensor::cat(vec![window, floor], 1)
         } else {
             window
         };
-        whisper
+        log_mel
             .package_window(window, level.max.clone())
             .reshape([n_mels, width])
     }
@@ -358,9 +362,7 @@ mod tests {
                     driver::{
                         EmissionPolicy,
                         LevelPolicy,
-                        LevelStatistic,
                         StreamClock,
-                        StreamingFeatures,
                         TimedTokens,
                         TranscriptEvent,
                     },
@@ -376,7 +378,11 @@ mod tests {
                         },
                     },
                 },
-                support::testing::ToneConfig,
+                support::{
+                    LevelStatistic,
+                    StreamingFeatures,
+                    testing::ToneConfig,
+                },
             },
             support::tokens::ByteLevelVocabulary,
         },

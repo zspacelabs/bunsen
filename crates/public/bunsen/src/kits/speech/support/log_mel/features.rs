@@ -11,7 +11,7 @@ use crate::{
         BunsenResult,
         ResultContext,
     },
-    kits::speech::asr::driver::StreamingFeatures,
+    kits::speech::support::StreamingFeatures,
     ops::signal::perceptive_audio::{
         PerceptiveAudioConversionContext,
         PerceptiveAudioConverter,
@@ -134,13 +134,13 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::speech::asr::whisper::blocks::WhisperFrontEndConfig,
+        kits::speech::support::log_mel::LogMelFrontEndConfig,
         support::testing::cpu_device,
     };
 
     fn features() -> LogMelFeatures {
         let device = cpu_device();
-        let converter = WhisperFrontEndConfig::new()
+        let converter = LogMelFrontEndConfig::new()
             .try_init_audio_converter(80, &device)
             .unwrap();
         LogMelFeatures::new(converter, device)

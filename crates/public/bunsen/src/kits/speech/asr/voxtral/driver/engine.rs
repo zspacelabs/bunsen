@@ -8,24 +8,26 @@ use burn::{
 
 use crate::{
     errors::BunsenResult,
-    kits::speech::asr::{
-        driver::{
-            AsrEngine,
-            AsrStreamContext,
-            AsrStreamDriver,
-            DecodeRequest,
-            LogMelFeatures,
-            WindowDecode,
-            WordSpan,
-            token_ids,
-            window_frames_in,
+    kits::speech::{
+        asr::{
+            driver::{
+                AsrEngine,
+                AsrStreamContext,
+                AsrStreamDriver,
+                DecodeRequest,
+                WindowDecode,
+                WordSpan,
+                token_ids,
+                window_frames_in,
+            },
+            voxtral::{
+                VoxtralConstruct,
+                VoxtralFrontEndMeta,
+                VoxtralTranscript,
+                blocks::VoxtralRealtimeMeta,
+            },
         },
-        voxtral::{
-            VoxtralConstruct,
-            VoxtralFrontEndMeta,
-            VoxtralTranscript,
-            blocks::VoxtralRealtimeMeta,
-        },
+        support::log_mel::LogMelFeatures,
     },
 };
 

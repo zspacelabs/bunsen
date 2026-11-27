@@ -19,16 +19,18 @@ use super::{
 };
 use crate::{
     errors::BunsenResult,
-    kits::speech::asr::driver::{
-        AsrEngine,
-        AsrStreamContext,
-        AsrStreamDriver,
-        DecodeRequest,
-        MomentsLevel,
-        WindowDecode,
-        WordSpan,
-        token_ids,
-        window_frames_in,
+    kits::speech::{
+        asr::driver::{
+            AsrEngine,
+            AsrStreamContext,
+            AsrStreamDriver,
+            DecodeRequest,
+            WindowDecode,
+            WordSpan,
+            token_ids,
+            window_frames_in,
+        },
+        support::MomentsLevel,
     },
 };
 
@@ -310,9 +312,7 @@ mod tests {
                 driver::{
                     EmissionPolicy,
                     LevelPolicy,
-                    LevelStatistic,
                     StreamClock,
-                    StreamingFeatures,
                     TimedTokens,
                     TranscriptEvent,
                 },
@@ -323,7 +323,11 @@ mod tests {
                     ParakeetVocabulary,
                 },
             },
-            support::testing::ToneConfig,
+            support::{
+                LevelStatistic,
+                StreamingFeatures,
+                testing::ToneConfig,
+            },
         },
         support::testing::{
             expect_variant,

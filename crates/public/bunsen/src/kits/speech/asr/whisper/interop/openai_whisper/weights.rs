@@ -24,13 +24,15 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::asr::whisper::blocks::{
-        AUDIO_ENCODER_STRIDE,
-        WHISPER_DEFAULT_D_HEAD,
-        Whisper,
-        WhisperApiConfig,
-        WhisperFrontEndConfig,
-        WhisperTokenLayoutConfig,
+    kits::speech::{
+        asr::whisper::blocks::{
+            AUDIO_ENCODER_STRIDE,
+            WHISPER_DEFAULT_D_HEAD,
+            Whisper,
+            WhisperApiConfig,
+            WhisperTokenLayoutConfig,
+        },
+        support::log_mel::LogMelFrontEndConfig,
     },
 };
 
@@ -60,8 +62,8 @@ pub struct PytorchWhisperScanner {
     ///
     /// A checkpoint does not record it; `OpenAI`'s were all trained with
     /// the default.
-    #[config(default = "WhisperFrontEndConfig::new()")]
-    pub front_end: WhisperFrontEndConfig,
+    #[config(default = "LogMelFrontEndConfig::new()")]
+    pub front_end: LogMelFrontEndConfig,
 
     /// The token layout to declare on the scanned config: upstream's.
     #[config(default = "WhisperTokenLayoutConfig::new()")]

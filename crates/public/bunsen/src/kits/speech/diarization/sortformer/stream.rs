@@ -23,15 +23,17 @@ use crate::{
         BunsenResult,
     },
     kits::speech::{
-        asr::driver::StreamingFeatures,
         diarization::{
             SpeakerActivity,
             SpeakerActivityStream,
         },
-        support::nemo::{
-            NemoMelFeatures,
-            NemoMelFrontEnd,
-            NemoMelFrontEndMeta,
+        support::{
+            StreamingFeatures,
+            nemo::{
+                NemoMelFeatures,
+                NemoMelFrontEnd,
+                NemoMelFrontEndMeta,
+            },
         },
     },
 };

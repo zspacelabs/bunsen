@@ -15,29 +15,29 @@ use crate::{
         ResultContext,
     },
     kits::{
-        speech::asr::{
-            driver::{
-                AsrStreamDriver,
-                EmissionPolicy,
-                SpeakerCutConfig,
-            },
-            whisper::{
-                DecodeConfig,
-                Whisper,
-                WhisperFallbackConfig,
-                WhisperMeta,
-                blocks::{
-                    AUDIO_ENCODER_STRIDE,
-                    WhisperFrontEndConfig,
-                },
+        speech::{
+            asr::{
                 driver::{
-                    WhisperConstruct,
-                    WhisperPolicy,
-                    WhisperTask,
-                    WhisperTokenLayout,
+                    AsrStreamDriver,
+                    EmissionPolicy,
+                    SpeakerCutConfig,
                 },
-                logit_filters::ApplyTimestampRules,
+                whisper::{
+                    DecodeConfig,
+                    Whisper,
+                    WhisperFallbackConfig,
+                    WhisperMeta,
+                    blocks::AUDIO_ENCODER_STRIDE,
+                    driver::{
+                        WhisperConstruct,
+                        WhisperPolicy,
+                        WhisperTask,
+                        WhisperTokenLayout,
+                    },
+                    logit_filters::ApplyTimestampRules,
+                },
             },
+            support::log_mel::LogMelFrontEndConfig,
         },
         support::{
             decoding::{
@@ -217,7 +217,7 @@ impl WhisperStreamDriverConfig {
     /// - [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for
     ///   [`CommitRule::Agreement`](crate::kits::speech::asr::driver::CommitRule::Agreement),
     ///   which is not implemented.
-    /// - As [`WhisperFrontEndConfig::try_init_audio_converter`] for the model's
+    /// - As [`LogMelFrontEndConfig::try_init_audio_converter`] for the model's
     ///   front end.
     pub fn init_from_construct(
         &self,
@@ -315,7 +315,7 @@ pub type WhisperStreamDriver = AsrStreamDriver<WhisperEngine>;
 /// detokenizer.
 ///
 /// The engine streams log-mels a hop at a time, floors each window against
-/// a [`MaxLevel`](crate::kits::speech::asr::driver::MaxLevel), decodes up
+/// a [`MaxLevel`](crate::kits::speech::support::MaxLevel), decodes up
 /// the fallback ladder, splits a timestamped decode into segments, carries
 /// the transcript's tail into the next prompt, and detects a stream's
 /// language from its first committed window.
@@ -427,7 +427,7 @@ impl WhisperEngine {
     }
 
     /// The audio front end the model's log-mels are computed with.
-    pub fn front_end(&self) -> &WhisperFrontEndConfig {
+    pub fn front_end(&self) -> &LogMelFrontEndConfig {
         self.bundle.model.front_end()
     }
 
@@ -505,7 +505,7 @@ impl AsrStreamDriver<WhisperEngine> {
     }
 
     /// The audio front end the model's log-mels are computed with.
-    pub fn front_end(&self) -> &WhisperFrontEndConfig {
+    pub fn front_end(&self) -> &LogMelFrontEndConfig {
         self.engine().front_end()
     }
 

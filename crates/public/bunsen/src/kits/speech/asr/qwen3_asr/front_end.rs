@@ -10,7 +10,7 @@ use burn::{
 use crate::{
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::speech::asr::whisper::blocks::WhisperFrontEndConfig,
+    kits::speech::support::log_mel::LogMelFrontEndConfig,
     ops::signal::perceptive_audio::{
         PerceptiveAudioConverter,
         PerceptiveAudioConverterMeta,
@@ -67,18 +67,18 @@ pub struct Qwen3AsrFrontEndConfig {
     #[config(default = "8000")]
     pub min_valid_samples: usize,
 
-    /// The Whisper front end this one is.
-    #[config(default = "WhisperFrontEndConfig::new()")]
-    pub whisper: WhisperFrontEndConfig,
+    /// The log-mel grid and clamp range this one shares with Whisper.
+    #[config(default = "LogMelFrontEndConfig::new()")]
+    pub log_mel: LogMelFrontEndConfig,
 }
 
 impl Qwen3AsrFrontEndMeta for Qwen3AsrFrontEndConfig {
     fn sample_rate(&self) -> usize {
-        self.whisper.sample_rate
+        self.log_mel.sample_rate
     }
 
     fn hop(&self) -> usize {
-        self.whisper.hop()
+        self.log_mel.hop()
     }
 
     fn n_mels(&self) -> usize {
@@ -86,7 +86,7 @@ impl Qwen3AsrFrontEndMeta for Qwen3AsrFrontEndConfig {
     }
 
     fn min_samples(&self) -> usize {
-        self.chunk_seconds * self.whisper.sample_rate
+        self.chunk_seconds * self.log_mel.sample_rate
     }
 
     fn min_valid_samples(&self) -> usize {
@@ -100,7 +100,7 @@ impl ModuleInit<Qwen3AsrFrontEnd> for Qwen3AsrFrontEndConfig {
         device: &Device,
     ) -> BunsenResult<Qwen3AsrFrontEnd> {
         Ok(Qwen3AsrFrontEnd {
-            converter: self.whisper.try_init_audio_converter(self.n_mels, device)?,
+            converter: self.log_mel.try_init_audio_converter(self.n_mels, device)?,
             config: self.clone(),
         })
     }
@@ -118,7 +118,7 @@ impl ModuleInit<Qwen3AsrFrontEnd> for Qwen3AsrFrontEndConfig {
 /// counted as padded to it, as upstream pads it; the encoder reads only
 /// those.
 ///
-/// It is [`WhisperFrontEndConfig`]'s converter and packaging, shared. The
+/// It is [`LogMelFrontEndConfig`]'s converter and packaging, shared. The
 /// converter's tables are bare tensors: moved by `to_device`, not recorded,
 /// and skipped by `ModuleMapper` passes.
 ///
@@ -181,12 +181,8 @@ impl Qwen3AsrFrontEnd {
             TensorData::new(padded, [1, n]),
             (device, burn::tensor::DType::F32),
         );
-        let (mels, context) = self.converter.new_context(1).transform(wave)?;
-        let joined = match context.finish() {
-            Some(tail) => Tensor::cat(vec![mels, tail], 1),
-            None => mels,
-        };
-        let features = self.config.whisper.package_mels(joined);
+        let joined = crate::kits::speech::support::log_mel::log_mels_of(&self.converter, wave)?;
+        let features = self.config.log_mel.package_mels(joined);
         let [frames] = crate::contracts::unpack_shape_contract!(
             [1, "n_mels", "frames"],
             &features.dims(),
@@ -214,7 +210,7 @@ mod tests {
             .with_n_mels(80)
             .with_chunk_seconds(2)
             .with_min_valid_samples(4000)
-            .with_whisper(WhisperFrontEndConfig::new().with_range_clamp_db(6.0));
+            .with_log_mel(LogMelFrontEndConfig::new().with_range_clamp_db(6.0));
         let front: Qwen3AsrFrontEnd = config.init(&device);
         assert_eq!(front.sample_rate(), config.sample_rate());
         assert_eq!(front.hop(), config.hop());

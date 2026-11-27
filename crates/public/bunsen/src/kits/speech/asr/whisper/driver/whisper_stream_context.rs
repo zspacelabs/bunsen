@@ -4,28 +4,32 @@ use burn::Tensor;
 
 use crate::{
     errors::BunsenResult,
-    kits::speech::asr::{
-        driver::{
-            AsrEngine,
-            AsrStreamContext,
-            DecodeRequest,
-            LevelPolicy,
-            LogMelFeatures,
-            MaxLevel,
-            TimedTokens,
-            WindowDecode,
-        },
-        whisper::{
-            blocks::WhisperMeta,
-            decode::{
-                DecodeConfig,
-                DecodedTokens,
-                WhisperFallbackConfig,
-            },
+    kits::speech::{
+        asr::{
             driver::{
-                WhisperEngine,
-                support::segments::split_window,
+                AsrEngine,
+                AsrStreamContext,
+                DecodeRequest,
+                LevelPolicy,
+                TimedTokens,
+                WindowDecode,
             },
+            whisper::{
+                blocks::WhisperMeta,
+                decode::{
+                    DecodeConfig,
+                    DecodedTokens,
+                    WhisperFallbackConfig,
+                },
+                driver::{
+                    WhisperEngine,
+                    support::segments::split_window,
+                },
+            },
+        },
+        support::{
+            MaxLevel,
+            log_mel::LogMelFeatures,
         },
     },
     ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
@@ -451,28 +455,32 @@ mod tests {
             testing::ErrorMatcher,
         },
         kits::{
-            speech::asr::{
-                driver::{
-                    CommitRule,
-                    DecodeTriggers,
-                    EmissionPolicy,
-                    LevelPolicy,
+            speech::{
+                asr::{
+                    driver::{
+                        CommitRule,
+                        DecodeTriggers,
+                        EmissionPolicy,
+                        LevelPolicy,
+                        StreamClock,
+                        TranscriptEvent,
+                    },
+                    whisper::{
+                        Whisper,
+                        blocks::WhisperApiConfig,
+                        decode::GreedyDecodeConfig,
+                        driver::{
+                            WhisperSpecialIds,
+                            WhisperStreamDriver,
+                            WhisperTokenLayout,
+                            whisper_stream_driver::WhisperStreamDriverConfig,
+                        },
+                    },
+                },
+                support::{
                     LevelStatistic,
                     MaxLevel,
-                    StreamClock,
-                    TranscriptEvent,
-                },
-                whisper::{
-                    Whisper,
-                    blocks::WhisperApiConfig,
-                    decode::GreedyDecodeConfig,
-                    driver::{
-                        WhisperSpecialIds,
-                        WhisperStreamDriver,
-                        WhisperTokenLayout,
-                        support::drop_last_frame,
-                        whisper_stream_driver::WhisperStreamDriverConfig,
-                    },
+                    log_mel::drop_last_frame,
                 },
             },
             support::{
@@ -623,15 +631,7 @@ mod tests {
             ),
             device,
         );
-        let (mels, ctx) = driver
-            .audio_converter()
-            .new_context(1)
-            .transform(waves)
-            .unwrap();
-        match ctx.finish() {
-            Some(tail) => Tensor::cat(vec![mels, tail], 1),
-            None => mels,
-        }
+        crate::kits::speech::support::log_mel::log_mels_of(driver.audio_converter(), waves).unwrap()
     }
 
     fn greedy_config(driver: &WhisperStreamDriver) -> GreedyDecodeConfig {

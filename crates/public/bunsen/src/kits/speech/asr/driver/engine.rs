@@ -15,11 +15,12 @@ use crate::{
         ConstraintError,
     },
     kits::speech::{
-        asr::driver::{
-            LevelPolicy,
-            LevelStatistic,
-        },
+        asr::driver::LevelPolicy,
         diarization::SpeakerActivity,
+        support::{
+            LevelStatistic,
+            StreamingFeatures,
+        },
     },
 };
 
@@ -42,7 +43,7 @@ pub trait AsrEngine: Clone + Debug + Send + Sync {
     type Features: StreamingFeatures;
 
     /// What a window is packaged against
-    /// ([`LevelStatistic`](crate::kits::speech::asr::driver::LevelStatistic)).
+    /// ([`LevelStatistic`](crate::kits::speech::support::LevelStatistic)).
     type Level: LevelStatistic;
 
     /// What the engine carries from one window of a stream to the next
@@ -197,31 +198,6 @@ pub(crate) fn window_frames_in(
         return Err(ConstraintError::out_of_range(owner, "seconds", seconds, range).into());
     }
     Ok(frames)
-}
-
-/// A front end that turns audio, arriving in pieces of any size, into
-/// feature frames.
-pub trait StreamingFeatures: Clone + Debug + Send + Sync {
-    /// Takes samples in, and returns the frames they complete.
-    ///
-    /// # Returns
-    /// `[1, frames, features]`, or `None` when no frame completes.
-    ///
-    /// # Errors
-    /// As the front end.
-    fn push(
-        &mut self,
-        samples: &[f32],
-    ) -> BunsenResult<Option<Tensor<3>>>;
-
-    /// Ends the input, and returns the frames left.
-    ///
-    /// # Returns
-    /// `[1, frames, features]`, or `None` when none are.
-    ///
-    /// # Errors
-    /// As the front end.
-    fn finish(&mut self) -> BunsenResult<Option<Tensor<3>>>;
 }
 
 /// One window to decode.

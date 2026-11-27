@@ -294,7 +294,7 @@ one, depending on how the context is fed.
 [`PerWindow`](bunsen::kits::speech::asr::driver::LevelPolicy::PerWindow)
 floors each window on its own. What the level summarizes is the model's:
 Whisper's is a maximum
-([`MaxLevel`](bunsen::kits::speech::asr::driver::MaxLevel))
+([`MaxLevel`](bunsen::kits::speech::support::MaxLevel))
 ([the level](bunsen::kits::speech::asr::whisper::driver#the-level-where-the-clamps-reference-comes-from)).
 
 ### Voice-activity regions as sub-streams
