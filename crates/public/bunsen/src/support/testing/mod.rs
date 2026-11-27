@@ -39,6 +39,18 @@
 //! with [`assert_tensors_close`] or [`assert_tensor_close_to_vec`]. Keep exact
 //! comparisons for values that are only uploaded, copied or rearranged.
 //!
+//! **Which tolerance.** A model-level test (a toy, a whole forward) uses
+//! burn's `Tolerance::default()`. A tight tolerance is for a component test
+//! whose reference values it controls exactly, and is a
+//! [`NamedTolerance`], which may be looser on one backend: [`IDENTICAL`]
+//! (moved values), [`ROUNDING`] (the same arithmetic up to rounding),
+//! [`REORDER`] (one computation in two orders), [`TOY`] (a toy against its
+//! float64 reference). The last three fall back to burn's default on CUDA,
+//! whose fast math and TF32 matmuls round differently, so a test needs no
+//! list of expected failures there. The tensor assertions resolve a named
+//! tolerance on the tensor's device. A tolerance outside these says where
+//! its number comes from.
+//!
 //! To check that two backends agree with each other, or that a result has not
 //! drifted from a recorded run, use `bunsen::audit` (the `audit` feature).
 //!
@@ -144,6 +156,7 @@ mod seeded;
 mod tensor_record;
 #[cfg(feature = "std")]
 mod testdata;
+mod tolerances;
 #[cfg(feature = "store")]
 mod toy_fixture;
 
@@ -157,5 +170,6 @@ pub use seeded::*;
 pub use tensor_record::*;
 #[cfg(feature = "std")]
 pub use testdata::*;
+pub use tolerances::*;
 #[cfg(feature = "store")]
 pub use toy_fixture::*;

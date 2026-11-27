@@ -12,6 +12,8 @@ use burn::{
 };
 use num_traits::float::Float;
 
+use super::DeviceTolerance;
+
 /// Asserts that two host slices of floats are close, element by element.
 ///
 /// The bound is absolute: each pair must satisfy `|a - e| <= tolerance`. For
@@ -83,6 +85,9 @@ pub fn assert_scalar_close(
 
 /// Asserts that a tensor matches a row-major host buffer.
 ///
+/// `tolerance` is a [`Tolerance`] or a [`NamedTolerance`](super::NamedTolerance),
+/// resolved on `actual`'s device.
+///
 /// The comparison runs through [`TensorData::assert_approx_eq`], so a mismatch
 /// reports the differing shape, or the relative and absolute error, rather than
 /// a bare element index.
@@ -94,8 +99,9 @@ pub fn assert_scalar_close(
 pub fn assert_tensor_close_to_vec<const D: usize>(
     actual: &Tensor<D>,
     expected: &[f64],
-    tolerance: Tolerance<f32>,
+    tolerance: impl DeviceTolerance,
 ) {
+    let tolerance = tolerance.on(&actual.device());
     let expected = TensorData::new(expected.to_vec(), actual.dims()).convert::<f32>();
     actual
         .to_data_as::<f32>()
@@ -103,6 +109,9 @@ pub fn assert_tensor_close_to_vec<const D: usize>(
 }
 
 /// Asserts that two tensors of the same shape are approximately equal.
+///
+/// `tolerance` is a [`Tolerance`] or a [`NamedTolerance`](super::NamedTolerance),
+/// resolved on `actual`'s device.
 ///
 /// Both sides are read back as `f32`, so tensors that differ only in dtype
 /// still compare.
@@ -114,8 +123,9 @@ pub fn assert_tensor_close_to_vec<const D: usize>(
 pub fn assert_tensors_close<const D: usize>(
     actual: &Tensor<D>,
     expected: &Tensor<D>,
-    tolerance: Tolerance<f32>,
+    tolerance: impl DeviceTolerance,
 ) {
+    let tolerance = tolerance.on(&actual.device());
     actual
         .to_data_as::<f32>()
         .assert_approx_eq::<f32>(&expected.to_data_as::<f32>(), tolerance);

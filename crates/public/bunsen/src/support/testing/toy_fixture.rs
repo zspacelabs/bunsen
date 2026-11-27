@@ -173,8 +173,9 @@ impl ToyFixture {
 }
 
 /// `actual` is the fixture's `expected`: the same shape, and every value
-/// within the toy checks' tolerance, relative `1e-3` and absolute `1e-4` (a
-/// float64 reference, stored as float32, against a run on a test device).
+/// within [`TOY`](super::TOY), relative `1e-3` and absolute `1e-4` (a float64
+/// reference, stored as float32, against a run on a test device), burn's
+/// default on CUDA.
 ///
 /// # Panics
 /// When they differ; the message names `what`.
@@ -183,7 +184,7 @@ pub fn assert_io_close<const D: usize>(
     actual: Tensor<D>,
     expected: Tensor<D>,
 ) {
-    assert_io_close_within(what, actual, expected, Tolerance::rel_abs(1e-3, 1e-4));
+    assert_io_close_within(what, actual, expected, super::TOY);
 }
 
 /// [`assert_io_close`] within `tolerance`: for a toy whose reference is
@@ -200,8 +201,9 @@ pub fn assert_io_close_within<const D: usize>(
     what: &str,
     actual: Tensor<D>,
     expected: Tensor<D>,
-    tolerance: Tolerance<f32>,
+    tolerance: impl super::DeviceTolerance,
 ) -> f32 {
+    let tolerance = tolerance.on(&actual.device());
     assert_eq!(actual.dims(), expected.dims(), "{what}: shape");
     let (actual, expected) = (actual.to_data_as::<f32>(), expected.to_data_as::<f32>());
     let gap = actual

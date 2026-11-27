@@ -75,10 +75,7 @@ impl<M: StackedLm> CachedStep for M {
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        nn::norm::RmsNormConfig,
-        tensor::Tolerance,
-    };
+    use burn::nn::norm::RmsNormConfig;
 
     use super::*;
     use crate::{
@@ -111,6 +108,7 @@ mod tests {
         kits::language::generation::driver::CachedLm,
         ops::transformers::attention::KVCacheStorage,
         support::testing::{
+            REORDER,
             assert_tensors_close,
             cpu_device,
         },
@@ -158,6 +156,6 @@ mod tests {
 
         let hidden = model.forward_hidden(model.embed(tokens), &model.rotary(4, &device), None);
         let whole = model.logits(hidden.slice_dim(1, 3..4)).reshape([1, 40]);
-        assert_tensors_close(&stepped, &whole, Tolerance::rel_abs(1e-4, 1e-5));
+        assert_tensors_close(&stepped, &whole, REORDER);
     }
 }

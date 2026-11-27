@@ -45,6 +45,8 @@ use crate::{
         KVCacheModel,
     },
     support::testing::{
+        REORDER,
+        ROUNDING,
         assert_tensors_close,
         cpu_device,
     },
@@ -175,11 +177,7 @@ fn test_cached_matches_uncached() {
     let mut cache = model.kv_cache_config().with_seq_len(8).init(&device);
     let head = model.forward_hidden(embeds.clone().slice_dim(1, 0..3), &r_emb, Some(&mut cache));
     let tail = model.forward_hidden(embeds.slice_dim(1, 3..5), &r_emb, Some(&mut cache));
-    assert_tensors_close(
-        &Tensor::cat(vec![head, tail], 1),
-        &whole,
-        Tolerance::rel_abs(1e-4, 1e-5),
-    );
+    assert_tensors_close(&Tensor::cat(vec![head, tail], 1), &whole, REORDER);
     assert_eq!(model.logits(whole).dims(), [1, 5, 40]);
 }
 
@@ -395,14 +393,14 @@ fn test_stack_decoder() {
     assert_tensors_close(
         &model.decoder.forward_hidden(embeds, &r_emb, None),
         &hidden,
-        Tolerance::rel_abs(1e-6, 1e-6),
+        ROUNDING,
     );
     assert_tensors_close(
         &model.logits(hidden.clone()),
         &model
             .decoder
             .logits(hidden.clone(), Some(&model.embedding.weight)),
-        Tolerance::rel_abs(1e-6, 1e-6),
+        ROUNDING,
     );
 
     let own = LmStackDecoderConfig::new(

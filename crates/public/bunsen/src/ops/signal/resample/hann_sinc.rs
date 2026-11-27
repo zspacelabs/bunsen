@@ -160,10 +160,9 @@ impl HannSincResampler {
 #[cfg(all(test, feature = "store"))]
 mod tests {
 
-    use burn::tensor::Tolerance;
-
     use super::*;
     use crate::support::testing::{
+        ROUNDING,
         ToyFixture,
         assert_io_close_within,
         performance_device,
@@ -213,12 +212,7 @@ mod tests {
                 burn::tensor::TensorData::new(outputs.concat(), [rows, len]),
                 fixture.device(),
             );
-            assert_io_close_within(
-                &case,
-                actual,
-                expected.clone(),
-                Tolerance::rel_abs(1e-6, 1e-6),
-            );
+            assert_io_close_within(&case, actual, expected.clone(), ROUNDING);
 
             let on_device = resampler.resample_tensor(input, orig, new);
             let worst = on_device.sub(expected).abs().max().into_scalar::<f32>();
