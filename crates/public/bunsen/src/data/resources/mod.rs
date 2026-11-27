@@ -55,6 +55,8 @@ mod cache;
 mod cached_files;
 #[cfg(feature = "cache")]
 mod converted;
+#[cfg(feature = "cache")]
+mod gc;
 pub mod hub;
 #[cfg(feature = "cache")]
 mod loaded;
@@ -67,6 +69,8 @@ pub use cache::*;
 pub use cached_files::*;
 #[cfg(feature = "cache")]
 pub use converted::*;
+#[cfg(feature = "cache")]
+pub use gc::*;
 #[cfg(feature = "cache")]
 pub use loaded::*;
 pub use resource::*;
