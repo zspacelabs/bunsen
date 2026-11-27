@@ -367,7 +367,7 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
 
         // Rounded on the host, as the reference rounds, and kept as the
         // policy says.
-        let policy = RotaryTableDTypePolicy::init(self.table_dtype, |d| device.supports_dtype(d));
+        let policy = RotaryTableDTypePolicy::new(self.table_dtype, |d| device.supports_dtype(d));
         let round = |t: Tensor<2>| {
             let data = t.into_data();
             let data = match policy.round_to {

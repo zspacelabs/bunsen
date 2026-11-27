@@ -117,7 +117,7 @@ impl WhisperFrontEndConfig {
     /// * `device` - the device to initialize the mel converter on.
     ///
     /// # Errors
-    /// See [`validate`](PerceptiveAudioConverterConfig::validate) and
+    /// See [`try_validate`](PerceptiveAudioConverterConfig::try_validate) and
     /// [`try_to_filterbank_vec`](PerceptiveAudioConverterConfig::try_to_filterbank_vec).
     pub fn try_init_audio_converter(
         &self,

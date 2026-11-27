@@ -351,7 +351,7 @@ pub struct Zonos3SpeakerEncoder {
 impl ModuleInit<Zonos3SpeakerEncoder> for Zonos3SpeakerEncoderConfig {
     /// # Errors
     /// See [`validate`](Zonos3SpeakerEncoderConfig::validate) and
-    /// [`KaldiFbankConfig::validate`](crate::ops::signal::KaldiFbankConfig::validate).
+    /// [`KaldiFbankConfig::try_validate`](crate::ops::signal::KaldiFbankConfig::try_validate).
     fn try_init(
         &self,
         device: &Device,

@@ -1,6 +1,9 @@
 //! Center crops, with and without padding, at torchvision's offsets.
 
-use alloc::format;
+use alloc::{
+    format,
+    string::ToString,
+};
 
 use burn::{
     Tensor,
@@ -11,8 +14,9 @@ use burn::{
 };
 
 use crate::errors::{
-    BunsenError,
     BunsenResult,
+    ConstraintError,
+    Rule,
 };
 
 /// The offset of a centred crop of `crop` out of `size`, as torchvision's
@@ -78,9 +82,14 @@ pub fn try_center_crop(
     );
     let [crop_height, crop_width] = size;
     if crop_height > height || crop_width > width {
-        return Err(BunsenError::illegal(format!(
-            "a {crop_height}x{crop_width} center crop of {height}x{width} images"
-        )));
+        return Err(ConstraintError::custom(
+            "try_center_crop",
+            "size",
+            format!(
+                "a {crop_height}x{crop_width} center crop of {height}x{width} images: the crop fits"
+            ),
+        )
+        .into());
     }
     let top = center_crop_offset(height, crop_height);
     let left = center_crop_offset(width, crop_width);
@@ -138,10 +147,16 @@ pub fn try_center_crop_or_pad(
         &["batch", "channels", "height", "width"],
     );
     if fill.len() != channels {
-        return Err(BunsenError::illegal(format!(
-            "a fill of {} values for images of {channels} channels",
-            fill.len()
-        )));
+        return Err(ConstraintError::new(
+            "try_center_crop_or_pad",
+            "fill",
+            Rule::Relation {
+                lhs: ("fill.len()".into(), fill.len().to_string()),
+                op: "==",
+                rhs: ("the images' channels".into(), channels.to_string()),
+            },
+        )
+        .into());
     }
     let [out_height, out_width] = size;
     let pad = |side: usize, out: usize| {
@@ -277,7 +292,7 @@ mod tests {
         let device = cpu_device();
         let images = Tensor::<4>::zeros([1, 3, 2, 2], &device);
         ErrorMatcher::illegal()
-            .message_contains("1 values for images of 3 channels")
+            .constraint("try_center_crop_or_pad", "fill")
             .assert_err(&try_center_crop_or_pad(images, [3, 3], &[0.0]));
     }
 }

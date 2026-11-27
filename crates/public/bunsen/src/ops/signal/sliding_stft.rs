@@ -92,7 +92,7 @@ impl SlidingStftConfig {
     /// [`ConstraintError`] cause, if `hop_size` is zero, if
     /// `hop_size > win_len` or `win_len > fft_size`, or if `fft_size` is not
     /// a power of two.
-    pub fn validate(&self) -> BunsenResult<()> {
+    pub fn try_validate(&self) -> BunsenResult<()> {
         const OWNER: &str = "SlidingStftConfig";
         if self.hop_size == 0 {
             return Err(ConstraintError::zero_or_empty(OWNER, "hop_size").into());
@@ -139,12 +139,12 @@ impl ModuleInit<SlidingStft> for SlidingStftConfig {
     ///
     /// # Errors
     ///
-    /// See [`validate`](SlidingStftConfig::validate).
+    /// See [`try_validate`](SlidingStftConfig::try_validate).
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<SlidingStft> {
-        self.validate()?;
+        self.try_validate()?;
 
         let win_len = self.win_len;
 
@@ -544,7 +544,7 @@ mod tests {
         assert_eq!(cfg.fft_size(), 1024);
         assert_eq!(cfg.n_bins(), 513);
 
-        cfg.validate().unwrap();
+        cfg.try_validate().unwrap();
     }
 
     #[test]
@@ -566,7 +566,7 @@ mod tests {
         ] {
             ErrorMatcher::illegal()
                 .has_cause::<ConstraintError>()
-                .assert_err(&bad.validate());
+                .assert_err(&bad.try_validate());
         }
     }
 

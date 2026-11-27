@@ -222,7 +222,7 @@ impl AffineCompress {
 /// periodic Hann window, hop 160, 80 Slaney `mels` with Slaney area
 /// normalization, a power spectrum, and `log10` over a `1e-10` floor.
 /// Validated by
-/// [`validate`](Self::validate), which
+/// [`try_validate`](Self::try_validate), which
 /// [`try_init`](crate::burner::module::ModuleInit::try_init) runs before
 /// building anything.
 #[derive(Config, Debug)]
@@ -291,7 +291,7 @@ pub struct PerceptiveAudioConverterConfig {
     // ---- preprocessing ----
     /// Pre-emphasis coefficient `a`, applied as `y[n] = x[n] - a·x[n-1]`.
     ///
-    /// **Not implemented yet** — [`validate`](Self::validate) rejects it
+    /// **Not implemented yet** — [`try_validate`](Self::try_validate) rejects it
     /// rather than silently ignoring it. It needs one extra carried sample,
     /// which changes the streaming carry length.
     #[config(default = "None")]
@@ -299,7 +299,7 @@ pub struct PerceptiveAudioConverterConfig {
 
     /// Subtract each frame's mean before windowing.
     ///
-    /// **Not implemented yet** — [`validate`](Self::validate) rejects it. It
+    /// **Not implemented yet** — [`try_validate`](Self::try_validate) rejects it. It
     /// is per-frame, so it belongs inside framing rather than in the
     /// sample-domain preprocessing stage.
     #[config(default = "false")]
@@ -534,7 +534,7 @@ impl PerceptiveAudioConverterConfig {
     ///
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) if
     /// `pre_emphasis` is set or `remove_dc` is true: neither is implemented.
-    pub fn validate(&self) -> BunsenResult<()> {
+    pub fn try_validate(&self) -> BunsenResult<()> {
         const OWNER: &str = "PerceptiveAudioConverterConfig";
         if self.sample_rate == 0 {
             return Err(ConstraintError::zero_or_empty(OWNER, "sample_rate").into());
@@ -616,13 +616,13 @@ impl ModuleInit<PerceptiveAudioConverter> for PerceptiveAudioConverterConfig {
     ///
     /// # Errors
     ///
-    /// See [`validate`](PerceptiveAudioConverterConfig::validate) and
+    /// See [`try_validate`](PerceptiveAudioConverterConfig::try_validate) and
     /// [`to_vec_filterbank`](PerceptiveAudioConverterConfig::try_to_filterbank_vec).
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<PerceptiveAudioConverter> {
-        self.validate()?;
+        self.try_validate()?;
 
         let (n_fft, n_bins, n_mels) = (self.n_fft, self.n_bins(), self.n_mels);
 
@@ -1494,7 +1494,7 @@ mod tests {
         assert_eq!(opts.log_floor, 1e-10);
         assert_eq!(opts.spectrum_impl, SpectrumImpl::DftMatmul);
 
-        opts.validate().unwrap();
+        opts.try_validate().unwrap();
     }
 
     #[test]
@@ -1524,7 +1524,7 @@ mod tests {
     fn test_explicit_f_max_overrides_nyquist_default() {
         let opts = PerceptiveAudioConverterConfig::default().with_f_max(Some(4000.0));
         assert_eq!(opts.f_max_hz(), 4000.0);
-        opts.validate().unwrap();
+        opts.try_validate().unwrap();
     }
 
     #[test]
@@ -1546,7 +1546,7 @@ mod tests {
         ] {
             ErrorMatcher::illegal()
                 .has_cause::<ConstraintError>()
-                .assert_err(&bad.validate());
+                .assert_err(&bad.try_validate());
         }
     }
 
@@ -1560,7 +1560,7 @@ mod tests {
         ] {
             ErrorMatcher::unsupported()
                 .message_contains("is not implemented")
-                .assert_err(&bad.validate());
+                .assert_err(&bad.try_validate());
         }
     }
 
@@ -1571,7 +1571,7 @@ mod tests {
             .with_n_fft(256)
             .with_n_mels(128);
 
-        opts.validate().unwrap();
+        opts.try_validate().unwrap();
 
         let bank = opts.try_to_filterbank_vec();
         ErrorMatcher::illegal()

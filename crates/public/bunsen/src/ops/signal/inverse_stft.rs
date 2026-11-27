@@ -1,6 +1,9 @@
 //! Inverse STFT synthesis, at any FFT size.
 
-use alloc::vec::Vec;
+use alloc::{
+    string::ToString,
+    vec::Vec,
+};
 use core::f64::consts::PI;
 
 use burn::{
@@ -22,8 +25,9 @@ use crate::{
     burner::module::ModuleInit,
     contracts::unpack_shape_contract,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     ops::signal::kernels::window::{
         SamplingWindowBuilder,
@@ -87,11 +91,25 @@ impl ModuleInit<InverseStft> for InverseStftConfig {
         device: &Device,
     ) -> BunsenResult<InverseStft> {
         let n = self.n_fft;
-        if n < 2 || self.hop == 0 || self.hop > n {
-            return Err(BunsenError::illegal(format!(
-                "an inverse STFT of n_fft {n} and hop {}",
-                self.hop
-            )));
+        if n < 2 {
+            return Err(
+                ConstraintError::out_of_range("InverseStftConfig", "n_fft", n, ">= 2").into(),
+            );
+        }
+        if self.hop == 0 {
+            return Err(ConstraintError::zero_or_empty("InverseStftConfig", "hop").into());
+        }
+        if self.hop > n {
+            return Err(ConstraintError::new(
+                "InverseStftConfig",
+                "hop",
+                Rule::Relation {
+                    lhs: ("hop".into(), self.hop.to_string()),
+                    op: "<=",
+                    rhs: ("n_fft".into(), n.to_string()),
+                },
+            )
+            .into());
         }
         let bins = self.n_bins();
         // irfft: x[t] = Σ_k c_k (Re X_k cos(2π k t / N) - Im X_k sin(2π k t /
@@ -486,12 +504,15 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        assert_tensors_close,
-        cpu_device,
-        performance_device,
-        seeded_tensor,
-        tensor_to_vec_as,
+    use crate::{
+        errors::testing::ErrorMatcher,
+        support::testing::{
+            assert_tensors_close,
+            cpu_device,
+            performance_device,
+            seeded_tensor,
+            tensor_to_vec_as,
+        },
     };
 
     /// `x`'s centred, windowed frames' spectra, by a direct real DFT on the
@@ -596,8 +617,8 @@ mod tests {
             .with_center(false)
             .init(&device);
         assert_eq!(uncentred.istft(spec.clone(), spec, None).dims(), [1, 18]);
-        assert!(InverseStftConfig::new(8, 9).try_init(&device).is_err());
-        assert!(InverseStftConfig::new(1, 1).try_init(&device).is_err());
+        ErrorMatcher::illegal().assert_err(&InverseStftConfig::new(8, 9).try_init(&device));
+        ErrorMatcher::illegal().assert_err(&InverseStftConfig::new(1, 1).try_init(&device));
     }
 
     /// A stream's samples, with its finish's, are the whole synthesis',

@@ -1,6 +1,9 @@
 //! Per-channel normalisation, as torchvision's `Normalize`.
 
-use alloc::format;
+use alloc::{
+    format,
+    string::ToString,
+};
 
 use burn::{
     Tensor,
@@ -8,8 +11,9 @@ use burn::{
 };
 
 use crate::errors::{
-    BunsenError,
     BunsenResult,
+    ConstraintError,
+    Rule,
 };
 
 /// Normalises each channel of each image: `(x - mean[c]) / std[c]`, as
@@ -40,15 +44,22 @@ pub fn try_normalize(
         &images,
         &["batch", "channels", "height", "width"],
     );
-    if mean.len() != channels || std.len() != channels {
-        return Err(BunsenError::illegal(format!(
-            "a mean of {} and a std of {} values for images of {channels} channels",
-            mean.len(),
-            std.len()
-        )));
+    for (field, len) in [("mean", mean.len()), ("std", std.len())] {
+        if len != channels {
+            return Err(ConstraintError::new(
+                "try_normalize",
+                field,
+                Rule::Relation {
+                    lhs: (format!("{field}.len()"), len.to_string()),
+                    op: "==",
+                    rhs: ("the images' channels".into(), channels.to_string()),
+                },
+            )
+            .into());
+        }
     }
     if let Some(s) = std.iter().find(|s| !(s.is_finite() && **s > 0.0)) {
-        return Err(BunsenError::illegal(format!("a normalisation std of {s}")));
+        return Err(ConstraintError::out_of_range("try_normalize", "std", s, "> 0, finite").into());
     }
     let (device, dtype) = (images.device(), images.dtype());
     let per_channel = |values: &[f32]| {
@@ -102,7 +113,7 @@ mod tests {
         let device = cpu_device();
         let images = Tensor::<4>::zeros([1, 3, 2, 2], &device);
         ErrorMatcher::illegal()
-            .message_contains("a mean of 1 and a std of 3 values")
+            .constraint("try_normalize", "mean")
             .assert_err(&try_normalize(images, &[0.5], &[0.5; 3]));
     }
 
@@ -111,7 +122,7 @@ mod tests {
         let device = cpu_device();
         let images = Tensor::<4>::zeros([1, 1, 2, 2], &device);
         ErrorMatcher::illegal()
-            .message_contains("std of 0")
+            .constraint("try_normalize", "std")
             .assert_err(&try_normalize(images, &[0.5], &[0.0]));
     }
 }
