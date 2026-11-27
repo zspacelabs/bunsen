@@ -156,7 +156,7 @@ impl<H: ConstructInit> DeferredBuild<H> {
             let planned = self.config.plan(&self.model, cache)?;
             let converted = self.converted(cache, &planned, device, policy);
             let (resources, handle) = match &converted {
-                Some((weights, path)) if path.is_file() => {
+                Some(copy @ Converted { weights, path, .. }) if path.is_file() => {
                     let rest = without(&planned, weights);
                     let resources = cache.load(&rest)?;
                     match self.config.try_init_converted(
@@ -167,6 +167,7 @@ impl<H: ConstructInit> DeferredBuild<H> {
                         policy,
                     ) {
                         Ok(handle) => {
+                            copy.ensure_manifest::<H>();
                             crate::data::resources::mark_converted_used(path);
                             log::info!("{}: weights from {}", H::KIT, path.display());
                             (resources, handle)
@@ -178,17 +179,17 @@ impl<H: ConstructInit> DeferredBuild<H> {
                                 H::KIT,
                                 path.display()
                             );
-                            self.load_and_convert(cache, &planned, device, policy, Some(path))?
+                            self.load_and_convert(
+                                cache,
+                                &planned,
+                                device,
+                                policy,
+                                converted.as_ref(),
+                            )?
                         }
                     }
                 }
-                _ => self.load_and_convert(
-                    cache,
-                    &planned,
-                    device,
-                    policy,
-                    converted.as_ref().map(|(_, path)| path),
-                )?,
+                _ => self.load_and_convert(cache, &planned, device, policy, converted.as_ref())?,
             };
             let summary = self
                 .model
@@ -217,7 +218,7 @@ impl<H: ConstructInit> DeferredBuild<H> {
         planned: &ResourceSet,
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
-    ) -> Option<(ResourceSet, PathBuf)> {
+    ) -> Option<Converted> {
         if !cache.converted_weights().keeps() {
             return None;
         }
@@ -232,7 +233,12 @@ impl<H: ConstructInit> DeferredBuild<H> {
         let facets = format!("policy {policy:?}\ndevice floats {floats:?}");
         let key = cache.converted_key(H::KIT, &weights, &facets)?;
         let path = cache.converted_path(H::KIT, &weights, &key)?;
-        Some((weights, path))
+        Some(Converted {
+            weights,
+            path,
+            key,
+            facets,
+        })
     }
 
     /// `planned` loaded and built the whole way, and, given a `converted`
@@ -245,13 +251,19 @@ impl<H: ConstructInit> DeferredBuild<H> {
         planned: &ResourceSet,
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
-        converted: Option<&PathBuf>,
+        converted: Option<&Converted>,
     ) -> BunsenResult<(LoadedResourceSet, Arc<H::Construct>)> {
         let resources = cache.load(planned)?;
         let handle = self
             .config
             .try_init(&self.model, &resources, device, policy)?;
-        if let Some(path) = converted {
+        if let Some(Converted {
+            weights,
+            path,
+            key,
+            facets,
+        }) = converted
+        {
             let partial = path.with_extension("bpk.partial");
             let written = path
                 .parent()
@@ -261,6 +273,10 @@ impl<H: ConstructInit> DeferredBuild<H> {
                 .and_then(|()| {
                     std::fs::rename(&partial, path)
                         .map_err(crate::errors::sys_at("rename", &partial))
+                })
+                .and_then(|()| {
+                    crate::data::resources::ConvertedManifest::new(H::KIT, key, facets, weights)
+                        .write(path)
                 });
             match written {
                 Ok(()) => log::info!("{}: converted weights saved to {}", H::KIT, path.display()),
@@ -271,6 +287,32 @@ impl<H: ConstructInit> DeferredBuild<H> {
             }
         }
         Ok((resources, handle))
+    }
+}
+
+/// A kit's converted copy of a load's weights: the weights it stands for,
+/// where it is or would be, its key, and the load's choices the key spells.
+struct Converted {
+    weights: ResourceSet,
+    path: PathBuf,
+    key: String,
+    facets: String,
+}
+
+impl Converted {
+    /// Writes the copy's manifest when it has none (one that could not be
+    /// written with the copy), so `cache gc` does not take the copy for
+    /// another version's. A failure is logged, not an error.
+    fn ensure_manifest<H: ConstructInit>(&self) {
+        use crate::data::resources::ConvertedManifest;
+        if matches!(ConvertedManifest::read(&self.path), Ok(Some(_))) {
+            return;
+        }
+        if let Err(e) =
+            ConvertedManifest::new(H::KIT, &self.key, &self.facets, &self.weights).write(&self.path)
+        {
+            log::warn!("{}: converted weights' manifest not written ({e})", H::KIT);
+        }
     }
 }
 
@@ -519,14 +561,51 @@ mod tests {
         assert_eq!(listed(&on), ["a/pinned/checkpoint"], "off keeps no copy");
 
         assert_eq!(load(&on).unwrap(), "files: w1");
-        assert_eq!(listed(&on), ["a/pinned/checkpoint", "a/pinned/converted"]);
+        assert_eq!(
+            listed(&on),
+            [
+                "a/pinned/checkpoint",
+                "a/pinned/converted",
+                "a/pinned/converted"
+            ]
+        );
+        // The copy and its manifest, which names the checkpoint it shadows.
+        let copy = on
+            .cached_files(&"a/pinned/converted".parse().unwrap())
+            .unwrap()
+            .into_iter()
+            .find(|f| f.file.ends_with(".bpk"))
+            .unwrap();
+        let manifest = crate::data::resources::ConvertedManifest::read(&copy.path)
+            .unwrap()
+            .unwrap();
+        assert_eq!(manifest.key, copy.pin);
+        assert!(manifest.is_current());
+        assert_eq!(
+            manifest
+                .shadows
+                .iter()
+                .map(|s| s.name.as_str())
+                .collect::<Vec<_>>(),
+            ["a/pinned/checkpoint"]
+        );
         assert_eq!(load(&on).unwrap(), "converted: w1");
+        // A hit on a copy without its manifest writes it.
+        let manifest_path = crate::data::resources::converted_manifest_path(&copy.path);
+        fs::remove_file(&manifest_path).unwrap();
+        assert_eq!(load(&on).unwrap(), "converted: w1");
+        assert_eq!(
+            crate::data::resources::ConvertedManifest::read(&copy.path)
+                .unwrap()
+                .as_ref(),
+            Some(&manifest)
+        );
 
         let sources = on
             .cached_files(&"a/pinned/checkpoint".parse().unwrap())
             .unwrap();
         on.remove_cached(&sources).unwrap();
-        assert_eq!(listed(&on), ["a/pinned/converted"]);
+        assert_eq!(listed(&on), ["a/pinned/converted", "a/pinned/converted"]);
         assert_eq!(
             load(&on).unwrap(),
             "converted: w1",
