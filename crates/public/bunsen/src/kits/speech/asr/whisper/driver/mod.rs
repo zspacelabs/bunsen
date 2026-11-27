@@ -15,7 +15,7 @@
 //!
 //! A transcription is split in two. The [`WhisperStreamDriver`] is the
 //! shared, immutable half: the model and its token layout (a
-//! [`WhisperConstruct`] behind an `Arc`), the mel front end, the logit
+//! [`WhisperConstruct`](crate::kits::speech::asr::whisper::WhisperConstruct) behind an `Arc`), the mel front end, the logit
 //! filters, the decode settings, and the voice-activity model when one is
 //! attached. A [`WhisperStreamContext`] is one stream in progress, and the
 //! only stateful type here: the front end's carry, the frames not yet
@@ -45,7 +45,7 @@
 //!
 //! # Lifecycle
 //!
-//! 1. A [`WhisperConstruct`]: from a name, through
+//! 1. A [`WhisperConstruct`](crate::kits::speech::asr::whisper::WhisperConstruct): from a name, through
 //!    [`default_whisper_factory`](crate::kits::speech::asr::whisper::pretrained::default_whisper_factory)
 //!    and a [`ResourceCache`](crate::data::resources::ResourceCache), or over a
 //!    model already in hand.
@@ -204,14 +204,10 @@
 
 pub mod support;
 
-mod whisper_construct;
-mod whisper_policy;
-mod whisper_stream_context;
-mod whisper_stream_driver;
-mod whisper_token_layout;
+mod engine;
+mod stream;
+mod token_layout;
 
-pub use whisper_construct::*;
-pub use whisper_policy::*;
-pub use whisper_stream_context::*;
-pub use whisper_stream_driver::*;
-pub use whisper_token_layout::*;
+pub use engine::*;
+pub use stream::*;
+pub use token_layout::*;

@@ -100,7 +100,7 @@ pub fn weights_cache() -> bunsen::data::resources::ResourceCache {
 /// its token layout and vocabulary, shared.
 pub fn load_base(
     device: &Device
-) -> std::sync::Arc<bunsen::kits::speech::asr::whisper::driver::WhisperConstruct> {
+) -> std::sync::Arc<bunsen::kits::speech::asr::whisper::WhisperConstruct> {
     bunsen::kits::speech::asr::whisper::pretrained::default_whisper_factory()
         .expect("the whisper factory")
         .load_construct(

@@ -18,7 +18,7 @@ use crate::{
     errors::BunsenResult,
     kits::speech::asr::whisper::{
         WhisperApiConfig,
-        driver::WhisperConstruct,
+        WhisperConstruct,
         pretrained::{
             WhisperConstructConfig,
             default_whisper_providers,
