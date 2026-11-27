@@ -10,16 +10,14 @@ use burn::{
     Tensor,
     config::Config,
     prelude::Int,
-    tensor::DType,
 };
 
 use crate::kits::support::decoding::{
-    LogitFilter,
+    CodeSampler,
     RepetitionPenalty,
     SuppressTokens,
     TopK,
     TopP,
-    sample_softmax,
 };
 
 /// Config for [`Qwen3TtsSampler`]; its defaults are the release's talker's.
@@ -91,19 +89,19 @@ impl Qwen3TtsSamplerConfig {
     ) -> Qwen3TtsSampler {
         let suppressed: Vec<i64> = suppressed.into_iter().collect();
         Qwen3TtsSampler {
-            suppress: (!suppressed.is_empty()).then(|| SuppressTokens::new(suppressed)),
-            penalty: (self.repetition_penalty != 1.0)
-                .then(|| RepetitionPenalty::new(self.repetition_penalty)),
-            truncation: self.sample.then(|| {
-                (
-                    TopK { k: self.top_k },
-                    (self.top_p < 1.0).then_some(TopP {
-                        p: self.top_p,
-                        temperature: self.temperature,
-                    }),
-                )
-            }),
-            temperature: if self.sample { self.temperature } else { 0.0 },
+            code: CodeSampler {
+                suppress: (!suppressed.is_empty()).then(|| SuppressTokens::new(suppressed)),
+                penalty: (self.repetition_penalty != 1.0)
+                    .then(|| RepetitionPenalty::new(self.repetition_penalty)),
+                penalized_rows: None,
+                top_k: self.sample.then_some(TopK { k: self.top_k }),
+                top_p: (self.sample && self.top_p < 1.0).then_some(TopP {
+                    p: self.top_p,
+                    temperature: self.temperature,
+                }),
+                min_p: None,
+                temperature: if self.sample { self.temperature } else { 0.0 },
+            },
         }
     }
 }
@@ -116,22 +114,22 @@ impl Qwen3TtsSamplerConfig {
 /// 3. the blocked ids, `-inf`, for this choice alone (EOS before the take's
 ///    first frames);
 /// 4. sampling: top-k, then top-p, then a draw at the temperature
-///    ([`sample_softmax`], on the backend's random numbers); or the argmax.
+///    ([`sample_softmax`](crate::kits::support::decoding::sample_softmax), on
+///    the backend's random numbers); or the argmax.
+///
+/// Its [`CodeSampler`] runs the chain.
 ///
 /// The draws are not torch's, so a sampled take matches upstream's in
 /// distribution, never code for code; an argmax take is upstream's.
 #[derive(Clone, Debug)]
 pub struct Qwen3TtsSampler {
-    suppress: Option<SuppressTokens>,
-    penalty: Option<RepetitionPenalty>,
-    truncation: Option<(TopK, Option<TopP>)>,
-    temperature: f64,
+    code: CodeSampler,
 }
 
 impl Qwen3TtsSampler {
     /// The temperature it samples at; zero for the argmax.
     pub fn temperature(&self) -> f64 {
-        self.temperature
+        self.code.temperature
     }
 
     /// A code per row.
@@ -149,24 +147,7 @@ impl Qwen3TtsSampler {
         history: &[Vec<i64>],
         blocked: &[i64],
     ) -> Tensor<1, Int> {
-        let [b, _] = logits.dims();
-        let mut logits = logits.cast(DType::F32);
-        if let Some(suppress) = &self.suppress {
-            logits = suppress.apply(logits, &[], 0);
-        }
-        if let Some(penalty) = &self.penalty {
-            logits = penalty.apply(logits, history, 0);
-        }
-        if !blocked.is_empty() {
-            logits = SuppressTokens::new(blocked.iter().copied()).apply(logits, &[], 0);
-        }
-        if let Some((top_k, top_p)) = &self.truncation {
-            logits = top_k.apply(logits, &[], 0);
-            if let Some(top_p) = top_p {
-                logits = top_p.apply(logits, &[], 0);
-            }
-        }
-        sample_softmax(logits, self.temperature).reshape([b])
+        self.code.choose(logits, history, blocked)
     }
 }
 
