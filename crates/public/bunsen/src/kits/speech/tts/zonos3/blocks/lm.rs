@@ -543,7 +543,8 @@ impl Zonos3Lm {
         rows: &Zonos3RowConditioning,
         cache: Option<&mut DecoderStackCache>,
     ) -> (Tensor<4>, Zonos3LmTrace) {
-        let [b, t, _] = ids.dims();
+        let [b, t] =
+            crate::contracts::unpack_shape_contract!(["B", "T", "Q"], &ids.dims(), &["B", "T"]);
         let start = cache.as_ref().map_or(0, |c| c.pos());
         let (emb_sum, emb_cond) = self.embed(ids, rows, start);
         let (hidden, bank) = match cache {

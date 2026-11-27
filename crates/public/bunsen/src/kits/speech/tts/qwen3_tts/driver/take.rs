@@ -155,7 +155,12 @@ impl Qwen3TtsModel {
     ) -> Qwen3TtsTakeRun {
         let device = prompt.embeds.device();
         let talker = &self.talker;
-        let l = prompt.embeds.dims()[1];
+        let [l] = crate::contracts::unpack_shape_contract!(
+            [1, "L", "d_model"],
+            &prompt.embeds.dims(),
+            &["L"],
+            &[("d_model", self.d_model())]
+        );
         let r_emb = talker.rotary(l + max_frames, &device);
         let mut cache = talker.kv_cache_config().init(&device);
         let pad = talker.text_embed(Tensor::from_data(
@@ -163,7 +168,13 @@ impl Qwen3TtsModel {
             &device,
         ));
         let hidden = talker.forward_hidden(prompt.embeds.clone(), &r_emb, Some(&mut cache));
-        let t = hidden.dims()[1];
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            [1, "L", "d_model"],
+            &hidden.dims(),
+            &[("L", l), ("d_model", self.d_model())]
+        );
+        let t = l;
         Qwen3TtsTakeRun {
             r_emb,
             cache,
