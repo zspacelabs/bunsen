@@ -39,7 +39,7 @@ use crate::{
 /// What a timed Qwen3-TTS take carries: the talker's cache and rotary
 /// tables, and its last hidden state and the logits after it, which choose
 /// the next frame's codebook 0.
-#[derive(Debug)]
+#[derive(burn::module::Module, Debug)]
 pub struct Qwen3TtsTimedState {
     cache: KVCache,
     rotary: RotarySet,

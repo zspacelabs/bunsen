@@ -45,7 +45,7 @@ impl LevelStatistic for () {
 }
 
 /// The maximum over each row's frames and features: `[batch]`.
-#[derive(Clone, Debug)]
+#[derive(burn::module::Module, Debug)]
 pub struct MaxLevel {
     /// `[batch]`.
     pub max: Tensor<1>,
@@ -74,7 +74,7 @@ impl LevelStatistic for MaxLevel {
 /// Merged with the pairwise update of Chan, Golub and Le Veque, so a summary
 /// built arrival by arrival matches one over all the frames at once, to
 /// rounding.
-#[derive(Clone, Debug)]
+#[derive(burn::module::Module, Debug)]
 pub struct MomentsLevel {
     /// The frames summarized; the same for every row.
     pub count: usize,
