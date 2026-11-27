@@ -196,6 +196,21 @@ impl ResourceSet {
             .ok_or_else(|| not_found(Some(&self.name), "resource", key, &self.keys()))
     }
 
+    /// The checkpoint called `key`: the index of a sharded one
+    /// (`{key}.index`) when the set has it, else the one file.
+    ///
+    /// # Errors
+    /// As [`try_get`](Self::try_get), for a set with neither.
+    pub fn try_get_checkpoint(
+        &self,
+        key: &str,
+    ) -> BunsenResult<&Resource> {
+        match self.get(&alloc::format!("{key}.index")) {
+            Some(index) => Ok(index),
+            None => self.try_get(key),
+        }
+    }
+
     /// Checks the resource set hangs together: every resource validates and
     /// sits under its own key.
     ///
@@ -402,6 +417,26 @@ mod tests {
 
         let json = serde_json::to_string(&map).unwrap();
         assert_eq!(serde_json::from_str::<ResourceSet>(&json).unwrap(), map);
+    }
+
+    /// The checkpoint is the shard index when there is one, else the file;
+    /// neither is a lookup error naming the keys.
+    #[test]
+    fn test_try_get_checkpoint() {
+        let single = ResourceSet::new("one").with_resource(Resource::given("checkpoint", "/m.st"));
+        assert_eq!(
+            single.try_get_checkpoint("checkpoint").unwrap().slot,
+            "checkpoint"
+        );
+        let sharded = ResourceSet::new("shards")
+            .with_resource(Resource::given("checkpoint.index", "/m.index.json"))
+            .with_resource(Resource::given("checkpoint.00001", "/m-1.st"));
+        assert_eq!(
+            sharded.try_get_checkpoint("checkpoint").unwrap().slot,
+            "checkpoint.index"
+        );
+        crate::errors::testing::ErrorMatcher::lookup()
+            .assert_err(&ResourceSet::new("none").try_get_checkpoint("checkpoint"));
     }
 
     /// A bundle's size is known when every resource's is; its dtypes are

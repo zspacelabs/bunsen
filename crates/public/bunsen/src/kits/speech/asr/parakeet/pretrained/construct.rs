@@ -25,10 +25,7 @@ use crate::{
             SAFETENSORS_INDEX,
         },
     },
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::{
         speech::asr::parakeet::{
             ParakeetConstruct,
@@ -66,9 +63,11 @@ impl ParakeetReader {
         match kind {
             Some(PHONON_ARCHIVE) => Ok(Self::PhononArchive),
             Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::Safetensors),
-            other => Err(BunsenError::unsupported(format!(
-                "no Parakeet reader for a checkpoint of kind {other:?}"
-            ))),
+            other => Err(crate::kits::support::pretrained::unsupported_kind(
+                "Parakeet",
+                "checkpoint",
+                other,
+            )),
         }
     }
 }
@@ -105,19 +104,16 @@ impl ConstructInit for ParakeetConstructConfig {
     /// index; a Safetensors checkpoint must come with a `tokenizer.json`
     /// vocabulary.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
-        let index = format!("{CHECKPOINT}.index");
-        let checkpoint = match map.get(&index) {
-            Some(index) => index,
-            None => map.try_get(CHECKPOINT)?,
-        };
+        let checkpoint = map.try_get_checkpoint(CHECKPOINT)?;
         let reader = ParakeetReader::for_kind(checkpoint.format.as_deref())?;
         if reader == ParakeetReader::Safetensors {
             let vocab = map.try_get(VOCABULARY)?;
             if vocab.format.as_deref() != Some(TOKENIZER_JSON) {
-                return Err(BunsenError::unsupported(format!(
-                    "no Parakeet vocabulary reader for kind {:?}",
-                    vocab.format
-                )));
+                return Err(crate::kits::support::pretrained::unsupported_kind(
+                    "Parakeet",
+                    "vocabulary",
+                    vocab.format.as_deref(),
+                ));
             }
         }
         Ok(Self { reader })

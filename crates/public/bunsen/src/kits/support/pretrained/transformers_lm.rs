@@ -131,10 +131,11 @@ impl<K: TransformersLmKit> ConstructInit for K {
         };
         match checkpoint.format.as_deref() {
             Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::default()),
-            other => Err(BunsenError::unsupported(format!(
-                "no {} reader for a checkpoint of kind {other:?}",
-                K::NAME
-            ))),
+            other => Err(crate::kits::support::pretrained::unsupported_kind(
+                K::NAME,
+                "checkpoint",
+                other,
+            )),
         }
     }
 

@@ -101,18 +101,20 @@ impl ConstructInit for SileroConstructConfig {
             match r.format.as_deref() {
                 None | Some(crate::data::resources::BURNPACK) => SileroReader::Burnpack,
                 other => {
-                    return Err(BunsenError::unsupported(format!(
-                        "no Silero reader for a burnpack of kind {other:?}"
-                    )));
+                    return Err(crate::kits::support::pretrained::unsupported_kind(
+                        "Silero", "burnpack", other,
+                    ));
                 }
             }
         } else if let Some(r) = map.get(CHECKPOINT) {
             match r.format.as_deref() {
                 Some(SAFETENSORS) => SileroReader::Safetensors,
                 other => {
-                    return Err(BunsenError::unsupported(format!(
-                        "no Silero reader for a checkpoint of kind {other:?}"
-                    )));
+                    return Err(crate::kits::support::pretrained::unsupported_kind(
+                        "Silero",
+                        "checkpoint",
+                        other,
+                    ));
                 }
             }
         } else {

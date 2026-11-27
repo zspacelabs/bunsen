@@ -68,9 +68,11 @@ impl Qwen3AsrReader {
         match kind {
             Some(PHONON_ARCHIVE) => Ok(Self::PhononArchive),
             Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::Safetensors),
-            other => Err(BunsenError::unsupported(format!(
-                "no Qwen3-ASR reader for a checkpoint of kind {other:?}"
-            ))),
+            other => Err(crate::kits::support::pretrained::unsupported_kind(
+                "Qwen3-ASR",
+                "checkpoint",
+                other,
+            )),
         }
     }
 }
@@ -106,19 +108,16 @@ impl ConstructInit for Qwen3AsrConstructConfig {
     /// The hook for the checkpoint's `kind`; a Safetensors checkpoint must
     /// come with a `tokenizer.json` vocabulary.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
-        let index = format!("{CHECKPOINT}.index");
-        let checkpoint = match map.get(&index) {
-            Some(index) => index,
-            None => map.try_get(CHECKPOINT)?,
-        };
+        let checkpoint = map.try_get_checkpoint(CHECKPOINT)?;
         let reader = Qwen3AsrReader::for_kind(checkpoint.format.as_deref())?;
         if reader == Qwen3AsrReader::Safetensors {
             let vocab = map.try_get(VOCABULARY)?;
             if vocab.format.as_deref() != Some(TOKENIZER_JSON) {
-                return Err(BunsenError::unsupported(format!(
-                    "no Qwen3-ASR vocabulary reader for kind {:?}",
-                    vocab.format
-                )));
+                return Err(crate::kits::support::pretrained::unsupported_kind(
+                    "Qwen3-ASR",
+                    "vocabulary",
+                    vocab.format.as_deref(),
+                ));
             }
         }
         Ok(Self { reader })

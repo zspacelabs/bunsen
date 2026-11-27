@@ -83,26 +83,24 @@ impl ConstructInit for VoxtralConstructConfig {
     /// The hook, for a safetensors checkpoint (one file or shards) with a
     /// `tekken.json` vocabulary.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
-        let index = format!("{CHECKPOINT}.index");
-        let checkpoint = match map.get(&index) {
-            Some(index) => index,
-            None => map.try_get(CHECKPOINT)?,
-        };
+        let checkpoint = map.try_get_checkpoint(CHECKPOINT)?;
         if !matches!(
             checkpoint.format.as_deref(),
             Some(SAFETENSORS | SAFETENSORS_INDEX)
         ) {
-            return Err(BunsenError::unsupported(format!(
-                "no Voxtral reader for a checkpoint of kind {:?}",
-                checkpoint.format
-            )));
+            return Err(crate::kits::support::pretrained::unsupported_kind(
+                "Voxtral",
+                "checkpoint",
+                checkpoint.format.as_deref(),
+            ));
         }
         let vocab = map.try_get(VOCABULARY)?;
         if vocab.format.as_deref() != Some(TEKKEN_JSON) {
-            return Err(BunsenError::unsupported(format!(
-                "no Voxtral vocabulary reader for kind {:?}",
-                vocab.format
-            )));
+            return Err(crate::kits::support::pretrained::unsupported_kind(
+                "Voxtral",
+                "vocabulary",
+                vocab.format.as_deref(),
+            ));
         }
         Ok(Self)
     }

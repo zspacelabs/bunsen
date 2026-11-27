@@ -19,8 +19,10 @@
 //!   [`LmConstruct`](super::construct::LmConstruct) they build.
 
 pub mod catalog_contracts;
+mod kinds;
 mod probes;
 mod transformers_lm;
 
+pub use kinds::*;
 pub use probes::*;
 pub use transformers_lm::*;

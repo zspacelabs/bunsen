@@ -84,17 +84,21 @@ impl ConstructInit for Zonos3ConstructConfig {
             if let (Some(want), Some(got)) = (format, resource.format.as_deref())
                 && want != got
             {
-                return Err(BunsenError::unsupported(format!(
-                    "no ZONOS3 reader for a `{key}` of kind {got:?}"
-                )));
+                return Err(crate::kits::support::pretrained::unsupported_kind(
+                    "ZONOS3",
+                    key,
+                    Some(got),
+                ));
             }
         }
         if let Some(got) = map.get(VOICE_INFO).and_then(|r| r.format.as_deref())
             && got != "json"
         {
-            return Err(BunsenError::unsupported(format!(
-                "no ZONOS3 reader for a `{VOICE_INFO}` of kind {got:?}"
-            )));
+            return Err(crate::kits::support::pretrained::unsupported_kind(
+                "ZONOS3",
+                VOICE_INFO,
+                Some(got),
+            ));
         }
         Ok(Self)
     }
