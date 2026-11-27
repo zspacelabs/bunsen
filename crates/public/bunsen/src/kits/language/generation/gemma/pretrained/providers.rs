@@ -95,6 +95,8 @@ pub fn default_gemma_factory() -> BunsenResult<BuildFactory<GemmaConstructConfig
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::data::builds::CONFIG;
 

@@ -76,6 +76,8 @@ pub fn default_parakeet_factory() -> BunsenResult<BuildFactory<ParakeetConstruct
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     /// Every row is pinned, and answers by its qualified, short and alias

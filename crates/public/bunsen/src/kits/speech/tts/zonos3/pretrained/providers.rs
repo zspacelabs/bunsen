@@ -64,6 +64,8 @@ pub fn default_zonos3_factory() -> BunsenResult<BuildFactory<Zonos3ConstructConf
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     /// The one row, by its qualified and short names, every file pinned to

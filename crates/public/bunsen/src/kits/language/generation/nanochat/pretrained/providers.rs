@@ -59,6 +59,8 @@ pub fn default_nanochat_factory() -> BunsenResult<BuildFactory<NanoChatConstruct
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::{
         data::pretrained::Prefabs,

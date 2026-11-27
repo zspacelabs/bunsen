@@ -53,6 +53,8 @@ pub fn default_laya_factory() -> BunsenResult<BuildFactory<LayaConstructConfig>>
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::kits::support::construct::{
         TOKENIZER,
