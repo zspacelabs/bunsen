@@ -112,8 +112,8 @@
 //!
 //! [`matching`]: checks that describe themselves (hamcrest's style), the
 //! core every fluent matcher builds on;
-//! [`ErrorMatcher`](crate::errors::testing::ErrorMatcher) is its matcher of
-//! errors.
+//! [`TensorMatcher`](matching::TensorMatcher) is its matcher of tensors,
+//! [`ErrorMatcher`](crate::errors::testing::ErrorMatcher) of errors.
 //!
 //! # Speech
 //!
