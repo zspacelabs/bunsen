@@ -14,7 +14,7 @@ use crate::data::builds::{
 pub const RES2NET_KIT: &str = "res2net";
 
 /// The key of the checkpoint in a `Res2Net` resource set.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// What the res2net kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
@@ -35,7 +35,7 @@ pub fn default_res2net_providers() -> Vec<Arc<dyn BuildProvider>> {
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             RES2NET_CATALOG_CONTRACT,
         )),
-        Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
+        Arc::new(HfProvider::new()),
     ]
 }
 

@@ -15,7 +15,7 @@ use crate::{
 pub const QWEN3_ASR_KIT: &str = "qwen3-asr";
 
 /// The key of the checkpoint in a Qwen3-ASR resource set.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// The key of the vocabulary in a Qwen3-ASR resource set, for a checkpoint
 /// that does not carry its own.
@@ -26,15 +26,13 @@ pub const VOCABULARY: &str = "vocabulary";
 /// carry its own.
 pub const PROCESSOR: &str = "processor";
 
+/// The `kind` of a `transformers` `tokenizer.json` vocabulary.
+pub use crate::data::builds::TOKENIZER_JSON;
 /// The `kind` of a Phonon-1 archive: a zstd tar of a packed checkpoint, its
 /// `packed_manifest.json`, and its vocabulary.
-pub const PHONON_ARCHIVE: &str = "phonon archive";
-
+pub use crate::data::resources::PHONON_ARCHIVE;
 /// The `kind` of a `transformers` `model.safetensors` checkpoint.
-pub const SAFETENSORS: &str = "safetensors";
-
-/// The `kind` of a `transformers` `tokenizer.json` vocabulary.
-pub const TOKENIZER_JSON: &str = "tokenizer.json";
+pub use crate::data::resources::SAFETENSORS;
 
 /// What the qwen3-asr kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
@@ -57,11 +55,7 @@ pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn BuildProvider>> {
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             QWEN3_ASR_CATALOG_CONTRACT,
         )),
-        Arc::new(
-            HfProvider::new()
-                .with_checkpoint_key(CHECKPOINT)
-                .with_extra_file(VOCABULARY, "tokenizer.json", TOKENIZER_JSON),
-        ),
+        Arc::new(HfProvider::new().with_extra_file(VOCABULARY, "tokenizer.json", TOKENIZER_JSON)),
     ]
 }
 

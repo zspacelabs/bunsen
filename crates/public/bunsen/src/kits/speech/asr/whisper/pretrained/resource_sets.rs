@@ -1,12 +1,11 @@
 //! # Whisper resource sets
 
+/// The key of the checkpoint in a Whisper resource set.
+pub use crate::data::builds::CHECKPOINT;
 use crate::{
     data::resources::ResourceSet,
     kits::speech::asr::whisper::driver::WhisperSpecialIds,
 };
-
-/// The key of the checkpoint in a Whisper resource set.
-pub const CHECKPOINT: &str = "checkpoint";
 
 /// The key of the `.tiktoken` vocabulary in a Whisper resource set.
 pub const VOCABULARY: &str = "vocabulary";

@@ -46,7 +46,6 @@ pub use construct::*;
 
 pub mod interop;
 
-#[cfg(feature = "store")]
 pub mod pretrained;
 
 pub use blocks::model::*;

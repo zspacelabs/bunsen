@@ -14,7 +14,7 @@ use crate::data::builds::{
 pub const RESNET_KIT: &str = "resnet";
 
 /// The key of the checkpoint in a `ResNet` resource set.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// The `kind` label of every checkpoint here: a `PyTorch` state dict in
 /// fp32.
@@ -38,7 +38,7 @@ pub fn default_resnet_providers() -> Vec<Arc<dyn BuildProvider>> {
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             RESNET_CATALOG_CONTRACT,
         )),
-        Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
+        Arc::new(HfProvider::new()),
     ]
 }
 

@@ -15,10 +15,9 @@ use crate::{
 pub const SORTFORMER_KIT: &str = "sortformer";
 
 /// The key of the checkpoint in a Sortformer resource set.
-pub const CHECKPOINT: &str = "checkpoint";
-
+pub use crate::data::builds::CHECKPOINT;
 /// The `kind` of a `transformers` `model.safetensors` checkpoint.
-pub const SAFETENSORS: &str = "safetensors";
+pub use crate::data::resources::SAFETENSORS;
 
 /// The `kind` of a `NeMo` `.nemo` checkpoint: its config and its weights in
 /// one archive.
@@ -45,11 +44,7 @@ pub fn default_sortformer_providers() -> Vec<Arc<dyn BuildProvider>> {
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             SORTFORMER_CATALOG_CONTRACT,
         )),
-        Arc::new(
-            HfProvider::new()
-                .with_checkpoint_key(CHECKPOINT)
-                .with_archive_checkpoint(".nemo", NEMO),
-        ),
+        Arc::new(HfProvider::new().with_archive_checkpoint(".nemo", NEMO)),
     ]
 }
 

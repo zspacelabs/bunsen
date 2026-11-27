@@ -14,7 +14,7 @@ use crate::data::builds::{
 pub const VIT_KIT: &str = "vit";
 
 /// The key of the checkpoint in a `ViT` resource set.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// What the vit kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
@@ -35,7 +35,7 @@ pub fn default_vit_providers() -> Vec<Arc<dyn BuildProvider>> {
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             VIT_CATALOG_CONTRACT,
         )),
-        Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
+        Arc::new(HfProvider::new()),
     ]
 }
 

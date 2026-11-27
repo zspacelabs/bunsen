@@ -6,14 +6,8 @@ use crate::{
     data::builds::{
         BuildFactory,
         BuildProvider,
-        HfProvider,
     },
     errors::BunsenResult,
-    kits::language::generation::qwen3::{
-        GENERATION_CONFIG,
-        TOKENIZER,
-        TOKENIZER_CONFIG,
-    },
 };
 
 /// The Qwen3 kit's name: its rows' `kit` tag.
@@ -22,19 +16,15 @@ pub const QWEN3_KIT: &str = "qwen3";
 /// The key of the checkpoint in a Qwen3 resource set: one
 /// `model.safetensors`, or `checkpoint.index` and its shards
 /// `checkpoint.<n>`.
-pub const CHECKPOINT: &str = "checkpoint";
-
-/// The `kind` of a `config.json`.
-pub const JSON: &str = "json";
-
-/// The `kind` of a `transformers` `tokenizer.json`.
-pub const TOKENIZER_JSON: &str = "tokenizer.json";
-
-/// The `kind` of a `transformers` `tokenizer_config.json`.
-pub const TOKENIZER_CONFIG_JSON: &str = "tokenizer_config.json";
-
+pub use crate::data::builds::CHECKPOINT;
 /// The `kind` of a `transformers` `generation_config.json`.
-pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
+pub use crate::data::builds::GENERATION_CONFIG_JSON;
+/// The `kind` of a `transformers` `tokenizer_config.json`.
+pub use crate::data::builds::TOKENIZER_CONFIG_JSON;
+/// The `kind` of a `transformers` `tokenizer.json`.
+pub use crate::data::builds::TOKENIZER_JSON;
+/// The `kind` of a `config.json`.
+pub use crate::data::resources::JSON;
 
 /// What the qwen3 kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
@@ -51,28 +41,14 @@ pub const DEFAULT_QWEN3_MODEL: &str = "qwen/qwen3/qwen3-0.6b";
 /// Qwen3's compiled-in providers, in search order: the catalog provider,
 /// then `hf:org/repo`, a Hugging Face repo in `transformers`'
 /// `Qwen3ForCausalLM` layout (its safetensors checkpoint, one file or
-/// shards, and its `config.json`), with its [`TOKENIZER`],
-/// [`TOKENIZER_CONFIG`] and [`GENERATION_CONFIG`] files when it has them.
+/// shards, and its `config.json`), with its [`TOKENIZER`](crate::kits::support::construct::TOKENIZER),
+/// [`TOKENIZER_CONFIG`](crate::kits::support::construct::TOKENIZER_CONFIG) and [`GENERATION_CONFIG`](crate::kits::support::construct::GENERATION_CONFIG) files when it has them.
 pub fn default_qwen3_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             QWEN3_CATALOG_CONTRACT,
         )),
-        Arc::new(
-            HfProvider::new()
-                .with_checkpoint_key(CHECKPOINT)
-                .with_extra_file(TOKENIZER, "tokenizer.json", TOKENIZER_JSON)
-                .with_extra_file(
-                    TOKENIZER_CONFIG,
-                    "tokenizer_config.json",
-                    TOKENIZER_CONFIG_JSON,
-                )
-                .with_extra_file(
-                    GENERATION_CONFIG,
-                    "generation_config.json",
-                    GENERATION_CONFIG_JSON,
-                ),
-        ),
+        Arc::new(crate::kits::support::pretrained::transformers_lm_hf_provider(false)),
     ]
 }
 
@@ -100,9 +76,16 @@ mod tests {
             builds::CONFIG,
             pretrained::Prefabs,
         },
-        kits::language::generation::qwen3::{
-            Qwen3Config,
-            interop::transformers::qwen3_config_from_str,
+        kits::{
+            language::generation::qwen3::{
+                Qwen3Config,
+                interop::transformers::qwen3_config_from_str,
+            },
+            support::construct::{
+                GENERATION_CONFIG,
+                TOKENIZER,
+                TOKENIZER_CONFIG,
+            },
         },
         support::testing::testdata,
     };

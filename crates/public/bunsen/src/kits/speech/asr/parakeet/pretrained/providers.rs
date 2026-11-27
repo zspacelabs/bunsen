@@ -15,21 +15,19 @@ use crate::{
 pub const PARAKEET_KIT: &str = "parakeet";
 
 /// The key of the checkpoint in a Parakeet resource set.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// The key of the vocabulary in a Parakeet resource set, for a checkpoint
 /// that does not carry its own.
 pub const VOCABULARY: &str = "vocabulary";
 
+/// The `kind` of a `transformers` `tokenizer.json` vocabulary.
+pub use crate::data::builds::TOKENIZER_JSON;
 /// The `kind` of a Phonon archive: a zstd tar of a `.fermion` container and
 /// its `NeMo` config, which carries the vocabulary.
-pub const PHONON_ARCHIVE: &str = "phonon archive";
-
+pub use crate::data::resources::PHONON_ARCHIVE;
 /// The `kind` of a `transformers` `model.safetensors` checkpoint.
-pub const SAFETENSORS: &str = "safetensors";
-
-/// The `kind` of a `transformers` `tokenizer.json` vocabulary.
-pub const TOKENIZER_JSON: &str = "tokenizer.json";
+pub use crate::data::resources::SAFETENSORS;
 
 /// What the parakeet kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
@@ -52,11 +50,7 @@ pub fn default_parakeet_providers() -> Vec<Arc<dyn BuildProvider>> {
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             PARAKEET_CATALOG_CONTRACT,
         )),
-        Arc::new(
-            HfProvider::new()
-                .with_checkpoint_key(CHECKPOINT)
-                .with_extra_file(VOCABULARY, "tokenizer.json", TOKENIZER_JSON),
-        ),
+        Arc::new(HfProvider::new().with_extra_file(VOCABULARY, "tokenizer.json", TOKENIZER_JSON)),
     ]
 }
 

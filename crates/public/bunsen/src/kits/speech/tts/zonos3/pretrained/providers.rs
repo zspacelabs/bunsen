@@ -15,7 +15,7 @@ use crate::{
 pub const ZONOS3_KIT: &str = "zonos3";
 
 /// The key of the checkpoint in a ZONOS3 resource set.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// The key of `config.json`.
 pub const CONFIG: &str = "config";
@@ -31,7 +31,7 @@ pub const VOICES: &str = "voices";
 pub const VOICE_INFO: &str = "voice_info";
 
 /// The format of a safetensors file.
-pub const SAFETENSORS_FORMAT: &str = "safetensors";
+pub use crate::data::resources::SAFETENSORS;
 
 /// What the zonos3 kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
@@ -115,11 +115,11 @@ mod tests {
         assert_eq!(
             contract_lines(ZONOS3_CONTRACT),
             [
-                format!("zonos3-tts: {CHECKPOINT} [{SAFETENSORS_FORMAT}]"),
+                format!("zonos3-tts: {CHECKPOINT} [{SAFETENSORS}]"),
                 format!("zonos3-tts: {CONFIG} [json]"),
                 format!("zonos3-tts: {TOKENIZER} [tokenizer.json]"),
                 format!("zonos3-tts: {VOICE_INFO}? [json]"),
-                format!("zonos3-tts: {VOICES} [{SAFETENSORS_FORMAT}]"),
+                format!("zonos3-tts: {VOICES} [{SAFETENSORS}]"),
             ]
         );
     }

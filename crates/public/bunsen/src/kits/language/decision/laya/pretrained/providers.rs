@@ -15,7 +15,7 @@ pub const LAYA_KIT: &str = "laya";
 
 /// The key of the checkpoint in a Laya resource set: its
 /// `model.safetensors`.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// The key of the encoder's `config.json`.
 pub const ENCODER_CONFIG: &str = "encoder_config";

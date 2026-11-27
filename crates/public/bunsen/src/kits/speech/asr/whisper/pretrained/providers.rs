@@ -2,12 +2,9 @@
 
 use alloc::sync::Arc;
 
-use crate::{
-    data::builds::{
-        BuildProvider,
-        HfProvider,
-    },
-    kits::speech::asr::whisper::pretrained::CHECKPOINT,
+use crate::data::builds::{
+    BuildProvider,
+    HfProvider,
 };
 
 /// The Whisper kit's name: its rows' `kit` tag.
@@ -33,14 +30,14 @@ pub const WHISPER_CATALOG_CONTRACT: &str = "whisper-asr";
 ///
 /// The data layer's [`HfProvider`] serves the last: a repo's
 /// `transformers` safetensors checkpoint, one file or shards, under
-/// [`CHECKPOINT`]. The factory over these is
+/// [`CHECKPOINT`](crate::kits::speech::asr::whisper::pretrained::CHECKPOINT). The factory over these is
 /// [`default_whisper_factory`](super::default_whisper_factory).
 pub fn default_whisper_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             WHISPER_CATALOG_CONTRACT,
         )),
-        Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
+        Arc::new(HfProvider::new()),
     ]
 }
 
@@ -55,6 +52,7 @@ mod tests {
             WhisperApiConfig,
             driver::WhisperSpecialIds,
             pretrained::{
+                CHECKPOINT,
                 VOCABULARY,
                 WhisperVocabulary,
             },

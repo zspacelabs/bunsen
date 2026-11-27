@@ -1,5 +1,7 @@
 //! A loaded nanochat model, with the files a decode reads beside it.
 use super::NanoChatGpt;
+/// The key of the state dict, `model_<step>.pt`, in a nanochat resource set.
+pub use crate::data::builds::CHECKPOINT;
 use crate::kits::support::{
     construct::{
         LmConstruct,
@@ -10,9 +12,6 @@ use crate::kits::support::{
         SamplingPolicy,
     },
 };
-
-/// The key of the state dict, `model_<step>.pt`, in a nanochat resource set.
-pub const CHECKPOINT: &str = "checkpoint";
 
 /// The key of the checkpoint's meta, `meta_<step>.json`, in a nanochat
 /// resource set.
