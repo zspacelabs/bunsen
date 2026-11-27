@@ -74,9 +74,11 @@ impl ConstructInit for LayaConstructConfig {
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         match map.try_get(CHECKPOINT)?.format.as_deref() {
             Some(SAFETENSORS) => Ok(Self),
-            other => Err(BunsenError::unsupported(format!(
-                "no Laya reader for a checkpoint of kind {other:?}"
-            ))),
+            other => Err(crate::kits::support::pretrained::unsupported_kind(
+                "Laya",
+                "checkpoint",
+                other,
+            )),
         }
     }
 

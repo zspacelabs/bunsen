@@ -18,10 +18,7 @@ use crate::{
             ResourceSet,
         },
     },
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::{
         language::generation::nanochat::{
             CHECKPOINT,
@@ -66,9 +63,11 @@ impl ConstructInit for NanoChatConstructConfig {
         map.try_get(META)?;
         match map.try_get(CHECKPOINT)?.format.as_deref() {
             Some(PYTORCH) => Ok(Self),
-            other => Err(BunsenError::unsupported(format!(
-                "no nanochat reader for a checkpoint of kind {other:?}"
-            ))),
+            other => Err(crate::kits::support::pretrained::unsupported_kind(
+                "nanochat",
+                "checkpoint",
+                other,
+            )),
         }
     }
 

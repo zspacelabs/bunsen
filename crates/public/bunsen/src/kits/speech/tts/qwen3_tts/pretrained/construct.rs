@@ -106,9 +106,11 @@ impl ConstructInit for Qwen3TtsConstructConfig {
             if let (Some(want), Some(got)) = (format, resource.format.as_deref())
                 && want != got
             {
-                return Err(BunsenError::unsupported(format!(
-                    "no Qwen3-TTS reader for a `{key}` of kind {got:?}"
-                )));
+                return Err(crate::kits::support::pretrained::unsupported_kind(
+                    "Qwen3-TTS",
+                    key,
+                    Some(got),
+                ));
             }
         }
         Ok(Self)

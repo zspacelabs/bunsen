@@ -68,9 +68,11 @@ impl SortformerReader {
         match kind {
             Some(NEMO) => Ok(Self::Nemo),
             Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::Safetensors),
-            other => Err(BunsenError::unsupported(format!(
-                "no Sortformer reader for a checkpoint of kind {other:?}"
-            ))),
+            other => Err(crate::kits::support::pretrained::unsupported_kind(
+                "Sortformer",
+                "checkpoint",
+                other,
+            )),
         }
     }
 }
@@ -169,11 +171,7 @@ impl ConstructInit for SortformerConstructConfig {
     /// The hook for the checkpoint's `kind`, one file or a sharded one's
     /// index.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
-        let index = format!("{CHECKPOINT}.index");
-        let checkpoint = match map.get(&index) {
-            Some(index) => index,
-            None => map.try_get(CHECKPOINT)?,
-        };
+        let checkpoint = map.try_get_checkpoint(CHECKPOINT)?;
         Ok(Self {
             reader: SortformerReader::for_kind(checkpoint.format.as_deref())?,
         })
