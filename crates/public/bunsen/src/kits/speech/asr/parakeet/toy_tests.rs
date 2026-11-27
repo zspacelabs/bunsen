@@ -28,9 +28,11 @@ use crate::{
     burner::module::ModuleInit,
     ops::transformers::attention::rel_position_table,
     support::testing::{
+        TOY,
         ToyFixture,
         assert_io_close,
         expect_variant,
+        matching::TensorMatcher,
         performance_device,
         testdata,
     },
@@ -89,15 +91,6 @@ impl Toy {
     ) -> Tensor<D> {
         self.fixture.io(key)
     }
-}
-
-/// The valid frames of `[batch, time, ...]` item `b`.
-fn valid<const D: usize>(
-    x: Tensor<D>,
-    b: usize,
-    len: usize,
-) -> Tensor<D> {
-    x.slice_dim(0, b..b + 1).slice_dim(1, 0..len)
 }
 
 /// `[batch, time, n_mels]` (the fixture's layout) to `[batch, n_mels, time]`.
@@ -165,13 +158,10 @@ fn test_toy_encoder() {
     let (encoded, lengths) = toy.model.encoder.forward(features(&toy), Some(&LENGTHS));
     assert_eq!(lengths, OUT_LENGTHS);
     let expected: Tensor<3> = toy.io("encoder");
-    for (b, &len) in OUT_LENGTHS.iter().enumerate() {
-        assert_io_close(
-            &format!("encoder item {b}"),
-            valid(encoded.clone(), b, len),
-            valid(expected.clone(), b, len),
-        );
-    }
+    TensorMatcher::close_to(&expected, TOY)
+        .valid_prefix(1, &OUT_LENGTHS)
+        .named("encoder")
+        .assert(&encoded);
 
     // Item 1 alone, unpadded, encodes as it does in the batch.
     let alone = features(&toy)
@@ -181,7 +171,7 @@ fn test_toy_encoder() {
     assert_io_close(
         "encoder item 1 alone",
         alone,
-        valid(expected, 1, OUT_LENGTHS[1]),
+        expected.slice_dim(0, 1..2).slice_dim(1, 0..OUT_LENGTHS[1]),
     );
 }
 
@@ -192,13 +182,10 @@ fn test_toy_transducer() {
     let toy = Toy::load();
     let (projected, _) = toy.model.encode(features(&toy), Some(&LENGTHS));
     let expected: Tensor<3> = toy.io("projected");
-    for (b, &len) in OUT_LENGTHS.iter().enumerate() {
-        assert_io_close(
-            &format!("projected item {b}"),
-            valid(projected.clone(), b, len),
-            valid(expected.clone(), b, len),
-        );
-    }
+    TensorMatcher::close_to(&expected, TOY)
+        .valid_prefix(1, &OUT_LENGTHS)
+        .named("projected")
+        .assert(&projected);
 
     let tokens = toy.io::<2>("tokens").int();
     let decoded = toy.model.decoder.forward(tokens);
@@ -209,11 +196,8 @@ fn test_toy_transducer() {
         decoded.unsqueeze_dim::<4>(1),
     );
     let expected: Tensor<4> = toy.io("logits");
-    for (b, &len) in OUT_LENGTHS.iter().enumerate() {
-        assert_io_close(
-            &format!("logits item {b}"),
-            valid(logits.clone(), b, len),
-            valid(expected.clone(), b, len),
-        );
-    }
+    TensorMatcher::close_to(&expected, TOY)
+        .valid_prefix(1, &OUT_LENGTHS)
+        .named("logits")
+        .assert(&logits);
 }

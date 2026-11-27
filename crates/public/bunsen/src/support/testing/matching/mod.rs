@@ -17,7 +17,11 @@
 //! re-exports this module's items).
 
 mod matcher;
+#[cfg(test)]
+mod tensor;
 pub mod text;
 pub mod value;
 
 pub use matcher::*;
+#[cfg(test)]
+pub(crate) use tensor::*;
