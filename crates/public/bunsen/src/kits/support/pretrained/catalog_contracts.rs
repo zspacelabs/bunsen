@@ -228,9 +228,13 @@ pub fn contracts_section(contracts: &[KitCatalogContract]) -> BunsenResult<Order
     Ok(OrderedNode::Map(entries))
 }
 
-/// What the kits' tests hold their fragments to.
-#[cfg(test)]
-pub(crate) mod testing {
+/// What a kit's tests hold its catalog contract fragment to: the fragment's
+/// contracts, one line per slot, for a table comparison.
+///
+/// This module exists with the `testing` feature, and in bunsen's own unit
+/// tests.
+#[cfg(any(test, feature = "testing"))]
+pub mod testing {
     use alloc::{
         format,
         string::{
@@ -252,7 +256,7 @@ pub(crate) mod testing {
     /// `{contract}: {slot}: {type}` for an argument slot, a `?` after an
     /// optional slot's name, and `{contract}: abstract` for an abstract
     /// contract; a variant's contract is its path (`qwen3-asr/stated`).
-    pub(crate) fn contract_lines(yaml: &'static str) -> Vec<String> {
+    pub fn contract_lines(yaml: &'static str) -> Vec<String> {
         let section = contracts_section(&[KitCatalogContract { kit: "test", yaml }]).unwrap();
         let catalog = BunsenCatalog::from_node(OrderedNode::Map(alloc::vec![(
             "$contracts".to_string(),
