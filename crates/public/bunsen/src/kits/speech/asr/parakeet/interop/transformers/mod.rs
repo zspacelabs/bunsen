@@ -194,6 +194,7 @@ pub fn parakeet_tdt_config_from_path(path: &Path) -> BunsenResult<ParakeetTdtCon
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::assert_config_eq;
 
     #[test]
     fn test_parakeet_tdt_rekey() {
@@ -291,10 +292,7 @@ mod tests {
                 "subsampling_conv_stride": 2, "subsampling_factor": 8},
             "model_type": "parakeet_tdt", "num_decoder_layers": 2, "vocab_size": 8193}"#;
         let config = parakeet_tdt_config_from_str(V3).unwrap();
-        assert_eq!(
-            format!("{config:?}"),
-            format!("{:?}", ParakeetTdtConfig::tdt_0_6b_v3())
-        );
+        assert_config_eq("the config", &config, &ParakeetTdtConfig::tdt_0_6b_v3());
 
         let ctc = V3.replace("parakeet_tdt", "parakeet_ctc");
         crate::errors::testing::ErrorMatcher::unsupported()

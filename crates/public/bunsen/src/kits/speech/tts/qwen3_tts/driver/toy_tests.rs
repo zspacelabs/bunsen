@@ -56,6 +56,7 @@ use crate::{
     },
     support::testing::{
         ToyFixture,
+        expect_variant,
         performance_device,
     },
 };
@@ -325,9 +326,7 @@ fn test_synthesize() {
         .with_language("english")
         .with_seed(3);
     let speech = driver.synthesize(&request).unwrap();
-    let [take] = speech.takes.as_slice() else {
-        panic!("one take: {:?}", speech.takes);
-    };
+    expect_variant!(let [take] = speech.takes.as_slice());
     assert!((1..=5).contains(&take.frames), "{take:?}");
     assert_eq!(speech.samples.len(), take.frames * 24);
     assert_eq!(speech.sample_rate, 300);

@@ -181,6 +181,7 @@ mod tests {
     use crate::{
         errors::testing::ErrorMatcher,
         kits::speech::asr::qwen3_asr::Qwen3AsrFrontEndMeta,
+        support::testing::assert_config_eq,
     };
 
     /// `Qwen/Qwen3-ASR-0.6B-hf`'s `processor_config.json`.
@@ -216,10 +217,7 @@ mod tests {
         let phonon: Qwen3AsrFeatureExtractorMirror = serde_json::from_str(PHONON).unwrap();
         for mirror in [hf(), phonon] {
             let config = mirror.front_end_config().unwrap();
-            assert_eq!(
-                format!("{config:?}"),
-                format!("{:?}", Qwen3AsrFrontEndConfig::new())
-            );
+            assert_config_eq("the config", &config, &Qwen3AsrFrontEndConfig::new());
             assert_eq!(config.min_samples(), 480_000);
             mirror
                 .check_model(&Qwen3AsrConfig::qwen3_asr_0_6b())

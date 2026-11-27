@@ -97,77 +97,82 @@ pub fn transformer_encoder_rekey() -> Rekey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::blocks::signals::DwStridingSubsamplingConfig;
+    use crate::{
+        blocks::signals::DwStridingSubsamplingConfig,
+        burner::module::testing::assert_rekeys,
+    };
 
     /// `NeMo`'s `ConformerEncoder` names, the subsampling's flat `conv`
     /// list and every block's renames among them.
     #[test]
     fn test_conformer_encoder_rekey() {
         let rekey = conformer_encoder_rekey(&DwStridingSubsamplingConfig::new(80, 4, 16));
-        for (nemo, bunsen) in [
-            (
-                "pre_encode.conv.0.weight",
-                Some("subsampling.stem.conv.weight"),
-            ),
-            (
-                "pre_encode.conv.2.bias",
-                Some("subsampling.stages.0.depthwise.conv.bias"),
-            ),
-            (
-                "pre_encode.conv.3.weight",
-                Some("subsampling.stages.0.pointwise.conv.weight"),
-            ),
-            (
-                "pre_encode.conv.5.weight",
-                Some("subsampling.stages.1.depthwise.conv.weight"),
-            ),
-            (
-                "pre_encode.conv.6.bias",
-                Some("subsampling.stages.1.pointwise.conv.bias"),
-            ),
-            ("pre_encode.conv.4.weight", None),
-            ("pre_encode.conv.8.weight", None),
-            ("pre_encode.out.weight", Some("subsampling.linear.weight")),
-            (
-                "layers.3.self_attn.linear_pos.weight",
-                Some("transformer.layers.3.attn.pos.weight"),
-            ),
-            (
-                "layers.0.self_attn.pos_bias_u",
-                Some("transformer.layers.0.attn.pos_bias_u"),
-            ),
-            (
-                "layers.1.conv.batch_norm.running_var",
-                Some("transformer.layers.1.conv.depthwise.norm.running_var"),
-            ),
-            ("layers.1.conv.batch_norm.num_batches_tracked", None),
-            (
-                "layers.0.norm_feed_forward1.weight",
-                Some("transformer.layers.0.feed_forward1_norm.weight"),
-            ),
-            ("pos_enc.pe", None),
-        ] {
-            assert_eq!(rekey.apply(nemo).as_deref(), bunsen, "{nemo}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                (
+                    "pre_encode.conv.0.weight",
+                    Some("subsampling.stem.conv.weight"),
+                ),
+                (
+                    "pre_encode.conv.2.bias",
+                    Some("subsampling.stages.0.depthwise.conv.bias"),
+                ),
+                (
+                    "pre_encode.conv.3.weight",
+                    Some("subsampling.stages.0.pointwise.conv.weight"),
+                ),
+                (
+                    "pre_encode.conv.5.weight",
+                    Some("subsampling.stages.1.depthwise.conv.weight"),
+                ),
+                (
+                    "pre_encode.conv.6.bias",
+                    Some("subsampling.stages.1.pointwise.conv.bias"),
+                ),
+                ("pre_encode.conv.4.weight", None),
+                ("pre_encode.conv.8.weight", None),
+                ("pre_encode.out.weight", Some("subsampling.linear.weight")),
+                (
+                    "layers.3.self_attn.linear_pos.weight",
+                    Some("transformer.layers.3.attn.pos.weight"),
+                ),
+                (
+                    "layers.0.self_attn.pos_bias_u",
+                    Some("transformer.layers.0.attn.pos_bias_u"),
+                ),
+                (
+                    "layers.1.conv.batch_norm.running_var",
+                    Some("transformer.layers.1.conv.depthwise.norm.running_var"),
+                ),
+                ("layers.1.conv.batch_norm.num_batches_tracked", None),
+                (
+                    "layers.0.norm_feed_forward1.weight",
+                    Some("transformer.layers.0.feed_forward1_norm.weight"),
+                ),
+                ("pos_enc.pe", None),
+            ],
+        );
     }
 
     /// `NeMo`'s `TransformerEncoder` names, layer by layer.
     #[test]
     fn test_transformer_encoder_rekey() {
         let rekey = transformer_encoder_rekey();
-        for (nemo, bunsen) in [
-            (
-                "layers.17.first_sub_layer.key_net.bias",
-                Some("layers.17.attn.c_k.bias"),
-            ),
-            (
-                "layers.0.second_sub_layer.dense_out.weight",
-                Some("layers.0.mlp.linear2.weight"),
-            ),
-            ("layers.2.layer_norm_2.bias", Some("layers.2.mlp_norm.bias")),
-            ("final_layer_norm.weight", None),
-        ] {
-            assert_eq!(rekey.apply(nemo).as_deref(), bunsen, "{nemo}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                (
+                    "layers.17.first_sub_layer.key_net.bias",
+                    Some("layers.17.attn.c_k.bias"),
+                ),
+                (
+                    "layers.0.second_sub_layer.dense_out.weight",
+                    Some("layers.0.mlp.linear2.weight"),
+                ),
+                ("layers.2.layer_norm_2.bias", Some("layers.2.mlp_norm.bias")),
+                ("final_layer_norm.weight", None),
+            ],
+        );
     }
 }

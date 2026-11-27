@@ -191,6 +191,7 @@ mod tests {
     use super::*;
     use crate::{
         blocks::transformers::models::language_decoder::LmDecoderMeta,
+        burner::module::testing::assert_rekeys,
         errors::testing::ErrorMatcher,
         kits::speech::asr::voxtral::blocks::{
             VoxtralAudioEncoderMeta,
@@ -201,67 +202,68 @@ mod tests {
     #[test]
     fn test_voxtral_realtime_rekey() {
         let rekey = voxtral_realtime_rekey();
-        for (hf, bunsen) in [
-            (
-                "audio_tower.embedder.conv1.weight",
-                Some("audio_tower.stem.blocks.0.conv.weight"),
-            ),
-            (
-                "audio_tower.embedder.conv2.bias",
-                Some("audio_tower.stem.blocks.1.conv.bias"),
-            ),
-            (
-                "audio_tower.layers.31.self_attn_layer_norm.weight",
-                Some("audio_tower.stack.layers.31.attn_norm.weight"),
-            ),
-            (
-                "audio_tower.layers.0.final_layer_norm.weight",
-                Some("audio_tower.stack.layers.0.mlp_norm.weight"),
-            ),
-            (
-                "audio_tower.layers.0.self_attn.o_proj.bias",
-                Some("audio_tower.stack.layers.0.attn.c_proj.bias"),
-            ),
-            (
-                "audio_tower.layers.0.mlp.down_proj.bias",
-                Some("audio_tower.stack.layers.0.mlp.down_proj.bias"),
-            ),
-            (
-                "audio_tower.norm.weight",
-                Some("audio_tower.stack.norm.weight"),
-            ),
-            (
-                "multi_modal_projector.linear_1.weight",
-                Some("multi_modal_projector.stacking.projection.weight"),
-            ),
-            (
-                "multi_modal_projector.linear_2.weight",
-                Some("multi_modal_projector.linear_2.weight"),
-            ),
-            (
-                "language_model.model.embed_tokens.weight",
-                Some("language_model.lm.embedding.weight"),
-            ),
-            (
-                "language_model.model.layers.25.ada_rms_norm.linear1.weight",
-                Some("language_model.lm.stack.layers.25.mlp_scale.mlp.linear1.weight"),
-            ),
-            (
-                "language_model.model.layers.3.self_attn.k_proj.weight",
-                Some("language_model.lm.stack.layers.3.attn.c_k.weight"),
-            ),
-            (
-                "language_model.model.layers.3.post_attention_layernorm.weight",
-                Some("language_model.lm.stack.layers.3.mlp_norm.weight"),
-            ),
-            (
-                "language_model.model.norm.weight",
-                Some("language_model.lm.stack.norm.weight"),
-            ),
-            ("lm_head.weight", None),
-        ] {
-            assert_eq!(rekey.apply(hf).as_deref(), bunsen, "{hf}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                (
+                    "audio_tower.embedder.conv1.weight",
+                    Some("audio_tower.stem.blocks.0.conv.weight"),
+                ),
+                (
+                    "audio_tower.embedder.conv2.bias",
+                    Some("audio_tower.stem.blocks.1.conv.bias"),
+                ),
+                (
+                    "audio_tower.layers.31.self_attn_layer_norm.weight",
+                    Some("audio_tower.stack.layers.31.attn_norm.weight"),
+                ),
+                (
+                    "audio_tower.layers.0.final_layer_norm.weight",
+                    Some("audio_tower.stack.layers.0.mlp_norm.weight"),
+                ),
+                (
+                    "audio_tower.layers.0.self_attn.o_proj.bias",
+                    Some("audio_tower.stack.layers.0.attn.c_proj.bias"),
+                ),
+                (
+                    "audio_tower.layers.0.mlp.down_proj.bias",
+                    Some("audio_tower.stack.layers.0.mlp.down_proj.bias"),
+                ),
+                (
+                    "audio_tower.norm.weight",
+                    Some("audio_tower.stack.norm.weight"),
+                ),
+                (
+                    "multi_modal_projector.linear_1.weight",
+                    Some("multi_modal_projector.stacking.projection.weight"),
+                ),
+                (
+                    "multi_modal_projector.linear_2.weight",
+                    Some("multi_modal_projector.linear_2.weight"),
+                ),
+                (
+                    "language_model.model.embed_tokens.weight",
+                    Some("language_model.lm.embedding.weight"),
+                ),
+                (
+                    "language_model.model.layers.25.ada_rms_norm.linear1.weight",
+                    Some("language_model.lm.stack.layers.25.mlp_scale.mlp.linear1.weight"),
+                ),
+                (
+                    "language_model.model.layers.3.self_attn.k_proj.weight",
+                    Some("language_model.lm.stack.layers.3.attn.c_k.weight"),
+                ),
+                (
+                    "language_model.model.layers.3.post_attention_layernorm.weight",
+                    Some("language_model.lm.stack.layers.3.mlp_norm.weight"),
+                ),
+                (
+                    "language_model.model.norm.weight",
+                    Some("language_model.lm.stack.norm.weight"),
+                ),
+                ("lm_head.weight", None),
+            ],
+        );
     }
 
     const CONFIG_JSON: &str = include_str!(concat!(

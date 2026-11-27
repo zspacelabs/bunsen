@@ -185,6 +185,7 @@ mod tests {
             ToyFixture,
             assert_io_close,
             cpu_device,
+            expect_variant,
         },
     };
 
@@ -210,9 +211,7 @@ mod tests {
                     .io::<2>(&format!("{case}.reduction.weight"))
                     .transpose(),
             );
-            let BunsenNormalization::Layer(norm) = &mut merge.norm else {
-                panic!("a layer norm");
-            };
+            expect_variant!(let BunsenNormalization::Layer(norm) = &mut merge.norm, "a layer norm");
             norm.gamma = Param::from_tensor(fixture.io(&format!("{case}.norm.weight")));
             norm.beta = Some(Param::from_tensor(fixture.io(&format!("{case}.norm.bias"))));
             let x: Tensor<4> = fixture.io(&format!("{case}.x"));

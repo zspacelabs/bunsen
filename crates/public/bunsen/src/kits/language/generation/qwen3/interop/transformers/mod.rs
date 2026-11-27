@@ -139,51 +139,57 @@ pub fn qwen3_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::testing::ErrorMatcher;
+    use crate::{
+        burner::module::testing::assert_rekeys,
+        errors::testing::ErrorMatcher,
+        support::testing::assert_config_eq,
+    };
 
     /// `transformers`' Qwen3 decoder-layer names, onto the block's own.
     #[test]
     fn test_text_layer_rekey() {
         let rekey = text_layer_rekey();
-        for (hf, bunsen) in [
-            ("input_layernorm.weight", "attn_norm.weight"),
-            ("post_attention_layernorm.weight", "mlp_norm.weight"),
-            ("self_attn.q_proj.weight", "attn.c_q.weight"),
-            ("self_attn.k_proj.weight", "attn.c_k.weight"),
-            ("self_attn.v_proj.weight", "attn.c_v.weight"),
-            ("self_attn.o_proj.weight", "attn.c_proj.weight"),
-            ("self_attn.q_norm.weight", "attn.q_norm.weight"),
-            ("self_attn.k_norm.weight", "attn.k_norm.weight"),
-            ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
-            ("mlp.down_proj.weight", "mlp.down_proj.weight"),
-        ] {
-            assert_eq!(rekey.apply(hf).as_deref(), Some(bunsen), "{hf}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                ("input_layernorm.weight", "attn_norm.weight"),
+                ("post_attention_layernorm.weight", "mlp_norm.weight"),
+                ("self_attn.q_proj.weight", "attn.c_q.weight"),
+                ("self_attn.k_proj.weight", "attn.c_k.weight"),
+                ("self_attn.v_proj.weight", "attn.c_v.weight"),
+                ("self_attn.o_proj.weight", "attn.c_proj.weight"),
+                ("self_attn.q_norm.weight", "attn.q_norm.weight"),
+                ("self_attn.k_norm.weight", "attn.k_norm.weight"),
+                ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
+                ("mlp.down_proj.weight", "mlp.down_proj.weight"),
+            ],
+        );
     }
 
     #[test]
     fn test_qwen3_rekey() {
         let rekey = qwen3_rekey();
-        for (hf, bunsen) in [
-            ("model.embed_tokens.weight", Some("embedding.weight")),
-            (
-                "model.layers.0.self_attn.o_proj.weight",
-                Some("stack.layers.0.attn.c_proj.weight"),
-            ),
-            (
-                "model.layers.27.self_attn.k_norm.weight",
-                Some("stack.layers.27.attn.k_norm.weight"),
-            ),
-            (
-                "model.layers.3.mlp.up_proj.weight",
-                Some("stack.layers.3.mlp.up_proj.weight"),
-            ),
-            ("model.norm.weight", Some("stack.norm.weight")),
-            ("lm_head.weight", Some("head.proj.weight")),
-            ("lm_head.bias", None),
-        ] {
-            assert_eq!(rekey.apply(hf).as_deref(), bunsen, "{hf}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                ("model.embed_tokens.weight", Some("embedding.weight")),
+                (
+                    "model.layers.0.self_attn.o_proj.weight",
+                    Some("stack.layers.0.attn.c_proj.weight"),
+                ),
+                (
+                    "model.layers.27.self_attn.k_norm.weight",
+                    Some("stack.layers.27.attn.k_norm.weight"),
+                ),
+                (
+                    "model.layers.3.mlp.up_proj.weight",
+                    Some("stack.layers.3.mlp.up_proj.weight"),
+                ),
+                ("model.norm.weight", Some("stack.norm.weight")),
+                ("lm_head.weight", Some("head.proj.weight")),
+                ("lm_head.bias", None),
+            ],
+        );
     }
 
     macro_rules! config_json {
@@ -274,7 +280,7 @@ mod tests {
             ),
         ] {
             let config = qwen3_config_from_str(json).unwrap();
-            assert_eq!(format!("{config:?}"), format!("{expected:?}"), "{name}");
+            assert_config_eq(name, &config, &expected);
         }
 
         let small = config_json!("qwen3-0.6b");

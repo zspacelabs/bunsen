@@ -70,6 +70,7 @@ mod tests {
     use crate::{
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
+        support::testing::assert_config_eq,
     };
 
     /// A timm config of `architecture` with `num_classes` classes.
@@ -92,13 +93,10 @@ mod tests {
         for name in ResNetContractConfig::prefab_names() {
             let mut want = ResNetContractConfig::expect_prefab(name);
             want.num_classes = 11821;
-            assert_eq!(
-                format!(
-                    "{:?}",
-                    resnet_contract_config(&config(name, 11821)).unwrap()
-                ),
-                format!("{want:?}"),
-                "{name}"
+            assert_config_eq(
+                name,
+                &resnet_contract_config(&config(name, 11821)).unwrap(),
+                &want,
             );
         }
     }

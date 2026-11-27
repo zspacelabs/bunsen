@@ -66,6 +66,7 @@ use crate::{
     },
     support::testing::{
         ToyFixture,
+        expect_variant,
         performance_device,
         tensor_to_vec_as,
     },
@@ -377,9 +378,7 @@ fn test_tts_driver() {
         .with_seed(7)
         .with_max_seconds(12.0 / 4900.0);
     let speech = driver.synthesize(&request).unwrap();
-    let [take] = speech.takes.as_slice() else {
-        panic!("one take: {:?}", speech.takes);
-    };
+    expect_variant!(let [take] = speech.takes.as_slice());
     assert!(take.steps <= 12, "{take:?}");
     assert_eq!(speech.samples.len(), take.frames * 9);
     assert_eq!(speech.sample_rate, 44_100);

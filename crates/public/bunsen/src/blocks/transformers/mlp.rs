@@ -166,6 +166,7 @@ mod tests {
         contracts::assert_shape_contract,
         support::testing::{
             DeviceMemoryGuard,
+            expect_variant,
             performance_device,
         },
     };
@@ -188,9 +189,7 @@ mod tests {
         assert_eq!(config.n_embed(), 8);
         let ff: TransformerFeedForward = config.init(&device);
         assert_eq!(ff.n_embed(), 8);
-        let TransformerFeedForward::Moe(moe) = &ff else {
-            panic!("a mixture of experts");
-        };
+        expect_variant!(let TransformerFeedForward::Moe(moe) = &ff, "a mixture of experts");
         let x = crate::support::testing::seeded_tensor::<3>(
             4,
             [2, 3, 8],
@@ -218,9 +217,10 @@ mod tests {
     fn test_mlp_variant() {
         let device = crate::support::testing::cpu_device();
         let config: TransformerFeedForwardConfig = BunsenMlpConfig::expansion(4, 4).into();
-        let TransformerFeedForwardConfig::Mlp(structure) = &config else {
-            panic!("a plain feed-forward");
-        };
+        expect_variant!(
+            let TransformerFeedForwardConfig::Mlp(structure) = &config,
+            "a plain feed-forward",
+        );
         assert_eq!(structure.d_hidden(), 16);
         let ff: TransformerFeedForward = config.init(&device);
         assert_eq!(ff.n_embed(), 4);

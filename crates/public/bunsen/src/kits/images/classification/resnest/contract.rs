@@ -126,6 +126,7 @@ mod tests {
         },
         errors::testing::ErrorMatcher,
         kits::images::classification::resnet::BottleneckPolicyConfig,
+        support::testing::expect_variant,
     };
 
     /// timm's `resnest50d`: radix 2, `avd` after the mixer, around
@@ -137,9 +138,10 @@ mod tests {
         );
         let structure = config.to_structure();
         let unit = &structure.stages[1].units[0];
-        let ResidualConvConfig::SplitAttn(attn) = &unit.convs[1] else {
-            panic!("a split attention");
-        };
+        expect_variant!(
+            let ResidualConvConfig::SplitAttn(attn) = &unit.convs[1],
+            "a split attention",
+        );
         assert_eq!(
             (attn.radix, attn.stride(), attn.out_channels()),
             (2, 1, 128)

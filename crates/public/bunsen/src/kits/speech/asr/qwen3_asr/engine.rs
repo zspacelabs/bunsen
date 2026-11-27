@@ -382,6 +382,7 @@ mod tests {
         },
         support::testing::{
             assert_scalar_close,
+            expect_variant,
             performance_device,
         },
     };
@@ -573,9 +574,7 @@ mod tests {
         }
         events.extend(stream.end_read().unwrap());
 
-        let [TranscriptEvent::Committed(segment)] = events.as_slice() else {
-            panic!("one committed segment, got {events:?}");
-        };
+        expect_variant!(let [TranscriptEvent::Committed(segment)] = events.as_slice());
         assert_eq!(segment.tokens.len(), 3);
         assert_eq!(segment.start, 0.0);
         assert_scalar_close(segment.end, 2.5, 0.011);
@@ -609,9 +608,7 @@ mod tests {
             events
                 .into_iter()
                 .map(|e| {
-                    let TranscriptEvent::Committed(segment) = e else {
-                        panic!("the offline policy only commits: {e:?}");
-                    };
+                    expect_variant!(let TranscriptEvent::Committed(segment) = e);
                     (segment.start, segment.end)
                 })
                 .collect::<Vec<_>>()

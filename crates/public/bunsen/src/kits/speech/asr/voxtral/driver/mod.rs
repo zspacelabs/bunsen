@@ -75,7 +75,10 @@ mod tests {
             },
             support::interop::mistral_common::TekkenMirror,
         },
-        support::testing::performance_device,
+        support::testing::{
+            expect_variant,
+            performance_device,
+        },
     };
 
     /// An untrained toy construct: 128 mels, a 40-token vocabulary whose ids
@@ -175,9 +178,7 @@ mod tests {
 
         let mut end = 0.0;
         for event in &events {
-            let TranscriptEvent::Committed(segment) = event else {
-                panic!("the offline policy only commits: {event:?}");
-            };
+            expect_variant!(let TranscriptEvent::Committed(segment) = event);
             assert!(segment.start >= end && segment.end >= segment.start);
             assert!(segment.end <= 2.5 + 1e-9);
             assert_eq!(segment.text, driver.engine().text(&segment.tokens).unwrap());

@@ -204,60 +204,65 @@ pub fn modernbert_config_from_path(path: &Path) -> BunsenResult<ModernBertContra
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::burner::module::testing::assert_rekeys;
 
     /// A layer's names, once split, land on the block's: the projections,
     /// the norms, the `GeGLU`'s parts.
     #[test]
     fn test_modernbert_rekey() {
         let rekey = Rekey::drop_rest().mount("model.", "", modernbert_rekey());
-        for (stored, bunsen) in [
-            (
-                "model.embeddings.tok_embeddings.weight",
-                "embeddings.weight",
-            ),
-            ("model.embeddings.norm.weight", "embeddings.norm.weight"),
-            (
-                "model.layers.1.attn_norm.weight",
-                "stack.layers.1.attn_norm.weight",
-            ),
-            (
-                "model.layers.0.attn.Wq.weight",
-                "stack.layers.0.attn.c_q.weight",
-            ),
-            (
-                "model.layers.0.attn.Wk.weight",
-                "stack.layers.0.attn.c_k.weight",
-            ),
-            (
-                "model.layers.0.attn.Wv.weight",
-                "stack.layers.0.attn.c_v.weight",
-            ),
-            (
-                "model.layers.0.attn.Wo.weight",
-                "stack.layers.0.attn.c_proj.weight",
-            ),
-            (
-                "model.layers.0.mlp_norm.weight",
-                "stack.layers.0.mlp_norm.weight",
-            ),
-            (
-                "model.layers.2.mlp.Wi_gate.weight",
-                "stack.layers.2.mlp.gate_proj.weight",
-            ),
-            (
-                "model.layers.2.mlp.Wi_up.weight",
-                "stack.layers.2.mlp.up_proj.weight",
-            ),
-            (
-                "model.layers.2.mlp.Wo.weight",
-                "stack.layers.2.mlp.down_proj.weight",
-            ),
-            ("model.final_norm.weight", "stack.norm.weight"),
-        ] {
-            assert_eq!(rekey.apply(stored).as_deref(), Some(bunsen), "{stored}");
-        }
-        assert_eq!(rekey.apply("head.dense.weight"), None);
-        assert_eq!(rekey.apply("model.head.norm.weight"), None);
+        assert_rekeys(
+            &rekey,
+            [
+                (
+                    "model.embeddings.tok_embeddings.weight",
+                    Some("embeddings.weight"),
+                ),
+                (
+                    "model.embeddings.norm.weight",
+                    Some("embeddings.norm.weight"),
+                ),
+                (
+                    "model.layers.1.attn_norm.weight",
+                    Some("stack.layers.1.attn_norm.weight"),
+                ),
+                (
+                    "model.layers.0.attn.Wq.weight",
+                    Some("stack.layers.0.attn.c_q.weight"),
+                ),
+                (
+                    "model.layers.0.attn.Wk.weight",
+                    Some("stack.layers.0.attn.c_k.weight"),
+                ),
+                (
+                    "model.layers.0.attn.Wv.weight",
+                    Some("stack.layers.0.attn.c_v.weight"),
+                ),
+                (
+                    "model.layers.0.attn.Wo.weight",
+                    Some("stack.layers.0.attn.c_proj.weight"),
+                ),
+                (
+                    "model.layers.0.mlp_norm.weight",
+                    Some("stack.layers.0.mlp_norm.weight"),
+                ),
+                (
+                    "model.layers.2.mlp.Wi_gate.weight",
+                    Some("stack.layers.2.mlp.gate_proj.weight"),
+                ),
+                (
+                    "model.layers.2.mlp.Wi_up.weight",
+                    Some("stack.layers.2.mlp.up_proj.weight"),
+                ),
+                (
+                    "model.layers.2.mlp.Wo.weight",
+                    Some("stack.layers.2.mlp.down_proj.weight"),
+                ),
+                ("model.final_norm.weight", Some("stack.norm.weight")),
+                ("head.dense.weight", None),
+                ("model.head.norm.weight", None),
+            ],
+        );
     }
 
     /// Laya's encoder config: 28 layers, every third global from the

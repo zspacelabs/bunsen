@@ -182,8 +182,10 @@ pub fn resnetv2_rekey(
 mod tests {
     use super::*;
     use crate::{
+        burner::module::testing::assert_rekeys,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
+        support::testing::assert_config_eq,
     };
 
     /// A timm config of `architecture` with `num_classes` classes.
@@ -206,13 +208,10 @@ mod tests {
         for name in ResNetV2ContractConfig::prefab_names() {
             let mut want = ResNetV2ContractConfig::expect_prefab(name);
             want.num_classes = 21843;
-            assert_eq!(
-                format!(
-                    "{:?}",
-                    resnetv2_contract_config(&config(name, 21843)).unwrap()
-                ),
-                format!("{want:?}"),
-                "{name}"
+            assert_config_eq(
+                name,
+                &resnetv2_contract_config(&config(name, 21843)).unwrap(),
+                &want,
             );
         }
         ErrorMatcher::unsupported()
@@ -224,32 +223,33 @@ mod tests {
     #[test]
     fn test_resnetv2_rekey() {
         let rekey = resnetv2_rekey(1000, 2048, true);
-        for (timm, bunsen) in [
-            ("stem.conv.weight", "stem.convs.0.conv.weight"),
-            ("stem.conv1.weight", "stem.convs.0.conv.weight"),
-            ("stem.norm2.bias", "stem.convs.1.norm.bias"),
-            ("stem.conv3.weight", "stem.convs.2.conv.weight"),
-            (
-                "stages.0.blocks.0.norm1.weight",
-                "stages.0.units.0.pre.norm.weight",
-            ),
-            (
-                "stages.0.blocks.0.conv1.weight",
-                "stages.0.units.0.convs.0.conv.weight",
-            ),
-            (
-                "stages.3.blocks.2.norm3.bias",
-                "stages.3.units.2.convs.2.norm.bias",
-            ),
-            (
-                "stages.1.blocks.0.downsample.conv.weight",
-                "stages.1.units.0.shortcut.conv.weight",
-            ),
-            ("norm.weight", "final_conv.norm.weight"),
-            ("head.fc.weight", "head.fc.weight"),
-        ] {
-            assert_eq!(rekey.apply(timm).as_deref(), Some(bunsen), "{timm}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                ("stem.conv.weight", "stem.convs.0.conv.weight"),
+                ("stem.conv1.weight", "stem.convs.0.conv.weight"),
+                ("stem.norm2.bias", "stem.convs.1.norm.bias"),
+                ("stem.conv3.weight", "stem.convs.2.conv.weight"),
+                (
+                    "stages.0.blocks.0.norm1.weight",
+                    "stages.0.units.0.pre.norm.weight",
+                ),
+                (
+                    "stages.0.blocks.0.conv1.weight",
+                    "stages.0.units.0.convs.0.conv.weight",
+                ),
+                (
+                    "stages.3.blocks.2.norm3.bias",
+                    "stages.3.units.2.convs.2.norm.bias",
+                ),
+                (
+                    "stages.1.blocks.0.downsample.conv.weight",
+                    "stages.1.units.0.shortcut.conv.weight",
+                ),
+                ("norm.weight", "final_conv.norm.weight"),
+                ("head.fc.weight", "head.fc.weight"),
+            ],
+        );
     }
 
     /// The hybrid `ViT`'s backbone's names: a normed stem, `Bottleneck`s
@@ -258,25 +258,26 @@ mod tests {
     #[test]
     fn test_non_preact_rekey() {
         let rekey = resnetv2_rekey(0, 1024, false);
-        for (timm, bunsen) in [
-            ("stem.conv.weight", "stem.convs.0.conv.weight"),
-            ("stem.norm.weight", "stem.convs.0.norm.weight"),
-            (
-                "stages.0.blocks.0.norm1.weight",
-                "stages.0.units.0.convs.0.norm.weight",
-            ),
-            (
-                "stages.2.blocks.8.conv3.weight",
-                "stages.2.units.8.convs.2.conv.weight",
-            ),
-            (
-                "stages.1.blocks.0.downsample.norm.bias",
-                "stages.1.units.0.shortcut.norm.bias",
-            ),
-            ("conv.weight", "stem.convs.0.conv.weight"),
-            ("norm.bias", "stem.convs.0.norm.bias"),
-        ] {
-            assert_eq!(rekey.apply(timm).as_deref(), Some(bunsen), "{timm}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                ("stem.conv.weight", "stem.convs.0.conv.weight"),
+                ("stem.norm.weight", "stem.convs.0.norm.weight"),
+                (
+                    "stages.0.blocks.0.norm1.weight",
+                    "stages.0.units.0.convs.0.norm.weight",
+                ),
+                (
+                    "stages.2.blocks.8.conv3.weight",
+                    "stages.2.units.8.convs.2.conv.weight",
+                ),
+                (
+                    "stages.1.blocks.0.downsample.norm.bias",
+                    "stages.1.units.0.shortcut.norm.bias",
+                ),
+                ("conv.weight", "stem.convs.0.conv.weight"),
+                ("norm.bias", "stem.convs.0.norm.bias"),
+            ],
+        );
     }
 }

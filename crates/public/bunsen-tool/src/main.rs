@@ -204,6 +204,8 @@ fn run(
 
 #[cfg(test)]
 mod tests {
+    use bunsen::support::testing::expect_variant;
+
     use super::*;
 
     /// The flags of every subcommand are well formed.
@@ -371,9 +373,7 @@ mod tests {
         ];
         let matches = Args::command().try_get_matches_from(argv).unwrap();
         let args = Args::from_arg_matches(&matches).unwrap();
-        let Command::Catalog(cmd) = &args.command else {
-            panic!("the catalog command")
-        };
+        expect_variant!(let Command::Catalog(cmd) = &args.command, "the catalog command");
         let mut out = String::new();
         cmd.run_into(
             matches.subcommand_matches("catalog").unwrap(),

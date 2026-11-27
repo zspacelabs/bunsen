@@ -197,6 +197,8 @@ fn request(
 }
 
 mod zonos3_mini {
+    use bunsen::support::testing::expect_variant;
+
     use super::*;
 
     /// A take of [`TEXT`] in [`VOICE`]'s voice ends on the end of audio,
@@ -213,9 +215,7 @@ mod zonos3_mini {
         let elapsed = started.elapsed().as_secs_f64();
 
         let seconds = speech.seconds();
-        let [take] = speech.takes.as_slice() else {
-            panic!("one take: {:?}", speech.takes);
-        };
+        expect_variant!(let [take] = speech.takes.as_slice());
         eprintln!(
             "{VOICE}: {} rows, {} frames, {seconds:.2} s of audio in {elapsed:.2} s \
              ({:.1} rows/s), stop {:?}",

@@ -644,10 +644,12 @@ mod tests {
                 embedding::RotaryEmbeddingConfig,
             },
         },
+        burner::module::testing::assert_rekeys,
         contracts::assert_shape_contract,
         support::testing::{
             DeviceMemoryGuard,
             assert_tensors_close,
+            expect_variant,
             performance_device,
             seeded_tensor,
         },
@@ -785,9 +787,10 @@ mod tests {
 
         // With the MLP's output projection zeroed, the block is
         // `x + attn(norm(x))`.
-        let TransformerFeedForward::Mlp(mlp) = &mut block.mlp.branch else {
-            panic!("an Mlp feed-forward");
-        };
+        expect_variant!(
+            let TransformerFeedForward::Mlp(mlp) = &mut block.mlp.branch,
+            "an Mlp feed-forward",
+        );
         mlp.linear2.weight = Param::from_tensor(mlp.linear2.weight.val().zeros_like());
         let attn = block.attn.branch.attention().forward(
             block.attn_input(input.clone()),
@@ -835,9 +838,7 @@ mod tests {
             (5, block.mlp.pre.as_mut().expect("a pre-norm")),
             (6, block.mlp.post.as_mut().expect("a post-norm")),
         ] {
-            let BunsenNormalization::Rms(rms) = norm else {
-                panic!("an RMS norm");
-            };
+            expect_variant!(let BunsenNormalization::Rms(rms) = norm, "an RMS norm");
             rms.gamma = Param::from_tensor(seeded_tensor::<1>(
                 seed,
                 [n_embed],
@@ -913,17 +914,18 @@ mod tests {
             }
             .with_post_norms("post_attention_layernorm", "post_feedforward_layernorm"),
         );
-        for (stored, bunsen) in [
-            ("input_layernorm.weight", "attn_norm.weight"),
-            ("post_attention_layernorm.weight", "attn_post_norm.weight"),
-            ("pre_feedforward_layernorm.weight", "mlp_norm.weight"),
-            ("post_feedforward_layernorm.weight", "mlp_post_norm.weight"),
-            ("self_attn.q_proj.weight", "attn.c_q.weight"),
-            ("self_attn.q_norm.weight", "attn.q_norm.weight"),
-            ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
-        ] {
-            assert_eq!(rekey.apply(stored).as_deref(), Some(bunsen), "{stored}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                ("input_layernorm.weight", "attn_norm.weight"),
+                ("post_attention_layernorm.weight", "attn_post_norm.weight"),
+                ("pre_feedforward_layernorm.weight", "mlp_norm.weight"),
+                ("post_feedforward_layernorm.weight", "mlp_post_norm.weight"),
+                ("self_attn.q_proj.weight", "attn.c_q.weight"),
+                ("self_attn.q_norm.weight", "attn.q_norm.weight"),
+                ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
+            ],
+        );
     }
 
     /// A post-norm block normalizes after each residual sum:
@@ -946,9 +948,7 @@ mod tests {
             (3, block.attn.out.as_mut().expect("an attention norm")),
             (4, block.mlp.out.as_mut().expect("a feed-forward norm")),
         ] {
-            let BunsenNormalization::Rms(rms) = norm else {
-                panic!("an RMS norm");
-            };
+            expect_variant!(let BunsenNormalization::Rms(rms) = norm, "an RMS norm");
             rms.gamma = Param::from_tensor(seeded_tensor::<1>(
                 seed,
                 [n_embed],
@@ -979,13 +979,14 @@ mod tests {
         );
 
         let canonical = block.canonical_rekey();
-        for (name, path) in [
-            ("attn_norm.gamma", "attn.out.gamma"),
-            ("mlp_norm.gamma", "mlp.out.gamma"),
-            ("attn.c_q.weight", "attn.branch.c_q.weight"),
-        ] {
-            assert_eq!(canonical.apply(name).as_deref(), Some(path), "{name}");
-        }
+        assert_rekeys(
+            &canonical,
+            [
+                ("attn_norm.gamma", "attn.out.gamma"),
+                ("mlp_norm.gamma", "mlp.out.gamma"),
+                ("attn.c_q.weight", "attn.branch.c_q.weight"),
+            ],
+        );
     }
 
     fn conditioned(n_embed: usize) -> CausalDecoderBlockConfig {

@@ -15,6 +15,7 @@ use bunsen::{
     },
     support::testing::{
         DeviceMemoryGuard,
+        expect_variant,
         performance_device,
     },
 };
@@ -229,9 +230,7 @@ mod driver {
         let streamed: Vec<String> = events
             .iter()
             .map(|event| {
-                let TranscriptEvent::Committed(segment) = event else {
-                    panic!("the offline policy only commits: {event:?}");
-                };
+                expect_variant!(let TranscriptEvent::Committed(segment) = event);
                 segment.text.clone().expect("the engine has a vocabulary")
             })
             .collect();
@@ -299,9 +298,7 @@ mod stream_driver_transcribes_like_transformers {
         let fixture = &speech_reference().base;
         let mut texts = Vec::new();
         for event in &events {
-            let TranscriptEvent::Committed(segment) = event else {
-                panic!("the offline policy only commits: {event:?}");
-            };
+            expect_variant!(let TranscriptEvent::Committed(segment) = event);
             eprintln!(
                 "{:.2}-{:.2}s: {:?}",
                 segment.start, segment.end, segment.text
@@ -367,9 +364,7 @@ fn stream_quiet_cut(name: &str) -> String {
 
     let mut texts = Vec::new();
     for event in &events {
-        let TranscriptEvent::Committed(segment) = event else {
-            panic!("the offline policy only commits: {event:?}");
-        };
+        expect_variant!(let TranscriptEvent::Committed(segment) = event);
         eprintln!(
             "{name} {:.2}-{:.2}s: {:?}",
             segment.start, segment.end, segment.text

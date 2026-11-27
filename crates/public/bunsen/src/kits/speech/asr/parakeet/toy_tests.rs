@@ -38,7 +38,10 @@ use crate::{
     },
     burner::module::ModuleInit,
     ops::transformers::attention::rel_position_table,
-    support::testing::performance_device,
+    support::testing::{
+        expect_variant,
+        performance_device,
+    },
 };
 
 /// `toy.json`'s config, as a [`ParakeetTdtConfig`].
@@ -167,9 +170,10 @@ fn test_toy_subsampling() {
 fn test_toy_block_modules() {
     let toy = Toy::load();
     let x: Tensor<3> = toy.io("subsampling");
-    let EncoderTransformer::Conformer(stack) = &toy.model.encoder.transformer else {
-        panic!("a FastConformer's stack is a Conformer's");
-    };
+    expect_variant!(
+        let EncoderTransformer::Conformer(stack) = &toy.model.encoder.transformer,
+        "a FastConformer's stack is a Conformer's",
+    );
     let layer = &stack.layers[0];
     let positions = rel_position_table(OUT_LENGTHS[0], 16, &toy.device);
 

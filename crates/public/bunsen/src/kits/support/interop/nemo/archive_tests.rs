@@ -22,7 +22,10 @@ use crate::{
         },
     },
     errors::BunsenErrorKind,
-    support::testing::cpu_device,
+    support::testing::{
+        cpu_device,
+        expect_variant,
+    },
 };
 
 fn fixture(name: &str) -> PathBuf {
@@ -123,10 +126,10 @@ fn test_bunsen_configs() {
     let block = &stack.layers[0];
     let attn = block.attn.attention();
     assert_eq!((stack.d_model(), attn.n_head()), (8, 2));
-    let crate::blocks::transformers::mlp::TransformerFeedForwardConfig::Mlp(mlp) = &block.mlp
-    else {
-        panic!("a plain feed-forward");
-    };
+    expect_variant!(
+        let crate::blocks::transformers::mlp::TransformerFeedForwardConfig::Mlp(mlp) = &block.mlp,
+        "a plain feed-forward",
+    );
     assert_eq!(
         crate::blocks::mlp::BunsenMlpMeta::d_hidden(mlp),
         16,

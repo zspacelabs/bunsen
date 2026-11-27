@@ -123,11 +123,11 @@ mod tests {
                 Some(_) => NanoChatGeneration::Upstream2026,
                 None => NanoChatGeneration::Upstream2025,
             };
-            let config = format!("{:?}", meta.gpt_config(generation));
+            let config = meta.gpt_config(generation);
             assert!(
                 NanoChatGptContractConfig::PREFABS
                     .iter()
-                    .any(|(_, prefab)| format!("{:?}", prefab()) == config),
+                    .any(|(_, prefab)| crate::support::testing::config_eq(&prefab(), &config)),
                 "{name}: its meta is no prefab's geometry"
             );
         }

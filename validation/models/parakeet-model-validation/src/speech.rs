@@ -18,6 +18,7 @@ use bunsen::{
     },
     support::testing::{
         DeviceMemoryGuard,
+        expect_variant,
         performance_device,
     },
 };
@@ -253,9 +254,7 @@ fn stream(
 
     let (mut ids, mut words) = (Vec::new(), Vec::new());
     for event in events {
-        let TranscriptEvent::Committed(segment) = event else {
-            panic!("the offline policy only commits: {event:?}");
-        };
+        expect_variant!(let TranscriptEvent::Committed(segment) = event);
         ids.extend(segment.tokens.iter().map(|&t| t as usize));
         let text = segment.text.expect("the engine has a vocabulary");
         words.push((text.trim().to_string(), segment.start, segment.end));

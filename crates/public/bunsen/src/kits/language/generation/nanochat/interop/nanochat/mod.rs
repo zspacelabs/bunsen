@@ -227,7 +227,10 @@ pub fn nanochat_gpt_rekey() -> Rekey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::testing::ErrorMatcher;
+    use crate::{
+        burner::module::testing::assert_rekeys,
+        errors::testing::ErrorMatcher,
+    };
 
     fn meta(window: Option<&str>) -> NanoChatMetaMirror {
         NanoChatMetaMirror {
@@ -320,34 +323,35 @@ mod tests {
     #[test]
     fn test_nanochat_gpt_rekey() {
         let r = nanochat_gpt_rekey();
-        for (from, to) in [
-            ("transformer.wte.weight", "lm.embedding.weight"),
-            (
-                "transformer.h.3.attn.c_q.weight",
-                "lm.stack.layers.3.attn.c_q.weight",
-            ),
-            (
-                "transformer.h.3.attn.c_proj.weight",
-                "lm.stack.layers.3.attn.c_proj.weight",
-            ),
-            (
-                "transformer.h.0.mlp.c_fc.weight",
-                "lm.stack.layers.0.mlp.linear1.weight",
-            ),
-            (
-                "transformer.h.0.mlp.c_proj.weight",
-                "lm.stack.layers.0.mlp.linear2.weight",
-            ),
-            (
-                "transformer.h.17.attn.ve_gate.weight",
-                "lm.stack.layers.17.attn.value_gate.weight",
-            ),
-            ("lm_head.weight", "lm.head.proj.weight"),
-            ("value_embeds.17.weight", "value_embeds.17.weight"),
-            ("smear_gate.weight", "smear_gate.weight"),
-            ("resid_lambdas", "resid_lambdas"),
-        ] {
-            assert_eq!(r.apply(from).as_deref(), Some(to), "{from}");
-        }
+        assert_rekeys(
+            &r,
+            [
+                ("transformer.wte.weight", "lm.embedding.weight"),
+                (
+                    "transformer.h.3.attn.c_q.weight",
+                    "lm.stack.layers.3.attn.c_q.weight",
+                ),
+                (
+                    "transformer.h.3.attn.c_proj.weight",
+                    "lm.stack.layers.3.attn.c_proj.weight",
+                ),
+                (
+                    "transformer.h.0.mlp.c_fc.weight",
+                    "lm.stack.layers.0.mlp.linear1.weight",
+                ),
+                (
+                    "transformer.h.0.mlp.c_proj.weight",
+                    "lm.stack.layers.0.mlp.linear2.weight",
+                ),
+                (
+                    "transformer.h.17.attn.ve_gate.weight",
+                    "lm.stack.layers.17.attn.value_gate.weight",
+                ),
+                ("lm_head.weight", "lm.head.proj.weight"),
+                ("value_embeds.17.weight", "value_embeds.17.weight"),
+                ("smear_gate.weight", "smear_gate.weight"),
+                ("resid_lambdas", "resid_lambdas"),
+            ],
+        );
     }
 }

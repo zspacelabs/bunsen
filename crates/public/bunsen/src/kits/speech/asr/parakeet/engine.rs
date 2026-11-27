@@ -324,7 +324,10 @@ mod tests {
             },
             support::testing::ToneConfig,
         },
-        support::testing::performance_device,
+        support::testing::{
+            expect_variant,
+            performance_device,
+        },
     };
 
     /// An untrained toy construct: a 24-mel encoder subsampling by 8, and an
@@ -517,9 +520,7 @@ mod tests {
 
         let mut end = 0.0;
         for event in &events {
-            let TranscriptEvent::Committed(segment) = event else {
-                panic!("the offline policy only commits: {event:?}");
-            };
+            expect_variant!(let TranscriptEvent::Committed(segment) = event);
             assert!(segment.start >= end && segment.end >= segment.start);
             assert!(segment.end <= 2.5 + 1e-9);
             assert_eq!(segment.text, driver.engine().text(&segment.tokens).unwrap());

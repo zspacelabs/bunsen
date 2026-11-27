@@ -169,11 +169,10 @@ mod tests {
                 "{name}: the committed config.json is the pinned one"
             );
             let config = qwen3_config_from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-            let config = format!("{config:?}");
             assert!(
                 Qwen3Config::PREFABS
                     .iter()
-                    .any(|(_, prefab)| format!("{:?}", prefab()) == config),
+                    .any(|(_, prefab)| crate::support::testing::config_eq(&prefab(), &config)),
                 "{name}: its config.json is no prefab's geometry"
             );
         }

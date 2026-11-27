@@ -61,6 +61,7 @@ mod tests {
     use crate::{
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
+        support::testing::assert_config_eq,
     };
 
     fn config(
@@ -85,13 +86,10 @@ mod tests {
         for name in SwinV1ContractConfig::prefab_names() {
             let mut want = SwinV1ContractConfig::expect_prefab(name);
             want.num_classes = 21841;
-            assert_eq!(
-                format!(
-                    "{:?}",
-                    swin_v1_contract_config(&config(name, 21841, want.image_size, "avg")).unwrap()
-                ),
-                format!("{want:?}"),
-                "{name}"
+            assert_config_eq(
+                name,
+                &swin_v1_contract_config(&config(name, 21841, want.image_size, "avg")).unwrap(),
+                &want,
             );
         }
         let unsupported = || ErrorMatcher::unsupported();

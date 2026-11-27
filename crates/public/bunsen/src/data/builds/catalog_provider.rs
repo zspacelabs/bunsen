@@ -192,9 +192,12 @@ impl BuiltinCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::{
-        catalog::testing::fixtures,
-        resources::Source,
+    use crate::{
+        data::{
+            catalog::testing::fixtures,
+            resources::Source,
+        },
+        support::testing::expect_variant,
     };
 
     fn provider(contract: &str) -> CatalogBuildProvider {
@@ -241,9 +244,7 @@ mod tests {
         assert!(
             matches!(&checkpoint.sources[0], Source::LocalDir { name, .. } if name == "openai-whisper")
         );
-        let Source::Url(url) = &checkpoint.sources[1] else {
-            panic!("{:?}", checkpoint.sources)
-        };
+        expect_variant!(let Source::Url(url) = &checkpoint.sources[1]);
         assert!(url.ends_with("/large-v1.pt"), "{url}");
         assert!(set.get("vocabulary").is_some());
     }
