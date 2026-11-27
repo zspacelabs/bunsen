@@ -40,8 +40,9 @@ use crate::{
             WhisperGeometry,
             WhisperPolicy,
             interop::{
-                openai_whisper::PytorchWhisperScanner,
-                transformers::SafetensorsWhisperScanner,
+                WhisperScanDefaults,
+                openai_whisper,
+                transformers,
             },
             pretrained::{
                 CHECKPOINT,
@@ -139,28 +140,22 @@ impl From<GeometryMismatch> for BunsenError {
 /// names.
 ///
 /// Chosen by the checkpoint resource's `format` when the hook is made for a
-/// map: `OpenAI`'s `.pt` through the `PyTorch` scanner, `transformers`'
+/// map: `OpenAI`'s `.pt` through the `PyTorch` reader, `transformers`'
 /// `model.safetensors`, one file or shards, through the safetensors one.
 /// Both scan to the same [`WhisperApiConfig`] and load the same
 /// [`Whisper`] model; only the files' names and layout differ.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum WhisperReader {
     /// `OpenAI`'s `.pt`: a `PyTorch` state dict under `model_state_dict`,
     /// with upstream's names. The reader for a checkpoint of no declared
     /// kind, and of any kind starting `pytorch`.
-    Pytorch(PytorchWhisperScanner),
+    #[default]
+    Pytorch,
 
     /// `transformers`' `model.safetensors`, one file or shards with an
     /// index, with its names: what a Hugging Face repo serves. The reader
     /// for any kind starting `safetensors`.
-    Safetensors(SafetensorsWhisperScanner),
-}
-
-impl Default for WhisperReader {
-    /// Upstream's `.pt` scanner.
-    fn default() -> Self {
-        Self::Pytorch(PytorchWhisperScanner::new())
-    }
+    Safetensors,
 }
 
 impl WhisperReader {
@@ -175,51 +170,53 @@ impl WhisperReader {
         match kind {
             None => Ok(Self::default()),
             Some(kind) if kind.starts_with("pytorch") => Ok(Self::default()),
-            Some(kind) if kind.starts_with(SAFETENSORS) => {
-                Ok(Self::Safetensors(SafetensorsWhisperScanner::new()))
-            }
+            Some(kind) if kind.starts_with(SAFETENSORS) => Ok(Self::Safetensors),
             Some(kind) => Err(BunsenError::unsupported(format!(
                 "no reader for a {kind:?} checkpoint; the Whisper kit reads PyTorch and safetensors checkpoints"
             ))),
         }
     }
 
-    /// Scans the checkpoint in `loaded`, under [`CHECKPOINT`], for its
-    /// config without loading its weights.
+    /// The config of the checkpoint in `loaded`, under [`CHECKPOINT`],
+    /// scanned without loading its weights, `defaults` declaring what it does
+    /// not record.
     ///
     /// # Errors
     /// [`Lookup`](BunsenErrorKind::Lookup) when `loaded` has no checkpoint;
-    /// the scanner's for files that are not a checkpoint of its layout
+    /// the ecosystem's for files that are not a checkpoint of its layout
     /// ([`InvalidResource`](BunsenErrorKind::InvalidResource), for the most
     /// part).
-    pub fn scan_cfg(
-        &self,
+    pub fn config(
+        self,
         loaded: &LoadedResourceSet,
+        defaults: &WhisperScanDefaults,
     ) -> BunsenResult<WhisperApiConfig> {
         match self {
-            Self::Pytorch(scanner) => Ok(scanner.scan_cfg(loaded.expect(CHECKPOINT)?)?.1),
-            Self::Safetensors(scanner) => {
-                scanner.scan_cfg(&SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?)
+            Self::Pytorch => {
+                openai_whisper::whisper_config_from_path(loaded.expect(CHECKPOINT)?, defaults)
             }
+            Self::Safetensors => transformers::whisper_config_from_headers(
+                &SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?,
+                defaults,
+            ),
         }
     }
 
-    /// Loads the checkpoint in `loaded` into a model at the precision it
-    /// ships in.
+    /// The checkpoint in `loaded` as a model of `config`, placed under
+    /// `policy`: the ecosystem's `load_whisper`.
     ///
     /// # Errors
-    /// As [`scan_cfg`](Self::scan_cfg); the scanner's.
+    /// The ecosystem's.
     pub fn load(
-        &self,
+        self,
         loaded: &LoadedResourceSet,
+        config: &WhisperApiConfig,
         device: &Device,
-    ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
+        policy: crate::data::formats::LoadPolicy,
+    ) -> BunsenResult<Whisper> {
         match self {
-            Self::Pytorch(scanner) => scanner.load::<_>(loaded.expect(CHECKPOINT)?, device),
-            Self::Safetensors(scanner) => scanner.load(
-                &SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?,
-                device,
-            ),
+            Self::Pytorch => openai_whisper::load_whisper(loaded, config, device, policy),
+            Self::Safetensors => transformers::load_whisper(loaded, config, device, policy),
         }
     }
 }
@@ -240,16 +237,18 @@ impl WhisperReader {
 ///
 /// [`for_resource_set`](ConstructInit::for_resource_set) chooses the hook
 /// by the checkpoint resource's `format`, through [`WhisperReader::for_kind`]:
-/// a `PyTorch` row gets the `.pt` scanner, a Hugging Face row the safetensors
+/// a `PyTorch` row gets the `.pt` reader, a Hugging Face row the safetensors
 /// one, and a row of a kind neither reads is refused by name rather than
 /// misread. A caller gets this with the deferred model the factory resolves and
 /// never builds it.
 #[derive(Clone, Debug)]
 pub struct WhisperConstructConfig {
-    /// How the checkpoint is read: which layout, and what the reader
-    /// declares that the file does not record (the head size, the front
-    /// end and the token layout).
+    /// How the checkpoint is read: which layout.
     pub reader: WhisperReader,
+
+    /// What the scanned config declares that the file does not record (the
+    /// head size, the front end and the token layout).
+    pub defaults: WhisperScanDefaults,
 
     /// The geometry the checkpoint must scan to, overriding what a row's
     /// prefab promises. `None`, the default, expects the prefab's geometry
@@ -265,10 +264,12 @@ impl Default for WhisperConstructConfig {
 }
 
 impl WhisperConstructConfig {
-    /// Upstream's `.pt` scanner, expecting what the model promises.
+    /// Upstream's `.pt` reader and scan defaults, expecting what the model
+    /// promises.
     pub fn new() -> Self {
         Self {
             reader: WhisperReader::default(),
+            defaults: WhisperScanDefaults::new(),
             expected: None,
         }
     }
@@ -282,12 +283,14 @@ impl WhisperConstructConfig {
         self
     }
 
-    /// Reads through `scanner`: a `.pt` with another head size, say.
-    pub fn with_scanner(
-        self,
-        scanner: PytorchWhisperScanner,
+    /// Sets what the scanned config declares that the file does not record:
+    /// another head size, say.
+    pub fn with_scan_defaults(
+        mut self,
+        defaults: WhisperScanDefaults,
     ) -> Self {
-        self.with_reader(WhisperReader::Pytorch(scanner))
+        self.defaults = defaults;
+        self
     }
 
     /// Sets the geometry the checkpoint must scan to, which wins over the
@@ -321,7 +324,7 @@ impl WhisperConstructConfig {
     /// weights, and checks it against the geometry `model` promises.
     ///
     /// # Errors
-    /// As [`WhisperReader::scan_cfg`];
+    /// As [`WhisperReader::config`];
     /// [`InvalidResource`](BunsenErrorKind::InvalidResource), with a
     /// [`GeometryMismatch`] cause naming both geometries, when the files at
     /// that name are not the model it claims to be.
@@ -330,7 +333,7 @@ impl WhisperConstructConfig {
         model: &BuildRef,
         loaded: &LoadedResourceSet,
     ) -> BunsenResult<WhisperApiConfig> {
-        let cfg = self.reader.scan_cfg(loaded)?;
+        let cfg = self.reader.config(loaded, &self.defaults)?;
         self.check(model, &cfg.geometry())?;
         Ok(cfg)
     }
@@ -446,11 +449,11 @@ impl ConstructInit for WhisperConstructConfig {
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
-        let (whisper, cfg) = self.reader.load(loaded, device)?;
-        // The readers load at the files' precision (OpenAI's checkpoints ship
-        // f16); the policy may widen it, cast after loading, as Whisper's
-        // models are small.
-        let whisper = load.place(whisper, device, |_| true)?;
+        let cfg = self.reader.config(loaded, &self.defaults)?;
+        // The files' precision (OpenAI's checkpoints ship f16), placed under
+        // the policy, which may widen it after loading, as Whisper's models
+        // are small.
+        let whisper = self.reader.load(loaded, &cfg, device, load)?;
         let layout = cfg
             .token_layout
             .policy_for_vocab(cfg.vocab_size)
@@ -561,23 +564,23 @@ mod reader_tests {
 
     /// The checkpoint's `kind` chooses the reader when the hook is chosen,
     /// before its file is opened: an unlabeled or `PyTorch` one gets the
-    /// `.pt` scanner, a safetensors one the safetensors scanner (with its
+    /// `.pt` reader, a safetensors one the safetensors reader (with its
     /// feature; refused naming the feature without), and a kind neither
     /// reads is refused by name.
     #[test]
     fn test_the_kind_chooses_the_reader() {
         let mut map = ResourceSet::given("mine", CHECKPOINT, "/no/such/model.safetensors");
         let hook = WhisperConstructConfig::for_resource_set(&map).unwrap();
-        assert!(matches!(hook.reader, WhisperReader::Pytorch(_)));
+        assert!(matches!(hook.reader, WhisperReader::Pytorch));
 
         map.resources.get_mut(CHECKPOINT).unwrap().format = Some("pytorch fp16".to_string());
         let hook = WhisperConstructConfig::for_resource_set(&map).unwrap();
-        assert!(matches!(hook.reader, WhisperReader::Pytorch(_)));
+        assert!(matches!(hook.reader, WhisperReader::Pytorch));
 
         map.resources.get_mut(CHECKPOINT).unwrap().format = Some(SAFETENSORS.to_string());
         {
             let hook = WhisperConstructConfig::for_resource_set(&map).unwrap();
-            assert!(matches!(hook.reader, WhisperReader::Safetensors(_)));
+            assert!(matches!(hook.reader, WhisperReader::Safetensors));
             assert!(
                 DeferredBuild::<WhisperConstructConfig>::from_resource_set(map.clone()).is_ok()
             );
@@ -598,7 +601,7 @@ mod reader_tests {
             WhisperConstructConfig::for_resource_set(&sharded)
                 .unwrap()
                 .reader,
-            WhisperReader::Safetensors(_)
+            WhisperReader::Safetensors
         ));
 
         map.resources.get_mut(CHECKPOINT).unwrap().format = Some("burnpack".to_string());

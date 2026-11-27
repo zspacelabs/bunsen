@@ -8,8 +8,9 @@
 //!   names
 //!   ([`whisper_encoder_layer_rekey`](crate::kits::support::interop::transformers::whisper_encoder_layer_rekey),
 //!   [`whisper_decoder_layer_rekey`](crate::kits::support::interop::transformers::whisper_decoder_layer_rekey)).
-//! - **Loading** (feature `store`): `SafetensorsWhisperScanner`, the geometry
-//!   from the files' headers and the model from their tensors.
+//! - **Loading** (feature `store`): `whisper_config_from_headers`, the geometry
+//!   from the files' headers; `load_whisper_tensors` and `load_whisper`, the
+//!   model from their tensors.
 
 use crate::{
     blocks::conv::ConvSeq1d,
