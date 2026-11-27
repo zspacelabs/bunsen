@@ -32,7 +32,7 @@ use bunsen::{
                 pretrained::default_qwen3_asr_factory,
             },
             whisper::{
-                driver::WhisperStreamDriverConfig,
+                driver::WhisperEngineConfig,
                 pretrained::default_whisper_factory,
             },
         },
@@ -216,9 +216,10 @@ mod sortformer_speakers {
                 bunsen::data::formats::LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
             )
             .unwrap();
-        let driver = WhisperStreamDriverConfig::new()
+        let driver = WhisperEngineConfig::new()
             .with_language(Some("en".to_string()))
-            .init_from_construct(construct, &device)
+            .try_init(construct, &device)
+            .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline()))
             .unwrap()
             .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
             .unwrap();

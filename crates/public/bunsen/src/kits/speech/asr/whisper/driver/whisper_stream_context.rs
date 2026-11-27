@@ -449,6 +449,7 @@ mod tests {
             speech::{
                 asr::{
                     driver::{
+                        AsrStreamDriver,
                         CommitRule,
                         DecodeTriggers,
                         EmissionPolicy,
@@ -461,10 +462,11 @@ mod tests {
                         blocks::WhisperApiConfig,
                         decode::GreedyDecodeConfig,
                         driver::{
+                            WhisperConstruct,
                             WhisperSpecialIds,
                             WhisperStreamDriver,
                             WhisperTokenLayout,
-                            whisper_stream_driver::WhisperStreamDriverConfig,
+                            whisper_stream_driver::WhisperEngineConfig,
                         },
                     },
                 },
@@ -511,8 +513,8 @@ mod tests {
         .init(device)
     }
 
-    fn config(carry: bool) -> WhisperStreamDriverConfig {
-        WhisperStreamDriverConfig::new()
+    fn config(carry: bool) -> WhisperEngineConfig {
+        WhisperEngineConfig::new()
             .with_language(Some("en".to_string()))
             .with_max_tokens(4)
             .with_condition_on_previous_text(carry)
@@ -523,11 +525,14 @@ mod tests {
         carry: bool,
     ) -> WhisperStreamDriver {
         config(carry)
-            .init_with_layout(
-                tiny_model_on(device),
-                WhisperTokenLayout::new(tiny_layout()),
+            .try_init(
+                Arc::new(WhisperConstruct::new(
+                    tiny_model_on(device),
+                    WhisperTokenLayout::new(tiny_layout()),
+                )),
                 device,
             )
+            .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline()))
             .unwrap()
     }
 
@@ -622,12 +627,16 @@ mod tests {
             ),
             device,
         );
-        crate::kits::speech::support::log_mel::log_mels_of(driver.audio_converter(), waves).unwrap()
+        crate::kits::speech::support::log_mel::log_mels_of(driver.engine().audio_converter(), waves)
+            .unwrap()
     }
 
     fn greedy_config(driver: &WhisperStreamDriver) -> GreedyDecodeConfig {
-        GreedyDecodeConfig::new(driver.prompt().to_vec(), driver.token_layout().ids().eot)
-            .with_max_tokens(driver.config().max_tokens)
+        GreedyDecodeConfig::new(
+            driver.engine().prompt().to_vec(),
+            driver.engine().token_layout().ids().eot,
+        )
+        .with_max_tokens(driver.engine().config().max_tokens)
     }
 
     /// **I5, against the one-shot path.** One push of the whole clip, with
@@ -645,8 +654,9 @@ mod tests {
         let mut emissions = ctx.write_read(&audio).unwrap();
         emissions.extend(ctx.end_read().unwrap());
 
-        let expected = driver.whisper_model().decode_chunked(
+        let expected = driver.engine().whisper_model().decode_chunked(
             driver
+                .engine()
                 .front_end()
                 .package_mels(joined_mels(&driver, &audio, &device)),
             &greedy_config(&driver),
@@ -706,7 +716,7 @@ mod tests {
         }
 
         // The per-window one-shot path, by hand.
-        let width = driver.window_frames();
+        let width = driver.engine().window_frames();
         let trimmed = drop_last_frame(joined_mels(&driver, &audio, &device));
         let frames = trimmed.dims()[1];
         let config = greedy_config(&driver);
@@ -718,13 +728,19 @@ mod tests {
                 .clone()
                 .slice_dim(1, at as isize..(at + count) as isize);
             let mut packaged = driver
+                .engine()
                 .front_end()
                 .package_window(window.clone(), MaxLevel::of(window.clone()).max);
             if count < width {
                 let pad = Tensor::zeros([1, packaged.dims()[1], width - count], &device);
                 packaged = Tensor::cat(vec![packaged, pad], 2);
             }
-            by_hand.push(driver.whisper_model().decode_window(packaged, &config));
+            by_hand.push(
+                driver
+                    .engine()
+                    .whisper_model()
+                    .decode_window(packaged, &config),
+            );
             at += count;
         }
         assert_eq!(tokens_of(&expected), by_hand);
@@ -739,8 +755,8 @@ mod tests {
         let device = performance_device();
         let driver: WhisperStreamDriver = driver(&device, false);
         let audio = clip();
-        let hop = driver.audio_converter().hop() as f64;
-        let width = driver.window_frames();
+        let hop = driver.engine().audio_converter().hop() as f64;
+        let width = driver.engine().window_frames();
 
         let mut ctx = driver.new_context(clock(), LevelPolicy::PerWindow).unwrap();
         let mut emissions = ctx.anchor_write_read(100.0, &audio).unwrap();
@@ -777,7 +793,7 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
         let driver: WhisperStreamDriver = driver(&device, true);
         let audio = clip();
-        let width = driver.window_frames();
+        let width = driver.engine().window_frames();
 
         let mut ctx = driver.new_context(clock(), LevelPolicy::PerWindow).unwrap();
         let mut emissions = ctx.write_read(&audio).unwrap();
@@ -792,27 +808,33 @@ mod tests {
                 .clone()
                 .slice_dim(1, (w * width) as isize..((w + 1) * width) as isize);
             driver
+                .engine()
                 .front_end()
                 .package_window(window.clone(), MaxLevel::of(window).max)
         };
-        let ids = driver.token_layout().ids();
+        let ids = driver.engine().token_layout().ids();
         let first = driver
+            .engine()
             .whisper_model()
             .decode_window(window_at(0), &greedy_config(&driver));
         assert_eq!(got[0], first);
 
-        let keep = driver.whisper_model().max_text_ctx() / 2 - 1;
+        let keep = driver.engine().whisper_model().max_text_ctx() / 2 - 1;
         let mut prompt = vec![ids.sot_prev];
         prompt.extend_from_slice(&first[first.len().saturating_sub(keep)..]);
-        prompt.extend_from_slice(driver.prompt());
-        let carried =
-            GreedyDecodeConfig::new(prompt, ids.eot).with_max_tokens(driver.config().max_tokens);
-        let second = driver.whisper_model().decode_window(window_at(1), &carried);
+        prompt.extend_from_slice(driver.engine().prompt());
+        let carried = GreedyDecodeConfig::new(prompt, ids.eot)
+            .with_max_tokens(driver.engine().config().max_tokens);
+        let second = driver
+            .engine()
+            .whisper_model()
+            .decode_window(window_at(1), &carried);
         assert_eq!(got[1], second);
 
         // Without carrying, the same audio prompts every window the same
         // way, so this is only a real test if the two differ somewhere.
         let bare = driver
+            .engine()
             .whisper_model()
             .decode_window(window_at(1), &greedy_config(&driver));
         assert!(
@@ -848,7 +870,7 @@ mod tests {
 
         for e in &emissions {
             let segment = e.segment();
-            let text_ids = driver.token_layout().text_ids(&segment.tokens);
+            let text_ids = driver.engine().token_layout().text_ids(&segment.tokens);
             assert_eq!(
                 segment.text.as_deref(),
                 Some(Numbers.detokenize(&text_ids).unwrap().as_str())
@@ -1079,12 +1101,16 @@ mod tests {
             .with_max_tokens(8)
             .with_timestamps(true)
             .with_max_initial_timestamp(Some(0.04))
-            .with_emission(EmissionPolicy::new(DecodeTriggers::new(), commit))
-            .init_with_layout(
-                tiny_model_on(device),
-                WhisperTokenLayout::new(tiny_layout()),
+            .try_init(
+                Arc::new(WhisperConstruct::new(
+                    tiny_model_on(device),
+                    WhisperTokenLayout::new(tiny_layout()),
+                )),
                 device,
             )
+            .and_then(|engine| {
+                AsrStreamDriver::new(engine, EmissionPolicy::new(DecodeTriggers::new(), commit))
+            })
             .unwrap()
             .with_logit_filters(vec![scripted])
     }
@@ -1126,11 +1152,11 @@ mod tests {
         let device = performance_device();
         let driver = timestamped(&device, CommitRule::Complete);
         let tb = tiny_layout().timestamp_begin;
-        let hop = driver.audio_converter().hop() as f64;
+        let hop = driver.engine().audio_converter().hop() as f64;
         let frame = |f: f64| f * hop / driver.sample_rate() as f64;
-        assert_eq!(driver.frames_per_timestamp(), 2);
+        assert_eq!(driver.engine().frames_per_timestamp(), 2);
         assert_eq!(
-            driver.filters().len(),
+            driver.engine().filters().len(),
             2,
             "the test's filter, then the rules appended by the driver"
         );
@@ -1255,11 +1281,14 @@ mod tests {
         config(true)
             .with_max_tokens(8)
             .with_fallback(fallback)
-            .init_with_layout(
-                tiny_model_on(device),
-                WhisperTokenLayout::new(tiny_layout()),
+            .try_init(
+                Arc::new(WhisperConstruct::new(
+                    tiny_model_on(device),
+                    WhisperTokenLayout::new(tiny_layout()),
+                )),
                 device,
             )
+            .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline()))
             .unwrap()
             .with_logit_filters(vec![filter])
     }
@@ -1290,7 +1319,7 @@ mod tests {
             "no ladder: the loop is what there is: {looped:?}"
         );
         let carry_len = ctx.prompt_now().len();
-        assert!(carry_len > flat.prompt().len(), "the carry stands");
+        assert!(carry_len > flat.engine().prompt().len(), "the carry stands");
 
         let climbing = degenerate_driver(&device, WhisperFallbackConfig::upstream());
         let mut ctx = climbing
@@ -1304,7 +1333,7 @@ mod tests {
             assert!(t.contains(&2), "sampling broke the loop: {t:?}");
         }
         assert!(
-            ctx.prompt_now().len() > climbing.prompt().len(),
+            ctx.prompt_now().len() > climbing.engine().prompt().len(),
             "recovered below 0.5: the carry stands"
         );
 
@@ -1319,7 +1348,7 @@ mod tests {
         assert!(reset.iter().all(|e| e.segment().tokens.contains(&2)));
         assert_eq!(
             ctx.prompt_now(),
-            hot.prompt(),
+            hot.engine().prompt(),
             "past 0.5: the carry was reset"
         );
     }
@@ -1372,17 +1401,20 @@ mod tests {
     #[serial]
     fn test_language_is_detected_per_stream() {
         let device = performance_device();
-        let detecting = WhisperStreamDriverConfig::new()
+        let detecting = WhisperEngineConfig::new()
             .with_max_tokens(4)
-            .init_with_layout(
-                tiny_model_on(&device),
-                WhisperTokenLayout::new(tiny_layout()),
+            .try_init(
+                Arc::new(WhisperConstruct::new(
+                    tiny_model_on(&device),
+                    WhisperTokenLayout::new(tiny_layout()),
+                )),
                 &device,
             )
+            .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline()))
             .unwrap()
             .with_logit_filters(decisive());
-        assert!(detecting.detects_language());
-        assert!(detecting.prompt().is_empty());
+        assert!(detecting.engine().detects_language());
+        assert!(detecting.engine().prompt().is_empty());
         let only = crate::kits::speech::asr::whisper::blocks::LANGUAGES[0];
         assert_eq!(only, "en");
 
@@ -1422,17 +1454,20 @@ mod tests {
     #[test]
     fn test_driver_reports_the_models_rate() {
         let device = performance_device();
-        let driver = WhisperStreamDriverConfig::new()
-            .init_with_layout(
-                tiny_model_on(&device),
-                WhisperTokenLayout::new(tiny_layout()),
+        let driver = WhisperEngineConfig::new()
+            .try_init(
+                Arc::new(WhisperConstruct::new(
+                    tiny_model_on(&device),
+                    WhisperTokenLayout::new(tiny_layout()),
+                )),
                 &device,
             )
+            .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline()))
             .unwrap();
         assert_eq!(driver.sample_rate(), 16_000);
-        assert_eq!(driver.audio_converter().hop(), 160);
-        assert_eq!(driver.frames_per_timestamp(), 2);
-        assert_eq!(driver.encoder_grid(), 320);
+        assert_eq!(driver.engine().audio_converter().hop(), 160);
+        assert_eq!(driver.engine().frames_per_timestamp(), 2);
+        assert_eq!(driver.engine().encoder_grid(), 320);
         assert_eq!(driver.interval_samples(), None);
     }
 
@@ -1442,15 +1477,19 @@ mod tests {
     fn test_init_refuses_agreement() {
         let device = performance_device();
         let refused = config(false)
-            .with_emission(EmissionPolicy::new(
-                DecodeTriggers::new(),
-                CommitRule::Agreement { runs: 2 },
-            ))
-            .init_with_layout(
-                tiny_model_on(&device),
-                WhisperTokenLayout::new(tiny_layout()),
+            .try_init(
+                Arc::new(WhisperConstruct::new(
+                    tiny_model_on(&device),
+                    WhisperTokenLayout::new(tiny_layout()),
+                )),
                 &device,
-            );
+            )
+            .and_then(|engine| {
+                AsrStreamDriver::new(
+                    engine,
+                    EmissionPolicy::new(DecodeTriggers::new(), CommitRule::Agreement { runs: 2 }),
+                )
+            });
         ErrorMatcher::unsupported()
             .message_contains("not implemented")
             .assert_err(&refused);
@@ -1464,15 +1503,23 @@ mod tests {
     fn test_init_refuses_interval_without_endpoint() {
         let device = performance_device();
         let refused = config(false)
-            .with_emission(EmissionPolicy::new(
-                DecodeTriggers::new().with_interval(Some(core::time::Duration::from_millis(50))),
-                CommitRule::LastTimestamp,
-            ))
-            .init_with_layout(
-                tiny_model_on(&device),
-                WhisperTokenLayout::new(tiny_layout()),
+            .try_init(
+                Arc::new(WhisperConstruct::new(
+                    tiny_model_on(&device),
+                    WhisperTokenLayout::new(tiny_layout()),
+                )),
                 &device,
-            );
+            )
+            .and_then(|engine| {
+                AsrStreamDriver::new(
+                    engine,
+                    EmissionPolicy::new(
+                        DecodeTriggers::new()
+                            .with_interval(Some(core::time::Duration::from_millis(50))),
+                        CommitRule::LastTimestamp,
+                    ),
+                )
+            });
         ErrorMatcher::illegal()
             .message_contains("endpoint")
             .assert_err(&refused);
@@ -1487,29 +1534,57 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let policy = WhisperTokenLayout::new(tiny_layout());
-        let base = WhisperStreamDriverConfig::new().with_language(Some("en".to_string()));
+        let base = WhisperEngineConfig::new().with_language(Some("en".to_string()));
 
         assert!(
-            base.init_with_layout(tiny_model_on(&device), policy.clone(), &device)
-                .is_ok()
+            base.try_init(
+                Arc::new(WhisperConstruct::new(
+                    tiny_model_on(&device),
+                    policy.clone()
+                )),
+                &device
+            )
+            .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline()))
+            .is_ok()
         );
         // Multilingual without a language detects it per stream.
         assert!(
-            WhisperStreamDriverConfig::new()
-                .init_with_layout(tiny_model_on(&device), policy.clone(), &device)
+            WhisperEngineConfig::new()
+                .try_init(
+                    Arc::new(WhisperConstruct::new(
+                        tiny_model_on(&device),
+                        policy.clone()
+                    )),
+                    &device
+                )
+                .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline()))
                 .unwrap()
+                .engine()
                 .detects_language()
         );
         assert!(
             base.clone()
                 .with_timestamps(true)
-                .init_with_layout(tiny_model_on(&device), policy.clone(), &device)
+                .try_init(
+                    Arc::new(WhisperConstruct::new(
+                        tiny_model_on(&device),
+                        policy.clone()
+                    )),
+                    &device
+                )
+                .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline()))
                 .is_ok()
         );
         assert!(
             base.clone()
-                .with_emission(EmissionPolicy::drafting())
-                .init_with_layout(tiny_model_on(&device), policy.clone(), &device)
+                .try_init(
+                    Arc::new(WhisperConstruct::new(
+                        tiny_model_on(&device),
+                        policy.clone()
+                    )),
+                    &device
+                )
+                .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::drafting()))
                 .is_ok(),
             "drafting is the third deployment target",
         );
@@ -1519,13 +1594,24 @@ mod tests {
             .assert_err(
                 &base
                     .clone()
-                    .with_emission(EmissionPolicy::new(
-                        DecodeTriggers::new()
-                            .with_endpoint(true)
-                            .with_interval(Some(core::time::Duration::ZERO)),
-                        CommitRule::Complete,
-                    ))
-                    .init_with_layout(tiny_model_on(&device), policy.clone(), &device),
+                    .try_init(
+                        Arc::new(WhisperConstruct::new(
+                            tiny_model_on(&device),
+                            policy.clone(),
+                        )),
+                        &device,
+                    )
+                    .and_then(|engine| {
+                        AsrStreamDriver::new(
+                            engine,
+                            EmissionPolicy::new(
+                                DecodeTriggers::new()
+                                    .with_endpoint(true)
+                                    .with_interval(Some(core::time::Duration::ZERO)),
+                                CommitRule::Complete,
+                            ),
+                        )
+                    }),
             );
         ErrorMatcher::lookup()
             .has_cause::<LookupError>()
@@ -1533,14 +1619,24 @@ mod tests {
                 &base
                     .clone()
                     .with_language(Some("xx".to_string()))
-                    .init_with_layout(tiny_model_on(&device), policy.clone(), &device),
+                    .try_init(
+                        Arc::new(WhisperConstruct::new(
+                            tiny_model_on(&device),
+                            policy.clone(),
+                        )),
+                        &device,
+                    )
+                    .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline())),
             );
 
         // Conservative is constructible, but a stream under it needs a VAD.
         let conservative = base
             .clone()
-            .with_emission(EmissionPolicy::conservative())
-            .init_with_layout(tiny_model_on(&device), policy, &device)
+            .try_init(
+                Arc::new(WhisperConstruct::new(tiny_model_on(&device), policy)),
+                &device,
+            )
+            .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::conservative()))
             .unwrap();
         ErrorMatcher::illegal()
             .message_contains("voice-activity model")
@@ -1607,12 +1703,14 @@ mod tests {
         fn conservative_driver(device: &Device) -> WhisperStreamDriver {
             let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             config(false)
-                .with_emission(EmissionPolicy::conservative())
-                .init_with_layout(
-                    tiny_model_on(device),
-                    WhisperTokenLayout::new(tiny_layout()),
+                .try_init(
+                    Arc::new(WhisperConstruct::new(
+                        tiny_model_on(device),
+                        WhisperTokenLayout::new(tiny_layout()),
+                    )),
                     device,
                 )
+                .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::conservative()))
                 .unwrap()
                 .with_vad(Arc::new(vad), silero_policy())
                 .unwrap()
@@ -1626,12 +1724,14 @@ mod tests {
             let device = cpu_device();
             let driver = || {
                 config(false)
-                    .with_emission(EmissionPolicy::conservative())
-                    .init_with_layout(
-                        tiny_model_on(&device),
-                        WhisperTokenLayout::new(tiny_layout()),
+                    .try_init(
+                        Arc::new(WhisperConstruct::new(
+                            tiny_model_on(&device),
+                            WhisperTokenLayout::new(tiny_layout()),
+                        )),
                         &device,
                     )
+                    .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::conservative()))
                     .unwrap()
             };
             let filter = silero_policy;
@@ -1676,12 +1776,14 @@ mod tests {
                 CommitRule::LastTimestamp,
             );
             let driver = config(false)
-                .with_emission(regions_only)
-                .init_with_layout(
-                    tiny_model_on(&device),
-                    WhisperTokenLayout::new(tiny_layout()),
+                .try_init(
+                    Arc::new(WhisperConstruct::new(
+                        tiny_model_on(&device),
+                        WhisperTokenLayout::new(tiny_layout()),
+                    )),
                     &device,
                 )
+                .and_then(|engine| AsrStreamDriver::new(engine, regions_only))
                 .unwrap()
                 .with_vad(Arc::new(vad), silero_policy())
                 .unwrap();
@@ -1706,7 +1808,8 @@ mod tests {
             // (0, 16864) and (29728, 57312) from the gate's golden test,
             // snapped outward onto the 320-sample grid.
             let expected = [(0usize, 16_960usize), (29_440, 57_600)];
-            let window = driver.window_frames() as f64 * driver.audio_converter().hop() as f64
+            let window = driver.engine().window_frames() as f64
+                * driver.engine().audio_converter().hop() as f64
                 / driver.sample_rate() as f64;
             let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
 
@@ -1754,7 +1857,8 @@ mod tests {
             let mut emissions = ctx.write_read(&audio).unwrap();
             emissions.extend(ctx.end_read().unwrap());
 
-            let window = driver.window_frames() as f64 * driver.audio_converter().hop() as f64
+            let window = driver.engine().window_frames() as f64
+                * driver.engine().audio_converter().hop() as f64
                 / driver.sample_rate() as f64;
             let (gap_start, gap_end) = (16_960.0 / RATE as f64, 29_440.0 / RATE as f64);
             let mut covered_to = 0.0_f64;
@@ -1796,12 +1900,14 @@ mod tests {
                 CommitRule::LastTimestamp,
             );
             config(false)
-                .with_emission(policy)
-                .init_with_layout(
-                    tiny_model_on(device),
-                    WhisperTokenLayout::new(tiny_layout()),
+                .try_init(
+                    Arc::new(WhisperConstruct::new(
+                        tiny_model_on(device),
+                        WhisperTokenLayout::new(tiny_layout()),
+                    )),
                     device,
                 )
+                .and_then(|engine| AsrStreamDriver::new(engine, policy))
                 .unwrap()
                 .with_vad(Arc::new(vad), silero_policy())
                 .unwrap()
@@ -1967,11 +2073,14 @@ mod tests {
 
             let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             let scripted: Arc<dyn LogitFilter> = Arc::new(ByLanguage(ids));
-            WhisperStreamDriverConfig::new()
+            WhisperEngineConfig::new()
                 .with_max_tokens(4)
                 .with_condition_on_previous_text(false)
-                .with_emission(policy)
-                .init_with_layout(model, WhisperTokenLayout::new(ids), device)
+                .try_init(
+                    Arc::new(WhisperConstruct::new(model, WhisperTokenLayout::new(ids))),
+                    device,
+                )
+                .and_then(|engine| AsrStreamDriver::new(engine, policy))
                 .unwrap()
                 .with_vad(Arc::new(vad), silero_policy())
                 .unwrap()
@@ -1991,7 +2100,7 @@ mod tests {
             let device = cpu_device();
 
             let conservative = detecting_driver(&device, EmissionPolicy::conservative());
-            assert!(conservative.detects_language());
+            assert!(conservative.engine().detects_language());
             let mut ctx = conservative
                 .new_context(clock(), LevelPolicy::PerWindow)
                 .unwrap();
@@ -2057,11 +2166,14 @@ mod tests {
             let device = cpu_device();
             let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             let driver = config(false)
-                .init_with_layout(
-                    tiny_model_on(&device),
-                    WhisperTokenLayout::new(tiny_layout()),
+                .try_init(
+                    Arc::new(WhisperConstruct::new(
+                        tiny_model_on(&device),
+                        WhisperTokenLayout::new(tiny_layout()),
+                    )),
                     &device,
                 )
+                .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline()))
                 .unwrap()
                 .with_vad(Arc::new(vad), silero_policy())
                 .unwrap();
@@ -2109,11 +2221,14 @@ mod tests {
         let first_segment = |speaker_cut: Option<SpeakerCutConfig>| {
             let driver = config(false)
                 .with_speaker_cut(speaker_cut)
-                .init_with_layout(
-                    tiny_model_on(&device),
-                    WhisperTokenLayout::new(tiny_layout()),
+                .try_init(
+                    Arc::new(WhisperConstruct::new(
+                        tiny_model_on(&device),
+                        WhisperTokenLayout::new(tiny_layout()),
+                    )),
                     &device,
                 )
+                .and_then(|engine| AsrStreamDriver::new(engine, EmissionPolicy::offline()))
                 .unwrap()
                 .with_logit_filters(decisive())
                 .with_speakers(diarizer.clone(), Arc::new(MeanActivity::default()))

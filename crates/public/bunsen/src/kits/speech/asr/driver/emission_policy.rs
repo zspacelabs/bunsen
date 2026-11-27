@@ -68,7 +68,7 @@ pub struct DecodeTriggers {
     /// Whether speech is in progress is the voice-activity gate's to say,
     /// and the gate runs only under `endpoint`, so this trigger needs it:
     /// without it no draft could ever be made, and building a driver
-    /// ([`init_from_construct`](crate::kits::speech::asr::whisper::driver::WhisperStreamDriverConfig::init_from_construct))
+    /// ([`AsrStreamDriver::new`](crate::kits::speech::asr::driver::AsrStreamDriver::new))
     /// fails with
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal).
     #[config(default = "None")]
@@ -78,7 +78,7 @@ pub struct DecodeTriggers {
 /// When a decode's output becomes final.
 ///
 /// Without timestamps every rule commits a decode whole. With them
-/// ([`timestamps`](crate::kits::speech::asr::whisper::driver::WhisperStreamDriverConfig::timestamps)), a
+/// ([`timestamps`](crate::kits::speech::asr::whisper::driver::WhisperEngineConfig::timestamps)), a
 /// decode is split on its timestamps, the closed segments commit, and the
 /// seek pointer advances to the last closed timestamp; the rules differ in
 /// what becomes of the unfinished tail after it.
@@ -99,7 +99,7 @@ pub enum CommitRule {
     /// rule under which a provisional decode becomes load-bearing.
     ///
     /// Not implemented: building a driver under it
-    /// ([`init_from_construct`](crate::kits::speech::asr::whisper::driver::WhisperStreamDriverConfig::init_from_construct))
+    /// ([`AsrStreamDriver::new`](crate::kits::speech::asr::driver::AsrStreamDriver::new))
     /// fails with
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
     Agreement {
@@ -113,7 +113,7 @@ pub enum CommitRule {
 /// Two axes, and two output variants,
 /// [`Committed`](super::TranscriptEvent::Committed) and
 /// [`Draft`](super::TranscriptEvent::Draft). The policy is part of the
-/// [`WhisperStreamDriverConfig`](crate::kits::speech::asr::whisper::driver::WhisperStreamDriverConfig), so the
+/// [`WhisperEngineConfig`](crate::kits::speech::asr::whisper::driver::WhisperEngineConfig), so the
 /// driver is configured, never forked. The presets are its three
 /// deployment targets; anything else is a custom pairing. The
 /// [`driver`](super) module docs explain the semantics.

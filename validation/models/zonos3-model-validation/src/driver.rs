@@ -20,7 +20,7 @@ use bunsen::{
                     TranscriptEvent,
                 },
                 whisper::{
-                    driver::WhisperStreamDriverConfig,
+                    driver::WhisperEngineConfig,
                     pretrained::default_whisper_factory,
                 },
             },
@@ -153,9 +153,15 @@ pub(crate) fn english_whisper(
             LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
         )
         .unwrap();
-    let asr = WhisperStreamDriverConfig::new()
+    let asr = WhisperEngineConfig::new()
         .with_language(Some("en".to_string()))
-        .init_from_construct(whisper, device)
+        .try_init(whisper, device)
+        .and_then(|engine| {
+            bunsen::kits::speech::asr::driver::AsrStreamDriver::new(
+                engine,
+                bunsen::kits::speech::asr::driver::EmissionPolicy::offline(),
+            )
+        })
         .unwrap();
     move |samples| {
         let mut ctx = asr.new_context(StreamClock::uniform(16_000), LevelPolicy::Running)?;

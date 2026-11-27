@@ -41,8 +41,8 @@ use crate::{
 /// holds behind an `Arc`: the model, its token layout, and, when the
 /// pretrained has one, the base vocabulary a decode needs for text and for
 /// upstream's default suppress list.
-/// [`WhisperStreamDriverConfig::init_from_construct`](super::WhisperStreamDriverConfig::init_from_construct)
-/// builds a driver over one; several drivers over one loaded model share
+/// [`WhisperEngineConfig::try_init`](super::WhisperEngineConfig::try_init)
+/// builds an engine over one; several engines over one loaded model share
 /// the `Arc`.
 ///
 /// A construct without a vocabulary is ids only, which is still a complete
@@ -62,7 +62,7 @@ pub struct WhisperConstruct {
 
     /// How it decodes: what its presets resolved to; the default until
     /// [`with_policy`](Self::with_policy). A driver takes it with
-    /// [`WhisperStreamDriverConfig::with_policy`](super::WhisperStreamDriverConfig::with_policy).
+    /// [`WhisperEngineConfig::with_policy`](super::WhisperEngineConfig::with_policy).
     pub policy: WhisperPolicy,
 
     /// The presets applied, and the lookup's patch.
