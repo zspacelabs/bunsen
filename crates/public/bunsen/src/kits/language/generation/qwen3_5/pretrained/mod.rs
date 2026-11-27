@@ -50,9 +50,13 @@
 //! The tokenizer and template files are handed back as paths, unread: the
 //! kit's model is ids in and logits out.
 
+#[cfg(feature = "store")]
 mod construct;
 mod prefabs;
+#[cfg(feature = "store")]
 mod providers;
 
+#[cfg(feature = "store")]
 pub use construct::*;
+#[cfg(feature = "store")]
 pub use providers::*;

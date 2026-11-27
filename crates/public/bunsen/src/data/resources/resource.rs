@@ -37,6 +37,15 @@ pub const SAFETENSORS: &str = "safetensors";
 /// (`model.safetensors.index.json`): the shard each tensor is in.
 pub const SAFETENSORS_INDEX: &str = "safetensors-index";
 
+/// The format of a burn-pack weights file (`.bpk`).
+pub const BURNPACK: &str = "burnpack";
+
+/// The format of a JSON file a kit reads as data (a config, a vocabulary).
+pub const JSON: &str = "json";
+
+/// The format of a phonon archive: a `.phonon` checkpoint bundle.
+pub const PHONON_ARCHIVE: &str = "phonon archive";
+
 /// Bytes linked into the binary: the payload of a bundled source.
 ///
 /// No manifest form: serializing one is an error, and none can be read

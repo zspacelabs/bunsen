@@ -16,7 +16,7 @@ use super::{
     GENERATION_CONFIG,
     MERGES,
     QWEN3_TTS_KIT,
-    SAFETENSORS_FORMAT,
+    SAFETENSORS,
     TOKENIZER_CONFIG,
     VOCAB,
 };
@@ -89,8 +89,8 @@ impl ConstructInit for Qwen3TtsConstructConfig {
     /// safetensors.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         for (key, format) in [
-            (CHECKPOINT, Some(SAFETENSORS_FORMAT)),
-            (CODEC, Some(SAFETENSORS_FORMAT)),
+            (CHECKPOINT, Some(SAFETENSORS)),
+            (CODEC, Some(SAFETENSORS)),
             (CONFIG, None),
             (CODEC_CONFIG, None),
             (GENERATION_CONFIG, None),

@@ -14,7 +14,7 @@ use crate::data::builds::{
 pub const SWIN_V2_KIT: &str = "swin-v2";
 
 /// The key of the checkpoint in a Swin V2 resource set.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// What the swin v2 kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
@@ -35,7 +35,7 @@ pub fn default_swin_v2_providers() -> Vec<Arc<dyn BuildProvider>> {
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             SWIN_V2_CATALOG_CONTRACT,
         )),
-        Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
+        Arc::new(HfProvider::new()),
     ]
 }
 

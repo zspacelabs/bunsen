@@ -31,9 +31,8 @@ use crate::{
             },
             pretrained::{
                 BURNPACK,
-                BURNPACK_FORMAT,
                 CHECKPOINT,
-                SAFETENSORS_FORMAT,
+                SAFETENSORS,
                 SILERO_KIT,
             },
         },
@@ -44,13 +43,14 @@ use crate::{
 /// How a Silero checkpoint is read, by its resource set.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SileroReader {
-    /// A burnpack under [`BURNPACK`] ([`BURNPACK_FORMAT`]): both sample-rate
-    /// branches, keyed as `burn-onnx` names the ONNX graph's nodes.
+    /// A burnpack under [`BURNPACK`] ([`crate::data::resources::BURNPACK`]):
+    /// both sample-rate branches, keyed as `burn-onnx` names the ONNX graph's
+    /// nodes.
     #[default]
     Burnpack,
 
     /// Upstream's 16 kHz state dict under [`CHECKPOINT`]
-    /// ([`SAFETENSORS_FORMAT`]), read through
+    /// ([`SAFETENSORS`]), read through
     /// [`silero_vad_rekey`](crate::kits::speech::vad::silero_vad::interop::silero_vad::silero_vad_rekey).
     /// Needs the `store` feature.
     Safetensors,
@@ -99,7 +99,7 @@ impl ConstructInit for SileroConstructConfig {
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         let reader = if let Some(r) = map.get(BURNPACK) {
             match r.format.as_deref() {
-                None | Some(BURNPACK_FORMAT) => SileroReader::Burnpack,
+                None | Some(crate::data::resources::BURNPACK) => SileroReader::Burnpack,
                 other => {
                     return Err(BunsenError::unsupported(format!(
                         "no Silero reader for a burnpack of kind {other:?}"
@@ -108,7 +108,7 @@ impl ConstructInit for SileroConstructConfig {
             }
         } else if let Some(r) = map.get(CHECKPOINT) {
             match r.format.as_deref() {
-                Some(SAFETENSORS_FORMAT) => SileroReader::Safetensors,
+                Some(SAFETENSORS) => SileroReader::Safetensors,
                 other => {
                     return Err(BunsenError::unsupported(format!(
                         "no Silero reader for a checkpoint of kind {other:?}"

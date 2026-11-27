@@ -61,8 +61,24 @@ const HF_CONFIG_FILE: &str = "config.json";
 /// The key `config.json` rides under.
 pub const CONFIG: &str = "config";
 
-/// The key the checkpoint is under unless the kit names another.
-const DEFAULT_CHECKPOINT_KEY: &str = "checkpoint";
+/// The key a build's checkpoint rides under, unless its kit names another:
+/// every kit's `CHECKPOINT` is this.
+pub const CHECKPOINT: &str = "checkpoint";
+
+/// A Hugging Face repo's tokenizer file, by its name: the file's path in the
+/// repo and its resource kind.
+pub const TOKENIZER_JSON: &str = "tokenizer.json";
+
+/// A Hugging Face repo's tokenizer settings file, by its name: path and
+/// kind.
+pub const TOKENIZER_CONFIG_JSON: &str = "tokenizer_config.json";
+
+/// A Hugging Face repo's generation settings file, by its name: path and
+/// kind.
+pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
+
+/// A Hugging Face repo's chat template file, by its name: path and kind.
+pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
 
 /// The shard number and count of `model-00001-of-00002.safetensors`.
 fn shard_numbers(file: &str) -> Option<(usize, usize)> {
@@ -243,7 +259,7 @@ impl HfProvider {
                 origins
             },
             revision: HUB_MAIN.to_string(),
-            checkpoint_key: DEFAULT_CHECKPOINT_KEY.to_string(),
+            checkpoint_key: CHECKPOINT.to_string(),
             extra_files: Vec::new(),
             archive_checkpoints: Vec::new(),
         }

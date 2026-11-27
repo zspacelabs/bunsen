@@ -19,7 +19,7 @@ use crate::{
 pub const QWEN3_TTS_KIT: &str = "qwen3_tts";
 
 /// The key of the model's checkpoint in a Qwen3-TTS resource set.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// The key of the model's `config.json`.
 pub const CONFIG: &str = "config";
@@ -43,7 +43,7 @@ pub const CODEC: &str = "codec";
 pub const CODEC_CONFIG: &str = "codec_config";
 
 /// The format of a safetensors file.
-pub const SAFETENSORS_FORMAT: &str = "safetensors";
+pub use crate::data::resources::SAFETENSORS;
 
 /// What the `qwen3_tts` kit's loader implements, as a build catalog's
 /// contract: `contract.yml`, gathered by
@@ -149,8 +149,8 @@ mod tests {
         assert_eq!(
             contract_lines(QWEN3_TTS_CONTRACT),
             [
-                line(CHECKPOINT, SAFETENSORS_FORMAT),
-                line(CODEC, SAFETENSORS_FORMAT),
+                line(CHECKPOINT, SAFETENSORS),
+                line(CODEC, SAFETENSORS),
                 line(CODEC_CONFIG, "json"),
                 line(CONFIG, "json"),
                 line(GENERATION_CONFIG, "generation_config.json"),

@@ -233,3 +233,45 @@ fn bundle<K: TransformersLmKit>(
     }
     Ok(Arc::new(bundle))
 }
+
+/// The `hf:` provider of a `transformers` language model's repo: its
+/// checkpoint (one file or shards) and `config.json`, with its
+/// [`TOKENIZER`](crate::kits::support::construct::TOKENIZER),
+/// [`TOKENIZER_CONFIG`](crate::kits::support::construct::TOKENIZER_CONFIG) and
+/// [`GENERATION_CONFIG`](crate::kits::support::construct::GENERATION_CONFIG)
+/// files when it has them, and its
+/// [`CHAT_TEMPLATE`](crate::kits::support::construct::CHAT_TEMPLATE) file
+/// under `chat_template`.
+pub fn transformers_lm_hf_provider(chat_template: bool) -> crate::data::builds::HfProvider {
+    use crate::{
+        data::builds::{
+            CHAT_TEMPLATE_JINJA,
+            GENERATION_CONFIG_JSON,
+            HfProvider,
+            TOKENIZER_CONFIG_JSON,
+            TOKENIZER_JSON,
+        },
+        kits::support::construct::{
+            CHAT_TEMPLATE,
+            GENERATION_CONFIG,
+            TOKENIZER,
+            TOKENIZER_CONFIG,
+        },
+    };
+    let provider = HfProvider::new()
+        .with_extra_file(TOKENIZER, TOKENIZER_JSON, TOKENIZER_JSON)
+        .with_extra_file(
+            TOKENIZER_CONFIG,
+            TOKENIZER_CONFIG_JSON,
+            TOKENIZER_CONFIG_JSON,
+        )
+        .with_extra_file(
+            GENERATION_CONFIG,
+            GENERATION_CONFIG_JSON,
+            GENERATION_CONFIG_JSON,
+        );
+    match chat_template {
+        true => provider.with_extra_file(CHAT_TEMPLATE, CHAT_TEMPLATE_JINJA, CHAT_TEMPLATE_JINJA),
+        false => provider,
+    }
+}

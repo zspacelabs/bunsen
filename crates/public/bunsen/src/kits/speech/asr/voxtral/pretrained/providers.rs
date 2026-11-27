@@ -15,13 +15,13 @@ use crate::{
 pub const VOXTRAL_KIT: &str = "voxtral";
 
 /// The key of the checkpoint in a Voxtral resource set.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// The key of the vocabulary, `tekken.json`, in a Voxtral resource set.
 pub const VOCABULARY: &str = "vocabulary";
 
 /// The `kind` of a `transformers` `model.safetensors` checkpoint.
-pub const SAFETENSORS: &str = "safetensors";
+pub use crate::data::resources::SAFETENSORS;
 
 /// The `kind` of a Mistral `tekken.json` vocabulary.
 pub const TEKKEN_JSON: &str = "tekken.json";
@@ -47,11 +47,7 @@ pub fn default_voxtral_providers() -> Vec<Arc<dyn BuildProvider>> {
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             VOXTRAL_CATALOG_CONTRACT,
         )),
-        Arc::new(
-            HfProvider::new()
-                .with_checkpoint_key(CHECKPOINT)
-                .with_extra_file(VOCABULARY, "tekken.json", TEKKEN_JSON),
-        ),
+        Arc::new(HfProvider::new().with_extra_file(VOCABULARY, "tekken.json", TEKKEN_JSON)),
     ]
 }
 

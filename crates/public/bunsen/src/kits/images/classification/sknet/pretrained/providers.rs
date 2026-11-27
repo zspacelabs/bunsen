@@ -14,7 +14,7 @@ use crate::data::builds::{
 pub const SKNET_KIT: &str = "sknet";
 
 /// The key of the checkpoint in a `SKNet` resource set.
-pub const CHECKPOINT: &str = "checkpoint";
+pub use crate::data::builds::CHECKPOINT;
 
 /// What the sknet kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
@@ -35,7 +35,7 @@ pub fn default_sknet_providers() -> Vec<Arc<dyn BuildProvider>> {
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             SKNET_CATALOG_CONTRACT,
         )),
-        Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
+        Arc::new(HfProvider::new()),
     ]
 }
 

@@ -7,7 +7,7 @@ use burn::tensor::Device;
 use super::{
     CHECKPOINT,
     CONFIG,
-    SAFETENSORS_FORMAT,
+    SAFETENSORS,
     TOKENIZER,
     VOICE_INFO,
     VOICES,
@@ -71,8 +71,8 @@ impl ConstructInit for Zonos3ConstructConfig {
     /// and safetensors voices, or with voice descriptions not in JSON.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         for (key, format) in [
-            (CHECKPOINT, Some(SAFETENSORS_FORMAT)),
-            (VOICES, Some(SAFETENSORS_FORMAT)),
+            (CHECKPOINT, Some(SAFETENSORS)),
+            (VOICES, Some(SAFETENSORS)),
             (CONFIG, None),
             (TOKENIZER, None),
         ] {

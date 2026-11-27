@@ -6,36 +6,25 @@ use crate::{
     data::builds::{
         BuildFactory,
         BuildProvider,
-        HfProvider,
     },
     errors::BunsenResult,
-    kits::language::generation::gemma::{
-        CHAT_TEMPLATE,
-        GENERATION_CONFIG,
-        TOKENIZER,
-        TOKENIZER_CONFIG,
-    },
 };
 
 /// The Gemma kit's name: its rows' `kit` tag.
 pub const GEMMA_KIT: &str = "gemma";
 
+/// The `kind` of a `chat_template.jinja`.
+pub use crate::data::builds::CHAT_TEMPLATE_JINJA;
 /// The key of the checkpoint in a Gemma resource set: one
 /// `model.safetensors`, or `checkpoint.index` and its shards
 /// `checkpoint.<n>`.
-pub const CHECKPOINT: &str = "checkpoint";
-
-/// The `kind` of a `transformers` `tokenizer.json`.
-pub const TOKENIZER_JSON: &str = "tokenizer.json";
-
-/// The `kind` of a `transformers` `tokenizer_config.json`.
-pub const TOKENIZER_CONFIG_JSON: &str = "tokenizer_config.json";
-
+pub use crate::data::builds::CHECKPOINT;
 /// The `kind` of a `transformers` `generation_config.json`.
-pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
-
-/// The `kind` of a `chat_template.jinja`.
-pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
+pub use crate::data::builds::GENERATION_CONFIG_JSON;
+/// The `kind` of a `transformers` `tokenizer_config.json`.
+pub use crate::data::builds::TOKENIZER_CONFIG_JSON;
+/// The `kind` of a `transformers` `tokenizer.json`.
+pub use crate::data::builds::TOKENIZER_JSON;
 
 /// What the gemma kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
@@ -57,29 +46,14 @@ pub const DEFAULT_GEMMA_MODEL: &str = "gemma/gemma/gemma-3-1b-it";
 /// Gemma's compiled-in providers, in search order: the catalog provider,
 /// then `hf:org/repo`, a Hugging Face repo in a `transformers` Gemma's
 /// layout (its safetensors checkpoint, one file or shards, and its
-/// `config.json`), with its [`TOKENIZER`], [`TOKENIZER_CONFIG`],
-/// [`GENERATION_CONFIG`] and [`CHAT_TEMPLATE`] files when it has them.
+/// `config.json`), with its [`TOKENIZER`](crate::kits::support::construct::TOKENIZER), [`TOKENIZER_CONFIG`](crate::kits::support::construct::TOKENIZER_CONFIG),
+/// [`GENERATION_CONFIG`](crate::kits::support::construct::GENERATION_CONFIG) and [`CHAT_TEMPLATE`](crate::kits::support::construct::CHAT_TEMPLATE) files when it has them.
 pub fn default_gemma_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             GEMMA_CATALOG_CONTRACT,
         )),
-        Arc::new(
-            HfProvider::new()
-                .with_checkpoint_key(CHECKPOINT)
-                .with_extra_file(TOKENIZER, "tokenizer.json", TOKENIZER_JSON)
-                .with_extra_file(
-                    TOKENIZER_CONFIG,
-                    "tokenizer_config.json",
-                    TOKENIZER_CONFIG_JSON,
-                )
-                .with_extra_file(
-                    GENERATION_CONFIG,
-                    "generation_config.json",
-                    GENERATION_CONFIG_JSON,
-                )
-                .with_extra_file(CHAT_TEMPLATE, "chat_template.jinja", CHAT_TEMPLATE_JINJA),
-        ),
+        Arc::new(crate::kits::support::pretrained::transformers_lm_hf_provider(true)),
     ]
 }
 
@@ -98,7 +72,14 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::data::builds::CONFIG;
+    use crate::{
+        data::builds::CONFIG,
+        kits::support::construct::{
+            GENERATION_CONFIG,
+            TOKENIZER,
+            TOKENIZER_CONFIG,
+        },
+    };
 
     /// The rows, by name, every file pinned to one URL on its mirror, each
     /// row with its config, tokenizer and generation files.
