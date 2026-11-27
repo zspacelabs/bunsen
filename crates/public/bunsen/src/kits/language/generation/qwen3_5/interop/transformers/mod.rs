@@ -277,61 +277,65 @@ pub fn qwen3_5_config_from_path(path: &Path) -> BunsenResult<Qwen3_5Config> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::testing::ErrorMatcher;
+    use crate::{
+        burner::module::testing::assert_rekeys,
+        errors::testing::ErrorMatcher,
+    };
 
     /// The checkpoints' names land on the model's canonical names, the
     /// vision tower and the prediction head dropped.
     #[test]
     fn test_qwen3_5_rekey() {
         let rekey = qwen3_5_rekey(&Qwen3_5Config::qwen3_5_0_8b());
-        for (hf, bunsen) in [
-            (
-                "model.language_model.embed_tokens.weight",
-                Some("embedding.weight"),
-            ),
-            ("model.embed_tokens.weight", Some("embedding.weight")),
-            (
-                "model.language_model.layers.0.linear_attn.in_proj_qkv.weight",
-                Some("stack.layers.0.attn.in_proj_qkv.weight"),
-            ),
-            (
-                "model.language_model.layers.0.linear_attn.A_log",
-                Some("stack.layers.0.attn.a_log"),
-            ),
-            (
-                "model.language_model.layers.0.linear_attn.conv1d.weight",
-                Some("stack.layers.0.attn.conv1d.weight"),
-            ),
-            (
-                "model.language_model.layers.0.linear_attn.norm.weight",
-                Some("stack.layers.0.attn.norm.norm.weight"),
-            ),
-            (
-                "model.language_model.layers.3.self_attn.q_proj.weight",
-                Some("stack.layers.3.attn.c_q.weight"),
-            ),
-            (
-                "model.language_model.layers.3.self_attn.q_norm.weight",
-                Some("stack.layers.3.attn.q_norm.weight"),
-            ),
-            (
-                "model.language_model.layers.3.input_layernorm.weight",
-                Some("stack.layers.3.attn_norm.weight"),
-            ),
-            (
-                "model.language_model.layers.3.mlp.down_proj.weight",
-                Some("stack.layers.3.mlp.down_proj.weight"),
-            ),
-            (
-                "model.language_model.norm.weight",
-                Some("stack.norm.weight"),
-            ),
-            ("lm_head.weight", Some("head.proj.weight")),
-            ("model.visual.patch_embed.proj.weight", None),
-            ("mtp.fc.weight", None),
-        ] {
-            assert_eq!(rekey.apply(hf).as_deref(), bunsen, "{hf}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                (
+                    "model.language_model.embed_tokens.weight",
+                    Some("embedding.weight"),
+                ),
+                ("model.embed_tokens.weight", Some("embedding.weight")),
+                (
+                    "model.language_model.layers.0.linear_attn.in_proj_qkv.weight",
+                    Some("stack.layers.0.attn.in_proj_qkv.weight"),
+                ),
+                (
+                    "model.language_model.layers.0.linear_attn.A_log",
+                    Some("stack.layers.0.attn.a_log"),
+                ),
+                (
+                    "model.language_model.layers.0.linear_attn.conv1d.weight",
+                    Some("stack.layers.0.attn.conv1d.weight"),
+                ),
+                (
+                    "model.language_model.layers.0.linear_attn.norm.weight",
+                    Some("stack.layers.0.attn.norm.norm.weight"),
+                ),
+                (
+                    "model.language_model.layers.3.self_attn.q_proj.weight",
+                    Some("stack.layers.3.attn.c_q.weight"),
+                ),
+                (
+                    "model.language_model.layers.3.self_attn.q_norm.weight",
+                    Some("stack.layers.3.attn.q_norm.weight"),
+                ),
+                (
+                    "model.language_model.layers.3.input_layernorm.weight",
+                    Some("stack.layers.3.attn_norm.weight"),
+                ),
+                (
+                    "model.language_model.layers.3.mlp.down_proj.weight",
+                    Some("stack.layers.3.mlp.down_proj.weight"),
+                ),
+                (
+                    "model.language_model.norm.weight",
+                    Some("stack.norm.weight"),
+                ),
+                ("lm_head.weight", Some("head.proj.weight")),
+                ("model.visual.patch_embed.proj.weight", None),
+                ("mtp.fc.weight", None),
+            ],
+        );
     }
 
     /// The `1 + w` norms are loaded as `1 + w`; the `DeltaNet`'s gated norm,

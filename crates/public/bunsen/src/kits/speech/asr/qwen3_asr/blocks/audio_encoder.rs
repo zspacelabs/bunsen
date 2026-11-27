@@ -508,7 +508,10 @@ mod tests {
     use super::*;
     use crate::{
         blocks::transformers::mlp::TransformerFeedForward,
-        support::testing::cpu_device,
+        support::testing::{
+            cpu_device,
+            expect_variant,
+        },
     };
 
     #[test]
@@ -569,9 +572,10 @@ mod tests {
         let config = Qwen3AsrAudioEncoderConfig::new(16, 32, 4, 64, 2, 8).with_n_window_infer(200);
         let encoder: Qwen3AsrAudioEncoder = config.init(&cpu_device());
         let layer = &encoder.stack.layers[0];
-        let TransformerFeedForward::Mlp(mlp) = &layer.mlp.branch else {
-            panic!("a plain feed-forward");
-        };
+        expect_variant!(
+            let TransformerFeedForward::Mlp(mlp) = &layer.mlp.branch,
+            "a plain feed-forward",
+        );
         assert_eq!(mlp.linear1.weight.dims(), [32, 64]);
         assert_eq!(
             layer.attn.branch.attention().mask,

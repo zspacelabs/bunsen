@@ -193,7 +193,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        cpu_device,
+        expect_variant,
+    };
 
     fn table(device: &Device) -> TokenEmbedding {
         let mut embedding: TokenEmbedding = TokenEmbeddingConfig::new(3, 2).init(device);
@@ -258,9 +261,10 @@ mod tests {
         ));
         let mut embedding: TokenEmbedding = config.init(&device);
         embedding.weight = table(&device).weight;
-        let Some(BunsenNormalization::Layer(norm)) = &mut embedding.norm else {
-            panic!("a layer norm");
-        };
+        expect_variant!(
+            let Some(BunsenNormalization::Layer(norm)) = &mut embedding.norm,
+            "a layer norm",
+        );
         assert!(norm.beta.is_none(), "no bias");
         norm.gamma = Param::from_tensor(Tensor::from_floats([2.0, 0.5], &device));
         #[cfg(feature = "store")]

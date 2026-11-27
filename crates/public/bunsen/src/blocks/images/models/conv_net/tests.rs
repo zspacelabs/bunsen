@@ -39,7 +39,10 @@ use crate::{
         testing::ErrorMatcher,
     },
     ops::drop::DropBlockOptions,
-    support::testing::cpu_device,
+    support::testing::{
+        cpu_device,
+        expect_variant,
+    },
 };
 
 /// A `ResNet`'s policy at toy widths: a `stem`-wide `7x7` stem and its max
@@ -69,9 +72,7 @@ fn resnet_like(
 /// A conv block's `[in, out]`, kernel, stride, dilation, groups, and whether
 /// it has an activation.
 fn conv_shape(conv: &ResidualConvConfig) -> ([usize; 2], usize, usize, usize, usize, bool) {
-    let ResidualConvConfig::Block(block) = conv else {
-        panic!("a conv block");
-    };
+    expect_variant!(let ResidualConvConfig::Block(block) = conv, "a conv block");
     (
         [block.in_channels(), block.out_channels()],
         block.kernel_size()[0],
@@ -191,9 +192,10 @@ fn test_output_stride_dilates() {
     assert_eq!(dilations(3, 0), [2, 4]);
     assert_eq!(dilations(3, 1), [4, 4]);
     // A 3x3's padding keeps the size at its dilation.
-    let ResidualConvConfig::Block(block) = &structure.stages[3].units[1].convs[0] else {
-        panic!("a conv block");
-    };
+    expect_variant!(
+        let ResidualConvConfig::Block(block) = &structure.stages[3].units[1].convs[0],
+        "a conv block",
+    );
     assert_eq!(
         block.conv.padding,
         burn::nn::PaddingConfig2d::Explicit(4, 4, 4, 4)
@@ -299,9 +301,7 @@ fn test_avg_conv_shortcuts_are_timms() {
         .stages
         .iter()
         .map(|stage| {
-            let Some(shortcut) = &stage.units[0].shortcut else {
-                panic!("an avg-conv shortcut");
-            };
+            expect_variant!(let Some(shortcut) = &stage.units[0].shortcut, "an avg-conv shortcut");
             assert_eq!(shortcut.block.stride(), [1, 1]);
             shortcut.pool.as_ref().map(|p| {
                 (
@@ -537,9 +537,7 @@ fn test_mixer_attention_lowers_as_regnets() {
     let structure = policy.to_structure();
     for (unit, rd) in structure.stages[0].units.iter().zip([2, 6]) {
         assert_eq!(unit.attn_place, ConvAttentionPlace::Mixer);
-        let Some(ChannelAttentionConfig::Se(se)) = &unit.attn else {
-            panic!("a squeeze-excite");
-        };
+        expect_variant!(let Some(ChannelAttentionConfig::Se(se)) = &unit.attn, "a squeeze-excite");
         assert_eq!((se.channels, se.rd_channels), (24, rd));
         assert!(matches!(se.act, BunsenActivationConfig::Silu));
     }
@@ -691,9 +689,10 @@ fn test_resnetv2_pieces() {
     let unit = &structure.stages[0].units[0];
     assert!(unit.pre.is_some() && unit.shortcut.is_none() && !unit.pre_identity);
     assert_eq!(unit.mixer, 0);
-    let ResidualConvConfig::PreAct(first) = &unit.convs[0] else {
-        panic!("a pre-activation conv");
-    };
+    expect_variant!(
+        let ResidualConvConfig::PreAct(first) = &unit.convs[0],
+        "a pre-activation conv",
+    );
     assert!(first.norm.is_none() && first.weight_std == Some(1e-8));
     assert!(matches!(
         structure.final_conv,
@@ -859,14 +858,13 @@ fn test_split_attn_mixer_and_avd() {
         assert!(first.aa.is_none(), "the first stage doesn't stride");
         let strided = &structure.stages[1].units[0];
         assert!(strided.aa_first == aa_first);
-        let Some(AntiAliasConfig::Avg(pool)) = &strided.aa else {
-            panic!("an avd pool");
-        };
+        expect_variant!(let Some(AntiAliasConfig::Avg(pool)) = &strided.aa, "an avd pool");
         assert_eq!((pool.kernel_size, pool.strides), ([3, 3], [2, 2]));
         assert!(pool.count_include_pad);
-        let ResidualConvConfig::SplitAttn(attn) = &strided.convs[1] else {
-            panic!("a split attention");
-        };
+        expect_variant!(
+            let ResidualConvConfig::SplitAttn(attn) = &strided.convs[1],
+            "a split attention",
+        );
         assert_eq!((attn.radix, attn.stride(), attn.out_channels()), (2, 1, 16));
         let device = cpu_device();
         let model: ConvNetModel = structure.init(&device);
@@ -894,9 +892,10 @@ fn test_selective_kernel_mixer() {
         };
         let structure = policy.to_structure();
         let strided = &structure.stages[1].units[0];
-        let ResidualConvConfig::SelectiveKernel(sk) = &strided.convs[idx] else {
-            panic!("{unit:?}: a selective kernel");
-        };
+        expect_variant!(
+            let ResidualConvConfig::SelectiveKernel(sk) = &strided.convs[idx],
+            "{unit:?}: a selective kernel",
+        );
         assert_eq!(
             (sk.stride(), sk.paths.len(), sk.split_input),
             (2, 2, split_input)

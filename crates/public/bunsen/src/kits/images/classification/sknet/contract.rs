@@ -117,6 +117,7 @@ mod tests {
             },
         },
         errors::testing::ErrorMatcher,
+        support::testing::expect_variant,
     };
 
     /// timm's `skresnet18`: basic blocks, the selective kernel their first
@@ -127,9 +128,10 @@ mod tests {
             .with_rd_ratio(0.125)
             .with_rd_divisor(16);
         let structure = config.to_structure();
-        let ResidualConvConfig::SelectiveKernel(sk) = &structure.stages[1].units[0].convs[0] else {
-            panic!("a selective kernel");
-        };
+        expect_variant!(
+            let ResidualConvConfig::SelectiveKernel(sk) = &structure.stages[1].units[0].convs[0],
+            "a selective kernel",
+        );
         assert_eq!(
             (sk.in_channels(), sk.out_channels(), sk.stride()),
             (64, 128, 2)

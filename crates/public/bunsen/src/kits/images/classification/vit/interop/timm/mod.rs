@@ -242,8 +242,10 @@ fn vit_rekey_with(mlp: &[(&str, &str)]) -> Rekey {
 mod tests {
     use super::*;
     use crate::{
+        burner::module::testing::assert_rekeys,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
+        support::testing::assert_config_eq,
     };
 
     /// A timm config of `architecture` with `num_classes` classes at `size`,
@@ -286,14 +288,10 @@ mod tests {
                 TokenPoolConfig::Map => "map",
                 other => panic!("{name}: a {other:?} prefab"),
             };
-            assert_eq!(
-                format!(
-                    "{:?}",
-                    vit_contract_config(&pooled_config(name, 21843, want.image_size, pool))
-                        .unwrap()
-                ),
-                format!("{want:?}"),
-                "{name}"
+            assert_config_eq(
+                name,
+                &vit_contract_config(&pooled_config(name, 21843, want.image_size, pool)).unwrap(),
+                &want,
             );
         }
         let headless = vit_contract_config(&config("vit_base_patch16_224", 0, 224)).unwrap();
@@ -328,42 +326,43 @@ mod tests {
     #[test]
     fn test_vit_rekey() {
         let rekey = vit_rekey();
-        for (timm, bunsen) in [
-            ("patch_embed.proj.weight", "patch_embed.projection.weight"),
-            (
-                "patch_embed.backbone.stem.conv.weight",
-                "backbone.net.stem.convs.0.conv.weight",
-            ),
-            (
-                "patch_embed.backbone.stages.2.blocks.8.downsample.norm.bias",
-                "backbone.net.stages.2.units.8.shortcut.norm.bias",
-            ),
-            (
-                "patch_embed.backbone.norm.weight",
-                "backbone.net.stem.convs.0.norm.weight",
-            ),
-            ("cls_token", "tokens.cls_token"),
-            ("reg_token", "tokens.reg_token"),
-            ("pos_embed", "tokens.pos_embed"),
-            ("norm_pre.weight", "stack.input_norm.weight"),
-            ("blocks.0.norm1.weight", "stack.layers.0.attn_norm.weight"),
-            ("blocks.0.attn.q.bias", "stack.layers.0.attn.c_q.bias"),
-            ("blocks.1.attn.v.weight", "stack.layers.1.attn.c_v.weight"),
-            ("blocks.1.attn.proj.bias", "stack.layers.1.attn.c_proj.bias"),
-            ("blocks.2.ls1.gamma", "stack.layers.2.attn_layer_scale"),
-            ("blocks.2.ls2.gamma", "stack.layers.2.mlp_layer_scale"),
-            ("blocks.11.norm2.bias", "stack.layers.11.mlp_norm.bias"),
-            (
-                "blocks.11.mlp.fc1.weight",
-                "stack.layers.11.mlp.linear1.weight",
-            ),
-            ("norm.weight", "stack.norm.weight"),
-            ("fc_norm.bias", "head.fc_norm.bias"),
-            ("head.weight", "head.fc.weight"),
-            ("dist_token", "tokens.dist_token"),
-            ("head_dist.bias", "head.fc_dist.bias"),
-        ] {
-            assert_eq!(rekey.apply(timm).as_deref(), Some(bunsen), "{timm}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                ("patch_embed.proj.weight", "patch_embed.projection.weight"),
+                (
+                    "patch_embed.backbone.stem.conv.weight",
+                    "backbone.net.stem.convs.0.conv.weight",
+                ),
+                (
+                    "patch_embed.backbone.stages.2.blocks.8.downsample.norm.bias",
+                    "backbone.net.stages.2.units.8.shortcut.norm.bias",
+                ),
+                (
+                    "patch_embed.backbone.norm.weight",
+                    "backbone.net.stem.convs.0.norm.weight",
+                ),
+                ("cls_token", "tokens.cls_token"),
+                ("reg_token", "tokens.reg_token"),
+                ("pos_embed", "tokens.pos_embed"),
+                ("norm_pre.weight", "stack.input_norm.weight"),
+                ("blocks.0.norm1.weight", "stack.layers.0.attn_norm.weight"),
+                ("blocks.0.attn.q.bias", "stack.layers.0.attn.c_q.bias"),
+                ("blocks.1.attn.v.weight", "stack.layers.1.attn.c_v.weight"),
+                ("blocks.1.attn.proj.bias", "stack.layers.1.attn.c_proj.bias"),
+                ("blocks.2.ls1.gamma", "stack.layers.2.attn_layer_scale"),
+                ("blocks.2.ls2.gamma", "stack.layers.2.mlp_layer_scale"),
+                ("blocks.11.norm2.bias", "stack.layers.11.mlp_norm.bias"),
+                (
+                    "blocks.11.mlp.fc1.weight",
+                    "stack.layers.11.mlp.linear1.weight",
+                ),
+                ("norm.weight", "stack.norm.weight"),
+                ("fc_norm.bias", "head.fc_norm.bias"),
+                ("head.weight", "head.fc.weight"),
+                ("dist_token", "tokens.dist_token"),
+                ("head_dist.bias", "head.fc_dist.bias"),
+            ],
+        );
     }
 }

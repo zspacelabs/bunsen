@@ -61,6 +61,7 @@ mod tests {
     use crate::{
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
+        support::testing::assert_config_eq,
     };
 
     fn config(
@@ -81,13 +82,10 @@ mod tests {
     fn test_prefab_architectures_map() {
         for name in DeiTContractConfig::prefab_names() {
             let want = DeiTContractConfig::expect_prefab(name);
-            assert_eq!(
-                format!(
-                    "{:?}",
-                    deit_contract_config(&config(name, want.vit.image_size)).unwrap()
-                ),
-                format!("{want:?}"),
-                "{name}"
+            assert_config_eq(
+                name,
+                &deit_contract_config(&config(name, want.vit.image_size)).unwrap(),
+                &want,
             );
         }
         ErrorMatcher::unsupported()

@@ -370,7 +370,10 @@ mod tests {
         },
         burner::module::ModuleInit,
         errors::testing::ErrorMatcher,
-        support::testing::cpu_device,
+        support::testing::{
+            cpu_device,
+            expect_variant,
+        },
     };
 
     /// timm's `regnetx_002`: `RegNetCfg(w0=24, wa=36.44, wm=2.49,
@@ -425,9 +428,7 @@ mod tests {
         let y = x002().with_se_ratio(0.25).to_structure();
         let unit = &y.stages[1].units[0];
         assert_eq!(unit.attn_place, ConvAttentionPlace::Mixer);
-        let Some(ChannelAttentionConfig::Se(se)) = &unit.attn else {
-            panic!("a squeeze-excite");
-        };
+        expect_variant!(let Some(ChannelAttentionConfig::Se(se)) = &unit.attn, "a squeeze-excite");
         // Over the 56-wide mixer, reduced to round(24 * 0.25).
         assert_eq!((se.channels, se.rd_channels), (56, 6));
 

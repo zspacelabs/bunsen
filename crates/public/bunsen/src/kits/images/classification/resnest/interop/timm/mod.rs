@@ -126,8 +126,10 @@ pub fn resnest_rekey(layout: ResNetStateLayout) -> Rekey {
 mod tests {
     use super::*;
     use crate::{
+        burner::module::testing::assert_rekeys,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
+        support::testing::assert_config_eq,
     };
 
     /// A timm config of `architecture` with `num_classes` classes.
@@ -150,10 +152,10 @@ mod tests {
         for name in ResNeStContractConfig::prefab_names() {
             let mut want = ResNeStContractConfig::expect_prefab(name);
             want.resnet.num_classes = 10;
-            assert_eq!(
-                format!("{:?}", resnest_contract_config(&config(name, 10)).unwrap()),
-                format!("{want:?}"),
-                "{name}"
+            assert_config_eq(
+                name,
+                &resnest_contract_config(&config(name, 10)).unwrap(),
+                &want,
             );
         }
         ErrorMatcher::unsupported()
@@ -169,37 +171,38 @@ mod tests {
             stem_convs: 3,
             avg_down: true,
         });
-        for (timm, bunsen) in [
-            ("conv1.0.weight", "stem.convs.0.conv.weight"),
-            ("bn1.bias", "stem.convs.2.norm.bias"),
-            (
-                "layer1.0.conv2.conv.weight",
-                "stages.0.units.0.convs.1.conv.conv.weight",
-            ),
-            (
-                "layer3.1.conv2.bn0.bias",
-                "stages.2.units.1.convs.1.conv.norm.bias",
-            ),
-            (
-                "layer4.0.conv2.fc1.bias",
-                "stages.3.units.0.convs.1.fc1.conv.bias",
-            ),
-            (
-                "layer4.0.conv2.fc2.weight",
-                "stages.3.units.0.convs.1.fc2.weight",
-            ),
-            (
-                "layer1.0.conv1.weight",
-                "stages.0.units.0.convs.0.conv.weight",
-            ),
-            (
-                "layer3.0.downsample.2.weight",
-                "stages.2.units.0.shortcut.norm.weight",
-            ),
-            ("fc.weight", "head.fc.weight"),
-        ] {
-            assert_eq!(rekey.apply(timm).as_deref(), Some(bunsen), "{timm}");
-        }
-        assert_eq!(rekey.apply("layer1.0.conv2.bn1.num_batches_tracked"), None);
+        assert_rekeys(
+            &rekey,
+            [
+                ("conv1.0.weight", Some("stem.convs.0.conv.weight")),
+                ("bn1.bias", Some("stem.convs.2.norm.bias")),
+                (
+                    "layer1.0.conv2.conv.weight",
+                    Some("stages.0.units.0.convs.1.conv.conv.weight"),
+                ),
+                (
+                    "layer3.1.conv2.bn0.bias",
+                    Some("stages.2.units.1.convs.1.conv.norm.bias"),
+                ),
+                (
+                    "layer4.0.conv2.fc1.bias",
+                    Some("stages.3.units.0.convs.1.fc1.conv.bias"),
+                ),
+                (
+                    "layer4.0.conv2.fc2.weight",
+                    Some("stages.3.units.0.convs.1.fc2.weight"),
+                ),
+                (
+                    "layer1.0.conv1.weight",
+                    Some("stages.0.units.0.convs.0.conv.weight"),
+                ),
+                (
+                    "layer3.0.downsample.2.weight",
+                    Some("stages.2.units.0.shortcut.norm.weight"),
+                ),
+                ("fc.weight", Some("head.fc.weight")),
+                ("layer1.0.conv2.bn1.num_batches_tracked", None),
+            ],
+        );
     }
 }

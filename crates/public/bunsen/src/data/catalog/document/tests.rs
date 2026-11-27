@@ -1,6 +1,7 @@
 use serde_json::Value;
 
 use super::*;
+use crate::support::testing::expect_variant;
 
 const SAMPLE: &str = r#"
 family: { $kind: facet, $description: "A line of related architectures." }
@@ -33,16 +34,12 @@ fn test_yaml_parses_every_kind_written() {
         kinds,
         [EntryKind::Facet, EntryKind::Axis, EntryKind::Namespace]
     );
-    let CatalogEntry::Build(build) = &doc.entries[2].children()[0] else {
-        panic!("a build")
-    };
+    expect_variant!(let CatalogEntry::Build(build) = &doc.entries[2].children()[0], "a build");
     assert_eq!(build.join.len(), 2);
     assert!(matches!(build.join[1], Membership::Release(_)));
     assert_eq!(build.presets.axes[0].offers, ["thinking"]);
     assert_eq!(build.presets.presets[0].merge, MergeMode::Replace);
-    let CatalogEntry::Resource(res) = &build.children[0] else {
-        panic!("a resource")
-    };
+    expect_variant!(let CatalogEntry::Resource(res) = &build.children[0], "a resource");
     assert_eq!(res.sources.len(), 2);
 }
 
@@ -111,16 +108,12 @@ g:
     .unwrap();
     let g = &doc.entries[0];
     assert_eq!(g.children().len(), 2);
-    let CatalogEntry::Build(b) = &g.children()[0] else {
-        panic!("a build")
-    };
+    expect_variant!(let CatalogEntry::Build(b) = &g.children()[0], "a build");
     let tags: Vec<String> = b.tags.keys().map(ToString::to_string).collect();
     assert_eq!(tags, ["parameters", "scores"]);
     assert_eq!(b.children.len(), 1);
     assert_eq!(b.children[0].name(), "weights");
-    let CatalogEntry::TemplateClass(t) = &g.children()[1] else {
-        panic!("a template class")
-    };
+    expect_variant!(let CatalogEntry::TemplateClass(t) = &g.children()[1], "a template class");
     assert_eq!(t.tags.len(), 1);
 }
 
@@ -177,9 +170,7 @@ c:
         .map(CatalogEntry::name)
         .collect();
     assert_eq!(kids, ["y", "b"]);
-    let CatalogEntry::TemplateClass(c) = &doc.entries[2] else {
-        panic!("a template class")
-    };
+    expect_variant!(let CatalogEntry::TemplateClass(c) = &doc.entries[2], "a template class");
     let axes: Vec<String> = c.presets.axes.iter().map(|a| a.axis.to_string()).collect();
     assert_eq!(axes, ["zz", "aa"]);
     let presets: Vec<&str> = c.presets.presets.iter().map(|p| p.name.as_str()).collect();
@@ -193,9 +184,7 @@ c:
 #[test]
 fn test_an_editor_reads_changes_and_writes_a_tree() {
     let mut node = OrderedNode::from_yaml(SAMPLE).unwrap();
-    let OrderedNode::Map(entries) = &mut node else {
-        panic!("a map")
-    };
+    expect_variant!(let OrderedNode::Map(entries) = &mut node, "a map");
     // Move the namespace first; the catalog reads it in the new order.
     let qwen = entries.pop().unwrap();
     entries.insert(0, qwen);

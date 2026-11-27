@@ -358,9 +358,7 @@ mod tests {
                 .init(&device);
             block.dwconv.weight = Param::from_tensor(fixture.io::<3>(&at("1.dwconv.conv.weight")));
             block.dwconv.bias = Some(param1(&at("1.dwconv.conv.bias")));
-            let BunsenNormalization::Layer(norm) = &mut block.norm else {
-                panic!("a layer norm");
-            };
+            crate::support::testing::expect_variant!(let BunsenNormalization::Layer(norm) = &mut block.norm, "a layer norm");
             norm.gamma = param1(&at("1.norm.weight"));
             norm.beta = Some(param1(&at("1.norm.bias")));
             block.pwconv1.weight = linear_t(&at("1.pwconv1.weight"));

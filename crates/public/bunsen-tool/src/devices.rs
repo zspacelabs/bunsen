@@ -116,25 +116,21 @@ fn usages(set: DTypeUsageSet) -> Value {
 
 #[cfg(test)]
 mod tests {
+    use bunsen::support::testing::expect_variant;
+
     use super::*;
 
     /// Every compiled backend is listed, the CPU's last; each lists every
     /// float dtype, and the CPU computes in f32 without accelerating it.
     #[test]
     fn test_devices() {
-        let Value::Map(top) = devices().unwrap() else {
-            panic!("a map");
-        };
-        let Value::List(entries) = &top[0].1 else {
-            panic!("a list of devices");
-        };
+        expect_variant!(let Value::Map(top) = devices().unwrap(), "a map");
+        expect_variant!(let Value::List(entries) = &top[0].1, "a list of devices");
         let compiled = DeviceChoice::value_variants().len() - 1;
         assert_eq!(entries.len(), compiled);
         let flex = entries.last().unwrap();
         assert_eq!(flex.get("backend"), Some(&Value::str("flex")));
-        let Some(Value::Map(floats)) = flex.get("float") else {
-            panic!("the float dtypes");
-        };
+        expect_variant!(let Some(Value::Map(floats)) = flex.get("float"), "the float dtypes");
         let keys: Vec<&str> = floats.iter().map(|(k, _)| k.as_str()).collect();
         assert_eq!(keys, ["f64", "f32", "flex32", "f16", "bf16"]);
         assert_eq!(

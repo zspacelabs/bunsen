@@ -127,8 +127,10 @@ pub fn regnet_rekey() -> Rekey {
 mod tests {
     use super::*;
     use crate::{
+        burner::module::testing::assert_rekeys,
         errors::testing::ErrorMatcher,
         kits::images::support::interop::timm::timm_model_config_from_str,
+        support::testing::assert_config_eq,
     };
 
     /// A timm config of `architecture` with `num_classes` classes.
@@ -152,13 +154,10 @@ mod tests {
             for classes in [0, 11821] {
                 let mut want = RegNetContractConfig::expect_prefab(name);
                 want.num_classes = classes;
-                assert_eq!(
-                    format!(
-                        "{:?}",
-                        regnet_contract_config(&config(name, classes)).unwrap()
-                    ),
-                    format!("{want:?}"),
-                    "{name}"
+                assert_config_eq(
+                    name,
+                    &regnet_contract_config(&config(name, classes)).unwrap(),
+                    &want,
                 );
             }
         }
@@ -177,54 +176,56 @@ mod tests {
     #[test]
     fn test_regnet_rekey() {
         let rekey = regnet_rekey();
-        for (timm, bunsen) in [
-            ("stem.conv.weight", "stem.convs.0.conv.weight"),
-            ("stem.bn.bias", "stem.convs.0.norm.bias"),
-            (
-                "s1.b1.conv1.conv.weight",
-                "stages.0.units.0.convs.0.conv.weight",
-            ),
-            (
-                "s4.b7.conv3.bn.weight",
-                "stages.3.units.6.convs.2.norm.weight",
-            ),
-            ("s2.b1.se.fc1.bias", "stages.1.units.0.attn.fc1.bias"),
-            (
-                "s1.b1.downsample.conv.weight",
-                "stages.0.units.0.shortcut.conv.weight",
-            ),
-            (
-                "s1.b1.downsample.bn.running_mean",
-                "stages.0.units.0.shortcut.norm.running_mean",
-            ),
-            ("head.fc.weight", "head.fc.weight"),
-        ] {
-            assert_eq!(rekey.apply(timm).as_deref(), Some(bunsen), "{timm}");
-        }
-        assert_eq!(rekey.apply("s1.b1.conv1.bn.num_batches_tracked"), None);
+        assert_rekeys(
+            &rekey,
+            [
+                ("stem.conv.weight", Some("stem.convs.0.conv.weight")),
+                ("stem.bn.bias", Some("stem.convs.0.norm.bias")),
+                (
+                    "s1.b1.conv1.conv.weight",
+                    Some("stages.0.units.0.convs.0.conv.weight"),
+                ),
+                (
+                    "s4.b7.conv3.bn.weight",
+                    Some("stages.3.units.6.convs.2.norm.weight"),
+                ),
+                ("s2.b1.se.fc1.bias", Some("stages.1.units.0.attn.fc1.bias")),
+                (
+                    "s1.b1.downsample.conv.weight",
+                    Some("stages.0.units.0.shortcut.conv.weight"),
+                ),
+                (
+                    "s1.b1.downsample.bn.running_mean",
+                    Some("stages.0.units.0.shortcut.norm.running_mean"),
+                ),
+                ("head.fc.weight", Some("head.fc.weight")),
+                ("s1.b1.conv1.bn.num_batches_tracked", None),
+            ],
+        );
         // `RegNetV`'s pre-activation names, and `RegNetZ`'s final conv.
-        for (timm, bunsen) in [
-            ("stem.weight", "stem.convs.0.conv.weight"),
-            ("s1.b1.norm1.weight", "stages.0.units.0.pre.norm.weight"),
-            ("s1.b1.conv1.weight", "stages.0.units.0.convs.0.conv.weight"),
-            (
-                "s1.b1.norm2.running_var",
-                "stages.0.units.0.convs.1.norm.running_var",
-            ),
-            ("s1.b1.norm3.bias", "stages.0.units.0.convs.2.norm.bias"),
-            ("s3.b2.conv3.weight", "stages.2.units.1.convs.2.conv.weight"),
-            (
-                "s1.b1.downsample.weight",
-                "stages.0.units.0.shortcut.conv.weight",
-            ),
-            (
-                "s1.b1.downsample.1.weight",
-                "stages.0.units.0.shortcut.conv.weight",
-            ),
-            ("final_conv.conv.weight", "final_conv.conv.weight"),
-            ("final_conv.bn.weight", "final_conv.norm.weight"),
-        ] {
-            assert_eq!(rekey.apply(timm).as_deref(), Some(bunsen), "{timm}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                ("stem.weight", "stem.convs.0.conv.weight"),
+                ("s1.b1.norm1.weight", "stages.0.units.0.pre.norm.weight"),
+                ("s1.b1.conv1.weight", "stages.0.units.0.convs.0.conv.weight"),
+                (
+                    "s1.b1.norm2.running_var",
+                    "stages.0.units.0.convs.1.norm.running_var",
+                ),
+                ("s1.b1.norm3.bias", "stages.0.units.0.convs.2.norm.bias"),
+                ("s3.b2.conv3.weight", "stages.2.units.1.convs.2.conv.weight"),
+                (
+                    "s1.b1.downsample.weight",
+                    "stages.0.units.0.shortcut.conv.weight",
+                ),
+                (
+                    "s1.b1.downsample.1.weight",
+                    "stages.0.units.0.shortcut.conv.weight",
+                ),
+                ("final_conv.conv.weight", "final_conv.conv.weight"),
+                ("final_conv.bn.weight", "final_conv.norm.weight"),
+            ],
+        );
     }
 }

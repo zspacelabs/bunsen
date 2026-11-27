@@ -134,6 +134,8 @@ fn request(
 }
 
 mod qwen3_tts_12hz_0_6b_customvoice {
+    use bunsen::support::testing::expect_variant;
+
     use super::*;
 
     /// A sampled take of a sentence ends on EOS, between one and ten seconds
@@ -145,9 +147,7 @@ mod qwen3_tts_12hz_0_6b_customvoice {
         let _memory = DeviceMemoryGuard::new(&device);
         let driver = driver(&device);
         let speech = driver.synthesize(&request(HARVARD[0], 1)).unwrap();
-        let [take] = speech.takes.as_slice() else {
-            panic!("one take: {:?}", speech.takes);
-        };
+        expect_variant!(let [take] = speech.takes.as_slice());
         eprintln!("{take:?}, {:.2} s", speech.seconds());
         assert_eq!(take.stop, TtsStop::End);
         assert!((1.0..10.0).contains(&speech.seconds()));

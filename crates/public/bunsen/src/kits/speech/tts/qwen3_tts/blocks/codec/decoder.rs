@@ -613,7 +613,10 @@ mod tests {
             },
             interop::qwen_tts::*,
         },
-        support::testing::cpu_device,
+        support::testing::{
+            cpu_device,
+            expect_variant,
+        },
     };
 
     /// A small decoder, every width distinct.
@@ -783,9 +786,10 @@ mod tests {
         let mut structure = policy.to_structure();
         assert_eq!(structure.output_clamp, Some(1.0));
         structure.output_clamp = Some(0.5);
-        let TokenMixerConfig::Attention(attn) = &structure.pre_transformer.stack.layer.attn else {
-            panic!("an attention layer");
-        };
+        expect_variant!(
+            let TokenMixerConfig::Attention(attn) = &structure.pre_transformer.stack.layer.attn,
+            "an attention layer",
+        );
         assert!(attn.norm.is_some());
         assert_eq!(attn.softmax_widening, Widening::NONE);
         assert_eq!(

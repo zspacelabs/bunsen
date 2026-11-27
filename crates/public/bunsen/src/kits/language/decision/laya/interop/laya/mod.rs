@@ -136,42 +136,50 @@ pub fn laya_rekey() -> Rekey {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::burner::module::testing::assert_rekeys;
 
     /// The checkpoint's names land on the model's; the buffer is dropped.
     #[test]
     fn test_laya_rekey() {
         let rekey = laya_rekey();
-        for (stored, bunsen) in [
-            (
-                "encoder.layers.3.attn.Wq.weight",
-                "encoder.stack.layers.3.attn.c_q.weight",
-            ),
-            ("encoder.final_norm.weight", "encoder.stack.norm.weight"),
-            (
-                "head.layers.1.self_attn.q_proj.bias",
-                "head.layers.1.attn.c_q.bias",
-            ),
-            (
-                "head.layers.0.self_attn.out_proj.weight",
-                "head.layers.0.attn.c_proj.weight",
-            ),
-            (
-                "head.layers.0.norm1.weight",
-                "head.layers.0.attn_norm.weight",
-            ),
-            ("head.layers.0.norm2.bias", "head.layers.0.mlp_norm.bias"),
-            (
-                "head.layers.1.linear2.weight",
-                "head.layers.1.mlp.linear2.weight",
-            ),
-            ("type_emb.weight", "type_emb.weight"),
-            ("scorer.0.weight", "scorer.norm.weight"),
-            ("scorer.3.bias", "scorer.mlp.linear2.bias"),
-            ("act_head.2.weight", "act_head.linear2.weight"),
-        ] {
-            assert_eq!(rekey.apply(stored).as_deref(), Some(bunsen), "{stored}");
-        }
-        assert_eq!(rekey.apply("temperature"), None);
+        assert_rekeys(
+            &rekey,
+            [
+                (
+                    "encoder.layers.3.attn.Wq.weight",
+                    Some("encoder.stack.layers.3.attn.c_q.weight"),
+                ),
+                (
+                    "encoder.final_norm.weight",
+                    Some("encoder.stack.norm.weight"),
+                ),
+                (
+                    "head.layers.1.self_attn.q_proj.bias",
+                    Some("head.layers.1.attn.c_q.bias"),
+                ),
+                (
+                    "head.layers.0.self_attn.out_proj.weight",
+                    Some("head.layers.0.attn.c_proj.weight"),
+                ),
+                (
+                    "head.layers.0.norm1.weight",
+                    Some("head.layers.0.attn_norm.weight"),
+                ),
+                (
+                    "head.layers.0.norm2.bias",
+                    Some("head.layers.0.mlp_norm.bias"),
+                ),
+                (
+                    "head.layers.1.linear2.weight",
+                    Some("head.layers.1.mlp.linear2.weight"),
+                ),
+                ("type_emb.weight", Some("type_emb.weight")),
+                ("scorer.0.weight", Some("scorer.norm.weight")),
+                ("scorer.3.bias", Some("scorer.mlp.linear2.bias")),
+                ("act_head.2.weight", Some("act_head.linear2.weight")),
+                ("temperature", None),
+            ],
+        );
     }
 
     const JSON: &str = r#"{

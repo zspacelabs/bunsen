@@ -1,9 +1,12 @@
 //! The commands, run over the example catalogs, the supplemental one as an
 //! extension.
 
-use bunsen::data::catalog::{
-    BunsenCatalogStack,
-    document::OrderedNode,
+use bunsen::{
+    data::catalog::{
+        BunsenCatalogStack,
+        document::OrderedNode,
+    },
+    support::testing::expect_variant,
 };
 use serde_json::{
     Value,
@@ -433,9 +436,10 @@ fn test_dump_nests_each_catalog_in_order() {
             .ends_with("supplemental.yml")
     );
     // The keyed form, read back in its order, is the catalog imported.
-    let OrderedNode::Seq(items) = OrderedNode::from_yaml(&yaml).unwrap() else {
-        panic!("a sequence")
-    };
+    expect_variant!(
+        let OrderedNode::Seq(items) = OrderedNode::from_yaml(&yaml).unwrap(),
+        "a sequence",
+    );
     let node = items[2].get("catalog").unwrap().clone();
     let catalog = bunsen::data::catalog::BunsenCatalog::from_node(node).unwrap();
     let stack = bunsen::data::catalog::testing::fixtures::supplemented_example_stack().unwrap();

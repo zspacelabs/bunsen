@@ -166,6 +166,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        burner::module::testing::assert_rekeys,
         data::formats::safetensors_header,
         errors::testing::ErrorMatcher,
         kits::speech::asr::whisper::WhisperMeta,
@@ -280,64 +281,65 @@ mod tests {
     #[test]
     fn test_whisper_rekey() {
         let rekey = whisper_rekey();
-        for (hf, bunsen) in [
-            (
-                "model.encoder.conv1.weight",
-                Some("encoder.head.blocks.0.conv.weight"),
-            ),
-            (
-                "model.encoder.conv2.bias",
-                Some("encoder.head.blocks.1.conv.bias"),
-            ),
-            (
-                "model.encoder.embed_positions.weight",
-                Some("encoder.positional_embedding"),
-            ),
-            (
-                "model.decoder.embed_positions.weight",
-                Some("decoder.positional_embedding"),
-            ),
-            (
-                "model.decoder.embed_tokens.weight",
-                Some("decoder.token_embedding.weight"),
-            ),
-            (
-                "model.encoder.layers.3.self_attn.out_proj.weight",
-                Some("encoder.blocks.3.attn.c_proj.weight"),
-            ),
-            (
-                "model.encoder.layers.3.self_attn_layer_norm.bias",
-                Some("encoder.blocks.3.attn_norm.bias"),
-            ),
-            (
-                "model.decoder.layers.1.self_attn.k_proj.weight",
-                Some("decoder.blocks.1.attn.key.weight"),
-            ),
-            (
-                "model.decoder.layers.1.encoder_attn.q_proj.bias",
-                Some("decoder.blocks.1.cross_attn.query.bias"),
-            ),
-            (
-                "model.decoder.layers.1.encoder_attn_layer_norm.weight",
-                Some("decoder.blocks.1.cross_attn_norm.weight"),
-            ),
-            (
-                "model.decoder.layers.1.final_layer_norm.weight",
-                Some("decoder.blocks.1.mlp_norm.weight"),
-            ),
-            (
-                "model.decoder.layers.1.fc1.weight",
-                Some("decoder.blocks.1.mlp.linear1.weight"),
-            ),
-            (
-                "model.encoder.layer_norm.weight",
-                Some("encoder.ln_post.weight"),
-            ),
-            ("model.decoder.layer_norm.bias", Some("decoder.ln.bias")),
-            ("proj_out.weight", None),
-        ] {
-            assert_eq!(rekey.apply(hf).as_deref(), bunsen, "{hf}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                (
+                    "model.encoder.conv1.weight",
+                    Some("encoder.head.blocks.0.conv.weight"),
+                ),
+                (
+                    "model.encoder.conv2.bias",
+                    Some("encoder.head.blocks.1.conv.bias"),
+                ),
+                (
+                    "model.encoder.embed_positions.weight",
+                    Some("encoder.positional_embedding"),
+                ),
+                (
+                    "model.decoder.embed_positions.weight",
+                    Some("decoder.positional_embedding"),
+                ),
+                (
+                    "model.decoder.embed_tokens.weight",
+                    Some("decoder.token_embedding.weight"),
+                ),
+                (
+                    "model.encoder.layers.3.self_attn.out_proj.weight",
+                    Some("encoder.blocks.3.attn.c_proj.weight"),
+                ),
+                (
+                    "model.encoder.layers.3.self_attn_layer_norm.bias",
+                    Some("encoder.blocks.3.attn_norm.bias"),
+                ),
+                (
+                    "model.decoder.layers.1.self_attn.k_proj.weight",
+                    Some("decoder.blocks.1.attn.key.weight"),
+                ),
+                (
+                    "model.decoder.layers.1.encoder_attn.q_proj.bias",
+                    Some("decoder.blocks.1.cross_attn.query.bias"),
+                ),
+                (
+                    "model.decoder.layers.1.encoder_attn_layer_norm.weight",
+                    Some("decoder.blocks.1.cross_attn_norm.weight"),
+                ),
+                (
+                    "model.decoder.layers.1.final_layer_norm.weight",
+                    Some("decoder.blocks.1.mlp_norm.weight"),
+                ),
+                (
+                    "model.decoder.layers.1.fc1.weight",
+                    Some("decoder.blocks.1.mlp.linear1.weight"),
+                ),
+                (
+                    "model.encoder.layer_norm.weight",
+                    Some("encoder.ln_post.weight"),
+                ),
+                ("model.decoder.layer_norm.bias", Some("decoder.ln.bias")),
+                ("proj_out.weight", None),
+            ],
+        );
     }
 
     /// A toy model written in `transformers`' layout comes back with the

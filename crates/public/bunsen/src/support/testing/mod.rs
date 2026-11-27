@@ -84,6 +84,18 @@
 //!   [`max_abs_error`](TensorRecord::max_abs_error), the worst sample's
 //!   distance, which `assert_matches` also returns for a test to report.
 //!
+//! # Shapes and configs
+//!
+//! - [`expect_variant!`](crate::support::testing::expect_variant!): a `let ..
+//!   else` whose panic names the pattern and the value it met.
+//! - [`assert_config_eq`], [`config_eq`]: configs equal as their serialized
+//!   form, a failure listing each differing JSON pointer.
+//! - [`assert_scalar_close`]: two floats within an absolute tolerance.
+//! - [`int_tensor_to_vec`], [`bool_tensor_to_vec`], with [`tensor_to_vec_as`]:
+//!   tensors read back to the host.
+//! - [`assert_rekeys`](crate::burner::module::testing::assert_rekeys) lives
+//!   with [`Rekey`](crate::burner::module::Rekey).
+//!
 //! # Matchers
 //!
 //! [`matching`]: checks that describe themselves (hamcrest's style), the
@@ -123,8 +135,10 @@
 
 mod common_assertions;
 mod common_devices;
+mod config_assertions;
 mod device_memory;
 mod dtype_assertions;
+mod expect_variant;
 pub mod matching;
 mod seeded;
 mod tensor_record;
@@ -133,8 +147,10 @@ mod toy_fixture;
 
 pub use common_assertions::*;
 pub use common_devices::*;
+pub use config_assertions::*;
 pub use device_memory::*;
 pub use dtype_assertions::*;
+pub use expect_variant::*;
 pub use seeded::*;
 pub use tensor_record::*;
 #[cfg(feature = "store")]

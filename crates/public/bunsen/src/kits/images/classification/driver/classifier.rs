@@ -185,6 +185,7 @@ mod tests {
         support::testing::{
             assert_scalar_close,
             cpu_device,
+            expect_variant,
         },
     };
 
@@ -215,9 +216,10 @@ mod tests {
             .map(|x| x.dims())
             .collect();
         assert_eq!(stages, [[2, 8, 16, 16], [2, 8, 8, 8], [2, 16, 4, 4]]);
-        let ImageFeatures::Spatial(features) = classifier.forward_features(images.clone()) else {
-            panic!("a conv net's features are spatial");
-        };
+        expect_variant!(
+            let ImageFeatures::Spatial(features) = classifier.forward_features(images.clone()),
+            "a conv net's features are spatial",
+        );
         assert_eq!(features.dims(), [2, 16, 4, 4]);
         assert_eq!(classifier.forward_pooled(images.clone()).dims(), [2, 16]);
         classifier

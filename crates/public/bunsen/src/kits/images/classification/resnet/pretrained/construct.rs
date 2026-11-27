@@ -177,6 +177,7 @@ mod tests {
                 default_resnet_factory,
             },
         },
+        support::testing::assert_config_eq,
     };
 
     /// A torchvision row states its eval transform (bilinear, a 0.875 crop:
@@ -283,17 +284,18 @@ mod tests {
         let hook = named.config.clone();
         let named = named.model;
         let resnet50 = ResNetContractConfig::expect_prefab("resnet50");
-        assert_eq!(
-            format!("{:?}", hook.config_for(&named, None).unwrap()),
-            format!("{resnet50:?}")
+        assert_config_eq(
+            "resnet50",
+            &hook.config_for(&named, None).unwrap(),
+            &resnet50,
         );
 
         let resnet18 = ResNetContractConfig::expect_prefab("resnet18");
         let explicit = hook.clone().with_config(resnet18.clone());
-        assert_eq!(
-            format!("{:?}", explicit.config_for(&named, None).unwrap()),
-            format!("{resnet18:?}"),
-            "an explicit config wins over the prefab"
+        assert_config_eq(
+            "an explicit config wins over the prefab",
+            &explicit.config_for(&named, None).unwrap(),
+            &resnet18,
         );
 
         let file = dir.path().join("ckpt.pth");
@@ -326,9 +328,10 @@ mod tests {
         ErrorMatcher::illegal()
             .message_contains("doesn't read as its config")
             .assert_err(&hook.config_for(&bad, None));
-        assert_eq!(
-            format!("{:?}", explicit.config_for(&given, None).unwrap()),
-            format!("{resnet18:?}")
+        assert_config_eq(
+            "resnet18",
+            &explicit.config_for(&given, None).unwrap(),
+            &resnet18,
         );
 
         // Through the pathway: the refusal comes before the file is read.

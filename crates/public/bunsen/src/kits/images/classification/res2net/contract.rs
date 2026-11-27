@@ -96,6 +96,7 @@ mod tests {
         },
         errors::testing::ErrorMatcher,
         kits::images::classification::resnet::BottleneckPolicyConfig,
+        support::testing::expect_variant,
     };
 
     /// timm's `res2net50_26w_4s`: 26-wide chunks per 64 planes, four of
@@ -109,9 +110,7 @@ mod tests {
         let structure = config.to_structure();
         let unit = &structure.stages[1].units[0];
         assert_eq!(unit.convs[0].out_channels(), 52 * 4);
-        let ResidualConvConfig::Res2(res2) = &unit.convs[1] else {
-            panic!("a scale split");
-        };
+        expect_variant!(let ResidualConvConfig::Res2(res2) = &unit.convs[1], "a scale split");
         assert_eq!((res2.width(), res2.scale, res2.stride()), (52, 4, 2));
         assert_eq!(unit.out_channels(), 512);
     }

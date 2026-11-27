@@ -119,7 +119,10 @@ pub fn talker_rekey() -> Rekey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::BunsenErrorKind;
+    use crate::{
+        burner::module::testing::assert_rekeys,
+        errors::BunsenErrorKind,
+    };
 
     fn section(extra: &str) -> TransformersConfigJson {
         TransformersConfigJson::parse(&format!(
@@ -160,19 +163,20 @@ mod tests {
     #[test]
     fn test_text_projection_rekey() {
         let rekey = talker_rekey();
-        for (stored, bunsen) in [
-            (
-                "text_projection.linear_fc1.weight",
-                "text_projection.linear1.weight",
-            ),
-            (
-                "text_projection.linear_fc2.bias",
-                "text_projection.linear2.bias",
-            ),
-            ("model.text_embedding.weight", "text_embedding.weight"),
-        ] {
-            assert_eq!(rekey.apply(stored).as_deref(), Some(bunsen), "{stored}");
-        }
+        assert_rekeys(
+            &rekey,
+            [
+                (
+                    "text_projection.linear_fc1.weight",
+                    "text_projection.linear1.weight",
+                ),
+                (
+                    "text_projection.linear_fc2.bias",
+                    "text_projection.linear2.bias",
+                ),
+                ("model.text_embedding.weight", "text_embedding.weight"),
+            ],
+        );
     }
 
     /// M-RoPE sections that do not cover the head's frequencies are refused.

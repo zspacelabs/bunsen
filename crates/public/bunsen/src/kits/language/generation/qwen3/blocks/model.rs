@@ -325,7 +325,10 @@ mod tests {
             embedding::unembed,
             transformers::attention::KVCacheStorage,
         },
-        support::testing::cpu_device,
+        support::testing::{
+            cpu_device,
+            expect_variant,
+        },
     };
 
     /// A config non-default in every field, and the model built from it,
@@ -345,16 +348,19 @@ mod tests {
         assert_eq!(lm.kv_cache_pre_size, 64);
         assert_eq!(config.kv_cache_config().seq_len, 64);
         let stack = config.stack();
-        let TokenMixerConfig::Attention(attn) = &stack.layer.attn else {
-            panic!("an attention layer");
-        };
-        let Some(BunsenNormalizationConfig::Rms(qk)) = &attn.norm else {
-            panic!("an RMS QK-norm");
-        };
+        expect_variant!(
+            let TokenMixerConfig::Attention(attn) = &stack.layer.attn,
+            "an attention layer",
+        );
+        expect_variant!(
+            let Some(BunsenNormalizationConfig::Rms(qk)) = &attn.norm,
+            "an RMS QK-norm",
+        );
         assert_eq!(qk.epsilon, 1e-3);
-        let BunsenNormalizationConfig::Rms(layer_norm) = &stack.layer.norm else {
-            panic!("an RMS layer norm");
-        };
+        expect_variant!(
+            let BunsenNormalizationConfig::Rms(layer_norm) = &stack.layer.norm,
+            "an RMS layer norm",
+        );
         assert_eq!(layer_norm.epsilon, 1e-5);
         let model: Qwen3Model = config.init(&device);
         assert_eq!(model.n_vocab(), config.n_vocab());

@@ -151,6 +151,8 @@ mod has_dtype;
 mod module_init;
 mod rekey;
 mod tensor_load_transforms;
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
 mod to_structure_config;
 mod type_mapper;
 
