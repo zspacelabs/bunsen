@@ -18,14 +18,10 @@ use burn::{
         TensorData,
         s,
     },
-    tensor::{
-        DType,
-        Device,
-    },
+    tensor::Device,
 };
 
 use super::{
-    Zonos3Stop,
     Zonos3TakeRows,
     zonos3_output_stage,
 };
@@ -38,6 +34,7 @@ use crate::{
     },
     kits::{
         speech::tts::{
+            TtsStop,
             driver::{
                 TtsCapabilities,
                 TtsCloneMode,
@@ -273,7 +270,7 @@ pub struct Zonos3Codes {
     pub start: usize,
 
     /// Why generation stopped.
-    pub stop: Zonos3Stop,
+    pub stop: TtsStop,
 
     /// The rows generated.
     pub rows: usize,
@@ -318,7 +315,7 @@ pub struct Zonos3TakeRun {
 
     /// Why the take stopped; `None` while it runs.
     #[module(skip)]
-    pub stop: Option<Zonos3Stop>,
+    pub stop: Option<TtsStop>,
 }
 
 impl Zonos3TakeRun {
@@ -703,7 +700,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
     pub fn step_take(
         &self,
         run: &mut Zonos3TakeRun,
-    ) -> Option<Zonos3Stop> {
+    ) -> Option<TtsStop> {
         assert!(run.stop.is_none(), "a step of a take that stopped");
         let device = self.device();
         let logits = run.logits.clone();
@@ -775,14 +772,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
         &self,
         audio: Tensor<2>,
     ) -> BunsenResult<Vec<f32>> {
-        let mut samples: Vec<f32> = audio
-            .cast(DType::F32)
-            .into_data()
-            .try_into_vec_as::<f32>()
-            .map_err(|e| BunsenError::internal(format!("the codec's audio: {e:?}")))?;
-        if samples.iter().any(|x| !x.is_finite()) {
-            return Err(BunsenError::internal("the codec's audio is not finite"));
-        }
+        let mut samples = crate::kits::speech::tts::driver::tts_samples(audio)?;
         zonos3_output_stage(
             &mut samples,
             self.config.headroom_db,

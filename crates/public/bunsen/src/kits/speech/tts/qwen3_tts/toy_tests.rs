@@ -14,7 +14,6 @@ use super::{
         Qwen3TtsChooser,
         Qwen3TtsCodes,
         Qwen3TtsModel,
-        Qwen3TtsStop,
         Qwen3TtsTakeConfig,
     },
     prompt::{
@@ -26,7 +25,10 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     kits::{
-        speech::tts::qwen3_tts::interop::qwen_tts::*,
+        speech::tts::{
+            TtsStop,
+            qwen3_tts::interop::qwen_tts::*,
+        },
         support::interop::transformers::TransformersConfigJson,
     },
     support::testing::{
@@ -118,7 +120,7 @@ fn test_toy_greedy_takes() {
             .map(|row| row.into_data().iter::<f32>().map(|v| v as u32).collect())
             .collect();
         assert_eq!(take.frames, expected, "{mode}");
-        assert_eq!(take.stop, Qwen3TtsStop::MaxFrames, "{mode}");
+        assert_eq!(take.stop, TtsStop::Budget, "{mode}");
         assert_eq!(
             take.codec_input(toy.fixture.device()).dims(),
             [1, 4, expected.len()]
@@ -141,7 +143,7 @@ fn test_toy_sampled_take() {
         assert!(frame.iter().all(|&c| c < 32), "{frame:?}");
     }
     if take.frames.len() < 12 {
-        assert_eq!(take.stop, Qwen3TtsStop::Eos);
+        assert_eq!(take.stop, TtsStop::End);
     }
 }
 

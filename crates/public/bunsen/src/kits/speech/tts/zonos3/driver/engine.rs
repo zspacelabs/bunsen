@@ -18,7 +18,6 @@ use super::{
     Zonos3Codes,
     Zonos3Engine,
     Zonos3Request,
-    Zonos3Stop,
     Zonos3TakeRun,
 };
 use crate::{
@@ -33,7 +32,6 @@ use crate::{
                 TtsChunkPolicy,
                 TtsEngine,
                 TtsSamplingOverrides,
-                TtsStop,
                 TtsStreamStep,
                 TtsTakeInfo,
                 TtsTakeRequest,
@@ -257,10 +255,7 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Zonos3Engine<T> {
         TtsTakeInfo {
             frames: take.frames.len(),
             steps: take.rows,
-            stop: match take.stop {
-                Zonos3Stop::EndOfAudio => TtsStop::End,
-                Zonos3Stop::Budget => TtsStop::Budget,
-            },
+            stop: take.stop,
         }
     }
 }
@@ -275,9 +270,9 @@ impl<T: Tokenizer + Send + Sync> Zonos3Engine<T> {
         let mut request = Zonos3Request::new(take.text.to_string(), take.voice.clone());
         request.condition_buckets = self.condition_buckets.clone();
         request.seed = take.seed;
-        if let Some(seconds) = take.max_seconds {
-            let rate = f64::from(self.sample_rate()) / self.construct().codec_config.hop as f64;
-            request.max_frames = Some((seconds * rate).ceil().max(1.0) as usize);
+        let rate = f64::from(self.sample_rate()) / self.construct().codec_config.hop as f64;
+        if let Some(frames) = take.max_frames(rate) {
+            request.max_frames = Some(frames);
         }
         request
     }
@@ -320,8 +315,9 @@ impl<T: Tokenizer + Send + Sync> TtsTakeStream for Zonos3TakeStream<'_, T> {
         }
         let codec = &engine.construct().codec;
         let mut parts = Vec::new();
-        if !self.pending.is_empty()
-            && (stop.is_some() || self.pending.len() >= self.chunks.need(self.decoded))
+        if self
+            .chunks
+            .decode_now(self.pending.len(), self.decoded, stop.is_some())
         {
             let ids = engine.frame_ids(&self.pending);
             self.decoded += self.pending.len();
@@ -345,10 +341,7 @@ impl<T: Tokenizer + Send + Sync> TtsTakeStream for Zonos3TakeStream<'_, T> {
                     0
                 },
                 steps: self.run.take.rows().len(),
-                stop: match stop {
-                    Zonos3Stop::EndOfAudio => TtsStop::End,
-                    Zonos3Stop::Budget => TtsStop::Budget,
-                },
+                stop,
             }),
         })
     }

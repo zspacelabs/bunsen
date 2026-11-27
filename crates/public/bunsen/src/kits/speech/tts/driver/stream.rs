@@ -51,6 +51,18 @@ impl TtsChunkPolicy {
         self.max.min(self.first + decoded).max(1)
     }
 
+    /// Whether `ready` final frames, not yet decoded, are decoded now, after
+    /// `decoded` frames: when there are any, and the take has stopped or a
+    /// whole group ([`need`](Self::need)) is ready.
+    pub fn decode_now(
+        &self,
+        ready: usize,
+        decoded: usize,
+        stopped: bool,
+    ) -> bool {
+        ready > 0 && (stopped || ready >= self.need(decoded))
+    }
+
     /// Refuses a policy of no first frames, or a `max` under `first`.
     ///
     /// # Errors

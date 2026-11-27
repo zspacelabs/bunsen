@@ -2,17 +2,10 @@
 
 use alloc::vec::Vec;
 
-use crate::kits::speech::tts::zonos3::prompt::unshear;
-
-/// Why a take's generation stopped.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Zonos3Stop {
-    /// A codebook sampled the end of audio.
-    EndOfAudio,
-
-    /// The frame budget ran out first.
-    Budget,
-}
+use crate::kits::speech::tts::{
+    TtsStop,
+    zonos3::prompt::unshear,
+};
 
 /// A take's generated rows, as they are sampled: the release's stop rule,
 /// and the frames they decode to.
@@ -80,7 +73,7 @@ impl Zonos3TakeRows {
     pub fn push(
         &mut self,
         codes: &mut [u32],
-    ) -> Option<Zonos3Stop> {
+    ) -> Option<TtsStop> {
         let n = self.n_codebooks;
         let generated = self.rows.len();
         if self.cold_start && generated + 1 < n {
@@ -101,9 +94,9 @@ impl Zonos3TakeRows {
             finished |= *countdown == 0;
         }
         finished.then_some(if self.eos_frame.is_some() {
-            Zonos3Stop::EndOfAudio
+            TtsStop::End
         } else {
-            Zonos3Stop::Budget
+            TtsStop::Budget
         })
     }
 
@@ -227,7 +220,7 @@ mod tests {
             assert_eq!(take.push(&mut row(g)), None, "row {g}");
         }
         // The countdown of n + 1 = 4 began on row 3.
-        assert_eq!(take.push(&mut row(6)), Some(Zonos3Stop::EndOfAudio));
+        assert_eq!(take.push(&mut row(6)), Some(TtsStop::End));
         assert_eq!(take.rows().len(), 7);
     }
 
@@ -235,7 +228,7 @@ mod tests {
     fn test_budget() {
         let mut take = Zonos3TakeRows::new(N, EOA, PAD, false, 2);
         assert_eq!(take.push(&mut row(0)), None);
-        assert_eq!(take.push(&mut row(1)), Some(Zonos3Stop::Budget));
+        assert_eq!(take.push(&mut row(1)), Some(TtsStop::Budget));
     }
 
     #[test]

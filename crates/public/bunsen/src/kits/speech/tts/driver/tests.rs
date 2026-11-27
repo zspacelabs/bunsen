@@ -15,9 +15,12 @@ use crate::{
         BunsenResult,
         testing::ErrorMatcher,
     },
-    kits::support::text::{
-        BunsenLanguageTag,
-        TextNormalizationConfig,
+    kits::{
+        speech::tts::TtsStop,
+        support::text::{
+            BunsenLanguageTag,
+            TextNormalizationConfig,
+        },
     },
 };
 
@@ -594,4 +597,36 @@ fn test_synthesizer_stream() {
             .stream(&request, TtsChunkPolicy::new().with_first(0))
             .map(|_| ()),
     );
+}
+
+/// A group decodes when the take stops or a whole group is ready, never
+/// with nothing ready.
+#[test]
+fn test_decode_now() {
+    let chunks = TtsChunkPolicy::new().with_first(2).with_max(4);
+    assert!(!chunks.decode_now(0, 0, true), "nothing ready");
+    assert!(!chunks.decode_now(1, 0, false), "under the first group");
+    assert!(chunks.decode_now(2, 0, false));
+    assert!(chunks.decode_now(1, 0, true), "the take stopped");
+    assert!(!chunks.decode_now(3, 2, false), "groups grow to max");
+    assert!(chunks.decode_now(4, 9, false));
+}
+
+/// A take's budget is its seconds in whole frames, rounded up, at least
+/// one; none without a limit.
+#[test]
+fn test_take_max_frames() {
+    let sampling = TtsSamplingOverrides::default();
+    let take = |max_seconds| TtsTakeRequest {
+        text: "a",
+        voice: &(),
+        language: None,
+        instruction: None,
+        seed: None,
+        max_seconds,
+        sampling: &sampling,
+    };
+    assert_eq!(take(None).max_frames(12.5), None);
+    assert_eq!(take(Some(1.0)).max_frames(12.5), Some(13));
+    assert_eq!(take(Some(0.0)).max_frames(12.5), Some(1));
 }

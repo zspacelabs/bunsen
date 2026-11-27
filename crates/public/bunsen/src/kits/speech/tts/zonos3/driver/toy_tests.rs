@@ -222,7 +222,7 @@ fn test_generate_codes() {
     let request = Zonos3Request::new("hello", engine.voice_reference("Toy").unwrap()).with_seed(7);
     let codes = engine.generate_codes(&request).unwrap();
     assert!(codes.rows <= 12);
-    assert!(codes.rows == 12 || codes.stop == Zonos3Stop::EndOfAudio);
+    assert!(codes.rows == 12 || codes.stop == crate::kits::speech::tts::TtsStop::End);
     assert_eq!(codes.start, 0, "the prefill of 3 is under the overlap of 4");
     assert!(
         codes
@@ -341,7 +341,7 @@ fn test_render() {
     let codes = |frames: Vec<Vec<u32>>| Zonos3Codes {
         frames,
         start: 0,
-        stop: Zonos3Stop::EndOfAudio,
+        stop: crate::kits::speech::tts::TtsStop::End,
         rows: 0,
     };
     // The toy codec reads 3 codebooks of 16 codes; its hop is 9 samples.
