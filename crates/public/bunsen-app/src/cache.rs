@@ -56,13 +56,40 @@ pub struct WeightsCacheArgs {
 
     /// Keep each model's weights converted, and load them from that copy.
     ///
-    /// The first load writes the copy; later loads read it. A copy is the
-    /// weights again on disk, listed under the build's
-    /// `converted` name (`cache list`); with it, a load skips reading and
-    /// converting the checkpoint, and a build whose checkpoint was cleared
-    /// loads without fetching it. The language models keep copies.
-    #[arg(long, value_name = "BOOL", action = clap::ArgAction::Set, default_value_t = false)]
-    pub converted_weights: bool,
+    /// `keep`: the first load writes the copy; later loads read it. A copy
+    /// is the weights again on disk, listed under the build's `converted`
+    /// name (`cache list`); with it, a load skips reading and converting the
+    /// checkpoint, and a build whose checkpoint was cleared loads without
+    /// fetching it. `drop-downloads`: as `keep`, and a load that downloaded
+    /// the weights it converts removes them once the copy is saved. `off`:
+    /// no copies. The language models keep copies.
+    #[arg(long, value_enum, default_value_t = ConvertedWeightsArg::Off)]
+    pub converted_weights: ConvertedWeightsArg,
+}
+
+/// `--converted-weights`: what loads do with converted copies of the weights
+/// ([`ConvertedWeights`](bunsen::data::resources::ConvertedWeights)).
+#[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ConvertedWeightsArg {
+    /// No copies.
+    #[default]
+    #[value(alias = "false")]
+    Off,
+    /// Keep a copy, and load from it.
+    #[value(alias = "true")]
+    Keep,
+    /// Keep a copy, and remove the downloads it was made from.
+    DropDownloads,
+}
+
+impl From<ConvertedWeightsArg> for bunsen::data::resources::ConvertedWeights {
+    fn from(arg: ConvertedWeightsArg) -> Self {
+        match arg {
+            ConvertedWeightsArg::Off => Self::Off,
+            ConvertedWeightsArg::Keep => Self::Keep,
+            ConvertedWeightsArg::DropDownloads => Self::KeepAndDropDownloads,
+        }
+    }
 }
 
 impl WeightsCacheArgs {
@@ -71,7 +98,7 @@ impl WeightsCacheArgs {
         ResourceCacheOptions::default()
             .with_disk(BunsenDiskCacheOptions::default().with_cache_dir(self.cache_dir.clone()))
             .with_offline(self.offline)
-            .with_converted_weights(self.converted_weights)
+            .with_converted_weights(self.converted_weights.into())
     }
 
     /// Opens the cache.
@@ -85,14 +112,14 @@ impl WeightsCacheArgs {
 }
 
 /// `command`, and every subcommand under it, with `--converted-weights`
-/// ([`WeightsCacheArgs::converted_weights`]) defaulting to `true`: for a
+/// ([`WeightsCacheArgs::converted_weights`]) defaulting to `keep`: for a
 /// binary that keeps converted weights unless told not to.
 pub fn converted_weights_by_default(command: clap::Command) -> clap::Command {
     let command = if command
         .get_arguments()
         .any(|arg| arg.get_id() == "converted_weights")
     {
-        command.mut_arg("converted_weights", |arg| arg.default_value("true"))
+        command.mut_arg("converted_weights", |arg| arg.default_value("keep"))
     } else {
         command
     };
@@ -364,7 +391,7 @@ mod tests {
         WeightsCacheArgs {
             cache_dir: Some(dir.to_path_buf()),
             offline: true,
-            converted_weights: false,
+            converted_weights: ConvertedWeightsArg::Off,
         }
         .init()
         .unwrap()
@@ -397,15 +424,33 @@ mod tests {
             let LoaderCmd::Run { cache } = Loader::from_arg_matches(&matches).unwrap().cmd;
             cache.options().converted_weights
         };
-        assert!(!parse(Loader::command(), &["t", "run"]));
-        assert!(parse(
-            converted_weights_by_default(Loader::command()),
-            &["t", "run"]
-        ));
-        assert!(!parse(
-            converted_weights_by_default(Loader::command()),
-            &["t", "run", "--converted-weights", "false"]
-        ));
+        use bunsen::data::resources::ConvertedWeights;
+        assert_eq!(
+            parse(Loader::command(), &["t", "run"]),
+            ConvertedWeights::Off
+        );
+        assert_eq!(
+            parse(
+                converted_weights_by_default(Loader::command()),
+                &["t", "run"]
+            ),
+            ConvertedWeights::Keep
+        );
+        for (flag, want) in [
+            ("off", ConvertedWeights::Off),
+            ("false", ConvertedWeights::Off),
+            ("true", ConvertedWeights::Keep),
+            ("drop-downloads", ConvertedWeights::KeepAndDropDownloads),
+        ] {
+            assert_eq!(
+                parse(
+                    converted_weights_by_default(Loader::command()),
+                    &["t", "run", "--converted-weights", flag]
+                ),
+                want,
+                "{flag}"
+            );
+        }
     }
 
     fn put(

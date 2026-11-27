@@ -486,7 +486,7 @@ mod tests {
         let cache = WeightsCacheArgs {
             cache_dir: Some(dir.path().to_path_buf()),
             offline: true,
-            converted_weights: false,
+            converted_weights: bunsen_app::cache::ConvertedWeightsArg::Off,
         }
         .init()
         .unwrap();

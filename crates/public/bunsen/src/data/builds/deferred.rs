@@ -218,7 +218,7 @@ impl<H: ConstructInit> DeferredBuild<H> {
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
     ) -> Option<(ResourceSet, PathBuf)> {
-        if !cache.converted_weights() {
+        if !cache.converted_weights().keeps() {
             return None;
         }
         let weights = self.config.converted_weights(planned)?;
@@ -497,7 +497,7 @@ mod tests {
                         .without_transfer_observers(),
                 )
                 .with_offline(true)
-                .with_converted_weights(true),
+                .with_converted_weights(crate::data::resources::ConvertedWeights::Keep),
         )
         .unwrap();
         let model = DeferredBuild::<Converting>::new(pinned_in(&on, "w1")).unwrap();

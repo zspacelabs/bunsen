@@ -94,24 +94,52 @@ pub struct ResourceCacheOptions {
     #[cfg(feature = "fetch")]
     pub fetch: FetchPolicy,
 
-    /// Keep a kit's converted copy of each build's weights it loads, and
-    /// load from it, not from the weights' files, when it is here. Off by
-    /// default: a copy costs the weights' size again on disk.
-    ///
-    /// A copy is keyed by the weights' pins and the load's choices
-    /// ([`ResourceCache::converted_key`]), so a build whose weights' files
-    /// were cleared, its copy kept, loads without fetching them. Only kits
-    /// that convert (the `transformers` language models) keep copies, and
-    /// only of pinned weights.
-    pub converted_weights: bool,
+    /// What loads do with a kit's converted copy of each build's weights
+    /// ([`ConvertedWeights`]); off by default: a copy costs the weights'
+    /// size again on disk.
+    pub converted_weights: ConvertedWeights,
+}
+
+/// What a [`ResourceCache`]'s loads do with a kit's converted copy of the
+/// weights they read: a burnpack the next load reads instead of the weights'
+/// files.
+///
+/// A copy is keyed by the weights' pins and the load's choices
+/// ([`ResourceCache::converted_key`]), so a build whose weights' files were
+/// cleared, its copy kept, loads without fetching them. Only kits that
+/// convert (the `transformers` language models) keep copies, and only of
+/// pinned weights.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ConvertedWeights {
+    /// No copies: every load reads the weights' files.
+    #[default]
+    Off,
+
+    /// Keep a copy of each build's weights, and load from it when it is
+    /// here.
+    Keep,
+
+    /// As [`Keep`](Self::Keep), and when the load that saved a copy
+    /// downloaded the weights it stands for, remove those downloads once the
+    /// copy is saved: the copy is all the next load with the same choices
+    /// reads. Another load's choices (a policy, a device, a bunsen version)
+    /// fetch the weights again.
+    KeepAndDropDownloads,
+}
+
+impl ConvertedWeights {
+    /// Whether loads keep and use copies at all.
+    pub fn keeps(self) -> bool {
+        self != Self::Off
+    }
 }
 
 impl ResourceCacheOptions {
-    /// Sets whether loads keep and use converted weights
+    /// Sets what loads do with converted weights
     /// ([`converted_weights`](Self::converted_weights)).
     pub fn with_converted_weights(
         mut self,
-        converted_weights: bool,
+        converted_weights: ConvertedWeights,
     ) -> Self {
         self.converted_weights = converted_weights;
         self
@@ -402,7 +430,7 @@ pub struct ResourceCache {
     verify_local_dirs: bool,
     #[cfg(feature = "fetch")]
     fetch: FetchPolicy,
-    pub(super) converted_weights: bool,
+    pub(super) converted_weights: ConvertedWeights,
 }
 
 impl ResourceCache {
