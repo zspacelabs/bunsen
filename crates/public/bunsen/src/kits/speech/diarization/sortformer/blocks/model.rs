@@ -719,9 +719,12 @@ mod tests {
     use burn::tensor::Distribution;
 
     use super::*;
-    use crate::support::testing::{
-        cpu_device,
-        seeded_tensor,
+    use crate::{
+        errors::testing::ErrorMatcher,
+        support::testing::{
+            cpu_device,
+            seeded_tensor,
+        },
     };
 
     /// A toy policy, non-default in every field the meta reads.
@@ -766,7 +769,7 @@ mod tests {
         assert!(direct.silence.is_some());
 
         let bad = structure.with_upsample(Some(SubpixelUpsample1dConfig::new(5)));
-        assert!(ModuleInit::<Sortformer>::try_init(&bad, &device).is_err());
+        ErrorMatcher::illegal().assert_err(&ModuleInit::<Sortformer>::try_init(&bad, &device));
     }
 
     #[test]

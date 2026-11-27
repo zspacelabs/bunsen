@@ -186,6 +186,7 @@ pub fn nemotron_diarization_config_from_path(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_paths() {
@@ -253,8 +254,8 @@ mod tests {
         assert_eq!(config.n_speakers, want.n_speakers);
 
         let other = json.replace("\"nemotron3_diarization\"", "\"something_else\"");
-        assert!(nemotron_diarization_config_from_str(&other).is_err());
+        ErrorMatcher::unsupported().assert_err(&nemotron_diarization_config_from_str(&other));
         let relu = json.replace("\"gelu\"", "\"relu\"");
-        assert!(nemotron_diarization_config_from_str(&relu).is_err());
+        ErrorMatcher::unsupported().assert_err(&nemotron_diarization_config_from_str(&relu));
     }
 }

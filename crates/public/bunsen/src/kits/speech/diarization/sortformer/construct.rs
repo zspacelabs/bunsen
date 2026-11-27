@@ -278,6 +278,7 @@ impl SpeakerActivityModel for SortformerDiarizer {
 mod tests {
     use super::*;
     use crate::{
+        errors::testing::ErrorMatcher,
         kits::speech::diarization::sortformer::NemotronDiarizationConfig,
         support::testing::cpu_device,
     };
@@ -309,11 +310,8 @@ mod tests {
         assert_eq!(diarizer.sample_rate(), 16_000);
         assert_eq!(diarizer.frame_samples(), 160);
         assert_eq!(diarizer.max_speakers(), 3);
-        assert!(
-            bundle
-                .diarizer(SortformerStreamingConfig::new(3, 1, 6, 5, 4))
-                .is_err()
-        );
+        ErrorMatcher::illegal()
+            .assert_err(&bundle.diarizer(SortformerStreamingConfig::new(3, 1, 6, 5, 4)));
         assert!(bundle.to_string().contains("3 speakers"));
         assert!(bundle.to_string().contains("10 ms"));
 

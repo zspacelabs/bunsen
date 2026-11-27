@@ -223,7 +223,10 @@ impl ConstructInit for SortformerConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::testdata;
+    use crate::{
+        errors::testing::ErrorMatcher,
+        support::testing::testdata,
+    };
 
     #[test]
     fn test_the_hook_follows_the_kind() {
@@ -244,8 +247,8 @@ mod tests {
         for res in map.resources.values_mut() {
             res.format = Some("pytorch".into());
         }
-        assert!(SortformerConstructConfig::for_resource_set(&map).is_err());
-        assert!(SortformerReader::for_kind(None).is_err());
+        ErrorMatcher::unsupported().assert_err(&SortformerConstructConfig::for_resource_set(&map));
+        ErrorMatcher::unsupported().assert_err(&SortformerReader::for_kind(None));
         assert_eq!(
             SortformerReader::for_kind(Some(NEMO)).ok(),
             Some(SortformerReader::Nemo)
