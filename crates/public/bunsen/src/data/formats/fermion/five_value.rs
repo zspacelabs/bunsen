@@ -294,11 +294,10 @@ fn decode_five_value(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::testdata;
 
     fn testdata(file: &str) -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("testdata/fermion")
-            .join(file)
+        testdata!("fermion").join(file)
     }
 
     /// Every record kind decodes to what the format's reference reader

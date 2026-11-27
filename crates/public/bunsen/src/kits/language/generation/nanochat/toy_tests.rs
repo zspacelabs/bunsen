@@ -9,7 +9,6 @@
 //! and the loader are under test with the model.
 
 use core::ops::Range;
-use std::path::PathBuf;
 
 use burn::prelude::*;
 use serial_test::serial;
@@ -36,6 +35,7 @@ use crate::{
         ToyFixture,
         assert_io_close,
         performance_device,
+        testdata,
     },
 };
 
@@ -54,9 +54,7 @@ impl Toy {
         generation: &str,
         device: &Device,
     ) -> Self {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("testdata/nanochat")
-            .join(format!("toy_{generation}"));
+        let dir = testdata!("nanochat").join(format!("toy_{generation}"));
         let (model, generation) = load_nanochat_gpt_from_paths(
             &dir.join("meta_000001.json"),
             &dir.join("model_000001.pt"),
@@ -164,7 +162,7 @@ fn test_the_load_dtype_is_the_policy_s() {
     };
 
     let device = cpu_device();
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/nanochat/toy_2025");
+    let dir = testdata!("nanochat/toy_2025");
     let (meta, model) = (dir.join("meta_000001.json"), dir.join("model_000001.pt"));
     let (stored, _) =
         load_nanochat_gpt_from_paths(&meta, &model, &device, LoadPolicy::load_as_stored())

@@ -10,8 +10,6 @@
 //! fused, load through [`load_modernbert_tensors`], so the reader, the
 //! splits and the loader are under test too.
 
-use std::path::PathBuf;
-
 use burn::prelude::*;
 
 use super::{
@@ -27,6 +25,7 @@ use crate::{
         ToyFixture,
         assert_io_close,
         performance_device,
+        testdata,
     },
 };
 
@@ -38,7 +37,7 @@ struct Toy {
 
 impl Toy {
     fn load(device: &Device) -> Self {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/modernbert");
+        let dir = testdata!("modernbert");
         let config = modernbert_config_from_path(&dir.join("modernbert_toy.config.json"))
             .expect("read the toy config");
         let mut fixture = ToyFixture::load(dir.join("modernbert_toy.safetensors"), device);

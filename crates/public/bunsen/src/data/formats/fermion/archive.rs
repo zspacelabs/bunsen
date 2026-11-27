@@ -276,11 +276,10 @@ impl SplitPlan {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::testdata;
 
     fn testdata(file: &str) -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("testdata/fermion")
-            .join(file)
+        testdata!("fermion").join(file)
     }
 
     /// The fixture, written by the format's reference writer, reads back to

@@ -7,8 +7,6 @@
 //! never completed. A greedy take here, from the same prompt and with the same
 //! processors, is those codes.
 
-use std::path::PathBuf;
-
 use burn::prelude::*;
 
 use super::{
@@ -35,6 +33,7 @@ use crate::{
         ToyFixture,
         assert_io_close,
         performance_device,
+        testdata,
     },
 };
 
@@ -56,7 +55,7 @@ struct Toy {
 impl Toy {
     fn load() -> Self {
         let device = performance_device();
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3_tts");
+        let dir = testdata!("qwen3_tts");
         let text = std::fs::read_to_string(dir.join("toy.config.json")).expect("read");
         let model_json = TransformersConfigJson::parse(&text)
             .and_then(|c| c.section("model"))

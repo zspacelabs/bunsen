@@ -35,6 +35,7 @@ use crate::{
         ToyFixture,
         assert_io_close,
         performance_device,
+        testdata,
     },
 };
 
@@ -61,10 +62,7 @@ impl Toy {
     }
 
     fn load_on(device: &Device) -> Self {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/voxtral/toy.safetensors"
-        );
+        let path = testdata!("voxtral/toy.safetensors");
         let mut fixture = ToyFixture::load(path, device);
         let device = device.clone();
         let mut model: VoxtralRealtime = toy_config().init(&device);

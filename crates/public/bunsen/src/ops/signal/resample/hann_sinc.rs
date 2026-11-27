@@ -159,7 +159,6 @@ impl HannSincResampler {
 
 #[cfg(all(test, feature = "store"))]
 mod tests {
-    use std::path::PathBuf;
 
     use burn::tensor::Tolerance;
 
@@ -169,6 +168,7 @@ mod tests {
         assert_io_close_within,
         performance_device,
         tensor_to_vec_as,
+        testdata,
     };
 
     /// The most the device's conversion may stray from the reference,
@@ -187,8 +187,7 @@ mod tests {
     #[test]
     fn test_against_torchaudio() {
         let fixture = ToyFixture::load_io(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("testdata/resample/hann_sinc.safetensors"),
+            testdata!("resample/hann_sinc.safetensors"),
             &performance_device(),
         );
         let resampler = HannSincResampler::new();

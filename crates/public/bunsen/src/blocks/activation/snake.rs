@@ -275,8 +275,7 @@ mod tests {
         };
 
         let device = cpu_device();
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("testdata/qwen3_tts/toy.safetensors");
+        let path = crate::support::testing::testdata!("qwen3_tts/toy.safetensors");
         let fixture = ToyFixture::load_io(path, &device);
         let alpha = fixture.io::<1>("decoder.decoder.3.alpha");
         let mut snake = SnakeActivationConfig::snake_beta_log_scale(alpha.dims()[0]).init(&device);

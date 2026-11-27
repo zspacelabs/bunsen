@@ -9,8 +9,6 @@
 //! [`load_zonos3_lm_tensors`], so the reader and the loader are under test
 //! too.
 
-use std::path::PathBuf;
-
 use burn::prelude::*;
 
 use crate::{
@@ -32,6 +30,7 @@ use crate::{
         ToyFixture,
         assert_io_close_within,
         performance_device,
+        testdata,
     },
 };
 
@@ -73,7 +72,7 @@ impl Toy {
         dtype: Option<burn::tensor::FloatDType>,
     ) -> Self {
         let device = device.clone();
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/zonos3");
+        let dir = testdata!("zonos3");
         let json: serde_json::Value = serde_json::from_str(
             &std::fs::read_to_string(dir.join("toy.config.json")).expect("read the toy config"),
         )

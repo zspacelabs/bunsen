@@ -9,8 +9,6 @@
 //! `model.talker_config`, and the weights load through
 //! [`load_talker_tensors`].
 
-use std::path::PathBuf;
-
 use burn::prelude::*;
 
 use crate::{
@@ -30,6 +28,7 @@ use crate::{
         ToyFixture,
         assert_io_close,
         performance_device,
+        testdata,
     },
 };
 
@@ -45,7 +44,7 @@ pub(crate) const MODES: [&str; 6] = [
 
 fn load() -> (Qwen3TtsTalker, ToyFixture) {
     let device = performance_device();
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3_tts");
+    let dir = testdata!("qwen3_tts");
     let json = TransformersConfigJson::parse(
         &std::fs::read_to_string(dir.join("toy.config.json")).expect("read the toy config"),
     )

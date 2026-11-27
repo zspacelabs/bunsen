@@ -410,7 +410,6 @@ impl KaldiFbank {
 
 #[cfg(all(test, feature = "store"))]
 mod tests {
-    use std::path::PathBuf;
 
     use burn::tensor::Tolerance;
 
@@ -419,12 +418,12 @@ mod tests {
         ToyFixture,
         assert_io_close_within,
         performance_device,
+        testdata,
     };
 
     fn fixture() -> ToyFixture {
         ToyFixture::load_io(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("testdata/kaldi_fbank/fbank.safetensors"),
+            testdata!("kaldi_fbank/fbank.safetensors"),
             &performance_device(),
         )
     }

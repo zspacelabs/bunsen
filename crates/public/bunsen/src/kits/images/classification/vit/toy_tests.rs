@@ -21,8 +21,6 @@
 //! layer's map, the output tokens, the pooled features and the logits are
 //! checked against timm's.
 
-use std::path::PathBuf;
-
 use burn::prelude::*;
 
 use super::{
@@ -52,8 +50,8 @@ use crate::{
     },
     support::testing::{
         ToyFixture,
-        assert_io_close,
         cpu_device,
+        testdata,
     },
 };
 
@@ -70,9 +68,7 @@ fn load_toy(
     policy: ViTContractConfig,
     device: &Device,
 ) -> (VisionEncoderModel, ToyFixture) {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("testdata/vit")
-        .join(format!("{name}.safetensors"));
+    let path = testdata!("vit").join(format!("{name}.safetensors"));
     let mut fixture = ToyFixture::load(path, device);
     let mut model: VisionEncoderModel = policy.init(device);
     let applied = load_vit_tensors(&mut model, fixture.take_weights()).expect("load the toy");
@@ -92,26 +88,14 @@ fn check_toy(
     let layers = model.forward_intermediates(images.clone());
     assert_eq!(layers.len(), 2, "{name}: two layers");
     for (k, layer) in layers.into_iter().enumerate() {
-        assert_io_close(
-            &format!("{name} layer_{k}"),
-            layer,
-            fixture.io(&format!("layer_{k}")),
-        );
+        fixture.assert_io(name, &format!("layer_{k}"), layer);
     }
     let ImageFeatures::Tokens { tokens, .. } = model.forward_features(images.clone()) else {
         panic!("{name}: a ViT's features are tokens");
     };
-    assert_io_close(&format!("{name} features"), tokens, fixture.io("features"));
-    assert_io_close(
-        &format!("{name} pooled"),
-        model.forward_pooled(images.clone()),
-        fixture.io("pooled"),
-    );
-    assert_io_close(
-        &format!("{name} logits"),
-        model.forward_logits(images),
-        fixture.io("logits"),
-    );
+    fixture.assert_io(name, "features", tokens);
+    fixture.assert_io(name, "pooled", model.forward_pooled(images.clone()));
+    fixture.assert_io(name, "logits", model.forward_logits(images));
 }
 
 #[test]
@@ -324,9 +308,7 @@ fn check_openai_toy(
     policy: ViTContractConfig,
 ) {
     let device = cpu_device();
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("testdata/vit")
-        .join(format!("{name}.safetensors"));
+    let path = testdata!("vit").join(format!("{name}.safetensors"));
     let mut fixture = ToyFixture::load(path, &device);
     let mut model: VisionEncoderModel = policy.clone().init(&device);
     let applied = load_vit_tensors(&mut model, fixture.take_weights()).expect("load the toy");
@@ -341,17 +323,9 @@ fn check_openai_toy(
         .into_iter()
         .enumerate()
     {
-        assert_io_close(
-            &format!("{name} layer_{k}"),
-            layer,
-            fixture.io(&format!("layer_{k}")),
-        );
+        fixture.assert_io(name, &format!("layer_{k}"), layer);
     }
-    assert_io_close(
-        &format!("{name} logits"),
-        model.forward_logits(images),
-        fixture.io("logits"),
-    );
+    fixture.assert_io(name, "logits", model.forward_logits(images));
 }
 
 /// A hybrid on 32x32 images: the hybrid `ViT`'s `ResNetV2` backbone of two

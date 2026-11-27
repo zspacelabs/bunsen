@@ -353,7 +353,6 @@ pub fn merge_2x2(x: Tensor<4>) -> Tensor<4> {
 // The tests read seeded timm fixtures, which need `store`.
 #[cfg(all(test, feature = "store"))]
 mod tests {
-    use std::path::PathBuf;
 
     use burn::tensor::Tolerance;
 
@@ -362,12 +361,13 @@ mod tests {
         assert_tensors_close,
         cpu_device,
         tensor_to_vec_as,
+        testdata,
     };
 
     /// timm's answers (`tools/gen_swin_op_fixtures.py`).
     fn fixture(device: &Device) -> crate::support::testing::ToyFixture {
         crate::support::testing::ToyFixture::load_io(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/swin/window_ops.safetensors"),
+            testdata!("swin/window_ops.safetensors"),
             device,
         )
     }

@@ -1,6 +1,10 @@
 //! Toy-model fixtures.
 
-use alloc::collections::BTreeMap;
+use alloc::{
+    collections::BTreeMap,
+    format,
+    string::ToString,
+};
 use std::path::Path;
 
 use burn::{
@@ -46,6 +50,31 @@ impl ToyFixture {
             weights: weights.into_iter().map(|(_, t)| t).collect(),
             device: device.clone(),
         }
+    }
+
+    /// As [`load`](Self::load), for a fixture that stores its weights under
+    /// `weights_prefix` (`"model."`): the prefix is stripped from each
+    /// weight's name.
+    ///
+    /// # Panics
+    /// When the file does not read, or holds a tensor under neither `io.` nor
+    /// `weights_prefix`.
+    pub fn load_prefixed(
+        path: impl AsRef<Path>,
+        weights_prefix: &str,
+        device: &Device,
+    ) -> Self {
+        let mut fixture = Self::load(path, device);
+        for tensor in &mut fixture.weights {
+            let name = tensor.name.strip_prefix(weights_prefix).unwrap_or_else(|| {
+                panic!(
+                    "the toy fixture's {:?} is under neither \"io.\" nor {weights_prefix:?}",
+                    tensor.name
+                )
+            });
+            tensor.name = name.to_string();
+        }
+        fixture
     }
 
     /// Answers alone, at `path`: every tensor is an io tensor, under its own
@@ -107,9 +136,39 @@ impl ToyFixture {
         )
     }
 
+    /// The io tensor `key`, which a fixture stores as floats, as integers.
+    ///
+    /// # Panics
+    /// As [`io`](Self::io).
+    pub fn int<const D: usize>(
+        &self,
+        key: &str,
+    ) -> Tensor<D, Int> {
+        self.io::<D>(key).int()
+    }
+
+    /// `actual` is the io tensor `key`, as [`assert_io_close`]; a failure is
+    /// labelled `"{what} {key}"`, or `key` alone when `what` is empty.
+    ///
+    /// # Panics
+    /// When they differ, or as [`io`](Self::io).
+    #[track_caller]
+    pub fn assert_io<const D: usize>(
+        &self,
+        what: &str,
+        key: &str,
+        actual: Tensor<D>,
+    ) {
+        let label = match what {
+            "" => key.to_string(),
+            what => format!("{what} {key}"),
+        };
+        assert_io_close(&label, actual, self.io(key));
+    }
+
     /// The `input_ids` io tensor, which a fixture stores as floats, as ids.
     pub fn ids(&self) -> Tensor<2, Int> {
-        self.io::<2>("input_ids").int()
+        self.int("input_ids")
     }
 }
 
@@ -153,4 +212,42 @@ pub fn assert_io_close_within<const D: usize>(
     eprintln!("{what}: off by at most {gap:.2e}");
     actual.assert_approx_eq::<f32>(&expected, tolerance);
     gap
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::support::testing::{
+        cpu_device,
+        testdata,
+    };
+
+    /// The prefix is stripped from every weight, and the io tensors read
+    /// as floats and as integers.
+    #[test]
+    fn test_load_prefixed() {
+        let mut fixture = ToyFixture::load_prefixed(
+            testdata!("parakeet/toy.safetensors"),
+            "model.",
+            &cpu_device(),
+        );
+        let weights = fixture.take_weights();
+        assert!(!weights.is_empty());
+        assert!(weights.iter().all(|w| !w.name.starts_with("model.")));
+        assert!(fixture.take_weights().is_empty());
+        let x = fixture.io::<3>("subsampling");
+        fixture.assert_io("the toy", "subsampling", x.clone());
+        fixture.assert_io("", "subsampling", x);
+    }
+
+    /// A weight under another prefix is refused, by name.
+    #[test]
+    #[should_panic(expected = "is under neither \"io.\" nor \"weights.\"")]
+    fn test_load_prefixed_refuses_a_stray_tensor() {
+        ToyFixture::load_prefixed(
+            testdata!("parakeet/toy.safetensors"),
+            "weights.",
+            &cpu_device(),
+        );
+    }
 }

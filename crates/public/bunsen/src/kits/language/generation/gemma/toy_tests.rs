@@ -12,7 +12,6 @@
 //! too.
 
 use core::ops::Range;
-use std::path::PathBuf;
 
 use burn::prelude::*;
 
@@ -42,6 +41,7 @@ use crate::{
         ToyFixture,
         assert_io_close,
         performance_device,
+        testdata,
     },
 };
 
@@ -59,7 +59,7 @@ impl Toy {
         name: &str,
         device: &Device,
     ) -> Self {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/gemma");
+        let dir = testdata!("gemma");
         let config = gemma_config_from_path(&dir.join(format!("{name}.config.json")))
             .expect("read the toy config");
         let mut fixture = ToyFixture::load(dir.join(format!("{name}.safetensors")), device);
@@ -113,16 +113,8 @@ fn test_toy_forward() {
             model.lm.decoder.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
         assert_io_close(&format!("{name} layer 0"), layer0, toy.fixture.io("layer0"));
         let hidden = model.forward_hidden(embeds, &r_emb, None);
-        assert_io_close(
-            &format!("{name} hidden"),
-            hidden.clone(),
-            toy.fixture.io("hidden"),
-        );
-        assert_io_close(
-            &format!("{name} logits"),
-            model.logits(hidden),
-            toy.fixture.io("logits"),
-        );
+        toy.fixture.assert_io(name, "hidden", hidden.clone());
+        toy.fixture.assert_io(name, "logits", model.logits(hidden));
     }
 }
 

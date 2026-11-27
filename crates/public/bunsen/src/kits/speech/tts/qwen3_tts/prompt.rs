@@ -532,7 +532,6 @@ mod tests {
 /// language.
 #[cfg(all(test, feature = "store"))]
 mod toy_tests {
-    use std::path::PathBuf;
 
     use super::*;
     use crate::{
@@ -545,6 +544,7 @@ mod toy_tests {
             ToyFixture,
             assert_io_close,
             performance_device,
+            testdata,
         },
     };
 
@@ -599,7 +599,7 @@ mod toy_tests {
     #[test]
     fn test_toy_prompts() {
         let device = performance_device();
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3_tts");
+        let dir = testdata!("qwen3_tts");
         let text = std::fs::read_to_string(dir.join("toy.config.json")).expect("read");
         let value: serde_json::Value = serde_json::from_str(&text).expect("parse");
         let json: Qwen3TtsPromptMirror =

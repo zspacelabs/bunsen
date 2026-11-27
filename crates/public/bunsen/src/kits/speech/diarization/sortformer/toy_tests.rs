@@ -6,16 +6,8 @@
 //! (`tools/gen_nemotron_diar_toy_fixtures.py`). The weights load through
 //! [`load_nemotron_diarization_tensors`], so the loader is under test too.
 
-use alloc::collections::BTreeMap;
-
 use burn::{
     prelude::*,
-    store::{
-        ModuleStore,
-        SafetensorsStore,
-        bridge,
-        burn_pack::Tensor as PackTensor,
-    },
     tensor::Tolerance,
 };
 
@@ -30,7 +22,12 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    support::testing::performance_device,
+    support::testing::{
+        ToyFixture,
+        assert_io_close_within,
+        performance_device,
+        testdata,
+    },
 };
 
 /// `nemotron_toy.json`'s config, as a [`NemotronDiarizationConfig`].
@@ -45,61 +42,49 @@ fn toy_config() -> NemotronDiarizationConfig {
         .with_n_speakers(3)
 }
 
+/// The toy fixture's path.
+fn fixture_path() -> std::path::PathBuf {
+    testdata!("sortformer/nemotron_toy.safetensors")
+}
+
 struct Toy {
     model: Sortformer,
-    io: BTreeMap<String, PackTensor>,
+    fixture: ToyFixture,
     device: Device,
 }
 
 impl Toy {
     fn load() -> Self {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/sortformer/nemotron_toy.safetensors"
-        );
-        let mut store = SafetensorsStore::from_file(path);
-        let all = store
-            .get_all_tensors()
-            .expect("read the toy fixture")
-            .clone();
-
-        let mut weights = Vec::new();
-        let mut io = BTreeMap::new();
-        for (name, tensor) in all {
-            if let Some(rest) = name.strip_prefix("weights.") {
-                let mut tensor = tensor;
-                tensor.name = rest.to_string();
-                weights.push(tensor);
-            } else if let Some(rest) = name.strip_prefix("io.") {
-                io.insert(rest.to_string(), tensor);
-            }
-        }
-
         let device = performance_device();
+        let mut fixture = ToyFixture::load_prefixed(fixture_path(), "weights.", &device);
         let mut model: Sortformer = toy_config().init(&device);
-        let applied =
-            load_nemotron_diarization_tensors(&mut model, weights).expect("load the toy weights");
+        let applied = load_nemotron_diarization_tensors(&mut model, fixture.take_weights())
+            .expect("load the toy weights");
         assert!(applied.unused.is_empty(), "{:?}", applied.unused);
-        Self { model, io, device }
+        Self {
+            model,
+            fixture,
+            device,
+        }
     }
 
     fn get<const D: usize>(
         &self,
         name: &str,
     ) -> Tensor<D> {
-        let data = bridge::to_data(&self.io[name]).expect("read a fixture tensor");
-        Tensor::from_data(data, &self.device)
+        self.fixture.io(name)
     }
 }
 
+/// The stages within relative and absolute `1e-4`, tighter than
+/// [`assert_io_close`](crate::support::testing::assert_io_close): this toy's
+/// reference holds there.
 fn assert_close<const D: usize>(
     what: &str,
     got: Tensor<D>,
     want: Tensor<D>,
 ) {
-    assert_eq!(got.dims(), want.dims(), "{what}: shape");
-    got.into_data()
-        .assert_approx_eq::<f32>(&want.into_data(), Tolerance::rel_abs(1e-4, 1e-4));
+    assert_io_close_within(what, got, want, Tolerance::rel_abs(1e-4, 1e-4));
 }
 
 /// Every stage, at a length that fills its last stack and one that the
@@ -267,23 +252,8 @@ fn test_loads_in_either_stack_order() {
         other => panic!("Nemotron's front end stacks, not {other:?}"),
     }
     let mut flipped: Sortformer = structure.init(&upstream.device);
-    let weights: Vec<PackTensor> = {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/sortformer/nemotron_toy.safetensors"
-        );
-        SafetensorsStore::from_file(path)
-            .get_all_tensors()
-            .expect("read the toy fixture")
-            .clone()
-            .into_iter()
-            .filter_map(|(name, mut tensor)| {
-                let rest = name.strip_prefix("weights.")?.to_string();
-                tensor.name = rest;
-                Some(tensor)
-            })
-            .collect()
-    };
+    let weights =
+        ToyFixture::load_prefixed(fixture_path(), "weights.", &upstream.device).take_weights();
     load_nemotron_diarization_tensors(&mut flipped, weights).expect("load the toy weights");
 
     let mels = Tensor::<3>::random([2, 37, 24], Distribution::Default, &upstream.device);

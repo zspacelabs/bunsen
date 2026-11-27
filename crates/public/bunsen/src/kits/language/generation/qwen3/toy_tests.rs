@@ -10,7 +10,6 @@
 //! [`load_qwen3_tensors`], so the loader is under test too.
 
 use core::ops::Range;
-use std::path::PathBuf;
 
 use burn::prelude::*;
 
@@ -40,6 +39,7 @@ use crate::{
         ToyFixture,
         assert_io_close,
         performance_device,
+        testdata,
     },
 };
 
@@ -61,7 +61,7 @@ impl Toy {
         name: &str,
         device: &Device,
     ) -> Self {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3");
+        let dir = testdata!("qwen3");
         let config = qwen3_config_from_path(&dir.join(format!("{name}.config.json")))
             .expect("read the toy config");
         let mut fixture = ToyFixture::load(dir.join(format!("{name}.safetensors")), device);

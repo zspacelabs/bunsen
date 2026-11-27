@@ -109,13 +109,13 @@ mod tests {
         support::testing::{
             assert_tensors_close,
             cpu_device,
+            testdata,
         },
     };
 
     /// The toy's language model config (`testdata/zonos3/toy.config.json`).
     fn toy_config() -> Zonos3LmConfig {
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("testdata/zonos3/toy.config.json");
+        let path = testdata!("zonos3/toy.config.json");
         let json: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(path).expect("read the toy config"))
                 .expect("parse the toy config");

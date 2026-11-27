@@ -223,6 +223,7 @@ impl ConstructInit for SortformerConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::testdata;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
@@ -267,8 +268,7 @@ mod tests {
             },
             support::testing::cpu_device,
         };
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("testdata/nemo/toy_sortformer_v2.nemo");
+        let path = testdata!("nemo/toy_sortformer_v2.nemo");
         let mut map = ResourceSet::given("toy", CHECKPOINT, &path);
         map.resources.get_mut(CHECKPOINT).unwrap().format = Some(NEMO.into());
 
@@ -430,8 +430,7 @@ mod tests {
             },
             errors::testing::ErrorMatcher,
         };
-        let toy = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("testdata/nemo/toy_sortformer_v2.nemo");
+        let toy = testdata!("nemo/toy_sortformer_v2.nemo");
         let dir = tempfile::tempdir().unwrap();
         let cache = ResourceCache::new(
             ResourceCacheOptions::default().with_disk(
