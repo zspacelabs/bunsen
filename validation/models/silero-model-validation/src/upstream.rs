@@ -159,7 +159,7 @@ mod vad_16k {
         #[test]
         #[serial_test::serial]
         fn streams_as_one_call() {
-            use bunsen::kits::speech::asr::driver::VoiceActivityModel;
+            use bunsen::kits::speech::vad::VoiceActivityModel;
 
             let model = upstream(&cpu_device());
             let chunk = VoiceActivityModel::chunk_size(&model);

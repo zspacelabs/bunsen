@@ -181,9 +181,9 @@
 //!
 //! Under a policy with the `endpoint` trigger, the context runs the
 //! attached voice-activity model over every chunk, and a
-//! [`VoiceActivityFilter`](crate::kits::speech::asr::driver::VoiceActivityFilter) (from the driver's [`VoiceActivityFilterConfig`](crate::kits::speech::asr::driver::VoiceActivityFilterConfig))
+//! [`VoiceActivityFilter`](crate::kits::speech::vad::VoiceActivityFilter) (from the driver's [`VoiceActivityFilterConfig`](crate::kits::speech::vad::VoiceActivityFilterConfig))
 //! turns its speech probabilities into
-//! [`SpeechRegion`](crate::kits::speech::asr::driver::SpeechRegion)s. A region
+//! [`SpeechRegion`](crate::kits::speech::vad::SpeechRegion)s. A region
 //! the filter closes is padded, snapped outward onto the encoder grid so that
 //! its edges fall on timestamp positions, and becomes a decode unit of its
 //! own: its frames are cut from the ring, decoded a window at a time, and
@@ -196,10 +196,10 @@
 //!
 //! A caller that decodes regions as streams of their own, say from the
 //! whole-clip
-//! [`speech_regions`](crate::kits::speech::asr::driver::VoiceActivityFilterConfig::speech_regions),
-//! opens a context per region with the region's
-//! [`clock`](crate::kits::speech::asr::driver::SpeechRegion::clock): the
-//! parent's, sliced, so the region's times stay absolute.
+//! [`speech_regions`](crate::kits::speech::vad::VoiceActivityFilterConfig::speech_regions),
+//! opens a context per region with the region's clock
+//! ([`StreamClock::for_region`](crate::kits::speech::asr::driver::StreamClock::for_region)):
+//! the parent's, sliced, so the region's times stay absolute.
 
 pub mod support;
 

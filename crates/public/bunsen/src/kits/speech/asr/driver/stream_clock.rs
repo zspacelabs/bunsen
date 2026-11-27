@@ -1,8 +1,11 @@
 //! # The stream clock: sample index to media time.
 
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    kits::speech::vad::SpeechRegion,
 };
 
 /// A point where the stream's sample index is known in media time.
@@ -117,6 +120,16 @@ impl StreamClock {
         // Signed, so a sample before the first anchor extrapolates backwards.
         let delta = sample as f64 - base.sample as f64;
         base.time + delta / self.rate as f64
+    }
+
+    /// The clock of a speech region decoded as its own stream: this one,
+    /// sliced so that the region's sample 0 is its `start`
+    /// ([`slice`](Self::slice)).
+    pub fn for_region(
+        &self,
+        region: &SpeechRegion,
+    ) -> StreamClock {
+        self.slice(region.start, region.end)
     }
 
     /// The clock of a sub-stream whose sample 0 is this stream's `from`.
@@ -295,5 +308,26 @@ mod tests {
 
         let origin = 48_000; // a window cut 3 s into the stream
         assert!(close(clock.time_at(origin + 100 * 320), 60.0 + 3.0 + 2.0));
+    }
+
+    /// A region's clock says the same times the parent's does, from its
+    /// own zero.
+    #[test]
+    fn test_region_clock() {
+        let mut parent = StreamClock::uniform(16_000);
+        parent.anchor(16_000, 10.0).unwrap();
+
+        let region = SpeechRegion {
+            start: 8_000,
+            end: 40_000,
+        };
+        let clock = parent.for_region(&region);
+        for s in [0, 8_000, 16_000, 31_999] {
+            crate::support::testing::assert_scalar_close(
+                clock.time_at(s),
+                parent.time_at(region.start + s),
+                1e-9,
+            );
+        }
     }
 }
