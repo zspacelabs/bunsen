@@ -36,7 +36,7 @@ use crate::base::audio::{
 
 /// `openai/tiny`, through the factory and the weights cache, in f32.
 fn tiny_model(device: &Device) -> Whisper {
-    let bundle = default_whisper_factory()
+    let construct = default_whisper_factory()
         .expect("the whisper factory")
         .load_construct(
             "openai/tiny",
@@ -46,17 +46,17 @@ fn tiny_model(device: &Device) -> Whisper {
         )
         .expect("load openai/tiny");
     assert_eq!(
-        bundle.model.n_mels(),
+        construct.model.n_mels(),
         N_MELS,
         "tiny shares base's front end"
     );
-    assert_eq!(bundle.model.vocab_size(), N_VOCAB, "and its vocabulary");
+    assert_eq!(construct.model.vocab_size(), N_VOCAB, "and its vocabulary");
     assert_eq!(
-        bundle.model.preferred_dtype(),
+        construct.model.preferred_dtype(),
         burn::tensor::FloatDType::F32,
         "min_precision(F32) loads tiny in f32"
     );
-    bundle.model.clone()
+    construct.model.clone()
 }
 
 /// Offline, with no timestamps and no previous text, the driver decodes the

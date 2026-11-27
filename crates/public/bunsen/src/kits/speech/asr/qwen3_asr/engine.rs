@@ -80,7 +80,7 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 /// where the one-shot extractor pads the waveform with zeros.
 #[derive(Clone, Debug)]
 pub struct Qwen3AsrEngine {
-    bundle: Arc<Qwen3AsrConstruct>,
+    construct: Arc<Qwen3AsrConstruct>,
     window_frames: usize,
     quiet_cut: bool,
     speaker_cut: Option<SpeakerCutConfig>,
@@ -88,25 +88,25 @@ pub struct Qwen3AsrEngine {
 }
 
 impl Qwen3AsrEngine {
-    /// The engine of `bundle`, on the model's device, with windows of at most
-    /// its policy's [`window_seconds`](super::Qwen3AsrPolicy::window_seconds)
+    /// The engine of `construct`, on the model's device, with windows of at
+    /// most its policy's [`window_seconds`](super::Qwen3AsrPolicy::window_seconds)
     /// ([`max_window`](Qwen3AsrConstruct::max_window) by default), each full
     /// one cut at a quiet point.
     ///
     /// # Errors
     /// As [`with_window_seconds`](Self::with_window_seconds), for the
     /// policy's window.
-    pub fn new(bundle: Arc<Qwen3AsrConstruct>) -> BunsenResult<Self> {
-        let device = bundle.model.devices()[0].clone();
-        let seconds = bundle.policy.window_seconds;
-        Self {
-            bundle,
-            window_frames: 0,
+    pub fn new(construct: Arc<Qwen3AsrConstruct>) -> BunsenResult<Self> {
+        let device = construct.model.devices()[0].clone();
+        let seconds = construct.policy.window_seconds;
+        let window_frames = Self::window_frames_for(&construct, seconds)?;
+        Ok(Self {
+            construct,
+            window_frames,
             quiet_cut: true,
             speaker_cut: Some(SpeakerCutConfig::new()),
             device,
-        }
-        .with_window_seconds(seconds)
+        })
     }
 
     /// The engine with a window cut at a change of speaker before it is
@@ -143,27 +143,39 @@ impl Qwen3AsrEngine {
         mut self,
         seconds: f64,
     ) -> BunsenResult<Self> {
-        let front_end = &self.bundle.front_end;
-        self.window_frames = window_frames_in(
+        self.window_frames = Self::window_frames_for(&self.construct, seconds)?;
+        Ok(self)
+    }
+
+    /// The window of at most `seconds` over `construct`'s front end, in whole
+    /// frames.
+    ///
+    /// # Errors
+    /// As [`with_window_seconds`](Self::with_window_seconds).
+    fn window_frames_for(
+        construct: &Qwen3AsrConstruct,
+        seconds: f64,
+    ) -> BunsenResult<usize> {
+        let front_end = &construct.front_end;
+        window_frames_in(
             "Qwen3AsrEngine::with_window_seconds",
             seconds,
             front_end.sample_rate(),
             front_end.hop(),
             1,
-            Some(self.bundle.max_window() / front_end.hop()),
-        )?;
-        Ok(self)
+            Some(construct.max_window() / front_end.hop()),
+        )
     }
 
     /// The construct.
-    pub fn bundle(&self) -> &Arc<Qwen3AsrConstruct> {
-        &self.bundle
+    pub fn construct(&self) -> &Arc<Qwen3AsrConstruct> {
+        &self.construct
     }
 
     /// The frames a window is padded out to: the front end's shortest
     /// window.
     fn padded_frames(&self) -> usize {
-        let front_end = &self.bundle.front_end;
+        let front_end = &self.construct.front_end;
         front_end.min_samples() / front_end.hop()
     }
 
@@ -180,7 +192,7 @@ impl Qwen3AsrEngine {
         window: Tensor<3>,
         level: &MaxLevel,
     ) -> Tensor<2> {
-        let log_mel = &self.bundle.front_end.config.log_mel;
+        let log_mel = &self.construct.front_end.config.log_mel;
         let [_, frames, n_mels] = window.dims();
         let width = frames.max(self.padded_frames());
         let window = if frames < width {
@@ -210,9 +222,9 @@ impl Qwen3AsrEngine {
         frames: usize,
     ) -> WindowDecode<Qwen3AsrCarry> {
         let (_, text) = self
-            .bundle
+            .construct
             .prompt
-            .split_reply(&reply.tokens, &self.bundle.decoder.eos);
+            .split_reply(&reply.tokens, &self.construct.decoder.eos);
         let tokens: Vec<i64> = text.iter().map(|&t| t as i64).collect();
         let carry = Qwen3AsrCarry {
             language: reply.language,
@@ -245,11 +257,11 @@ impl AsrEngine for Qwen3AsrEngine {
     type StreamState = Qwen3AsrStreamState;
 
     fn sample_rate(&self) -> usize {
-        self.bundle.front_end.sample_rate()
+        self.construct.front_end.sample_rate()
     }
 
     fn hop(&self) -> usize {
-        self.bundle.front_end.hop()
+        self.construct.front_end.hop()
     }
 
     fn window_frames(&self) -> usize {
@@ -268,7 +280,7 @@ impl AsrEngine for Qwen3AsrEngine {
 
     fn new_features(&self) -> BunsenResult<LogMelFeatures> {
         Ok(LogMelFeatures::new(
-            self.bundle.front_end.converter.clone(),
+            self.construct.front_end.converter.clone(),
             self.device.clone(),
         ))
     }
@@ -284,21 +296,14 @@ impl AsrEngine for Qwen3AsrEngine {
         requests
             .into_iter()
             .map(|request| {
-                let mut window = request.window;
-                let mut frames = window.dims()[1];
                 // A draft shows all the audio since the last commit, which it
                 // is timed over: it is never cut.
                 let cutting = !request.draft;
-                let turn = match (cutting, &self.speaker_cut, &request.speakers) {
-                    (true, Some(config), Some(activity)) => config.cut(
-                        activity,
-                        request.start,
-                        self.hop(),
-                        frames,
-                        self.sample_rate(),
-                    ),
-                    _ => None,
-                };
+                let turn = cutting
+                    .then(|| request.speaker_cut(self.speaker_cut.as_ref(), self))
+                    .flatten();
+                let mut window = request.window;
+                let mut frames = window.dims()[1];
                 if let Some(cut) = turn {
                     frames = cut;
                     window = window.slice_dim(1, 0..frames);
@@ -315,7 +320,7 @@ impl AsrEngine for Qwen3AsrEngine {
                     window = window.slice_dim(1, 0..frames);
                 }
                 let features = self.package(window, &request.level);
-                let reply = self.bundle.transcribe_features(features, frames)?;
+                let reply = self.construct.transcribe_features(features, frames)?;
                 Ok(self.lay_out(reply, frames))
             })
             .collect()
@@ -337,7 +342,7 @@ impl AsrEngine for Qwen3AsrEngine {
         tokens: &[i64],
     ) -> BunsenResult<Option<String>> {
         let ids = token_ids(tokens.iter().copied(), "Qwen3-ASR")?;
-        Ok(Some(self.bundle.vocab.text(&ids)?))
+        Ok(Some(self.construct.vocab.text(&ids)?))
     }
 
     /// The first language a committed reply names.
@@ -477,7 +482,7 @@ mod tests {
         .build();
 
         let (one_shot, valid) = engine
-            .bundle()
+            .construct()
             .front_end
             .forward(&samples, &device)
             .unwrap();

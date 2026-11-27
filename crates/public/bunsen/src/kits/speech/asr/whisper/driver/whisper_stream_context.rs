@@ -175,18 +175,9 @@ impl WhisperEngine {
         &self,
         request: &DecodeRequest<'_, Self>,
     ) -> Packaged {
-        let mut count = request.window.dims()[1];
-        if let (Some(config), Some(activity)) = (&self.config.speaker_cut, &request.speakers)
-            && let Some(cut) = config.cut(
-                activity,
-                request.start,
-                self.hop(),
-                count,
-                self.sample_rate(),
-            )
-        {
-            count = cut;
-        }
+        let count = request
+            .speaker_cut(self.config.speaker_cut.as_ref(), self)
+            .unwrap_or(request.window.dims()[1]);
         let window = self.package_padded(
             request.window.clone().slice_dim(1, 0..count),
             &request.level,
@@ -304,7 +295,7 @@ impl AsrEngine for WhisperEngine {
     type StreamState = WhisperStreamState;
 
     fn sample_rate(&self) -> usize {
-        self.bundle.model.sample_rate()
+        self.construct.model.sample_rate()
     }
 
     fn hop(&self) -> usize {

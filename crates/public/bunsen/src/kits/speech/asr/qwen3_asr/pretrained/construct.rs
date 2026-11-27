@@ -151,14 +151,14 @@ impl ConstructInit for Qwen3AsrConstructConfig {
             model,
             &ResolvedPresetSet::default(),
         )?;
-        let mut bundle = Qwen3AsrConstruct::new(asr, vocab, device)?
+        let mut construct = Qwen3AsrConstruct::new(asr, vocab, device)?
             .with_policy(policy.config.clone(), policy.applied());
         // the front end the model's files describe; without one, the default
         // at the model's mel count
         let front_end =
             front_end.unwrap_or_else(|| Qwen3AsrFrontEndConfig::new().with_n_mels(n_mels));
-        bundle.front_end = front_end.try_init(device)?;
-        Ok(Arc::new(bundle))
+        construct.front_end = front_end.try_init(device)?;
+        Ok(Arc::new(construct))
     }
 }
 

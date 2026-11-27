@@ -36,14 +36,14 @@ fn check_preset(
 ) {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_named_construct(
+    let construct = load_named_construct(
         &format!("nvidia/nemotron-3-diarization[{latency}]"),
         &device,
     );
-    let streaming = bundle.streaming().unwrap();
+    let streaming = construct.streaming().unwrap();
     check_diarization(
         name,
-        &bundle,
+        &construct,
         streaming,
         &ami_reference().presets[name],
         PROBS_ATOL,
@@ -51,12 +51,12 @@ fn check_preset(
     );
 }
 
-/// `bundle` diarizes the clip under `streaming` as `reference` records
+/// `construct` diarizes the clip under `streaming` as `reference` records
 /// `NeMo` did: its probabilities to `atol`, its turns' error against the
 /// RTTM to [`DER_MARGIN`].
 fn check_diarization(
     what: &str,
-    bundle: &bunsen::kits::speech::diarization::sortformer::SortformerConstruct,
+    construct: &bunsen::kits::speech::diarization::sortformer::SortformerConstruct,
     streaming: SortformerStreamingConfig,
     reference: &AmiPreset,
     atol: f64,
@@ -64,7 +64,7 @@ fn check_diarization(
 ) {
     let ami = bunsen_test_audio::AMI_EN2002D_2132;
     let samples = load_audio_mono_sr(ami.audio_path(), 16_000).expect("read the AMI clip");
-    let diarizer = bundle.diarizer(streaming).unwrap();
+    let diarizer = construct.diarizer(streaming).unwrap();
     let n_speakers = diarizer.max_speakers();
     let frame_seconds = diarizer.frame_samples() as f64 / diarizer.sample_rate() as f64;
     let t0 = std::time::Instant::now();
@@ -117,11 +117,11 @@ fn check_v2(
 ) {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_named_construct(&format!("{name}[{latency}]"), &device);
-    let streaming = bundle.streaming().unwrap();
+    let construct = load_named_construct(&format!("{name}[{latency}]"), &device);
+    let streaming = construct.streaming().unwrap();
     check_diarization(
         &format!("{name} {preset}"),
-        &bundle,
+        &construct,
         streaming,
         &ami_reference_v2().models[model].presets[preset],
         V2_PROBS_ATOL,

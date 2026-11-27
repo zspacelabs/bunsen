@@ -30,7 +30,7 @@ use crate::asr::{
 #[derive(clap::Args, Debug, Default)]
 pub struct Qwen3AsrFlags {}
 
-/// The driver for `bundle` under its policy and `emission`.
+/// The driver for `construct` under its policy and `emission`.
 ///
 /// # Errors
 /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) if the policy's
@@ -38,10 +38,10 @@ pub struct Qwen3AsrFlags {}
 /// the construct's [`max_window`](Qwen3AsrConstruct::max_window); as the driver
 /// and the VAD.
 pub fn driver(
-    bundle: Arc<Qwen3AsrConstruct>,
+    construct: Arc<Qwen3AsrConstruct>,
     emission: Emission,
 ) -> BunsenResult<Qwen3AsrStreamDriver> {
-    let engine = Qwen3AsrEngine::new(bundle)
+    let engine = Qwen3AsrEngine::new(construct)
         .context("the model policy's window_seconds")
         .as_policy()?;
     let driver = Qwen3AsrStreamDriver::new(engine, emission.into())?;

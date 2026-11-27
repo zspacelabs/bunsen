@@ -221,11 +221,11 @@ impl WhisperStreamDriverConfig {
     ///   front end.
     pub fn init_from_construct(
         &self,
-        bundle: Arc<WhisperConstruct>,
+        construct: Arc<WhisperConstruct>,
         device: &Device,
     ) -> BunsenResult<WhisperStreamDriver> {
-        bundle.try_validate()?;
-        let special_ids = *bundle.layout.ids();
+        construct.try_validate()?;
+        let special_ids = *construct.layout.ids();
 
         if !special_ids.is_multilingual() && self.language.is_some() {
             return Err(crate::errors::ConstraintError::custom(
@@ -240,14 +240,14 @@ impl WhisperStreamDriverConfig {
         // stream; its prompt is built when the language is known.
         let prompt = match (special_ids.is_multilingual(), self.language.as_deref()) {
             (true, None) => Vec::new(),
-            (_, language) => bundle
+            (_, language) => construct
                 .layout
                 .sot_sequence(language, task, self.timestamps)?,
         };
         let max_initial_timestamp_index = self.max_initial_timestamp.map(|seconds| {
-            (seconds / bundle.layout.layout().timestamp_step_seconds).round() as usize
+            (seconds / construct.layout.layout().timestamp_step_seconds).round() as usize
         });
-        let mut filters: Vec<Arc<dyn LogitFilter>> = bundle.default_filters();
+        let mut filters: Vec<Arc<dyn LogitFilter>> = construct.default_filters();
         if self.timestamps {
             filters.push(Arc::new(ApplyTimestampRules::new(
                 &special_ids,
@@ -268,13 +268,13 @@ impl WhisperStreamDriverConfig {
             return Err(ConstraintError::zero_or_empty(OWNER, "fallback.ladder.best_of").into());
         }
 
-        let audio_converter = bundle
+        let audio_converter = construct
             .model
             .front_end()
-            .try_init_audio_converter(bundle.model.n_mels(), device)?;
+            .try_init_audio_converter(construct.model.n_mels(), device)?;
 
         #[cfg(feature = "tokenizer")]
-        let detokenizer: Option<Arc<dyn Detokenizer>> = bundle
+        let detokenizer: Option<Arc<dyn Detokenizer>> = construct
             .detokenizer()?
             .map(|detokenizer| Arc::new(detokenizer) as Arc<dyn Detokenizer>);
         #[cfg(not(feature = "tokenizer"))]
@@ -282,7 +282,7 @@ impl WhisperStreamDriverConfig {
 
         let engine = WhisperEngine {
             config: self.clone(),
-            bundle,
+            construct,
             audio_converter,
             prompt,
             task,
@@ -324,7 +324,7 @@ pub struct WhisperEngine {
     pub(super) config: WhisperStreamDriverConfig,
     pub(super) audio_converter: PerceptiveAudioConverter,
     /// The model, its layout and its vocabulary, shared.
-    pub(super) bundle: Arc<WhisperConstruct>,
+    pub(super) construct: Arc<WhisperConstruct>,
     /// The sot sequence every window's decode opens with; empty when the
     /// language is detected per stream.
     pub(super) prompt: Vec<i64>,
@@ -344,13 +344,13 @@ impl WhisperEngine {
     }
 
     /// The construct: the model, its layout and its vocabulary.
-    pub fn bundle(&self) -> &Arc<WhisperConstruct> {
-        &self.bundle
+    pub fn construct(&self) -> &Arc<WhisperConstruct> {
+        &self.construct
     }
 
     /// The model.
     pub fn whisper_model(&self) -> &Whisper {
-        &self.bundle.model
+        &self.construct.model
     }
 
     /// The mel front end.
@@ -360,7 +360,7 @@ impl WhisperEngine {
 
     /// The token layout, derived from the model.
     pub fn token_layout(&self) -> &WhisperTokenLayout {
-        &self.bundle.layout
+        &self.construct.layout
     }
 
     /// The sot sequence every window's decode opens with.
@@ -393,7 +393,7 @@ impl WhisperEngine {
         &self,
         language: Option<&str>,
     ) -> BunsenResult<Vec<i64>> {
-        self.bundle
+        self.construct
             .layout
             .sot_sequence(language, self.task, self.config.timestamps)
     }
@@ -408,7 +408,7 @@ impl WhisperEngine {
         &self,
         prompt: Vec<i64>,
     ) -> DecodeConfig {
-        let ids = self.bundle.layout.ids();
+        let ids = self.construct.layout.ids();
         DecodeConfig::new(prompt, ids.eot)
             .with_max_tokens(self.config.max_tokens)
             .with_search(self.config.search.clone())
@@ -423,12 +423,12 @@ impl WhisperEngine {
 
     /// Frames per decode window: the model's audio context.
     pub fn window_frames(&self) -> usize {
-        self.bundle.model.max_audio_ctx()
+        self.construct.model.max_audio_ctx()
     }
 
     /// The audio front end the model's log-mels are computed with.
     pub fn front_end(&self) -> &LogMelFrontEndConfig {
-        self.bundle.model.front_end()
+        self.construct.model.front_end()
     }
 
     /// The encoder grid in samples: one timestamp step, which is
@@ -440,7 +440,7 @@ impl WhisperEngine {
 
     /// The devices the model lives on.
     pub fn devices(&self) -> Vec<Device> {
-        self.bundle.model.devices()
+        self.construct.model.devices()
     }
 }
 
@@ -451,8 +451,8 @@ impl AsrStreamDriver<WhisperEngine> {
     }
 
     /// The construct: the model, its layout and its vocabulary.
-    pub fn bundle(&self) -> &Arc<WhisperConstruct> {
-        self.engine().bundle()
+    pub fn construct(&self) -> &Arc<WhisperConstruct> {
+        self.engine().construct()
     }
 
     /// The model.
@@ -540,7 +540,7 @@ impl AsrStreamDriver<WhisperEngine> {
             engine.filters = filters;
             if engine.config.timestamps {
                 engine.filters.push(Arc::new(ApplyTimestampRules::new(
-                    engine.bundle.layout.ids(),
+                    engine.construct.layout.ids(),
                     engine.max_initial_timestamp_index,
                 )));
             }

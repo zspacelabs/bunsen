@@ -89,8 +89,8 @@ impl AsrSpeakerArgs {
         let Some(model) = &self.diarize else {
             return Ok(None);
         };
-        let bundle = load_diarizer(model, cache, device, policy)?;
-        Ok(Some(Arc::new(bundle.diarizer(bundle.streaming()?)?)))
+        let construct = load_diarizer(model, cache, device, policy)?;
+        Ok(Some(Arc::new(construct.diarizer(construct.streaming()?)?)))
     }
 }
 

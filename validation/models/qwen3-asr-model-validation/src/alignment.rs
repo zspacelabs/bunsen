@@ -113,23 +113,23 @@ struct Window {
 }
 
 fn decode_window(
-    bundle: &Qwen3AsrConstruct,
+    construct: &Qwen3AsrConstruct,
     samples: &[f32],
     (start, end): (usize, usize),
     device: &Device,
 ) -> Window {
-    let rate = bundle.front_end.sample_rate();
+    let rate = construct.front_end.sample_rate();
     let piece = &samples[start * rate..(end * rate).min(samples.len())];
-    let (features, valid) = bundle.front_end.forward(piece, device).unwrap();
-    let reply = bundle
+    let (features, valid) = construct.front_end.forward(piece, device).unwrap();
+    let reply = construct
         .transcribe_features(features.clone(), valid)
         .unwrap()
         .tokens;
-    let layers: Vec<usize> = (0..bundle.model.language_model.n_layers()).collect();
-    let attention = bundle
+    let layers: Vec<usize> = (0..construct.model.language_model.n_layers()).collect();
+    let attention = construct
         .audio_attention(features.clone(), valid, &reply, &layers)
         .unwrap();
-    let aligned_reply = bundle
+    let aligned_reply = construct
         .token_frames(features, valid, &reply, &QWEN3_ASR_0_6B_ALIGNMENT_HEADS)
         .unwrap();
     let [heads, _, n_audio] = attention[0].dims();
@@ -138,22 +138,22 @@ fn decode_window(
         .map(|w| w.into_data().convert::<f32>().try_to_vec().unwrap())
         .collect();
 
-    let (_, text) = bundle.prompt.split_reply(&reply, &bundle.decoder.eos);
+    let (_, text) = construct.prompt.split_reply(&reply, &construct.decoder.eos);
     let first = reply
         .iter()
-        .position(|&t| t == bundle.prompt.text_token)
+        .position(|&t| t == construct.prompt.text_token)
         .map_or(0, |at| at + 1);
     let rows: Vec<usize> = (first..first + text.len()).collect();
     let mut words: Vec<(usize, String)> = Vec::new();
     for (k, &t) in text.iter().enumerate() {
-        let piece = bundle.vocab.text(&[t]).unwrap();
+        let piece = construct.vocab.text(&[t]).unwrap();
         match words.last_mut() {
             Some((_, word)) if !piece.starts_with(' ') => word.push_str(&piece),
             _ => words.push((k, piece.trim().to_string())),
         }
     }
     let seconds = (0..n_audio)
-        .map(|f| (bundle.encoder_frame_mel(f) + 4) as f64 / 100.0)
+        .map(|f| (construct.encoder_frame_mel(f) + 4) as f64 / 100.0)
         .collect();
     let aligned = rows.iter().map(|&r| aligned_reply[r]).collect();
     Window {
@@ -269,12 +269,12 @@ mod measure_attention_alignment {
     fn qwen3_asr_0_6b() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_construct("qwen/qwen3-asr-0.6b", &device);
+        let construct = load_construct("qwen/qwen3-asr-0.6b", &device);
         let samples = speech_clip(CLIP);
         let reference = word_times();
         let windows: Vec<Window> = WINDOWS
             .iter()
-            .map(|&w| decode_window(&bundle, &samples, w, &device))
+            .map(|&w| decode_window(&construct, &samples, w, &device))
             .collect();
         let n_layers = windows[0].weights.len();
         let heads = windows[0].heads;
@@ -322,10 +322,10 @@ fn check_aligns_on_the_base_heads(name: &str) {
     let reference = word_times();
     {
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_construct(name, &device);
+        let construct = load_construct(name, &device);
         let windows: Vec<Window> = WINDOWS
             .iter()
-            .map(|&w| decode_window(&bundle, &samples, w, &device))
+            .map(|&w| decode_window(&construct, &samples, w, &device))
             .collect();
         report_and_gate(name, &aligned_errors(&windows, &reference), 100);
     }

@@ -205,15 +205,15 @@ impl ConstructInit for SortformerConstructConfig {
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
-        let bundle = match self.reader {
+        let construct = match self.reader {
             SortformerReader::Safetensors => Self::construct_safetensors(loaded, device, load)?,
             SortformerReader::Nemo => Self::construct_nemo(loaded, device, load)?,
         };
         let family = crate::data::catalog::BuiltinCatalog::get()?
-            .template_presets(bundle.family.template_class())?;
+            .template_presets(construct.family.template_class())?;
         let policy = resolve_ref_presets(&SortformerPolicy::default(), model, &family)?;
         Ok(Arc::new(
-            bundle.with_policy(policy.config.clone(), policy.applied()),
+            construct.with_policy(policy.config.clone(), policy.applied()),
         ))
     }
 }
@@ -284,7 +284,7 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let bundle = DeferredBuild::<SortformerConstructConfig>::from_resource_set(map)
+        let construct = DeferredBuild::<SortformerConstructConfig>::from_resource_set(map)
             .unwrap()
             .load(
                 &cache,
@@ -293,15 +293,22 @@ mod tests {
             )
             .unwrap()
             .handle;
-        assert_eq!(bundle.family, SortformerFamily::SortformerV2);
-        assert_eq!((bundle.model.n_mels(), bundle.model.d_model()), (24, 16));
-        assert_eq!(bundle.model.n_speakers(), 3);
-        assert!(bundle.model.transformer.is_some());
-        assert_eq!(bundle.front_end.n_mels(), 24);
-        assert!(bundle.to_string().starts_with("Sortformer v2: 3 speakers"));
+        assert_eq!(construct.family, SortformerFamily::SortformerV2);
+        assert_eq!(
+            (construct.model.n_mels(), construct.model.d_model()),
+            (24, 16)
+        );
+        assert_eq!(construct.model.n_speakers(), 3);
+        assert!(construct.model.transformer.is_some());
+        assert_eq!(construct.front_end.n_mels(), 24);
+        assert!(
+            construct
+                .to_string()
+                .starts_with("Sortformer v2: 3 speakers")
+        );
         // A given file has no row: it takes its family's default presets.
-        assert_eq!(bundle.presets.presets, ["low", "none"]);
-        let streaming = bundle.streaming().unwrap();
+        assert_eq!(construct.presets.presets, ["low", "none"]);
+        let streaming = construct.streaming().unwrap();
         assert_eq!(
             (streaming.latency_frames(), streaming.left_context),
             (13, 1)

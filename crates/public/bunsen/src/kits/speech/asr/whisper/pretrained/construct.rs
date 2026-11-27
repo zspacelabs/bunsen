@@ -467,16 +467,16 @@ impl ConstructInit for WhisperConstructConfig {
             ResolvedPresetSet::default()
         };
         let policy = resolve_ref_presets(&WhisperPolicy::default(), model, &family)?;
-        let mut bundle = WhisperConstruct::new(whisper, layout)
+        let mut construct = WhisperConstruct::new(whisper, layout)
             .with_policy(policy.config.clone(), policy.applied());
         if let Some(part) = loaded.get(VOCABULARY) {
-            bundle = bundle.with_ranks(TiktokenRanks::load(&part.path)?);
+            construct = construct.with_ranks(TiktokenRanks::load(&part.path)?);
         }
-        bundle
+        construct
             .try_validate()
             .as_policy()
             .with_context(|| model.id())?;
-        Ok(Arc::new(bundle))
+        Ok(Arc::new(construct))
     }
 }
 

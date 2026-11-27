@@ -34,15 +34,15 @@ pub fn load_diarizer(
     device: &Device,
     policy: LoadPolicy,
 ) -> BunsenResult<Arc<SortformerConstruct>> {
-    let bundle = load_logged(
+    let construct = load_logged(
         default_sortformer_factory()?.resolve(model, cache)?,
         cache,
         device,
         policy,
     )?
     .handle;
-    log::info!("  {bundle}");
-    Ok(bundle)
+    log::info!("  {construct}");
+    Ok(construct)
 }
 
 /// A turn, as `--json` prints it.

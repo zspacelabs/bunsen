@@ -94,6 +94,46 @@ impl MomentsLevel {
             .clone()
             .div_scalar(self.count.saturating_sub(1).max(1) as f64)
     }
+
+    /// `frames` normalized per feature by these moments, as `NeMo`'s front
+    /// end normalizes an item: `(x - mean) / (std + epsilon)`, with the
+    /// unbiased standard deviation ([`sample_variance`](Self::sample_variance)).
+    ///
+    /// # Arguments
+    /// * `frames` - `[batch, frames, features]`, the batch and features these
+    ///   moments are of.
+    ///
+    /// # Returns
+    /// `[batch, frames, features]`.
+    pub fn normalize(
+        &self,
+        frames: Tensor<3>,
+        epsilon: f64,
+    ) -> Tensor<3> {
+        let [batch, features] = crate::contracts::unpack_shape_contract!(
+            ["batch", "features"],
+            &self.mean.dims(),
+            &["batch", "features"]
+        );
+        #[cfg(any(debug_assertions, test))]
+        let [count] = crate::contracts::unpack_shape_contract!(
+            ["batch", "count", "features"],
+            &frames.dims(),
+            &["count"],
+            &[("batch", batch), ("features", features)]
+        );
+        let std = self.sample_variance().sqrt().add_scalar(epsilon);
+        let normalized = (frames - self.mean.clone().unsqueeze_dim(1)) / std.unsqueeze_dim(1);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "count", "features"],
+            &normalized.dims(),
+            &[("batch", batch), ("count", count), ("features", features)]
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (batch, features);
+        normalized
+    }
 }
 
 impl LevelStatistic for MomentsLevel {
