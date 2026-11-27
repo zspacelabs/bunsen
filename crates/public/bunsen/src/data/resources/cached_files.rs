@@ -236,21 +236,39 @@ impl ResourceCache {
         &self,
         files: &[CachedFile],
     ) -> BunsenResult<u64> {
+        let paths: Vec<&Path> = files.iter().map(|f| f.path.as_path()).collect();
+        self.remove_cached_paths(&paths)
+    }
+
+    /// [`remove_cached`](Self::remove_cached) by path: removes the files at
+    /// `paths` and the directories they leave empty under the resources
+    /// directory.
+    ///
+    /// # Returns
+    /// The bytes freed.
+    ///
+    /// # Errors
+    /// As [`remove_cached`](Self::remove_cached).
+    pub fn remove_cached_paths(
+        &self,
+        paths: &[&Path],
+    ) -> BunsenResult<u64> {
         let root = self.resources_dir();
-        if let Some(stray) = files.iter().find(|f| !f.path.starts_with(&root)) {
+        if let Some(stray) = paths.iter().find(|p| !p.starts_with(&root)) {
             return Err(BunsenError::illegal(format!(
                 "{} is not in the resource cache at {}",
-                stray.path.display(),
+                stray.display(),
                 root.display()
             )));
         }
         let mut freed = 0;
-        for file in files {
-            fs::remove_file(&file.path).map_err(sys_at("remove", &file.path))?;
-            freed += file.bytes;
+        for path in paths {
+            let bytes = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+            fs::remove_file(path).map_err(sys_at("remove", path))?;
+            freed += bytes;
             // The directories above it, up to the resources directory, while
             // each is empty.
-            let mut dir = file.path.parent();
+            let mut dir = path.parent();
             while let Some(d) = dir.filter(|d| *d != root && d.starts_with(&root)) {
                 if fs::remove_dir(d).is_err() {
                     break;
