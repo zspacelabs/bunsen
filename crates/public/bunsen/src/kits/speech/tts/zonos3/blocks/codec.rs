@@ -166,14 +166,22 @@ impl Zonos3CodebookDecoder {
         &self,
         codes: Tensor<2, Int>,
     ) -> Tensor<3> {
-        let [b, t] = codes.dims();
+        let [b, t] =
+            crate::contracts::unpack_shape_contract!(["B", "T"], &codes.dims(), &["B", "T"]);
         let d = self.codebook.dims()[1];
         let vectors = self
             .codebook
             .val()
             .select(0, codes.reshape([b * t]))
             .reshape([b, t, d]);
-        self.out_proj.forward(vectors)
+        let y = self.out_proj.forward(vectors);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "T", "W"],
+            &y.dims(),
+            &[("B", b), ("T", t), ("W", self.out_proj.weight.dims()[1])]
+        );
+        y
     }
 }
 
@@ -414,7 +422,8 @@ pub struct Zonos3Codec {
 /// `[B, T, 2 C]` to `[B, 2 T, C]`: channel `2 c + j` of time `t` to channel
 /// `c` of time `2 t + j`.
 pub fn patch_up(x: Tensor<3>) -> Tensor<3> {
-    let [b, t, c] = x.dims();
+    let [b, t, c] =
+        crate::contracts::unpack_shape_contract!(["B", "T", "C"], &x.dims(), &["B", "T", "C"]);
     x.reshape([b, t, c / 2, 2])
         .swap_dims(2, 3)
         .reshape([b, 2 * t, c / 2])
@@ -490,6 +499,12 @@ impl Zonos3Codec {
             .squeeze_dim::<2>(1);
         let audio = self.resample(mixed.clone());
         let audio = audio.slice(s![.., ..t * self.hop]);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "N"],
+            &audio.dims(),
+            &[("B", b), ("N", t * self.hop)]
+        );
         (
             audio,
             Zonos3CodecTrace {

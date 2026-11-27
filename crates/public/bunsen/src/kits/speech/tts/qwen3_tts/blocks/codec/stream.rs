@@ -234,7 +234,9 @@ impl Qwen3TtsCodecDecoder {
         ctx: &mut Qwen3TtsChunkedStreamContext,
     ) -> Tensor<3> {
         let Qwen3TtsDecodeConfig { chunk, context } = ctx.config;
-        let [b, _, t] = codes.dims();
+        let k = self.quantizer.rvq_first.codebooks.len() + self.quantizer.rvq_rest.codebooks.len();
+        let [b, t] =
+            unpack_shape_contract!(["B", "K", "T"], &codes.dims(), &["B", "T"], &[("K", k)]);
         let device = codes.device();
         let mut parts = Vec::new();
         let mut at = 0;
