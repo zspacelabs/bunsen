@@ -22,6 +22,7 @@ use crate::{
         },
         resources::{
             CacheStatus,
+            ConvertedWeights,
             LoadedResourceSet,
             ResourceCache,
             ResourceSet,
@@ -279,7 +280,12 @@ impl<H: ConstructInit> DeferredBuild<H> {
                         .write(path)
                 });
             match written {
-                Ok(()) => log::info!("{}: converted weights saved to {}", H::KIT, path.display()),
+                Ok(()) => {
+                    log::info!("{}: converted weights saved to {}", H::KIT, path.display());
+                    if cache.converted_weights() == ConvertedWeights::KeepAndDropDownloads {
+                        drop_downloads::<H>(cache, &resources, weights);
+                    }
+                }
                 Err(e) => {
                     let _ = std::fs::remove_file(&partial);
                     log::warn!("{}: converted weights not saved ({e})", H::KIT);
@@ -287,6 +293,38 @@ impl<H: ConstructInit> DeferredBuild<H> {
             }
         }
         Ok((resources, handle))
+    }
+}
+
+/// Under [`ConvertedWeights::KeepAndDropDownloads`], once a copy is saved:
+/// removes the weights' files this load downloaded, which the copy stands
+/// for. A file the cache already held, or one from a local directory, stays;
+/// a removal that fails is logged, not an error. The load's `resources` keep
+/// the removed paths.
+fn drop_downloads<H: ConstructInit>(
+    cache: &ResourceCache,
+    resources: &LoadedResourceSet,
+    weights: &ResourceSet,
+) {
+    use crate::data::resources::Provenance;
+    let downloaded: Vec<&std::path::Path> = weights
+        .resources
+        .keys()
+        .filter_map(|key| resources.get(key))
+        .filter(|part| part.provenance == Provenance::Downloaded)
+        .map(|part| part.path.as_path())
+        .collect();
+    if downloaded.is_empty() {
+        return;
+    }
+    match cache.remove_cached_paths(&downloaded) {
+        Ok(freed) => log::info!(
+            "{}: dropped {} downloaded weight files ({freed} bytes), which the converted copy \
+             stands for",
+            H::KIT,
+            downloaded.len()
+        ),
+        Err(e) => log::warn!("{}: downloaded weights not dropped ({e})", H::KIT),
     }
 }
 
@@ -642,5 +680,94 @@ mod tests {
             .unwrap();
         assert_eq!(*loaded.handle, other);
         assert_eq!(loaded.name, "catalog:a/small");
+    }
+
+    /// Under `KeepAndDropDownloads`, a load that downloaded the weights removes
+    /// them once it saved their copy, which later loads read; weights the cache
+    /// already held stay.
+    #[cfg(feature = "fetch")]
+    #[test]
+    fn test_converted_weights_drop_downloads() {
+        use crate::data::{
+            cache::testing::serve_once,
+            resources::ConvertedWeights,
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let policy = crate::data::formats::LoadPolicy::load_as_stored();
+        let device = cpu_device();
+        let cache = |offline: bool| {
+            ResourceCache::new(
+                ResourceCacheOptions::default()
+                    .with_disk(
+                        BunsenDiskCacheOptions::default()
+                            .with_cache_dir(Some(dir.path().join("cache")))
+                            .without_transfer_observers(),
+                    )
+                    .with_offline(offline)
+                    .with_converted_weights(ConvertedWeights::KeepAndDropDownloads),
+            )
+            .unwrap()
+        };
+        let listed = |cache: &ResourceCache, build: &str| {
+            cache
+                .cached_files(&build.parse().unwrap())
+                .unwrap()
+                .into_iter()
+                .map(|f| f.name)
+                .collect::<Vec<_>>()
+        };
+
+        let live = serve_once("w.bin", b"w2");
+        let served =
+            DeferredBuild::<Converting>::new(served_build("a/served", &live, "w2")).unwrap();
+        let online = cache(false);
+        let load = |model: &DeferredBuild<Converting>, cache: &ResourceCache| {
+            model
+                .load(cache, &device, policy)
+                .map(|l| (*l.handle).clone())
+        };
+        assert_eq!(load(&served, &online).unwrap(), "files: w2");
+        assert_eq!(
+            listed(&online, "a/served"),
+            ["a/served/converted", "a/served/converted"],
+            "the downloaded checkpoint is dropped; the copy and its manifest stay"
+        );
+        assert_eq!(load(&served, &cache(true)).unwrap(), "converted: w2");
+
+        let held = DeferredBuild::<Converting>::new(pinned_in(&online, "w1")).unwrap();
+        assert_eq!(load(&held, &online).unwrap(), "files: w1");
+        assert_eq!(
+            listed(&online, "a/pinned"),
+            [
+                "a/pinned/checkpoint",
+                "a/pinned/converted",
+                "a/pinned/converted"
+            ],
+            "a checkpoint the cache held stays"
+        );
+    }
+
+    /// `catalog:{name}`: one resource at `url` holding `text`, pinned to it.
+    #[cfg(feature = "fetch")]
+    fn served_build(
+        name: &str,
+        url: &str,
+        text: &str,
+    ) -> BuildRef {
+        use sha2::Digest;
+        let pin: String = sha2::Sha256::digest(text.as_bytes())
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let n = |name: &str| CatalogName::parse(name).unwrap();
+        let mut entry =
+            ResourceEntry::new("w.bin", "toy", vec![ResourceSource::Url(url.to_string())]);
+        entry.sha256 = Some(pin);
+        let build = ResolvedBuild::new(n(name), "served weights").with_resource(
+            "checkpoint",
+            n(&format!("{name}/checkpoint")),
+            entry,
+        );
+        BuildRef::named("catalog", build, Default::default())
     }
 }
