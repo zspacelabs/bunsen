@@ -1,8 +1,4 @@
-//! `TensorMatcher`: the shape, dtype and values of a tensor, every clause
-//! checked at once.
-//!
-//! Crate-internal until it settles (decision `[cd_tensor_matcher]`): bunsen's
-//! own tests use it, beside the plain assertion functions.
+//! `TensorMatcher`: a tensor's shape, dtype and values.
 
 use alloc::{
     boxed::Box,
@@ -47,15 +43,58 @@ enum Clause<const D: usize> {
 /// every clause that missed, not the first; with
 /// [`valid_prefix`](Self::valid_prefix) the value clauses compare only each
 /// item's valid frames.
-pub(crate) struct TensorMatcher<const D: usize> {
+///
+/// The fluent twin of [`assert_tensors_close`](crate::support::testing::assert_tensors_close):
+/// one expression states the shape, the dtype and the values, and a failure
+/// lists every miss. It is a [`Matcher`], so it composes with the
+/// [combinators](crate::support::testing::matching).
+///
+/// ```
+/// use bunsen::support::testing::{
+///     ROUNDING,
+///     cpu_device,
+///     matching::TensorMatcher,
+/// };
+/// use burn::tensor::{
+///     DType,
+///     Tensor,
+/// };
+///
+/// let device = cpu_device();
+/// let want =
+///     Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+/// // A padded batch: item 0 is valid for 2 positions, item 1 for 1.
+/// let got =
+///     Tensor::<2>::from_data([[1.0, 2.0, 0.0], [4.0, 0.0, 0.0]], &device);
+///
+/// TensorMatcher::close_to(&want, ROUNDING)
+///     .dtype(DType::F32)
+///     .finite()
+///     .valid_prefix(1, &[2, 1])
+///     .named("the padded batch")
+///     .assert(&got);
+///
+/// // Whole: three values differ, and the 4 is outside the range.
+/// let misses = TensorMatcher::close_to(&want, ROUNDING)
+///     .in_range(0.0, 3.0)
+///     .misses(&got);
+/// assert_eq!(misses.len(), 2, "{misses:?}");
+/// ```
+pub struct TensorMatcher<const D: usize> {
     what: Option<String>,
     clauses: Vec<Clause<D>>,
     valid: Option<(usize, Vec<usize>)>,
 }
 
+impl<const D: usize> Default for TensorMatcher<D> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const D: usize> TensorMatcher<D> {
     /// A matcher with no clauses.
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             what: None,
             clauses: Vec::new(),
@@ -64,7 +103,7 @@ impl<const D: usize> TensorMatcher<D> {
     }
 
     /// Values within `tolerance` of `expected`'s, which also fixes the shape.
-    pub(crate) fn close_to(
+    pub fn close_to(
         expected: &Tensor<D>,
         tolerance: impl DeviceTolerance + Send + Sync + 'static,
     ) -> Self {
@@ -72,7 +111,7 @@ impl<const D: usize> TensorMatcher<D> {
     }
 
     /// Values equal to `expected`'s: moved or copied values.
-    pub(crate) fn equal_to(expected: &Tensor<D>) -> Self {
+    pub fn equal_to(expected: &Tensor<D>) -> Self {
         Self::new().with_close(expected, crate::support::testing::IDENTICAL, "equal to")
     }
 
@@ -92,7 +131,7 @@ impl<const D: usize> TensorMatcher<D> {
     }
 
     /// The shape is `dims`.
-    pub(crate) fn shape(
+    pub fn shape(
         mut self,
         dims: [usize; D],
     ) -> Self {
@@ -101,7 +140,7 @@ impl<const D: usize> TensorMatcher<D> {
     }
 
     /// The dtype is `dtype`.
-    pub(crate) fn dtype(
+    pub fn dtype(
         mut self,
         dtype: DType,
     ) -> Self {
@@ -110,13 +149,13 @@ impl<const D: usize> TensorMatcher<D> {
     }
 
     /// Every value is finite.
-    pub(crate) fn finite(mut self) -> Self {
+    pub fn finite(mut self) -> Self {
         self.clauses.push(Clause::Finite);
         self
     }
 
     /// Every value is in `low..=high`.
-    pub(crate) fn in_range(
+    pub fn in_range(
         mut self,
         low: f64,
         high: f64,
@@ -128,7 +167,7 @@ impl<const D: usize> TensorMatcher<D> {
     /// The value clauses compare, for each item `b` (axis 0), only its first
     /// `lengths[b]` positions on `axis`: past them a padded batch's values mean
     /// nothing.
-    pub(crate) fn valid_prefix(
+    pub fn valid_prefix(
         mut self,
         axis: usize,
         lengths: &[usize],
@@ -142,7 +181,7 @@ impl<const D: usize> TensorMatcher<D> {
     }
 
     /// A name for the tensor, which a failure leads with.
-    pub(crate) fn named(
+    pub fn named(
         mut self,
         what: impl Into<String>,
     ) -> Self {
@@ -169,8 +208,9 @@ impl<const D: usize> TensorMatcher<D> {
         }
     }
 
-    /// Every clause's miss, as a line; empty when `actual` matches.
-    pub(crate) fn misses(
+    /// Every clause's miss, as a line; empty when `actual` matches. A wrong
+    /// shape is reported alone: the value clauses are not run.
+    pub fn misses(
         &self,
         actual: &Tensor<D>,
     ) -> Vec<String> {
@@ -245,7 +285,7 @@ impl<const D: usize> TensorMatcher<D> {
     /// # Panics
     /// When any clause misses; the message lists every miss.
     #[track_caller]
-    pub(crate) fn assert(
+    pub fn assert(
         &self,
         actual: &Tensor<D>,
     ) {
