@@ -465,11 +465,14 @@ impl<H: ConstructInit> BuildFactory<H> {
     }
 }
 
-/// Providers and hooks for the factory's tests: a catalog of toy builds, a
-/// hub that answers a ref but lists nothing, one that fails, and a hook
-/// that builds a path.
-#[cfg(test)]
-pub(crate) mod testing {
+/// Providers and hooks to test a [`BuildFactory`] with, without a real
+/// checkpoint: a catalog of toy builds, a hub that answers a ref but lists
+/// nothing, one that fails, and hooks that build a path.
+///
+/// This module exists with the `testing` feature, and in bunsen's own unit
+/// tests.
+#[cfg(any(test, feature = "testing"))]
+pub mod testing {
     use alloc::{
         format,
         vec,
