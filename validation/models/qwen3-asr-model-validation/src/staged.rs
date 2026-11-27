@@ -27,11 +27,11 @@ mod qwen3_asr_0_6b {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference().encoder;
-        let bundle = load_construct("qwen/qwen3-asr-0.6b", &device);
+        let construct = load_construct("qwen/qwen3-asr-0.6b", &device);
 
         let frames = fixture.chunks * CHUNK;
         let features = synthetic_features(frames, &device).squeeze_dim::<2>(0);
-        let audio = bundle.model.encode_audio(features, frames);
+        let audio = construct.model.encode_audio(features, frames);
         fixture.audio_embeds.assert_matches(
             "audio embeds",
             audio.unsqueeze_dim::<3>(0),
@@ -48,8 +48,8 @@ mod qwen3_asr_0_6b {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference();
-        let bundle = load_construct("qwen/qwen3-asr-0.6b", &device);
-        let lm = &bundle.model.language_model;
+        let construct = load_construct("qwen/qwen3-asr-0.6b", &device);
+        let lm = &construct.model.language_model;
 
         let embed = &fixture.embed;
         let ids = Tensor::<2, Int>::from_data(

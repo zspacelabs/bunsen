@@ -42,29 +42,6 @@ pub type ParakeetStreamDriver = AsrStreamDriver<ParakeetEngine>;
 /// [`ParakeetEngine`].
 pub type ParakeetStreamContext = AsrStreamContext<ParakeetEngine>;
 
-/// Normalizes a window of [`ParakeetFeatures`] frames by its level, per mel
-/// channel, as `front_end` normalizes an item.
-///
-/// # Arguments
-/// * `window` - `[1, frames, n_mels]`.
-///
-/// # Returns
-/// `[n_mels, frames]`.
-fn normalize(
-    front_end: &ParakeetFrontEnd,
-    window: Tensor<3>,
-    level: &MomentsLevel,
-) -> Tensor<2> {
-    let [_, frames, n_mels] = window.dims();
-    let std = level
-        .sample_variance()
-        .sqrt()
-        .add_scalar(front_end.config.norm_epsilon);
-    ((window - level.mean.clone().unsqueeze_dim(1)) / std.unsqueeze_dim(1))
-        .reshape([frames, n_mels])
-        .swap_dims(0, 1)
-}
-
 /// A [`ParakeetConstruct`] as an [`AsrEngine`]: what the stream driver core
 /// needs of the model.
 ///
@@ -86,27 +63,27 @@ fn normalize(
 /// extractor counts as padding, and goes.
 #[derive(Clone, Debug)]
 pub struct ParakeetEngine {
-    bundle: Arc<ParakeetConstruct>,
+    construct: Arc<ParakeetConstruct>,
     window_frames: usize,
     device: Device,
 }
 
 impl ParakeetEngine {
-    /// The engine of `bundle`, on the model's device, with windows of at most
-    /// its policy's [`window_seconds`](super::ParakeetPolicy::window_seconds).
+    /// The engine of `construct`, on the model's device, with windows of at
+    /// most its policy's [`window_seconds`](super::ParakeetPolicy::window_seconds).
     ///
     /// # Errors
     /// As [`with_window_seconds`](Self::with_window_seconds), for the
     /// policy's window.
-    pub fn new(bundle: Arc<ParakeetConstruct>) -> BunsenResult<Self> {
-        let device = bundle.model.devices()[0].clone();
-        let seconds = bundle.policy.window_seconds;
-        let engine = Self {
-            bundle,
-            window_frames: 0,
+    pub fn new(construct: Arc<ParakeetConstruct>) -> BunsenResult<Self> {
+        let device = construct.model.devices()[0].clone();
+        let seconds = construct.policy.window_seconds;
+        let window_frames = Self::window_frames_for(&construct, seconds)?;
+        Ok(Self {
+            construct,
+            window_frames,
             device,
-        };
-        engine.with_window_seconds(seconds)
+        })
     }
 
     /// The engine with windows of at most `seconds`, rounded down to whole
@@ -120,21 +97,67 @@ impl ParakeetEngine {
         mut self,
         seconds: f64,
     ) -> BunsenResult<Self> {
-        let front_end = &self.bundle.front_end;
-        self.window_frames = window_frames_in(
+        self.window_frames = Self::window_frames_for(&self.construct, seconds)?;
+        Ok(self)
+    }
+
+    /// The window of at most `seconds` over `construct`'s front end, in whole
+    /// frames.
+    ///
+    /// # Errors
+    /// As [`with_window_seconds`](Self::with_window_seconds).
+    fn window_frames_for(
+        construct: &ParakeetConstruct,
+        seconds: f64,
+    ) -> BunsenResult<usize> {
+        let front_end = &construct.front_end;
+        window_frames_in(
             "ParakeetEngine::with_window_seconds",
             seconds,
             front_end.sample_rate(),
             front_end.hop(),
-            self.bundle.model.subsampling_factor(),
+            construct.model.subsampling_factor(),
             None,
-        )?;
-        Ok(self)
+        )
+    }
+
+    /// A window of [`ParakeetFeatures`] frames normalized by its level, per
+    /// mel channel, as the front end normalizes an item
+    /// ([`MomentsLevel::normalize`]).
+    ///
+    /// # Arguments
+    /// * `window` - `[1, frames, n_mels]`.
+    ///
+    /// # Returns
+    /// `[n_mels, frames]`.
+    fn normalize(
+        &self,
+        window: Tensor<3>,
+        level: &MomentsLevel,
+    ) -> Tensor<2> {
+        Self::normalize_with(&self.construct.front_end, window, level)
+    }
+
+    /// [`normalize`](Self::normalize) under `front_end`'s epsilon.
+    fn normalize_with(
+        front_end: &ParakeetFrontEnd,
+        window: Tensor<3>,
+        level: &MomentsLevel,
+    ) -> Tensor<2> {
+        let [frames, n_mels] = crate::contracts::unpack_shape_contract!(
+            [1, "frames", "n_mels"],
+            &window.dims(),
+            &["frames", "n_mels"]
+        );
+        level
+            .normalize(window, front_end.config.norm_epsilon)
+            .reshape([frames, n_mels])
+            .swap_dims(0, 1)
     }
 
     /// The construct.
-    pub fn bundle(&self) -> &Arc<ParakeetConstruct> {
-        &self.bundle
+    pub fn construct(&self) -> &Arc<ParakeetConstruct> {
+        &self.construct
     }
 
     /// The hypothesis' words, in frames of the window: a word opens on a
@@ -145,8 +168,8 @@ impl ParakeetEngine {
         &self,
         hypothesis: &TdtHypothesis,
     ) -> Vec<WordSpan> {
-        let subsampling = self.bundle.model.subsampling_factor();
-        let vocab = &self.bundle.vocab;
+        let subsampling = self.construct.model.subsampling_factor();
+        let vocab = &self.construct.vocab;
         let h = hypothesis;
         let opens: Vec<usize> = (0..h.tokens.len())
             .filter(|&k| {
@@ -183,7 +206,7 @@ impl ParakeetEngine {
             tokens,
             frames,
             self.window_frames,
-            self.bundle.model.subsampling_factor(),
+            self.construct.model.subsampling_factor(),
             (),
         )
     }
@@ -196,11 +219,11 @@ impl AsrEngine for ParakeetEngine {
     type StreamState = ();
 
     fn sample_rate(&self) -> usize {
-        self.bundle.front_end.sample_rate()
+        self.construct.front_end.sample_rate()
     }
 
     fn hop(&self) -> usize {
-        self.bundle.front_end.hop()
+        self.construct.front_end.hop()
     }
 
     fn window_frames(&self) -> usize {
@@ -209,7 +232,7 @@ impl AsrEngine for ParakeetEngine {
 
     /// The encoder frame: when a token can be emitted.
     fn grid_frames(&self) -> usize {
-        self.bundle.model.subsampling_factor()
+        self.construct.model.subsampling_factor()
     }
 
     /// The frame centred past the end, which the extractor counts as
@@ -220,7 +243,7 @@ impl AsrEngine for ParakeetEngine {
 
     fn new_features(&self) -> BunsenResult<ParakeetFeatures> {
         Ok(ParakeetFeatures::new(
-            self.bundle.front_end.clone(),
+            self.construct.front_end.clone(),
             self.device.clone(),
         ))
     }
@@ -242,7 +265,7 @@ impl AsrEngine for ParakeetEngine {
             .into_iter()
             .map(|r| {
                 let frames = r.window.dims()[1];
-                let features = normalize(&self.bundle.front_end, r.window, &r.level);
+                let features = self.normalize(r.window, &r.level);
                 let [n_mels, _] = features.dims();
                 let dtype = features.dtype();
                 let features = if frames < longest {
@@ -259,7 +282,7 @@ impl AsrEngine for ParakeetEngine {
                 features.unsqueeze_dim(0)
             })
             .collect();
-        let model = &self.bundle.model;
+        let model = &self.construct.model;
         let (encoded, encoded_lengths) = model.encode(Tensor::cat(rows, 0), Some(&lengths));
         let hypotheses =
             TdtGreedyDecoderConfig::new()
@@ -285,7 +308,7 @@ impl AsrEngine for ParakeetEngine {
         tokens: &[i64],
     ) -> BunsenResult<Option<String>> {
         let ids = token_ids(tokens.iter().copied(), "Parakeet")?;
-        Ok(Some(self.bundle.vocab.transcript(&ids)?))
+        Ok(Some(self.construct.vocab.transcript(&ids)?))
     }
 }
 
@@ -401,7 +424,7 @@ mod tests {
 
             let window = frames.slice_dim(1, 0..valid);
             let level = MomentsLevel::of(window.clone());
-            normalize(&front_end, window, &level)
+            ParakeetEngine::normalize_with(&front_end, window, &level)
                 .to_data()
                 .assert_approx_eq::<f32>(&one_shot.to_data(), Tolerance::permissive());
         }

@@ -230,15 +230,15 @@ mod tests {
     /// Without a vocabulary the construct is ids only: no filters, no text.
     #[test]
     fn test_ids_only() {
-        let bundle = WhisperConstruct::new(tiny_model(), tiny_layout());
-        let shown = bundle.to_string();
+        let construct = WhisperConstruct::new(tiny_model(), tiny_layout());
+        let shown = construct.to_string();
         assert!(shown.contains(" mels, vocabulary "), "{shown}");
         assert!(shown.ends_with(" layers, ids only"), "{shown}");
-        bundle.try_validate().unwrap();
-        assert!(bundle.ranks.is_none());
-        assert!(bundle.default_filters().is_empty());
+        construct.try_validate().unwrap();
+        assert!(construct.ranks.is_none());
+        assert!(construct.default_filters().is_empty());
         #[cfg(feature = "tokenizer")]
-        assert!(bundle.detokenizer().unwrap().is_none());
+        assert!(construct.detokenizer().unwrap().is_none());
     }
 
     /// A vocabulary with the layout's base ranks gives filters and text; one
@@ -246,15 +246,15 @@ mod tests {
     #[test]
     fn test_with_a_vocabulary() {
         let ranks = TiktokenRanks::parse("IA== 0\nb2s= 1\n").unwrap();
-        let bundle = WhisperConstruct::new(tiny_model(), tiny_layout()).with_ranks(ranks);
-        assert!(bundle.to_string().ends_with(" ranks"), "{bundle}");
-        bundle.try_validate().unwrap();
-        assert!(!bundle.default_filters().is_empty());
+        let construct = WhisperConstruct::new(tiny_model(), tiny_layout()).with_ranks(ranks);
+        assert!(construct.to_string().ends_with(" ranks"), "{construct}");
+        construct.try_validate().unwrap();
+        assert!(!construct.default_filters().is_empty());
         #[cfg(feature = "tokenizer")]
         {
             use crate::kits::support::tokens::Detokenizer;
             assert_eq!(
-                bundle
+                construct
                     .detokenizer()
                     .unwrap()
                     .unwrap()

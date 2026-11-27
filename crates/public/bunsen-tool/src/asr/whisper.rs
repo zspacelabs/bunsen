@@ -110,16 +110,16 @@ pub fn resolve(
     Ok(model)
 }
 
-/// The driver for `bundle` under its policy and `emission`.
+/// The driver for `construct` under its policy and `emission`.
 pub fn driver(
-    bundle: Arc<WhisperConstruct>,
+    construct: Arc<WhisperConstruct>,
     emission: Emission,
     device: &Device,
 ) -> BunsenResult<WhisperStreamDriver> {
     // The model's policy, its presets and patch resolved; an English-only
     // checkpoint is told no language.
-    let mut policy = bundle.policy.clone();
-    if !bundle.layout.ids().is_multilingual()
+    let mut policy = construct.policy.clone();
+    if !construct.layout.ids().is_multilingual()
         && let Some(language) = policy.language.take()
     {
         log::warn!("English-only checkpoint: language {language} does not apply");
@@ -127,7 +127,7 @@ pub fn driver(
     let driver: WhisperStreamDriver = WhisperStreamDriverConfig::new()
         .with_policy(&policy)
         .with_emission(emission.into())
-        .init_from_construct(bundle, device)
+        .init_from_construct(construct, device)
         // The settings come from the command line.
         .as_policy()?;
     Ok(driver)

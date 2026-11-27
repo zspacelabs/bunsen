@@ -67,16 +67,16 @@ fn test_bunsen_encoder_matches_reference() {
 
     let reference = reference::EncoderModel::load_pretrained(&device).forward(mels.clone());
 
-    let bundle = load_base(&device);
+    let construct = load_base(&device);
     assert_eq!(
-        bundle.model.n_mels(),
+        construct.model.n_mels(),
         N_MELS,
         "the checkpoint is not a `base` model"
     );
 
     // OpenAI ships these checkpoints in fp16. The reference graph is f32,
     // so compare like with like.
-    let model = bundle
+    let model = construct
         .model
         .clone()
         .map(&mut DTypeMapper::new(burn::tensor::DType::F32));
@@ -105,12 +105,12 @@ fn test_bunsen_encoder_matches_reference() {
 /// [`DeviceMemoryGuard`] over it *before* the weights land — the guard has to
 /// outlive the model to reclaim the pages the model sat in.
 fn load_bunsen(device: &burn::prelude::Device) -> Whisper {
-    let bundle = load_base(device);
+    let construct = load_base(device);
 
     // OpenAI ships these checkpoints in fp16; the reference graph is f32.
     // Feeding f32 input to an f16 model does not error here, it just
     // returns wrong numbers, so this cast is load-bearing.
-    bundle
+    construct
         .model
         .clone()
         .map(&mut DTypeMapper::new(burn::tensor::DType::F32))

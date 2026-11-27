@@ -52,17 +52,19 @@ mod voxtral_mini_4b_realtime_2602 {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = speech_reference().front_end;
-        let bundle = load_construct(&device);
+        let construct = load_construct(&device);
         let samples = synthetic_wave(fixture.samples);
-        let padded = bundle.layout.pad(&samples, bundle.samples_per_position());
-        let features = bundle.front_end.forward(&padded, &device).unwrap();
+        let padded = construct
+            .layout
+            .pad(&samples, construct.samples_per_position());
+        let features = construct.front_end.forward(&padded, &device).unwrap();
         let error = fixture
             .input_features
             .assert_matches("features", features.clone(), 1e-3, 1e-3);
         eprintln!("features: {error:?}");
         let error = fixture.audio_embeds.assert_matches(
             "audio embeds",
-            bundle.model.audio_embeds(features),
+            construct.model.audio_embeds(features),
             1e-2,
             2e-3,
         );
@@ -78,14 +80,14 @@ mod voxtral_mini_4b_realtime_2602 {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = speech_reference();
-        let bundle = load_construct(&device);
-        let rate = bundle.front_end.sample_rate();
+        let construct = load_construct(&device);
+        let rate = construct.front_end.sample_rate();
         let samples = speech_clip(&fixture.clip);
 
         let mut ours = Vec::new();
         let mut theirs = Vec::new();
         for window in &fixture.windows {
-            let transcript = bundle
+            let transcript = construct
                 .transcribe(&window_samples(&samples, window, rate))
                 .expect("transcribe");
             assert_eq!(

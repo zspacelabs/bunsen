@@ -15,7 +15,10 @@ use crate::{
         ConstraintError,
     },
     kits::speech::{
-        asr::driver::LevelPolicy,
+        asr::driver::{
+            LevelPolicy,
+            SpeakerCutConfig,
+        },
         diarization::SpeakerActivity,
         support::{
             LevelStatistic,
@@ -225,12 +228,37 @@ pub struct DecodeRequest<'a, E: AsrEngine> {
 
     /// The diarizer's activity over the window, when the driver has one: for
     /// an engine that places its cuts at speaker turns
-    /// ([`SpeakerCutConfig::cut`](crate::kits::speech::asr::driver::SpeakerCutConfig::cut)). A
+    /// ([`speaker_cut`](Self::speaker_cut)). A
     /// commit's window is decoded once the diarizer has finalized all of it,
     /// so a cut does not depend on how the audio was chunked; a draft's
     /// covers what the diarizer has finalized so far. The core attributes
     /// every segment either way.
     pub speakers: Option<SpeakerActivity>,
+}
+
+impl<E: AsrEngine> DecodeRequest<'_, E> {
+    /// Where `engine` cuts this window at a change of speaker, under
+    /// `config`: [`SpeakerCutConfig::cut`] over the request's
+    /// [`speakers`](Self::speakers), its start and its frames, at the
+    /// engine's hop and rate.
+    ///
+    /// # Returns
+    /// The frame to cut at; `None` without a config, without speakers, or
+    /// when no turn ends the window.
+    pub fn speaker_cut(
+        &self,
+        config: Option<&SpeakerCutConfig>,
+        engine: &E,
+    ) -> Option<usize> {
+        let (config, activity) = (config?, self.speakers.as_ref()?);
+        config.cut(
+            activity,
+            self.start,
+            engine.hop(),
+            self.window.dims()[1],
+            engine.sample_rate(),
+        )
+    }
 }
 
 /// Ids over a run of frames, relative to the start of their window.

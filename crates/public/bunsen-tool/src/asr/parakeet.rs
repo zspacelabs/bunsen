@@ -31,16 +31,16 @@ use crate::asr::{
 #[derive(clap::Args, Debug, Default)]
 pub struct ParakeetFlags {}
 
-/// The driver for `bundle` under its policy and `emission`.
+/// The driver for `construct` under its policy and `emission`.
 ///
 /// # Errors
 /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) if the policy's
 /// `window_seconds` is under one encoder frame; as the driver and the VAD.
 pub fn driver(
-    bundle: Arc<ParakeetConstruct>,
+    construct: Arc<ParakeetConstruct>,
     emission: Emission,
 ) -> BunsenResult<ParakeetStreamDriver> {
-    let engine = ParakeetEngine::new(bundle)
+    let engine = ParakeetEngine::new(construct)
         .context("the model policy's window_seconds")
         .as_policy()?;
     let driver = ParakeetStreamDriver::new(engine, emission.into())?;

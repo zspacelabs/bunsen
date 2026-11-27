@@ -62,9 +62,9 @@ impl Driver {
         policy: LoadPolicy,
     ) -> BunsenResult<Self> {
         Ok(match loaded {
-            AsrConstructWrapper::Parakeet(bundle) => Driver::Parakeet(stream::with_speakers(
+            AsrConstructWrapper::Parakeet(construct) => Driver::Parakeet(stream::with_speakers(
                 stream::with_vad(
-                    parakeet::driver(bundle, emission)?,
+                    parakeet::driver(construct, emission)?,
                     vad,
                     cache,
                     device,
@@ -72,9 +72,9 @@ impl Driver {
                 )?,
                 speakers,
             )?),
-            AsrConstructWrapper::Qwen3Asr(bundle) => Driver::Qwen3Asr(stream::with_speakers(
+            AsrConstructWrapper::Qwen3Asr(construct) => Driver::Qwen3Asr(stream::with_speakers(
                 stream::with_vad(
-                    qwen3_asr::driver(bundle, emission)?,
+                    qwen3_asr::driver(construct, emission)?,
                     vad,
                     cache,
                     device,
@@ -82,9 +82,9 @@ impl Driver {
                 )?,
                 speakers,
             )?),
-            AsrConstructWrapper::Voxtral(bundle) => Driver::Voxtral(stream::with_speakers(
+            AsrConstructWrapper::Voxtral(construct) => Driver::Voxtral(stream::with_speakers(
                 stream::with_vad(
-                    voxtral::driver(bundle, emission)?,
+                    voxtral::driver(construct, emission)?,
                     vad,
                     cache,
                     device,
@@ -92,10 +92,10 @@ impl Driver {
                 )?,
                 speakers,
             )?),
-            AsrConstructWrapper::Whisper(bundle) => {
+            AsrConstructWrapper::Whisper(construct) => {
                 Driver::Whisper(Box::new(stream::with_speakers(
                     stream::with_vad(
-                        whisper::driver(bundle, emission, device)?,
+                        whisper::driver(construct, emission, device)?,
                         vad,
                         cache,
                         device,

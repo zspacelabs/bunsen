@@ -357,8 +357,8 @@ pub fn clip_mels(
 /// float. Feeding f32 input to an f16 model does not error, it just
 /// returns wrong numbers, so the cast is load-bearing.
 pub fn bunsen_model(device: &Device) -> Whisper {
-    let bundle = crate::load_base(device);
-    let model = &bundle.model;
+    let construct = crate::load_base(device);
+    let model = &construct.model;
 
     assert_eq!(model.n_mels(), N_MELS, "not a `base` model");
     assert_eq!(

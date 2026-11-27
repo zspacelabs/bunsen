@@ -36,8 +36,8 @@ mod nemotron_3_diarization {
     fn step_matches_reference() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_construct(&device);
-        let model = &bundle.model;
+        let construct = load_construct(&device);
+        let model = &construct.model;
         let reference = reference::NemotronDiarizationModel::load_pretrained(&device);
 
         for step in onnx_reference().nemotron {
@@ -96,9 +96,9 @@ mod sortformer_v2_1 {
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_named_construct("sortformer-v2.1", &device);
-        assert_eq!(bundle.family, SortformerFamily::SortformerV2);
-        let model = &bundle.model;
+        let construct = load_named_construct("sortformer-v2.1", &device);
+        assert_eq!(construct.family, SortformerFamily::SortformerV2);
+        let model = &construct.model;
         assert_eq!(model.n_speakers(), V2_N_SPEAKERS);
 
         let mut compared = 0;

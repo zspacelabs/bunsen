@@ -56,13 +56,13 @@ fn wer(
 }
 
 fn transcribe(
-    bundle: &ParakeetConstruct,
+    construct: &ParakeetConstruct,
     device: &Device,
 ) -> bunsen::kits::speech::asr::parakeet::ParakeetTranscript {
     let samples = speech_clip(CLIP);
     let n = samples.len();
     let waveform = Tensor::<2>::from_data(TensorData::new(samples, [1, n]), device);
-    bundle
+    construct
         .transcribe(waveform, None)
         .expect("transcribe")
         .remove(0)
@@ -161,15 +161,15 @@ mod transcribes_like_the_reference {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference().speech;
-        let bundle = load_construct("nvidia/parakeet-tdt-0.6b-v3", &device);
+        let construct = load_construct("nvidia/parakeet-tdt-0.6b-v3", &device);
 
-        let transcript = transcribe(&bundle, &device);
+        let transcript = transcribe(&construct, &device);
         report_ids(
             "bunsen base vs onnxruntime",
             &transcript.hypothesis.tokens,
             &fixture.ids,
         );
-        let reference_text = bundle.vocab.transcript(&fixture.ids).unwrap();
+        let reference_text = construct.vocab.transcript(&fixture.ids).unwrap();
         let against_reference = wer(&transcript.text, &reference_text);
         let against_truth = wer(&transcript.text, &speech_transcript(CLIP));
         eprintln!("bunsen base: {}", transcript.text);
@@ -193,9 +193,9 @@ mod transcribes_like_the_reference {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = phonon2_reference();
-        let bundle = load_construct(DEFAULT_PARAKEET_MODEL, &device);
+        let construct = load_construct(DEFAULT_PARAKEET_MODEL, &device);
 
-        let transcript = transcribe(&bundle, &device);
+        let transcript = transcribe(&construct, &device);
         report_ids(
             "bunsen phonon-2 vs transformers",
             &transcript.hypothesis.tokens,
@@ -221,7 +221,7 @@ mod transcribes_like_the_reference {
 /// under the offline policy, with windows of at most `window_seconds`: the
 /// committed ids, the text, and each word with its start and end in seconds.
 fn stream(
-    bundle: std::sync::Arc<ParakeetConstruct>,
+    construct: std::sync::Arc<ParakeetConstruct>,
     window_seconds: f64,
 ) -> (Vec<usize>, String, Vec<(String, f64, f64)>) {
     use bunsen::kits::speech::asr::{
@@ -237,8 +237,8 @@ fn stream(
         },
     };
 
-    let rate = bundle.front_end.sample_rate();
-    let engine = ParakeetEngine::new(bundle)
+    let rate = construct.front_end.sample_rate();
+    let engine = ParakeetEngine::new(construct)
         .and_then(|e| e.with_window_seconds(window_seconds))
         .unwrap();
     let driver = ParakeetStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
@@ -280,13 +280,13 @@ mod stream_driver_transcribes_like_the_reference {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference().speech;
-        let bundle = load_construct("nvidia/parakeet-tdt-0.6b-v3", &device);
-        let reference_text = bundle.vocab.transcript(&fixture.ids).unwrap();
+        let construct = load_construct("nvidia/parakeet-tdt-0.6b-v3", &device);
+        let reference_text = construct.vocab.transcript(&fixture.ids).unwrap();
 
-        let one_shot = transcribe(&bundle, &device)
-            .words(&bundle.vocab, bundle.frame_seconds())
+        let one_shot = transcribe(&construct, &device)
+            .words(&construct.vocab, construct.frame_seconds())
             .unwrap();
-        let (ids, text, words) = stream(bundle, 60.0);
+        let (ids, text, words) = stream(construct, 60.0);
         report_ids("bunsen stream driver vs onnxruntime", &ids, &fixture.ids);
         assert_eq!(words.len(), one_shot.len());
         let mut shortened = 0;
@@ -337,12 +337,12 @@ mod driver {
     fn phonon_2() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_construct("fermion/phonon-2", &device);
-        let one_shot = transcribe(&bundle, &device);
+        let construct = load_construct("fermion/phonon-2", &device);
+        let one_shot = transcribe(&construct, &device);
         let one_shot_words = one_shot
-            .words(&bundle.vocab, bundle.frame_seconds())
+            .words(&construct.vocab, construct.frame_seconds())
             .unwrap();
-        let (ids, text, words) = stream(bundle, 60.0);
+        let (ids, text, words) = stream(construct, 60.0);
         eprintln!("driver: {text}");
         assert_eq!(ids, one_shot.hypothesis.tokens, "the driver's ids");
         assert_eq!(words.len(), one_shot_words.len());
@@ -374,10 +374,10 @@ mod stream_driver_cuts_windows_at_pauses {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference().speech;
-        let bundle = load_construct("nvidia/parakeet-tdt-0.6b-v3", &device);
-        let reference_text = bundle.vocab.transcript(&fixture.ids).unwrap();
+        let construct = load_construct("nvidia/parakeet-tdt-0.6b-v3", &device);
+        let reference_text = construct.vocab.transcript(&fixture.ids).unwrap();
 
-        let (_, text, _) = stream(bundle, 20.0);
+        let (_, text, _) = stream(construct, 20.0);
         let against_reference = wer(&text, &reference_text);
         let against_truth = wer(&text, &speech_transcript(CLIP));
         eprintln!("driver, 20 s windows: {text}");

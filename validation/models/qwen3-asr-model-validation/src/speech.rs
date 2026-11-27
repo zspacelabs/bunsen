@@ -74,26 +74,26 @@ fn transcribe_windows(
 ) -> (f64, f64) {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_construct(name, &device);
-    let rate = bundle.front_end.sample_rate();
+    let construct = load_construct(name, &device);
+    let rate = construct.front_end.sample_rate();
     let samples = speech_clip(CLIP);
     // Every row's template and end tokens, read from its vocabulary, are the
     // release's ids.
     assert_eq!(
         (
-            bundle.prompt.prefix.as_slice(),
-            bundle.prompt.suffix.as_slice(),
-            bundle.prompt.text_token
+            construct.prompt.prefix.as_slice(),
+            construct.prompt.suffix.as_slice(),
+            construct.prompt.text_token
         ),
         (&RELEASE_PREFIX[..], &RELEASE_SUFFIX[..], RELEASE_TEXT_TOKEN),
         "{name}: the prompt"
     );
-    assert_eq!(bundle.decoder.eos, RELEASE_EOS, "{name}: the end tokens");
+    assert_eq!(construct.decoder.eos, RELEASE_EOS, "{name}: the end tokens");
 
     let mut texts = Vec::new();
     for window in fixture {
         let end = (window.end * rate).min(samples.len());
-        let transcript = bundle
+        let transcript = construct
             .transcribe(&samples[window.start * rate..end], &device)
             .expect("transcribe");
         let theirs: Vec<usize> = window.ids.iter().map(|&t| t as usize).collect();
@@ -211,9 +211,9 @@ mod driver {
         const EDGE_WER: f64 = 0.02;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_construct("fermion/phonon-1-micro", &device);
-        let rate = bundle.front_end.sample_rate();
-        let engine = Qwen3AsrEngine::new(bundle.clone())
+        let construct = load_construct("fermion/phonon-1-micro", &device);
+        let rate = construct.front_end.sample_rate();
+        let engine = Qwen3AsrEngine::new(construct.clone())
             .unwrap()
             .with_quiet_cut(false);
         let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
@@ -239,7 +239,7 @@ mod driver {
         for (w, text) in streamed.iter().enumerate() {
             let start = w * WINDOW_SECONDS * rate;
             let end = (start + WINDOW_SECONDS * rate).min(samples.len());
-            let one_shot = bundle
+            let one_shot = construct
                 .transcribe(&samples[start..end], &device)
                 .expect("transcribe");
             let against_one_shot = wer(text, &one_shot.text);
@@ -278,11 +278,13 @@ mod stream_driver_transcribes_like_transformers {
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_construct("qwen/qwen3-asr-0.6b", &device);
-        let rate = bundle.front_end.sample_rate();
+        let construct = load_construct("qwen/qwen3-asr-0.6b", &device);
+        let rate = construct.front_end.sample_rate();
         // Without the quiet cut, a full window is decoded whole: the fixture's
         // windows.
-        let engine = Qwen3AsrEngine::new(bundle).unwrap().with_quiet_cut(false);
+        let engine = Qwen3AsrEngine::new(construct)
+            .unwrap()
+            .with_quiet_cut(false);
         let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
         let mut stream = driver
             .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)
@@ -348,9 +350,9 @@ fn stream_quiet_cut(name: &str) -> String {
 
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_construct(name, &device);
-    let rate = bundle.front_end.sample_rate();
-    let engine = Qwen3AsrEngine::new(bundle).unwrap();
+    let construct = load_construct(name, &device);
+    let rate = construct.front_end.sample_rate();
+    let engine = Qwen3AsrEngine::new(construct).unwrap();
     let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
     let mut stream = driver
         .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)

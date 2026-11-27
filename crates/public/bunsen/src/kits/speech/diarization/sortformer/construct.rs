@@ -283,7 +283,7 @@ mod tests {
         support::testing::cpu_device,
     };
 
-    fn bundle() -> SortformerConstruct {
+    fn construct() -> SortformerConstruct {
         let model: Sortformer = NemotronDiarizationConfig::new()
             .with_n_mels(24)
             .with_d_model(16)
@@ -303,17 +303,17 @@ mod tests {
 
     #[test]
     fn test_diarizer_is_a_speaker_activity_model() {
-        let bundle = bundle();
-        let diarizer = bundle
+        let construct = construct();
+        let diarizer = construct
             .diarizer(SortformerStreamingConfig::new(3, 1, 6, 12, 4))
             .unwrap();
         assert_eq!(diarizer.sample_rate(), 16_000);
         assert_eq!(diarizer.frame_samples(), 160);
         assert_eq!(diarizer.max_speakers(), 3);
         ErrorMatcher::illegal()
-            .assert_err(&bundle.diarizer(SortformerStreamingConfig::new(3, 1, 6, 5, 4)));
-        assert!(bundle.to_string().contains("3 speakers"));
-        assert!(bundle.to_string().contains("10 ms"));
+            .assert_err(&construct.diarizer(SortformerStreamingConfig::new(3, 1, 6, 5, 4)));
+        assert!(construct.to_string().contains("3 speakers"));
+        assert!(construct.to_string().contains("10 ms"));
 
         let samples = vec![0.0f32; 16_000];
         let mut stream = diarizer.new_stream().unwrap();
@@ -325,7 +325,7 @@ mod tests {
             diarizer.activity(&samples).unwrap().frames()
         );
 
-        let turns = bundle
+        let turns = construct
             .diarize(
                 &samples,
                 SortformerStreamingConfig::new(3, 1, 6, 12, 4),
@@ -339,26 +339,30 @@ mod tests {
     /// model's mels.
     #[test]
     fn test_policy_and_front_end() {
-        let bundle = bundle();
-        assert!(bundle.to_string().starts_with("Nemotron-3-Diarization: "));
+        let construct = construct();
+        assert!(
+            construct
+                .to_string()
+                .starts_with("Nemotron-3-Diarization: ")
+        );
         crate::errors::testing::ErrorMatcher::policy()
             .message_contains("select a `latency` preset")
-            .assert_err(&bundle.streaming());
-        assert_eq!(bundle.turns(), &TurnFilterConfig::none());
+            .assert_err(&construct.streaming());
+        assert_eq!(construct.turns(), &TurnFilterConfig::none());
 
         let streaming = SortformerStreamingConfig::new(3, 1, 6, 12, 4);
-        let bundle = bundle.with_policy(
+        let construct = construct.with_policy(
             SortformerPolicy {
                 streaming: Some(streaming.clone()),
                 turns: TurnFilterConfig::none().with_onset(0.6),
             },
             PresetSelection::of(["low"]),
         );
-        assert_eq!(bundle.streaming().unwrap(), streaming);
-        assert_eq!(bundle.turns().onset, 0.6);
-        assert_eq!(bundle.presets.presets, ["low"]);
+        assert_eq!(construct.streaming().unwrap(), streaming);
+        assert_eq!(construct.turns().onset, 0.6);
+        assert_eq!(construct.presets.presets, ["low"]);
 
-        let model = Arc::try_unwrap(bundle.model).unwrap();
+        let model = Arc::try_unwrap(construct.model).unwrap();
         let err = SortformerConstruct::new(
             model,
             SortformerFamily::Nemotron,

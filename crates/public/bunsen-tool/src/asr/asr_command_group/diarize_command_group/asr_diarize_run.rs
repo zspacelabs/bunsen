@@ -70,17 +70,17 @@ impl AsrDiarizeRunCommand {
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let device = self.device.open()?;
         let cache = self.cache.init()?;
-        let bundle = self
+        let construct = self
             .diarizer
             .load(&cache, &device, self.precision.load_policy())?;
-        let streaming = bundle.streaming()?;
-        let filter = bundle.turns().clone();
-        let rate = bundle.sample_rate();
+        let streaming = construct.streaming()?;
+        let filter = construct.turns().clone();
+        let rate = construct.sample_rate();
 
         for path in &self.files {
             let samples = load_audio_mono_sr(path, rate)?;
             let t0 = Instant::now();
-            let turns = bundle.diarize(&samples, streaming.clone(), &filter)?;
+            let turns = construct.diarize(&samples, streaming.clone(), &filter)?;
             let elapsed = t0.elapsed();
 
             if self.output.json {

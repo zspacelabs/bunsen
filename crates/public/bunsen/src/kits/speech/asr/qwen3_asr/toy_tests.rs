@@ -242,7 +242,7 @@ fn toy_vocab() -> crate::kits::support::tokens::ByteLevelVocabulary {
 fn test_toy_construct() {
     let toy = Toy::load();
     let device = toy.device.clone();
-    let bundle = Qwen3AsrConstruct {
+    let construct = Qwen3AsrConstruct {
         model: toy.model,
         front_end: Qwen3AsrFrontEndConfig::new()
             .with_n_mels(16)
@@ -258,20 +258,27 @@ fn test_toy_construct() {
         .map(|k| 0.1 * ((k as f32) * 0.05).sin())
         .collect();
 
-    let one = bundle.transcribe(&samples[..16_000], &device).unwrap();
+    let one = construct.transcribe(&samples[..16_000], &device).unwrap();
     assert!(!one.tokens.is_empty() && one.tokens.len() <= 4);
-    let expected = bundle
+    let expected = construct
         .prompt
-        .parse(one.tokens.clone(), &[6], &bundle.vocab)
+        .parse(one.tokens.clone(), &[6], &construct.vocab)
         .unwrap();
     assert_eq!(one, expected);
 
-    let long = bundle.transcribe_long(&samples, 16_000, &device).unwrap();
+    let long = construct
+        .transcribe_long(&samples, 16_000, &device)
+        .unwrap();
     let windows = crate::ops::signal::quiet_cuts(&samples, 16_000, 160);
     assert!(windows.len() >= 3);
     let mut tokens = Vec::new();
     for (a, b) in windows {
-        tokens.extend(bundle.transcribe(&samples[a..b], &device).unwrap().tokens);
+        tokens.extend(
+            construct
+                .transcribe(&samples[a..b], &device)
+                .unwrap()
+                .tokens,
+        );
     }
     assert_eq!(long.tokens, tokens);
 }
@@ -288,7 +295,7 @@ fn test_toy_audio_attention() {
 
     let toy = Toy::load();
     let device = toy.device.clone();
-    let bundle = Qwen3AsrConstruct {
+    let construct = Qwen3AsrConstruct {
         model: toy.model,
         front_end: Qwen3AsrFrontEndConfig::new()
             .with_n_mels(16)
@@ -303,15 +310,15 @@ fn test_toy_audio_attention() {
     let samples: Vec<f32> = (0..16_000)
         .map(|k| 0.1 * ((k as f32) * 0.05).sin())
         .collect();
-    let (features, valid) = bundle.front_end.forward(&samples, &device).unwrap();
-    let reply = bundle
+    let (features, valid) = construct.front_end.forward(&samples, &device).unwrap();
+    let reply = construct
         .transcribe_features(features.clone(), valid)
         .unwrap()
         .tokens;
-    let n_audio = bundle.model.audio_tower.output_len(valid);
+    let n_audio = construct.model.audio_tower.output_len(valid);
 
     let layers = [1, 0];
-    let weights = bundle
+    let weights = construct
         .audio_attention(features.clone(), valid, &reply, &layers)
         .unwrap();
     assert_eq!(weights.len(), 2);
@@ -326,7 +333,7 @@ fn test_toy_audio_attention() {
     // a head past the text model's two layers or four heads is refused
     for heads in [[(2, 0)], [(0, 4)]] {
         assert_eq!(
-            bundle
+            construct
                 .token_frames(features.clone(), valid, &reply, &heads)
                 .unwrap_err()
                 .kind(),
@@ -334,20 +341,22 @@ fn test_toy_audio_attention() {
         );
     }
     assert_eq!(
-        bundle
+        construct
             .token_frames(features.clone(), valid, &reply, &[(1, 3), (0, 0)])
             .unwrap()
             .len(),
         reply.len()
     );
 
-    let audio = bundle.model.encode_audio(features, valid);
-    let mut ids = bundle.prompt.prompt(n_audio, bundle.model.audio_token());
+    let audio = construct.model.encode_audio(features, valid);
+    let mut ids = construct
+        .prompt
+        .prompt(n_audio, construct.model.audio_token());
     let rows = ids.len() - 1;
     ids.extend_from_slice(&reply[..reply.len() - 1]);
-    let logits = bundle
+    let logits = construct
         .model
-        .forward_logits(bundle.model.prompt_embeds(&ids, audio).unwrap());
+        .forward_logits(construct.model.prompt_embeds(&ids, audio).unwrap());
     let predicted: Vec<i64> = logits
         .slice_dim(1, rows..rows + reply.len())
         .argmax(2)

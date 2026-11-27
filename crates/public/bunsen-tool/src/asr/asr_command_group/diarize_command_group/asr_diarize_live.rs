@@ -72,13 +72,15 @@ impl AsrDiarizeLiveCommand {
         };
         let device = self.device.open()?;
         let cache = self.cache.init()?;
-        let bundle = self
+        let construct = self
             .diarizer
             .load(&cache, &device, self.precision.load_policy())?;
-        let diarizer = bundle.diarizer(bundle.streaming()?)?;
-        let rate = bundle.sample_rate();
+        let diarizer = construct.diarizer(construct.streaming()?)?;
+        let rate = construct.sample_rate();
         let frame_seconds = SpeakerActivityModel::frame_samples(&diarizer) as f64 / rate as f64;
-        let mut filter = bundle.turns().init(diarizer.max_speakers(), frame_seconds);
+        let mut filter = construct
+            .turns()
+            .init(diarizer.max_speakers(), frame_seconds);
         let mut stream = diarizer.stream()?;
         let chunk = (rate * self.chunk_ms / 1000).max(1);
 

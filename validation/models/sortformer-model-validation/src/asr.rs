@@ -149,7 +149,7 @@ mod sortformer_speakers {
     fn parakeet() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = default_parakeet_factory()
+        let construct = default_parakeet_factory()
             .unwrap()
             .load_construct(
                 "fermion/phonon-2",
@@ -159,7 +159,7 @@ mod sortformer_speakers {
             )
             .unwrap();
         let driver = ParakeetStreamDriver::new(
-            ParakeetEngine::new(bundle).unwrap(),
+            ParakeetEngine::new(construct).unwrap(),
             EmissionPolicy::offline(),
         )
         .unwrap()
@@ -178,7 +178,7 @@ mod sortformer_speakers {
     fn qwen3_asr() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = default_qwen3_asr_factory()
+        let construct = default_qwen3_asr_factory()
             .unwrap()
             .load_construct(
                 "fermion/phonon-1",
@@ -188,7 +188,7 @@ mod sortformer_speakers {
             )
             .unwrap();
         let driver = Qwen3AsrStreamDriver::new(
-            Qwen3AsrEngine::new(bundle).unwrap(),
+            Qwen3AsrEngine::new(construct).unwrap(),
             EmissionPolicy::offline(),
         )
         .unwrap()
@@ -207,7 +207,7 @@ mod sortformer_speakers {
     fn whisper() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = default_whisper_factory()
+        let construct = default_whisper_factory()
             .unwrap()
             .load_construct(
                 "openai/base",
@@ -218,7 +218,7 @@ mod sortformer_speakers {
             .unwrap();
         let driver = WhisperStreamDriverConfig::new()
             .with_language(Some("en".to_string()))
-            .init_from_construct(bundle, &device)
+            .init_from_construct(construct, &device)
             .unwrap()
             .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
             .unwrap();

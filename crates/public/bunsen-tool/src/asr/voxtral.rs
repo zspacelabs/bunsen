@@ -33,21 +33,21 @@ use crate::asr::{
 #[derive(clap::Args, Debug, Default)]
 pub struct VoxtralFlags {}
 
-/// The driver for `bundle` under its policy and `emission`.
+/// The driver for `construct` under its policy and `emission`.
 ///
 /// # Errors
 /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) if the policy's
 /// `window_seconds` is under one decoder position; as the driver and the VAD.
 /// The policy's `delay_ms` was applied when the model loaded.
 pub fn driver(
-    bundle: Arc<VoxtralConstruct>,
+    construct: Arc<VoxtralConstruct>,
     emission: Emission,
 ) -> BunsenResult<VoxtralStreamDriver> {
     log::info!(
         "voxtral: delay {} ms",
-        bundle.layout.delay_positions() * bundle.layout.config().position_ms
+        construct.layout.delay_positions() * construct.layout.config().position_ms
     );
-    let engine = VoxtralEngine::new(bundle)
+    let engine = VoxtralEngine::new(construct)
         .context("the model policy's window_seconds")
         .as_policy()?;
     let driver = VoxtralStreamDriver::new(engine, emission.into())?;
