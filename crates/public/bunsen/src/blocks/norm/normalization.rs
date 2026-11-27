@@ -29,8 +29,9 @@ use crate::{
         ResultDType,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     ops::norm::RmsNormOptions,
 };
@@ -110,11 +111,21 @@ impl ModuleInit<BunsenNormalization> for BunsenNormalizationConfig {
             Self::Identity => BunsenNormalization::Identity(Identity::new()),
             Self::Batch(config) => BunsenNormalization::Batch(config.init(device)),
             Self::Group(config) => {
-                if config.num_groups == 0 || config.num_channels % config.num_groups != 0 {
-                    return Err(BunsenError::illegal(format!(
-                        "a group norm of {} channels in {} groups: the groups split the channels",
-                        config.num_channels, config.num_groups
-                    )));
+                if config.num_groups == 0 {
+                    return Err(
+                        ConstraintError::zero_or_empty("GroupNormConfig", "num_groups").into(),
+                    );
+                }
+                if !config.num_channels.is_multiple_of(config.num_groups) {
+                    return Err(ConstraintError::new(
+                        "GroupNormConfig",
+                        "num_channels",
+                        Rule::NotMultiple {
+                            value: config.num_channels,
+                            of: format!("num_groups ({})", config.num_groups),
+                        },
+                    )
+                    .into());
                 }
                 BunsenNormalization::Group(config.init(device))
             }
@@ -497,7 +508,8 @@ mod tests {
             .with_num_features(5)
             .try_init(&device);
         ErrorMatcher::illegal()
-            .message_contains("5 channels in 2 groups")
+            .constraint("GroupNormConfig", "num_channels")
+            .message_contains("5 is not a multiple of num_groups (2)")
             .assert_err(&odd);
     }
 }

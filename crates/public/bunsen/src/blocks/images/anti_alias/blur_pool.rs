@@ -19,8 +19,8 @@ use burn::{
 use crate::{
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
 };
 
@@ -72,12 +72,17 @@ impl ModuleInit<BlurPool2d> for BlurPool2dConfig {
         &self,
         _device: &burn::tensor::Device,
     ) -> BunsenResult<BlurPool2d> {
-        if self.filt_size < 2 || self.stride == 0 {
-            return Err(BunsenError::illegal(format!(
-                "BlurPool2dConfig: filt_size {} and stride {}; the side is at least 2, the stride \
-                 at least 1",
-                self.filt_size, self.stride
-            )));
+        if self.filt_size < 2 {
+            return Err(ConstraintError::out_of_range(
+                "BlurPool2dConfig",
+                "filt_size",
+                self.filt_size,
+                ">= 2",
+            )
+            .into());
+        }
+        if self.stride == 0 {
+            return Err(ConstraintError::zero_or_empty("BlurPool2dConfig", "stride").into());
         }
         Ok(BlurPool2d {
             filt_size: self.filt_size,

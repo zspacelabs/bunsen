@@ -45,6 +45,10 @@ use crate::{
     },
     burner::module::ModuleInit,
     contracts::unpack_shape_contract,
+    errors::{
+        BunsenResult,
+        WithOkOrPanic,
+    },
 };
 
 /// Config for a [`ResidualSublayer`]'s norms: each slot's norm, sized to the
@@ -121,31 +125,54 @@ impl ResidualSublayerConfig {
     }
 
     /// The sublayer around `branch`, its norms `width` wide, on `device`.
+    ///
+    /// # Errors
+    ///
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), as a norm's or
+    /// the drop path's `try_init`: a norm that can't be `width` wide, a drop
+    /// probability outside `[0, 1]`.
+    pub fn try_init<M: Module>(
+        &self,
+        branch: M,
+        width: usize,
+        device: &Device,
+    ) -> BunsenResult<ResidualSublayer<M>> {
+        let norm = |c: &Option<BunsenNormalizationConfig>| {
+            c.as_ref()
+                .map(|c| c.clone().with_num_features(width).try_init(device))
+                .transpose()
+        };
+        Ok(ResidualSublayer {
+            input: norm(&self.input)?,
+            pre: norm(&self.pre)?,
+            branch,
+            post: norm(&self.post)?,
+            out: norm(&self.out)?,
+            scale: self
+                .layer_scale
+                .then(|| Param::from_tensor(Tensor::ones([width], device))),
+            drop_path: (self.drop_path > 0.0)
+                .then(|| {
+                    DropPathConfig::new()
+                        .with_drop_prob(self.drop_path)
+                        .try_init(device)
+                })
+                .transpose()?,
+        })
+    }
+
+    /// [`try_init`](Self::try_init), panicking with its error's report.
+    ///
+    /// # Panics
+    ///
+    /// When `try_init` fails.
     pub fn init<M: Module>(
         &self,
         branch: M,
         width: usize,
         device: &Device,
     ) -> ResidualSublayer<M> {
-        let norm = |c: &Option<BunsenNormalizationConfig>| {
-            c.as_ref()
-                .map(|c| c.clone().with_num_features(width).init(device))
-        };
-        ResidualSublayer {
-            input: norm(&self.input),
-            pre: norm(&self.pre),
-            branch,
-            post: norm(&self.post),
-            out: norm(&self.out),
-            scale: self
-                .layer_scale
-                .then(|| Param::from_tensor(Tensor::ones([width], device))),
-            drop_path: (self.drop_path > 0.0).then(|| {
-                DropPathConfig::new()
-                    .with_drop_prob(self.drop_path)
-                    .init(device)
-            }),
-        }
+        self.try_init(branch, width, device).ok_or_panic()
     }
 }
 

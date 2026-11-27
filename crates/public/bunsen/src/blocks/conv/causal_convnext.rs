@@ -31,8 +31,8 @@ use crate::{
     burner::module::ModuleInit,
     contracts::unpack_shape_contract,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     ops::transformers::linear_attention::causal_depthwise_conv1d,
 };
@@ -106,10 +106,13 @@ impl ModuleInit<CausalConvNext1d> for CausalConvNext1dConfig {
         device: &Device,
     ) -> BunsenResult<CausalConvNext1d> {
         if self.kernel < 2 {
-            return Err(BunsenError::illegal(format!(
-                "a causal ConvNeXt kernel of {} taps; at least 2",
-                self.kernel
-            )));
+            return Err(ConstraintError::out_of_range(
+                "CausalConvNext1dConfig",
+                "kernel",
+                self.kernel,
+                ">= 2",
+            )
+            .into());
         }
         let c = self.width;
         Ok(CausalConvNext1d {
@@ -117,7 +120,7 @@ impl ModuleInit<CausalConvNext1d> for CausalConvNext1dConfig {
                 .with_groups(c)
                 .with_padding(PaddingConfig1d::Valid)
                 .init(device),
-            norm: self.norm.clone().with_num_features(c).init(device),
+            norm: self.norm.clone().with_num_features(c).try_init(device)?,
             pwconv1: LinearConfig::new(c, self.hidden).init(device),
             pwconv2: LinearConfig::new(self.hidden, c).init(device),
             gamma: self
@@ -242,10 +245,13 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        assert_tensors_close,
-        cpu_device,
-        seeded_tensor,
+    use crate::{
+        errors::testing::ErrorMatcher,
+        support::testing::{
+            assert_tensors_close,
+            cpu_device,
+            seeded_tensor,
+        },
     };
 
     /// The block written out with burn's own convolution, left-padded by
@@ -377,11 +383,10 @@ mod tests {
 
     #[test]
     fn test_refuses_one_tap() {
-        assert!(
-            CausalConvNext1dConfig::new(4, 8)
+        ErrorMatcher::illegal().assert_err(
+            &CausalConvNext1dConfig::new(4, 8)
                 .with_kernel(1)
-                .try_init(&cpu_device())
-                .is_err()
+                .try_init(&cpu_device()),
         );
     }
 }

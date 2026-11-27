@@ -352,11 +352,16 @@ impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
                 .zip(slots)
                 .map(|(layer, slot)| layer.try_init(slot, device))
                 .collect::<BunsenResult<_>>()?,
-            norm: self.norm.clone().with_num_features(width).init(device),
+            norm: self
+                .norm
+                .clone()
+                .with_num_features(width)
+                .try_init(device)?,
             input_norm: self
                 .input_norm
                 .as_ref()
-                .map(|n| n.clone().with_num_features(width).init(device)),
+                .map(|n| n.clone().with_num_features(width).try_init(device))
+                .transpose()?,
             rotary: self.rotary.clone(),
             rotary_alts: self.rotary_alts.clone(),
             layer_rotary: self.layer_rotary.clone(),

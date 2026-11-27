@@ -28,7 +28,6 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
         ConstraintError,
     },
@@ -80,9 +79,12 @@ impl ModuleInit<ClassifierHead> for ClassifierHeadConfig {
             );
         }
         if self.distilled && self.fc_norm.is_some() {
-            return Err(BunsenError::illegal(
-                "ClassifierHeadConfig: a distilled head has no norm on its pooled features",
-            ));
+            return Err(ConstraintError::custom(
+                "ClassifierHeadConfig",
+                "fc_norm",
+                "a distilled head has no norm on its pooled features",
+            )
+            .into());
         }
         try_probability(self.drop_rate)?;
         let linear = || LinearConfig::new(self.d_features, self.num_classes).init(device);

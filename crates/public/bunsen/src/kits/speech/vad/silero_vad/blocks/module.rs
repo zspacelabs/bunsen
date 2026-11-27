@@ -374,7 +374,7 @@ impl SileroVadStructureConfig {
     /// [`ConstraintError`] cause, if the encoder input does not match the
     /// magnitude bin count, or if the LSTM / head widths are inconsistent.
     pub fn validate(&self) -> BunsenResult<()> {
-        self.encoder.validate()?;
+        self.encoder.try_validate()?;
 
         let hidden = self.d_hidden();
         if self.encoder.in_channels() != self.n_freq() {

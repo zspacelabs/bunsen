@@ -49,7 +49,6 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
         ConstraintError,
         ResultContext,
@@ -259,10 +258,12 @@ impl ConvNetStructureConfig {
             .into());
         }
         if self.head.distilled {
-            return Err(BunsenError::illegal(
-                "ConvNetStructureConfig: a conv net's head reads one pooled vector, not a \
-                 distillation token",
-            ));
+            return Err(ConstraintError::custom(
+                "ConvNetStructureConfig",
+                "head.distilled",
+                "a conv net's head reads one pooled vector, not a distillation token",
+            )
+            .into());
         }
         Ok(())
     }
@@ -317,9 +318,13 @@ fn standard_drop_block_options(
     let mut options = vec![None; num_stages];
     if drop_prob > 0.0 {
         if num_stages < 2 {
-            return Err(BunsenError::illegal(format!(
-                "the standard DropBlock schedule needs at least 2 stages, for its last two; got {num_stages}"
-            )));
+            return Err(ConstraintError::out_of_range(
+                "standard_drop_block_options",
+                "num_stages",
+                num_stages,
+                ">= 2: the schedule drops in the last two stages",
+            )
+            .into());
         }
         options[num_stages - 2] = DropBlockOptions::default()
             .with_drop_prob(drop_prob)
@@ -358,7 +363,7 @@ impl ModuleInit<ConvNetModel> for ConvNetStructureConfig {
                 .as_ref()
                 .map(|f| -> BunsenResult<ConvFinal> {
                     Ok(match f {
-                        ConvFinalConfig::Act(act) => ConvFinal::Act(act.init(device)),
+                        ConvFinalConfig::Act(act) => ConvFinal::Act(act.try_init(device)?),
                         ConvFinalConfig::NormAct(norm) => ConvFinal::NormAct(norm.try_init(
                             self.stages.last().map_or_else(
                                 || self.stem.out_channels(),

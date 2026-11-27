@@ -1,5 +1,7 @@
 //! # The sparse mixture-of-experts feed-forward
 
+use alloc::string::ToString;
+
 use burn::{
     Tensor,
     config::Config,
@@ -30,6 +32,8 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
 };
 
@@ -93,18 +97,41 @@ impl ModuleInit<SparseMoe> for SparseMoeConfig {
         let width = self.n_embed();
         let expert_width = self.latent.unwrap_or(width);
         if self.experts.width() != expert_width {
-            return Err(BunsenError::illegal(format!(
-                "experts {} wide, in a layer {width} wide with latent {:?}",
-                self.experts.width(),
-                self.latent
-            )));
+            return Err(ConstraintError::new(
+                "SparseMoeConfig",
+                "experts",
+                Rule::Relation {
+                    lhs: (
+                        "the experts' width".into(),
+                        self.experts.width().to_string(),
+                    ),
+                    op: "==",
+                    rhs: (
+                        match self.latent {
+                            Some(_) => "the latent",
+                            None => "the layer's width",
+                        }
+                        .into(),
+                        expert_width.to_string(),
+                    ),
+                },
+            )
+            .into());
         }
         if self.experts.n_experts() != self.router.n_experts() {
-            return Err(BunsenError::illegal(format!(
-                "{} experts, routed over {}",
-                self.experts.n_experts(),
-                self.router.n_experts()
-            )));
+            return Err(ConstraintError::new(
+                "SparseMoeConfig",
+                "router",
+                Rule::Relation {
+                    lhs: (
+                        "router.n_experts".into(),
+                        self.router.n_experts().to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("the experts".into(), self.experts.n_experts().to_string()),
+                },
+            )
+            .into());
         }
         let linear = |d_in, d_out| LinearConfig::new(d_in, d_out).with_bias(false).init(device);
         Ok(SparseMoe {
@@ -274,10 +301,10 @@ mod tests {
                 .try_init(&device),
         );
         ErrorMatcher::illegal()
-            .message_contains("experts 6 wide")
+            .message_contains("the experts' width (6) must be == the layer's width (8)")
             .assert_err(&base.clone().with_latent(None).try_init(&device));
         ErrorMatcher::illegal()
-            .message_contains("routed over 5")
+            .constraint("SparseMoeConfig", "router")
             .assert_err(
                 &SparseMoeConfig {
                     router: TopKRouterConfig::new(8, 5, 2),

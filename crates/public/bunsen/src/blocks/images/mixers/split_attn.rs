@@ -34,8 +34,8 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     support::math::make_divisible,
 };
@@ -150,28 +150,36 @@ impl SplitAttnConfig {
     ///
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when it isn't.
     pub fn try_validate(&self) -> BunsenResult<()> {
-        let illegal = |message: alloc::string::String| {
-            Err(BunsenError::illegal(format!("SplitAttnConfig: {message}")))
+        let illegal = |field: &'static str, message: alloc::string::String| {
+            Err(ConstraintError::custom("SplitAttnConfig", field, message).into())
         };
         let (radix, groups) = (self.radix, self.groups);
-        if radix == 0 || groups == 0 {
-            return illegal(format!("a radix of {radix} in {groups} groups"));
+        for (field, value) in [("radix", radix), ("groups", groups)] {
+            if value == 0 {
+                return Err(ConstraintError::zero_or_empty("SplitAttnConfig", field).into());
+            }
         }
         let mid = self.conv.out_channels();
         if self.conv.groups() != groups * radix || !mid.is_multiple_of(radix) {
-            return illegal(format!(
-                "the conv is {mid} wide in {} groups; {radix} splits of {groups} groups",
-                self.conv.groups()
-            ));
+            return illegal(
+                "conv",
+                format!(
+                    "the conv is {mid} wide in {} groups; {radix} splits of {groups} groups",
+                    self.conv.groups()
+                ),
+            );
         }
         let c = mid / radix;
         let attn = self.fc1.out_channels();
         if self.fc1.in_channels() != c || self.fc2.channels != [attn, mid] {
-            return illegal(format!(
-                "the attention is {} to {attn}, then {:?}; it reads {c} channels and weighs {mid}",
-                self.fc1.in_channels(),
-                self.fc2.channels
-            ));
+            return illegal(
+                "fc1",
+                format!(
+                    "the attention is {} to {attn}, then {:?}; it reads {c} channels and weighs {mid}",
+                    self.fc1.in_channels(),
+                    self.fc2.channels
+                ),
+            );
         }
         Ok(())
     }

@@ -3,6 +3,8 @@
 //! plain form a [`BunsenMlp`] (a transformer's usual one,
 //! [`BunsenMlpConfig::expansion`]), its gated form a [`BunsenGatedMlp`].
 
+use alloc::string::ToString;
+
 use burn::{
     config::Config,
     module::Module,
@@ -26,7 +28,11 @@ use crate::{
         },
     },
     burner::module::ModuleInit,
-    errors::BunsenResult,
+    errors::{
+        BunsenResult,
+        ConstraintError,
+        Rule,
+    },
 };
 
 /// Common meta for [`TransformerFeedForward`] and
@@ -89,11 +95,16 @@ impl ModuleInit<TransformerFeedForward> for TransformerFeedForwardConfig {
         Ok(match self {
             Self::Mlp(c) => {
                 if c.d_output() != c.d_input() {
-                    return Err(crate::errors::BunsenError::illegal(format!(
-                        "a transformer feed-forward is as wide out as in, not {} to {}",
-                        c.d_input(),
-                        c.d_output()
-                    )));
+                    return Err(ConstraintError::new(
+                        "TransformerFeedForwardConfig",
+                        "Mlp",
+                        Rule::Relation {
+                            lhs: ("d_output".into(), c.d_output().to_string()),
+                            op: "==",
+                            rhs: ("d_input".into(), c.d_input().to_string()),
+                        },
+                    )
+                    .into());
                 }
                 TransformerFeedForward::Mlp(c.try_init(device)?)
             }
@@ -226,7 +237,7 @@ mod tests {
         assert_eq!(ff.n_embed(), 4);
         let resize: TransformerFeedForwardConfig = BunsenMlpConfig::new(4, 8, 2).into();
         crate::errors::testing::ErrorMatcher::illegal()
-            .message_contains("as wide out as in")
+            .message_contains("d_output (2) must be == d_input (4)")
             .assert_err(&ModuleInit::<TransformerFeedForward>::try_init(
                 &resize, &device,
             ));

@@ -105,6 +105,7 @@ mod tests {
             SubsampledEncoderMeta,
         },
         burner::module::ModuleInit,
+        errors::testing::ErrorMatcher,
         support::testing::cpu_device,
     };
 
@@ -195,6 +196,9 @@ mod tests {
             ConformerBlockConfig::new(16, 2, 32, 5),
             2,
         );
-        assert!(ModuleInit::<SubsampledEncoder>::try_init(&config, &cpu_device()).is_err());
+        ErrorMatcher::illegal().assert_err(&ModuleInit::<SubsampledEncoder>::try_init(
+            &config,
+            &cpu_device(),
+        ));
     }
 }

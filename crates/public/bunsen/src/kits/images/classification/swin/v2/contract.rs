@@ -244,7 +244,7 @@ mod tests {
                 image_size: 30,
                 ..tiny()
             },
-            "don't divide into",
+            "is not a multiple of patch_size",
         );
     }
 }

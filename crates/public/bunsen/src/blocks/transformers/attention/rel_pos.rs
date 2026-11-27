@@ -257,6 +257,7 @@ impl RelPosSelfAttention {
 mod tests {
     use super::*;
     use crate::{
+        errors::testing::ErrorMatcher,
         ops::transformers::attention::rel_position_table,
         support::testing::cpu_device,
     };
@@ -283,6 +284,9 @@ mod tests {
     #[test]
     fn test_heads_must_divide_width() {
         let config = RelPosSelfAttentionConfig::new(10, 3);
-        assert!(ModuleInit::<RelPosSelfAttention>::try_init(&config, &cpu_device()).is_err());
+        ErrorMatcher::illegal().assert_err(&ModuleInit::<RelPosSelfAttention>::try_init(
+            &config,
+            &cpu_device(),
+        ));
     }
 }

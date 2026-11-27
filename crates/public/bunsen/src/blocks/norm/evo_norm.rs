@@ -16,8 +16,9 @@ use burn::{
 use crate::{
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
 };
 
@@ -49,11 +50,19 @@ impl ModuleInit<EvoNormS0> for EvoNormS0Config {
         device: &Device,
     ) -> BunsenResult<EvoNormS0> {
         let c = self.num_features;
-        if self.groups == 0 || !c.is_multiple_of(self.groups) {
-            return Err(BunsenError::illegal(alloc::format!(
-                "an EvoNorm-S0 of {c} channels in {} groups: the groups split the channels",
-                self.groups
-            )));
+        if self.groups == 0 {
+            return Err(ConstraintError::zero_or_empty("EvoNormS0Config", "groups").into());
+        }
+        if !c.is_multiple_of(self.groups) {
+            return Err(ConstraintError::new(
+                "EvoNormS0Config",
+                "num_features",
+                Rule::NotMultiple {
+                    value: c,
+                    of: alloc::format!("groups ({})", self.groups),
+                },
+            )
+            .into());
         }
         Ok(EvoNormS0 {
             weight: Param::from_tensor(Tensor::ones([c], device)),

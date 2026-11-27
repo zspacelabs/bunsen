@@ -32,7 +32,10 @@ use crate::{
         InputDTypes,
         ResultDType,
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenResult,
+        WithOkOrPanic,
+    },
 };
 
 /// Config for [`TokenMixer`].
@@ -123,6 +126,19 @@ impl TokenMixerConfig {
             Self::GatedDeltaNet(c) => TokenMixer::GatedDeltaNet(c.try_init(slot, device)?),
             Self::Window(c) => TokenMixer::Window(c.try_init(slot, device)?),
         })
+    }
+
+    /// [`try_init`](Self::try_init), panicking with its error's report.
+    ///
+    /// # Panics
+    ///
+    /// When `try_init` fails.
+    pub fn init(
+        &self,
+        slot: usize,
+        device: &Device,
+    ) -> TokenMixer {
+        self.try_init(slot, device).ok_or_panic()
     }
 }
 

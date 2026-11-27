@@ -37,8 +37,10 @@ use crate::{
     burner::module::InputDTypes,
     contracts::unpack_shape_contract,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
+        WithOkOrPanic,
     },
     ops::images::windows::{
         log_relative_coords_table,
@@ -244,16 +246,27 @@ impl WindowAttentionConfig {
         device: &Device,
     ) -> BunsenResult<WindowAttention> {
         let (d, heads) = (self.d_model, self.n_heads);
-        if heads == 0 || !d.is_multiple_of(heads) {
-            return Err(BunsenError::illegal(format!(
-                "WindowAttentionConfig: {heads} heads don't divide a width of {d}"
-            )));
+        if heads == 0 {
+            return Err(ConstraintError::zero_or_empty("WindowAttentionConfig", "n_heads").into());
         }
-        if self.grid.contains(&0) || self.window.contains(&0) {
-            return Err(BunsenError::illegal(format!(
-                "WindowAttentionConfig: a {:?} grid in {:?} windows",
-                self.grid, self.window
-            )));
+        if !d.is_multiple_of(heads) {
+            return Err(ConstraintError::new(
+                "WindowAttentionConfig",
+                "d_model",
+                Rule::NotMultiple {
+                    value: d,
+                    of: format!("n_heads ({heads})"),
+                },
+            )
+            .into());
+        }
+        for (field, zero) in [
+            ("grid", self.grid.contains(&0)),
+            ("window", self.window.contains(&0)),
+        ] {
+            if zero {
+                return Err(ConstraintError::zero_or_empty("WindowAttentionConfig", field).into());
+            }
         }
         let (window, shift) = self.window_and_shift();
         let offsets = (2 * window[0] - 1) * (2 * window[1] - 1);
@@ -296,6 +309,19 @@ impl WindowAttentionConfig {
             index: relative_position_index(window, device),
             mask: shifted_window_mask(self.grid, window, shift, device),
         })
+    }
+
+    /// [`try_init`](Self::try_init), panicking with its error's report.
+    ///
+    /// # Panics
+    ///
+    /// When `try_init` fails.
+    pub fn init(
+        &self,
+        slot: usize,
+        device: &Device,
+    ) -> WindowAttention {
+        self.try_init(slot, device).ok_or_panic()
     }
 }
 

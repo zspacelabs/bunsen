@@ -75,6 +75,7 @@ use crate::{
         ConstraintError,
         ResultContext,
         Rule,
+        WithOkOrPanic,
     },
     ops::drop::DropBlockOptions,
     support::validators::{
@@ -643,9 +644,12 @@ impl ResidualUnitConfig {
             (self.in_channels(), self.out_channels(), self.stride());
         match &self.shortcut {
             Some(_) if !self.residual => {
-                return Err(BunsenError::illegal(
-                    "ResidualUnitConfig: a unit with no residual has no shortcut",
-                ));
+                return Err(ConstraintError::custom(
+                    OWNER,
+                    "shortcut",
+                    "a unit with no residual has no shortcut",
+                )
+                .into());
             }
             None if !self.residual => {}
             Some(shortcut) => {
@@ -740,12 +744,13 @@ impl ModuleInit<ResidualUnit> for ResidualUnitConfig {
                 .transpose()?,
             attn: self.attn.as_ref().map(|a| a.try_init(device)).transpose()?,
             attn_place: self.attn_place,
-            act: self.act.as_ref().map(|a| a.init(device)),
+            act: self.act.as_ref().map(|a| a.try_init(device)).transpose()?,
             drop_block: self
                 .drop_block
                 .as_ref()
-                .map(|options| DropBlock2dConfig::from(options.clone()).init(device)),
-            drop_path: drop_path_layer(self.drop_path_prob, device),
+                .map(|options| DropBlock2dConfig::from(options.clone()).try_init(device))
+                .transpose()?,
+            drop_path: drop_path_layer(self.drop_path_prob, device)?,
         })
     }
 }
@@ -754,12 +759,14 @@ impl ModuleInit<ResidualUnit> for ResidualUnitConfig {
 fn drop_path_layer(
     drop_path_prob: f64,
     device: &Device,
-) -> Option<DropPath> {
-    (drop_path_prob != 0.0).then(|| {
-        DropPathConfig::new()
-            .with_drop_prob(drop_path_prob)
-            .init(device)
-    })
+) -> BunsenResult<Option<DropPath>> {
+    (drop_path_prob != 0.0)
+        .then(|| {
+            DropPathConfig::new()
+                .with_drop_prob(drop_path_prob)
+                .try_init(device)
+        })
+        .transpose()
 }
 
 /// A residual unit: a conv path added to a shortcut, then an activation.
@@ -945,7 +952,7 @@ impl ResidualUnit {
         let drop_path_prob = expect_probability(drop_path_prob);
         let device = self.devices()[0].clone();
         Self {
-            drop_path: drop_path_layer(drop_path_prob, &device),
+            drop_path: drop_path_layer(drop_path_prob, &device).ok_or_panic(),
             ..self
         }
     }

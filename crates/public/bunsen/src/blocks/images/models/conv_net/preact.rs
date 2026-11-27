@@ -27,8 +27,9 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        WithOkOrPanic,
     },
 };
 
@@ -61,8 +62,21 @@ impl NormActConfig {
                 .clone()
                 .with_num_features(channels)
                 .try_init(device)?,
-            act: self.act.as_ref().map(|a| a.init(device)),
+            act: self.act.as_ref().map(|a| a.try_init(device)).transpose()?,
         })
+    }
+
+    /// [`try_init`](Self::try_init), panicking with its error's report.
+    ///
+    /// # Panics
+    ///
+    /// When `try_init` fails.
+    pub fn init(
+        &self,
+        channels: usize,
+        device: &Device,
+    ) -> NormAct {
+        self.try_init(channels, device).ok_or_panic()
     }
 }
 
@@ -157,11 +171,15 @@ impl ModuleInit<PreActConv> for PreActConvConfig {
         device: &Device,
     ) -> BunsenResult<PreActConv> {
         if self.same_pad && !matches!(self.conv.padding, PaddingConfig2d::Valid) {
-            return Err(BunsenError::illegal(format!(
-                "PreActConvConfig: a SAME-padded conv pads its input, so its own padding is \
-                 Valid, not {:?}",
-                self.conv.padding
-            )));
+            return Err(ConstraintError::custom(
+                "PreActConvConfig",
+                "conv.padding",
+                format!(
+                    "a SAME-padded conv pads its input, so its own padding is Valid, not {:?}",
+                    self.conv.padding
+                ),
+            )
+            .into());
         }
         Ok(PreActConv {
             norm: self
@@ -169,7 +187,7 @@ impl ModuleInit<PreActConv> for PreActConvConfig {
                 .clone()
                 .map(|n| n.with_num_features(self.in_channels()).try_init(device))
                 .transpose()?,
-            act: self.act.as_ref().map(|a| a.init(device)),
+            act: self.act.as_ref().map(|a| a.try_init(device)).transpose()?,
             conv: self.conv.init(device),
             weight_std: self.weight_std,
             same_pad: self.same_pad,

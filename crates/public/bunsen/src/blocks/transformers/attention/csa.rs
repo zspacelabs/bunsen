@@ -432,7 +432,8 @@ impl CausalSelfAttentionConfig {
         let norm = || {
             self.norm
                 .clone()
-                .map(|n| n.with_num_features(head_dim).init(device))
+                .map(|n| n.with_num_features(head_dim).try_init(device))
+                .transpose()
         };
         let linear =
             |d_in, d_out, bias| LinearConfig::new(d_in, d_out).with_bias(bias).init(device);
@@ -457,9 +458,9 @@ impl CausalSelfAttentionConfig {
             ),
             c_gate: (self.output_gate == Some(AttentionOutputGate::Headwise))
                 .then(|| linear(self.n_embed, self.n_head, false)),
-            q_norm: norm(),
+            q_norm: norm()?,
             c_k: linear(self.n_embed, self.n_kv_head * head_dim, self.key_bias()),
-            k_norm: norm(),
+            k_norm: norm()?,
             c_v: linear(self.n_embed, self.n_kv_head * head_dim, self.qkv_bias),
             output_norm: self
                 .output_norm

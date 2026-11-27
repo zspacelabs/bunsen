@@ -27,8 +27,8 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     ops::conv::{
         conv2d_variant_forward,
@@ -121,12 +121,16 @@ pub trait ConvBlock2dMeta {
             input_resolution[1] + total_padding[1],
         ];
         maybe_conv_output_shape(effective, kernel_size, stride, [0, 0], dilation).ok_or_else(|| {
-            BunsenError::illegal(format!(
-                "ConvBlock2d has no legal output resolution for input resolution \
-                 ({input_resolution:?}) with kernel_size {kernel_size:?}, stride \
-                 {stride:?}, dilation {dilation:?}, padding {:?}",
-                self.padding(),
-            ))
+            ConstraintError::custom(
+                "ConvBlock2d",
+                "input_resolution",
+                format!(
+                    "{input_resolution:?} has no legal output resolution with kernel_size \
+                     {kernel_size:?}, stride {stride:?}, dilation {dilation:?}, padding {:?}",
+                    self.padding(),
+                ),
+            )
+            .into()
         })
     }
 }
@@ -220,11 +224,15 @@ impl ModuleInit<ConvBlock2d> for ConvBlock2dConfig {
         device: &Device,
     ) -> BunsenResult<ConvBlock2d> {
         if self.same_pad && !matches!(self.conv.padding, PaddingConfig2d::Valid) {
-            return Err(BunsenError::illegal(format!(
-                "ConvBlock2dConfig: a SAME-padded conv pads its input, so its own padding is \
-                 Valid, not {:?}",
-                self.conv.padding
-            )));
+            return Err(ConstraintError::custom(
+                "ConvBlock2dConfig",
+                "conv.padding",
+                format!(
+                    "a SAME-padded conv pads its input, so its own padding is Valid, not {:?}",
+                    self.conv.padding
+                ),
+            )
+            .into());
         }
         let out_channels = self.out_channels();
         Ok(ConvBlock2d {
@@ -232,8 +240,18 @@ impl ModuleInit<ConvBlock2d> for ConvBlock2dConfig {
             norm: self
                 .norm
                 .as_ref()
-                .map(|config| config.clone().with_num_features(out_channels).init(device)),
-            act: self.act.as_ref().map(|config| config.init(device)),
+                .map(|config| {
+                    config
+                        .clone()
+                        .with_num_features(out_channels)
+                        .try_init(device)
+                })
+                .transpose()?,
+            act: self
+                .act
+                .as_ref()
+                .map(|config| config.try_init(device))
+                .transpose()?,
             weight_std: self.weight_std,
             same_pad: self.same_pad,
         })
@@ -513,7 +531,8 @@ mod tests {
         // No legal output when the kernel cannot fit.
         let too_big = block(Conv2dConfig::new([2, 4], [5, 5]).with_padding(PaddingConfig2d::Valid));
         ErrorMatcher::illegal()
-            .message_contains("input resolution ([3, 3])")
+            .constraint("ConvBlock2d", "input_resolution")
+            .message_contains("[3, 3] has no legal output resolution")
             .assert_err(&too_big.try_output_resolution([3, 3]));
     }
 

@@ -27,8 +27,8 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     ops::conv::maybe_conv1d_output_size,
 };
@@ -104,13 +104,17 @@ pub trait ConvBlock1dMeta {
             self.dilation(),
         )
         .ok_or_else(|| {
-            BunsenError::illegal(format!(
-                "ConvBlock1d has no legal output length for input length ({in_length}) \
-                 with kernel_size {kernel_size}, stride {stride}, dilation {}, \
-                 padding {:?}",
-                self.dilation(),
-                self.padding(),
-            ))
+            ConstraintError::custom(
+                "ConvBlock1d",
+                "in_length",
+                format!(
+                    "{in_length} has no legal output length with kernel_size {kernel_size}, \
+                     stride {stride}, dilation {}, padding {:?}",
+                    self.dilation(),
+                    self.padding(),
+                ),
+            )
+            .into()
         })
     }
 }
@@ -188,8 +192,18 @@ impl ModuleInit<ConvBlock1d> for ConvBlock1dConfig {
             norm: self
                 .norm
                 .as_ref()
-                .map(|config| config.clone().with_num_features(out_channels).init(device)),
-            act: self.act.as_ref().map(|config| config.init(device)),
+                .map(|config| {
+                    config
+                        .clone()
+                        .with_num_features(out_channels)
+                        .try_init(device)
+                })
+                .transpose()?,
+            act: self
+                .act
+                .as_ref()
+                .map(|config| config.try_init(device))
+                .transpose()?,
         })
     }
 }
@@ -428,7 +442,8 @@ mod tests {
         // No legal output when the kernel cannot fit.
         let too_big = block(Conv1dConfig::new(2, 4, 5).with_padding(PaddingConfig1d::Valid));
         ErrorMatcher::illegal()
-            .message_contains("input length (3)")
+            .constraint("ConvBlock1d", "in_length")
+            .message_contains("3 has no legal output length")
             .assert_err(&too_big.try_output_length(3));
     }
 

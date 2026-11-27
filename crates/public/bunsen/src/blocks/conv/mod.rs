@@ -25,8 +25,9 @@
 //!   it carries its convolution's state across chunks. ZONOS3's codec's, and
 //!   (with the layer scale) Qwen3-TTS's.
 //! - [`ConvSeq1d`] / [`ConvSeq2d`]: blocks run in sequence. Building one
-//!   [validates](ConvSeq2dMeta::validate) that the sequence is non-empty and
-//!   that each block's output channels match the next block's input channels.
+//!   [validates](ConvSeq2dMeta::try_validate) that the sequence is non-empty
+//!   and that each block's output channels match the next block's input
+//!   channels.
 //!
 //! ## Lifecycle
 //!

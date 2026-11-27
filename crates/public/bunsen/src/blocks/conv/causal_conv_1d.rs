@@ -26,8 +26,8 @@ use crate::{
         unpack_shape_contract,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     ops::conv::{
         CausalConvStreamContext,
@@ -150,11 +150,13 @@ impl ModuleInit<CausalConv1d> for CausalConv1dConfig {
         device: &Device,
     ) -> BunsenResult<CausalConv1d> {
         if self.stride == 0 || self.stride > self.receptive_field() {
-            return Err(BunsenError::illegal(format!(
-                "a causal convolution's stride is in 1..={}; got {}",
-                self.receptive_field(),
-                self.stride
-            )));
+            return Err(ConstraintError::out_of_range(
+                "CausalConv1dConfig",
+                "stride",
+                self.stride,
+                format!("1..={}, the receptive field", self.receptive_field()),
+            )
+            .into());
         }
         let [c_in, c_out] = self.channels;
         Ok(CausalConv1d {
@@ -422,10 +424,13 @@ impl ModuleInit<CausalConvTranspose1d> for CausalConvTranspose1dConfig {
         device: &Device,
     ) -> BunsenResult<CausalConvTranspose1d> {
         if self.stride == 0 || self.stride > self.kernel_size {
-            return Err(BunsenError::illegal(format!(
-                "a causal transposed convolution's stride is in 1..={}; got {}",
-                self.kernel_size, self.stride
-            )));
+            return Err(ConstraintError::out_of_range(
+                "CausalConvTranspose1dConfig",
+                "stride",
+                self.stride,
+                format!("1..={}, the kernel size", self.kernel_size),
+            )
+            .into());
         }
         Ok(CausalConvTranspose1d {
             conv: ConvTranspose1dConfig::new(self.channels, self.kernel_size)
@@ -965,7 +970,8 @@ mod tests {
         let device = cpu_device();
         for stride in [0, 6] {
             ErrorMatcher::illegal()
-                .message_contains("stride is in 1..=5")
+                .constraint("CausalConv1dConfig", "stride")
+                .message_contains("outside 1..=5")
                 .assert_err(
                     &ModuleInit::<CausalConv1d>::try_init(
                         &CausalConv1dConfig::new([2, 2], 3)
@@ -978,7 +984,8 @@ mod tests {
         }
         for stride in [0, 5] {
             ErrorMatcher::illegal()
-                .message_contains("stride is in 1..=4")
+                .constraint("CausalConvTranspose1dConfig", "stride")
+                .message_contains("outside 1..=4")
                 .assert_err(
                     &ModuleInit::<CausalConvTranspose1d>::try_init(
                         &CausalConvTranspose1dConfig::new([2, 2], 4).with_stride(stride),

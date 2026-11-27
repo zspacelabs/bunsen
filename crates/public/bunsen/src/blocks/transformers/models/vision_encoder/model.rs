@@ -2,6 +2,7 @@
 
 use alloc::{
     format,
+    string::ToString,
     vec::Vec,
 };
 
@@ -57,9 +58,10 @@ use crate::{
         Rekey,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
         ResultContext,
+        Rule,
     },
 };
 
@@ -195,21 +197,32 @@ impl VisionEncoderStructureConfig {
     pub fn try_validate(&self) -> BunsenResult<()> {
         let d = self.stack.d_model();
         let widths = [
-            ("the patch embedding", self.patch_embed.d_output()),
-            ("the prefix tokens", self.tokens.d_model),
-            ("the head", self.head.d_features),
+            (
+                "patch_embed",
+                "its output width",
+                self.patch_embed.d_output(),
+            ),
+            ("tokens", "d_model", self.tokens.d_model),
+            ("head", "d_features", self.head.d_features),
         ]
         .into_iter()
         .chain(
             self.latent_pool
                 .as_ref()
-                .map(|p| ("the attention pool", p.d_model)),
+                .map(|p| ("latent_pool", "d_model", p.d_model)),
         );
-        for (part, width) in widths {
+        for (part, width_name, width) in widths {
             if width != d {
-                return Err(BunsenError::illegal(format!(
-                    "{part} is {width} wide; the transformer is {d}"
-                )));
+                return Err(ConstraintError::new(
+                    "VisionEncoderStructureConfig",
+                    part,
+                    Rule::Relation {
+                        lhs: (width_name.into(), width.to_string()),
+                        op: "==",
+                        rhs: ("the stack's d_model".into(), d.to_string()),
+                    },
+                )
+                .into());
             }
         }
         self.patch_embed.try_validate()?;
@@ -221,48 +234,81 @@ impl VisionEncoderStructureConfig {
                 self.patch_embed.input_resolution(),
             );
             if channels != self.patch_embed.d_input() || map != input {
-                return Err(BunsenError::illegal(format!(
-                    "the backbone's map is {channels} channels at {map:?}; the patch embedding \
-                     takes {} at {input:?}",
-                    self.patch_embed.d_input()
-                )));
+                return Err(ConstraintError::new(
+                    "VisionEncoderStructureConfig",
+                    "backbone",
+                    Rule::Relation {
+                        lhs: (
+                            "the backbone's map".into(),
+                            format!("{channels} channels at {map:?}"),
+                        ),
+                        op: "==",
+                        rhs: (
+                            "the patch embedding's input".into(),
+                            format!("{} channels at {input:?}", self.patch_embed.d_input()),
+                        ),
+                    },
+                )
+                .into());
             }
         }
         if self.tokens.n_patches != self.patch_embed.num_patches() {
-            return Err(BunsenError::illegal(format!(
-                "the prefix tokens cover {} patches; the grid has {}",
-                self.tokens.n_patches,
-                self.patch_embed.num_patches()
-            )));
+            return Err(ConstraintError::new(
+                "VisionEncoderStructureConfig",
+                "tokens.n_patches",
+                Rule::Relation {
+                    lhs: ("tokens.n_patches".into(), self.tokens.n_patches.to_string()),
+                    op: "==",
+                    rhs: (
+                        "the patch grid's patches".into(),
+                        self.patch_embed.num_patches().to_string(),
+                    ),
+                },
+            )
+            .into());
         }
         match (self.pool, &self.latent_pool) {
             (TokenPoolConfig::Map, Some(_)) => {}
             (TokenPoolConfig::Map, None) => {
-                return Err(BunsenError::illegal(
-                    "a Map pool with no attention pool (latent_pool)",
-                ));
+                return Err(ConstraintError::new(
+                    "VisionEncoderStructureConfig",
+                    "latent_pool",
+                    Rule::Missing,
+                )
+                .into());
             }
             (pool, Some(_)) => {
-                return Err(BunsenError::illegal(format!(
-                    "a {pool:?} pool with an attention pool: only a Map pool attends"
-                )));
+                return Err(ConstraintError::custom(
+                    "VisionEncoderStructureConfig",
+                    "latent_pool",
+                    format!("a {pool:?} pool with an attention pool: only a Map pool attends"),
+                )
+                .into());
             }
             (pool, None) => {
                 TokenPool::try_new(pool, self.tokens.n_prefix())?;
             }
         }
         if self.head.distilled != (self.pool == TokenPoolConfig::Distilled) {
-            return Err(BunsenError::illegal(format!(
-                "a {:?} pool with a head that is {}distilled: a distilled head reads the \
-                 distilled pool's two tokens",
-                self.pool,
-                if self.head.distilled { "" } else { "not " }
-            )));
+            return Err(ConstraintError::custom(
+                "VisionEncoderStructureConfig",
+                "head.distilled",
+                format!(
+                    "a {:?} pool with a head that is {}distilled: a distilled head reads the \
+                     distilled pool's two tokens",
+                    self.pool,
+                    if self.head.distilled { "" } else { "not " }
+                ),
+            )
+            .into());
         }
         if self.stack.routes.is_some() {
-            return Err(BunsenError::illegal(
+            return Err(ConstraintError::custom(
+                "VisionEncoderStructureConfig",
+                "stack.routes",
                 "a vision encoder's transformer has no attention-residual routes",
-            ));
+            )
+            .into());
         }
         Ok(())
     }

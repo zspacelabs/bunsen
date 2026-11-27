@@ -495,7 +495,7 @@ fn test_drop_block_schedules_reject_one_stage() {
     let model: ConvNetModel = resnet_like(&[2], 8, ConvUnitKind::Basic).init(&cpu_device());
 
     ErrorMatcher::illegal()
-        .message_contains("at least 2 stages")
+        .constraint("standard_drop_block_options", "num_stages")
         .assert_err(&model.clone().try_with_stochastic_drop_block(0.1));
     ErrorMatcher::illegal()
         .frame_contains("drop_prob")
@@ -507,7 +507,7 @@ fn test_drop_block_schedules_reject_one_stage() {
 
 /// The panicking twin panics with a message that names the problem.
 #[test]
-#[should_panic(expected = "at least 2 stages")]
+#[should_panic(expected = "standard_drop_block_options.num_stages")]
 fn test_drop_block_schedule_panics_on_one_stage() {
     let model: ConvNetModel = resnet_like(&[2], 8, ConvUnitKind::Basic).init(&cpu_device());
     let _ = model.with_stochastic_drop_block(0.1);

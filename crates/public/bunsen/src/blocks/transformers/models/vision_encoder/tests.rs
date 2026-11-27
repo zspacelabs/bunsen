@@ -195,32 +195,47 @@ fn test_disagreeing_parts_are_illegal() {
     };
     let mut config = tiny(TokenPoolConfig::Token, 0);
     config.tokens.d_model = 6;
-    illegal(config, "the prefix tokens is 6 wide");
+    illegal(
+        config,
+        "tokens: d_model (6) must be == the stack's d_model (8)",
+    );
     let mut config = tiny(TokenPoolConfig::Token, 0);
     config.tokens.n_patches = 9;
-    illegal(config, "cover 9 patches; the grid has 16");
+    illegal(
+        config,
+        "tokens.n_patches (9) must be == the patch grid's patches (16)",
+    );
     let mut config = tiny(TokenPoolConfig::Token, 0);
     config.pool = TokenPoolConfig::Distilled;
-    illegal(config, "reads 2 prefix tokens: there are 1");
+    illegal(config, "prefix reads (2) must be <= n_prefix (1)");
     let mut config = tiny(TokenPoolConfig::Token, 0);
     config.head.distilled = true;
     illegal(config, "a Token pool with a head that is distilled");
     let mut config = tiny(TokenPoolConfig::Token, 0);
     config.patch_embed = PatchEmbedConfig::new([18, 16], 4, 3, 8);
-    illegal(config, "18x16 images don't divide into 4x4 patches");
+    illegal(
+        config,
+        "input_resolution: 18 is not a multiple of patch_size (4)",
+    );
 
     let latent =
         |d: usize| LatentAttentionPoolConfig::new(d, 2, BunsenMlpConfig::new(d, 4 * d, d), norm(d));
     let mut config = tiny(TokenPoolConfig::Token, 0);
     config.pool = TokenPoolConfig::Map;
-    illegal(config, "a Map pool with no attention pool");
+    illegal(
+        config,
+        "VisionEncoderStructureConfig.latent_pool: is required",
+    );
     let mut config = tiny(TokenPoolConfig::Token, 0);
     config.latent_pool = Some(latent(8));
     illegal(config, "a Token pool with an attention pool");
     let mut config = tiny(TokenPoolConfig::Token, 0);
     config.pool = TokenPoolConfig::Map;
     config.latent_pool = Some(latent(6));
-    illegal(config, "the attention pool is 6 wide");
+    illegal(
+        config,
+        "latent_pool: d_model (6) must be == the stack's d_model (8)",
+    );
 }
 
 /// A [`Map`](TokenPoolConfig::Map) pool attends over the patch tokens: its
@@ -289,7 +304,7 @@ fn test_backbone() {
     wrong_size.backbone = Some(VisionBackboneConfig::new(net(0), [16, 16]));
     illegal(
         wrong_size,
-        "the backbone's map is 6 channels at [4, 4]; the patch embedding takes 6 at [8, 8]",
+        "the backbone's map (6 channels at [4, 4]) must be == the patch embedding's input (6 channels at [8, 8])",
     );
     let mut headed = config;
     headed.backbone = Some(VisionBackboneConfig::new(net(5), [30, 32]));

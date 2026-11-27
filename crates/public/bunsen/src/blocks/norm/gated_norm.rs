@@ -91,8 +91,8 @@ impl ModuleInit<GatedNorm> for GatedNormConfig {
         device: &Device,
     ) -> BunsenResult<GatedNorm> {
         Ok(GatedNorm {
-            norm: self.norm.init(device),
-            activation: self.activation.init(device),
+            norm: self.norm.try_init(device)?,
+            activation: self.activation.try_init(device)?,
             widening: self.widening,
         })
     }

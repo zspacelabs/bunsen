@@ -264,7 +264,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        errors::testing::ErrorMatcher,
+        support::testing::cpu_device,
+    };
 
     #[test]
     fn test_meta() {
@@ -277,9 +280,10 @@ mod tests {
         assert_eq!(module.factor(), config.factor());
         assert!(module.projection.bias.is_some());
         assert_eq!(module.output_len(7), 3);
-        assert!(
-            ModuleInit::<FeatureStacking>::try_init(&config.with_factor(0), &cpu_device()).is_err()
-        );
+        ErrorMatcher::illegal().assert_err(&ModuleInit::<FeatureStacking>::try_init(
+            &config.with_factor(0),
+            &cpu_device(),
+        ));
     }
 
     /// Group `j` is its frames side by side, the last group zero-padded.

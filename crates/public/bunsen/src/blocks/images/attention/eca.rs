@@ -24,8 +24,8 @@ use num_traits::Float;
 use crate::{
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
 };
 
@@ -71,10 +71,15 @@ impl ModuleInit<Eca> for EcaConfig {
         device: &Device,
     ) -> BunsenResult<Eca> {
         if self.kernel_size.is_multiple_of(2) {
-            return Err(BunsenError::illegal(format!(
-                "EcaConfig: kernel_size {} is even; the conv keeps the channels with an odd one",
-                self.kernel_size
-            )));
+            return Err(ConstraintError::custom(
+                "EcaConfig",
+                "kernel_size",
+                format!(
+                    "{} is even; the conv keeps the channels with an odd one",
+                    self.kernel_size
+                ),
+            )
+            .into());
         }
         let pad = (self.kernel_size - 1) / 2;
         Ok(Eca {

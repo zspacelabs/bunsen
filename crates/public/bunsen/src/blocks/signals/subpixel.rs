@@ -71,10 +71,15 @@ impl ModuleInit<SubpixelUpsample1d> for SubpixelUpsample1dConfig {
             }
         }
         if self.kernel_size.is_multiple_of(2) {
-            return Err(crate::errors::BunsenError::illegal(format!(
-                "SubpixelUpsample1dConfig.kernel_size: {} is even; an odd kernel keeps the length",
-                self.kernel_size
-            )));
+            return Err(ConstraintError::custom(
+                "SubpixelUpsample1dConfig",
+                "kernel_size",
+                format!(
+                    "{} is even; an odd kernel keeps the length",
+                    self.kernel_size
+                ),
+            )
+            .into());
         }
         let pad = self.kernel_size / 2;
         Ok(SubpixelUpsample1d {
@@ -159,7 +164,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        errors::testing::ErrorMatcher,
+        support::testing::cpu_device,
+    };
 
     #[test]
     fn test_meta() {
@@ -170,10 +178,10 @@ mod tests {
         assert_eq!(module.d_model(), config.d_model());
         assert_eq!(module.factor(), config.factor());
         assert_eq!(module.conv.weight.dims(), [12, 4, 5]);
-        assert!(
-            ModuleInit::<SubpixelUpsample1d>::try_init(&config.with_kernel_size(4), &cpu_device())
-                .is_err()
-        );
+        ErrorMatcher::illegal().assert_err(&ModuleInit::<SubpixelUpsample1d>::try_init(
+            &config.with_kernel_size(4),
+            &cpu_device(),
+        ));
     }
 
     /// With its centre tap a repeated identity and the rest zero, the
