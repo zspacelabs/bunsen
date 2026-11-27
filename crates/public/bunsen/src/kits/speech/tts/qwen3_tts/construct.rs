@@ -10,11 +10,13 @@ use super::{
         Qwen3TtsDecodeConfig,
         Qwen3TtsModel,
         Qwen3TtsModelConfig,
-        Qwen3TtsTakeConfig,
     },
     prompt::Qwen3TtsPromptConfig,
 };
-use crate::kits::support::text::BunsenLanguageTag;
+use crate::kits::{
+    speech::tts::qwen3_tts::driver::Qwen3TtsTakeConfig,
+    support::text::BunsenLanguageTag,
+};
 
 /// Which of the release's model kinds a checkpoint is (`config.json`'s
 /// `tts_model_type`).

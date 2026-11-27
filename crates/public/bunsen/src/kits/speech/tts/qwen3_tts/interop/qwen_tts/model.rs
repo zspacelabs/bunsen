@@ -25,9 +25,9 @@ use crate::{
             blocks::{
                 Qwen3TtsModelConfig,
                 Qwen3TtsModelMeta,
-                Qwen3TtsTakeConfig,
                 Qwen3TtsTalkerMeta,
             },
+            driver::Qwen3TtsTakeConfig,
             prompt::Qwen3TtsPromptConfig,
             sampler::Qwen3TtsSamplerConfig,
         },

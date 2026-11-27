@@ -5,7 +5,8 @@
 //! [`interop::qwen_tts`](super::interop::qwen_tts)).
 //!
 //! - **Model.** [`Qwen3TtsModel`]: the talker and its code predictor, and the
-//!   take loop ([`Qwen3TtsModelConfig`], [`Qwen3TtsTakeConfig`]).
+//!   take loop ([`Qwen3TtsModelConfig`],
+//!   [`Qwen3TtsTakeConfig`](super::driver::Qwen3TtsTakeConfig)).
 //! - **Talker.** [`Qwen3TtsTalker`] and [`Qwen3TtsTalkerConfig`]: a model
 //!   `config.json`'s `talker_config`, and the model file's `talker.*` tensors.
 //! - **Code predictor.** [`Qwen3TtsCodePredictorConfig`]: a

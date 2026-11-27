@@ -42,8 +42,10 @@ use crate::{
                 blocks::{
                     Qwen3TtsChunkedStreamContext,
                     Qwen3TtsCodecDecoderMeta,
-                    Qwen3TtsCodes,
                     Qwen3TtsDecodeConfig,
+                },
+                driver::{
+                    Qwen3TtsCodes,
                     Qwen3TtsSampledChooser,
                     Qwen3TtsTakeConfig,
                     Qwen3TtsTakeRun,

@@ -10,12 +10,7 @@
 use burn::prelude::*;
 
 use super::{
-    blocks::{
-        Qwen3TtsChooser,
-        Qwen3TtsCodes,
-        Qwen3TtsModel,
-        Qwen3TtsTakeConfig,
-    },
+    blocks::Qwen3TtsModel,
     prompt::{
         Qwen3TtsPrompt,
         Qwen3TtsPromptConfig,
@@ -27,7 +22,14 @@ use crate::{
     kits::{
         speech::tts::{
             TtsStop,
-            qwen3_tts::interop::qwen_tts::*,
+            qwen3_tts::{
+                driver::{
+                    Qwen3TtsChooser,
+                    Qwen3TtsCodes,
+                    Qwen3TtsTakeConfig,
+                },
+                interop::qwen_tts::*,
+            },
         },
         support::interop::transformers::TransformersConfigJson,
     },

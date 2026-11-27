@@ -4,20 +4,27 @@ use alloc::{
     boxed::Box,
     collections::BTreeMap,
     format,
-    string::ToString,
+    string::{
+        String,
+        ToString,
+    },
+    sync::Arc,
     vec,
     vec::Vec,
 };
 
-use burn::tensor::DType;
+use burn::{
+    config::Config,
+    tensor::DType,
+};
 
 use super::{
     ZONOS3_EMBEDDING_MODE,
     ZONOS3_EMBEDDING_TENSOR,
     ZONOS3_VOICE_FAMILY,
     Zonos3Codes,
-    Zonos3Engine,
     Zonos3Request,
+    Zonos3SpeakerMode,
     Zonos3TakeRun,
 };
 use crate::{
@@ -44,9 +51,14 @@ use crate::{
                 TtsVoiceTensor,
             },
             zonos3::{
+                Zonos3Construct,
                 Zonos3SpeakerPart,
                 blocks::Zonos3CodecStreamContext,
                 prompt::Zonos3Speaker,
+                sampler::{
+                    Zonos3Sampler,
+                    Zonos3SamplerConfig,
+                },
                 voices::Zonos3Voice,
             },
         },
@@ -55,7 +67,91 @@ use crate::{
             tokens::Tokenizer,
         },
     },
+    ops::transformers::attention::KVCacheStorage,
 };
+
+/// Config for [`Zonos3Engine`]; its defaults are the release's
+/// (`config.json`'s `generation`,
+/// [`Zonos3GenerationMirror::engine_config`](crate::kits::speech::tts::zonos3::interop::zonos::Zonos3GenerationMirror::engine_config)).
+#[derive(Config, Debug)]
+pub struct Zonos3EngineConfig {
+    /// The language a request that names none is in: a request code of the
+    /// release's `languages` table (`en_us`, `fr_fr`), or a language tag
+    /// ([`Zonos3Construct::language_tag`]).
+    #[config(default = "String::from(\"en_us\")")]
+    pub default_language: String,
+
+    /// The stock voice a request that names none speaks in.
+    #[config(default = "String::from(\"Savannah\")")]
+    pub default_voice: String,
+
+    /// How a stock voice is spoken in.
+    #[config(default = "Zonos3SpeakerMode::Codes")]
+    pub speaker_mode: Zonos3SpeakerMode,
+
+    /// A value for each condition the take is conditioned on, by its name
+    /// (the construct's [`conditions`](Zonos3Construct::conditions):
+    /// `loudness`, `fmax`, `speaking_rate`), bucketed by its edges; a
+    /// condition without one is the unknown bucket.
+    #[config(default = "BTreeMap::new()")]
+    pub conditions: BTreeMap<String, f64>,
+
+    /// How each step's codes are sampled.
+    #[config(default = "Zonos3SamplerConfig::new()")]
+    pub sampler: Zonos3SamplerConfig,
+
+    /// The silence prefill's frames, at most
+    /// [`silence_prefill_max_frames`](Self::silence_prefill_max_frames).
+    #[config(default = 3)]
+    pub silence_prefill_frames: usize,
+
+    /// The longest silence prefill.
+    #[config(default = 30)]
+    pub silence_prefill_max_frames: usize,
+
+    /// The most rows a take generates; `None`, as many as the model's
+    /// context leaves after the prompt (fewer is always the bound).
+    #[config(default = "None")]
+    pub max_new_frames: Option<usize>,
+
+    /// The silence prefill's frames a take's decode starts with, the last
+    /// ones.
+    #[config(default = 4)]
+    pub overlap_frames: usize,
+
+    /// The output gain's headroom, in dB.
+    #[config(default = 3.0)]
+    pub headroom_db: f64,
+
+    /// The output limiter's knee, in dBFS.
+    #[config(default = -1.0)]
+    pub output_limit_dbfs: f64,
+
+    /// The decode cache's storage.
+    #[config(default = "KVCacheStorage::Auto")]
+    pub storage: KVCacheStorage,
+}
+
+/// ZONOS3-Mini as a TTS engine
+/// ([`TtsEngine`](crate::kits::speech::tts::driver::TtsEngine)): text and a
+/// speaker to codes, one take decoded whole, as the release generates it.
+///
+/// A take is the text (normalized by its driver, [`Zonos3Driver`](super::Zonos3Driver)); its prompt
+/// ([`Zonos3PromptConfig::build`](crate::kits::speech::tts::zonos3::prompt::Zonos3PromptConfig::build))
+/// run through the language model, then one row a step through its decode
+/// cache, each row's codes sampled by [`Zonos3Sampler`](crate::kits::speech::tts::zonos3::sampler::Zonos3Sampler) and fed back with the
+/// text pad, until [`Zonos3TakeRows`](super::Zonos3TakeRows)'s stop rule; then the frames it covers,
+/// decoded by the codec, through the output stage ([`zonos3_output_stage`](super::zonos3_output_stage)).
+#[derive(Debug)]
+pub struct Zonos3Engine<T: Tokenizer> {
+    pub(super) construct: Arc<Zonos3Construct>,
+    pub(super) language: BunsenLanguageTag,
+    pub(super) sampler: Zonos3Sampler,
+    pub(super) tokenizer: T,
+    pub(super) capabilities: TtsCapabilities,
+    pub(super) condition_buckets: Vec<Option<usize>>,
+    pub(super) config: Zonos3EngineConfig,
+}
 
 /// What the driver says of ZONOS3's stock voices: each one's gender and
 /// style, and its language as the release names it (`English`), as its
