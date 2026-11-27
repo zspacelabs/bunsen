@@ -10,6 +10,52 @@ release (0.41.0), is in [its changelog](https://github.com/zspacelabs/bunsen/blo
 
 ## [Unreleased]
 
+## [0.46.0](https://github.com/zspacelabs/bunsen/compare/bunsen-tool-v0.45.0...bunsen-tool-v0.46.0) - 2026-11-27
+
+### Added
+
+- *(cache)* `cache gc`, removing what no load needs ([#1094](https://github.com/zspacelabs/bunsen/pull/1094))
+- *(cache)* [**breaking**] `ConvertedWeights`, a policy for converted copies, in place of the bool ([#1090](https://github.com/zspacelabs/bunsen/pull/1090))
+- *(sknet)* the SKNet kit, timm's Selective Kernel Networks on the generic conv net ([#1053](https://github.com/zspacelabs/bunsen/pull/1053))
+- *(resnest)* the ResNeSt kit, timm's ResNeSt on the generic conv net ([#1051](https://github.com/zspacelabs/bunsen/pull/1051))
+- *(res2net)* the Res2Net kit, timm's Res2Net and Res2NeXt on the generic conv net ([#1049](https://github.com/zspacelabs/bunsen/pull/1049))
+- *(vit)* the 11 hybrid ViT rows, three validated against timm ([#1046](https://github.com/zspacelabs/bunsen/pull/1046))
+- *(bunsen-tool)* `classify` and `embed` load the ResNetV2 and BiT checkpoints ([#1040](https://github.com/zspacelabs/bunsen/pull/1040))
+- *(regnet)* RegNetV and RegNetZ, with pre-activation units, units with no residual and a final conv ([#1035](https://github.com/zspacelabs/bunsen/pull/1035))
+- *(bunsen-tool)* `classify` and `embed` load the RegNet checkpoints ([#1034](https://github.com/zspacelabs/bunsen/pull/1034))
+- *(vit)* BEiT3's sub-LN norms, and its rows ([#1029](https://github.com/zspacelabs/bunsen/pull/1029))
+- *(vit)* gated MLPs, RMS norms and the bias-free projections; AIMv2 and the giant DINOv2 ([#1028](https://github.com/zspacelabs/bunsen/pull/1028))
+- *(vit)* the attention pool (`map`), and the SigLIP and SigLIP 2 towers ([#1027](https://github.com/zspacelabs/bunsen/pull/1027))
+- *(vit)* 143 timm rows on the generated prefabs, and eight validation rows ([#1026](https://github.com/zspacelabs/bunsen/pull/1026))
+- *(bunsen-tool)* `classify` and `embed` load the Swin V1 and V2 checkpoints ([#1017](https://github.com/zspacelabs/bunsen/pull/1017))
+- *(deit)* the `deit` kit: `DeiT` and `DeiT` III, distilled and plain ([#999](https://github.com/zspacelabs/bunsen/pull/999))
+- *(bunsen-tool)* `classify` and `embed` load the ViTs too ([#998](https://github.com/zspacelabs/bunsen/pull/998))
+- *(catalog)* ImageNet's 12k and 21k label sets; timm rows bind their head's labels ([#992](https://github.com/zspacelabs/bunsen/pull/992))
+- *(resnet)* [**breaking**] ResNet-RS, the strided conv stem pool ([#989](https://github.com/zspacelabs/bunsen/pull/989))
+- *(resnet)* [**breaking**] anti-aliased downsampling, blur and average pools (the AA- and Blur-ResNets) ([#988](https://github.com/zspacelabs/bunsen/pull/988))
+- *(resnet)* [**breaking**] channel attention, squeeze-excite and ECA (the SE- and ECA-ResNets) ([#987](https://github.com/zspacelabs/bunsen/pull/987))
+- *(resnet)* [**breaking**] deep and tiered stems, and average-pool shortcuts (the C, D, S and T variants) ([#986](https://github.com/zspacelabs/bunsen/pull/986))
+- *(resnet)* [**breaking**] grouped and widened bottlenecks: `ResNeXt` and wide `ResNet` ([#985](https://github.com/zspacelabs/bunsen/pull/985))
+- *(resnet)* [**breaking**] timm's `in_chans` and `channels`, and the group norm (`resnet50_gn`) ([#984](https://github.com/zspacelabs/bunsen/pull/984))
+- *(catalog-builder)* `cargo catalog timm-rows`: a kit's timm hub rows, from the Hub ([#983](https://github.com/zspacelabs/bunsen/pull/983))
+- *(bunsen-tool)* `classify` and `embed`: images with timm and torchvision checkpoints ([#978](https://github.com/zspacelabs/bunsen/pull/978))
+
+### Fixed
+
+- *(language)* [**breaking**] foreign errors are causes; `try_init`, `try_stack`, `SearchConfig::try_validate` ([#1077](https://github.com/zspacelabs/bunsen/pull/1077))
+
+### Other
+
+- *(tts)* [**breaking**] one `TtsStop`; the take plumbing both engines repeated, once in `tts::driver` ([#1105](https://github.com/zspacelabs/bunsen/pull/1105))
+- *(speech)* [**breaking**] one speech kit layout: engines in `driver`, front ends in `blocks` ([#1103](https://github.com/zspacelabs/bunsen/pull/1103))
+- *(whisper)* [**breaking**] Whisper's driver files laid out as the other kits' ([#1100](https://github.com/zspacelabs/bunsen/pull/1100))
+- *(whisper)* [**breaking**] Whisper's engine is built engine-first, as every ASR engine is ([#1099](https://github.com/zspacelabs/bunsen/pull/1099))
+- *(speech)* [**breaking**] one ASR engine shell: `construct`, no zero window, a shared speaker cut ([#1098](https://github.com/zspacelabs/bunsen/pull/1098))
+- *(images)* [**breaking**] one type-erased image-kit table; `bunsen-tool` and the timm validation drive from it ([#1088](https://github.com/zspacelabs/bunsen/pull/1088))
+- *(assertions)* `expect_variant!`, `assert_config_eq`, `assert_rekeys` ([#1064](https://github.com/zspacelabs/bunsen/pull/1064))
+- *(assertions)* `assert_scalar_close`, integer and boolean readbacks; hand-written checks use them ([#1063](https://github.com/zspacelabs/bunsen/pull/1063))
+- *(matching)* the matcher core in `support::testing::matching`; a shorthand per error kind; `constraint` ([#1062](https://github.com/zspacelabs/bunsen/pull/1062))
+
 ## [0.45.0](https://github.com/zspacelabs/bunsen/compare/bunsen-tool-v0.44.0...bunsen-tool-v0.45.0) - 2026-11-24
 
 ### Added

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0](https://github.com/zspacelabs/bunsen/compare/bunsen-fetch-v0.45.0...bunsen-fetch-v0.46.0) - 2026-11-27
+
+### Added
+
+- *(fetch)* a Hub request carries the user's token, so gated repos load ([#974](https://github.com/zspacelabs/bunsen/pull/974))
+
 ## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-fetch-v0.41.0...bunsen-fetch-v0.42.0) - 2026-11-13
 
 ### Added

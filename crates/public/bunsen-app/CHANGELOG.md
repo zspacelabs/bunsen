@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0](https://github.com/zspacelabs/bunsen/compare/bunsen-app-v0.45.0...bunsen-app-v0.46.0) - 2026-11-27
+
+### Added
+
+- *(cache)* `cache gc`, removing what no load needs ([#1094](https://github.com/zspacelabs/bunsen/pull/1094))
+- *(cache)* [**breaking**] `ConvertedWeights`, a policy for converted copies, in place of the bool ([#1090](https://github.com/zspacelabs/bunsen/pull/1090))
+
+### Other
+
+- *(assertions)* `expect_variant!`, `assert_config_eq`, `assert_rekeys` ([#1064](https://github.com/zspacelabs/bunsen/pull/1064))
+
 ## [0.45.0](https://github.com/zspacelabs/bunsen/compare/bunsen-app-v0.44.0...bunsen-app-v0.45.0) - 2026-11-24
 
 ### Added

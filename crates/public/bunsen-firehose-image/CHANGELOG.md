@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-image-v0.45.0...bunsen-firehose-image-v0.46.0) - 2026-11-27
+
+### Added
+
+- *(images)* image files in `support::images`, and the eval transform from a file ([#967](https://github.com/zspacelabs/bunsen/pull/967))
+
+### Other
+
+- *(matching)* the matcher core in `support::testing::matching`; a shorthand per error kind; `constraint` ([#1062](https://github.com/zspacelabs/bunsen/pull/1062))
+
 ## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-image-v0.41.0...bunsen-firehose-image-v0.42.0) - 2026-11-13
 
 ### Other
