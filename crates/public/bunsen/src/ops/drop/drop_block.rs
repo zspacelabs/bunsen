@@ -446,6 +446,16 @@ mod tests {
         performance_device,
     };
 
+    /// The expected drop ratio of a `drop_prob = 0.1`, `[2, 3]`-kernel drop
+    /// block over `[_, 3, 100, 100]` ones (whole blocks only, batchwise noise),
+    /// and a band about it. Computed with numpy, not measured here: gamma is
+    /// `0.1 * 100 * 100 / 6 / (99 * 98)`, about 0.01718; a pixel drops with
+    /// probability `1 - (1 - gamma)^c`, `c` the whole blocks over it (6 inside,
+    /// fewer at the edges), which averages 0.09587. A simulation of the
+    /// sampling gives a standard deviation of 0.0041, so the band is 6 of them:
+    /// a run that drops nothing fails.
+    const DROP_RATIO_P01_K2X3: (f64, f64) = (0.09587, 0.025);
+
     #[test]
     fn test_drop_block_options() {
         let options = DropBlockOptions::default();
@@ -642,7 +652,11 @@ mod tests {
             .into_scalar::<i64>() as usize;
         let drop_count = numel - keep_count;
         let drop_ratio = drop_count as f64 / numel as f64;
-        assert!((drop_ratio - drop_prob).abs() < 0.15);
+        let (expected, band) = DROP_RATIO_P01_K2X3;
+        assert!(
+            (drop_ratio - expected).abs() < band,
+            "drop ratio {drop_ratio}, expected {expected} +- {band} (drop_prob {drop_prob})"
+        );
 
         let total = drop.sum().into_scalar::<f64>();
         let norm = total / numel as f64;
@@ -680,7 +694,11 @@ mod tests {
 
         let drop_ratio = drop_count as f64 / numel as f64;
 
-        assert!((drop_ratio - drop_prob).abs() < 0.15);
+        let (expected, band) = DROP_RATIO_P01_K2X3;
+        assert!(
+            (drop_ratio - expected).abs() < band,
+            "drop ratio {drop_ratio}, expected {expected} +- {band} (drop_prob {drop_prob})"
+        );
     }
 
     /// An f64 tensor's normalized mask is built in f64: with nothing dropped
