@@ -119,7 +119,10 @@ mod tests {
         kits::speech::vad::silero_vad::SileroVadSignalConfig,
         support::{
             audio::load_audio_mono_sr,
-            testing::cpu_device,
+            testing::{
+                assert_scalar_close,
+                cpu_device,
+            },
         },
     };
 
@@ -147,7 +150,7 @@ mod tests {
 
         assert_eq!(parts.len(), whole.len());
         for (a, b) in parts.iter().zip(&whole) {
-            assert!((a - b).abs() < 1e-5, "{a} != {b}");
+            assert_scalar_close(*a, *b, 1e-5);
         }
     }
 

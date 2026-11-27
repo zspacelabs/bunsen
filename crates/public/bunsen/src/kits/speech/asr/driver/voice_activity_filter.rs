@@ -316,6 +316,7 @@ impl VoiceActivityFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::assert_scalar_close;
 
     const C: usize = 512;
 
@@ -353,7 +354,7 @@ mod tests {
         assert_eq!(fw.min_silence_ms, 2000);
         assert_eq!(fw.speech_pad_ms, 400);
         assert_eq!(fw.speech_pad_samples(), 6400);
-        assert!((fw.neg_threshold_value() - 0.35).abs() < 1e-12);
+        assert_scalar_close(fw.neg_threshold_value(), 0.35, 1e-12);
 
         assert_float_eq::assert_float_relative_eq!(
             VoiceActivityFilterConfig::new()

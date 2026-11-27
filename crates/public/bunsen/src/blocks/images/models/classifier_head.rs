@@ -311,7 +311,10 @@ mod tests {
     use super::*;
     use crate::{
         errors::testing::ErrorMatcher,
-        support::testing::cpu_device,
+        support::testing::{
+            cpu_device,
+            tensor_to_vec_as,
+        },
     };
 
     /// A `[2, 1]` linear layer of weights `w` and bias `b`.
@@ -347,10 +350,7 @@ mod tests {
         let head: ClassifierHead = ClassifierHeadConfig::new(2, 0).init(&device);
         assert_eq!(head.num_classes(), 0);
         assert_eq!(
-            head.forward(row([1., 2.], &device))
-                .into_data()
-                .try_to_vec::<f32>()
-                .unwrap(),
+            tensor_to_vec_as::<f32, _>(&head.forward(row([1., 2.], &device))),
             [1., 2.]
         );
         let head = head.with_classes(3, &device);
@@ -370,10 +370,9 @@ mod tests {
         head.fc_dist = Some(linear([0., 1.], 1., &device));
         // (1 + (6 + 1)) / 2
         assert_eq!(
-            head.forward_distilled(row([1., 2.], &device), row([5., 6.], &device))
-                .into_data()
-                .try_to_vec::<f32>()
-                .unwrap(),
+            tensor_to_vec_as::<f32, _>(
+                &head.forward_distilled(row([1., 2.], &device), row([5., 6.], &device))
+            ),
             [4.]
         );
         let headless: ClassifierHead = ClassifierHeadConfig::new(2, 0)

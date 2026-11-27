@@ -52,6 +52,7 @@ mod tests {
         ops::drop::dropout,
         support::testing::{
             DeviceMemoryGuard,
+            assert_scalar_close,
             performance_device,
         },
     };
@@ -109,7 +110,7 @@ mod tests {
         assert_eq!(keep_count, num_elem as f32 - drop_count);
 
         let drop_rate = drop_count / num_elem as f32;
-        assert!((drop_rate - prob as f32).abs() < 0.1);
+        assert_scalar_close(drop_rate, prob as f32, 0.1);
     }
 
     #[test]

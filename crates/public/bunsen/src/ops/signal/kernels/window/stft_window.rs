@@ -100,7 +100,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        assert_scalar_close,
+        cpu_device,
+    };
 
     type F = f32;
 
@@ -113,18 +116,18 @@ mod tests {
 
         // Periodic Hamming anchors: `0.54 - 0.46` at n = 0, and the peak
         // `0.54 + 0.46` at the (even) midpoint.
-        assert!((hamming[0] - 0.08).abs() <= 1e-7);
-        assert!((hamming[384] - 1.0).abs() <= 1e-7);
+        assert_scalar_close(hamming[0], 0.08, 1e-7);
+        assert_scalar_close(hamming[384], 1.0, 1e-7);
 
         // The periodic window satisfies w[n] == w[win_len - n].
         for n in 1..768 {
-            assert!((hamming[n] - hamming[768 - n]).abs() <= 1e-7);
+            assert_scalar_close(hamming[n], hamming[768 - n], 1e-7);
         }
 
         // Anchor against the standard table value at win_len = 8, n = 1:
         // 0.54 - 0.46 * cos(π / 4).
         let hamming8 = cfg.to_vec_window(8);
-        assert!((hamming8[1] - 0.21473088).abs() <= 1e-7);
+        assert_scalar_close(hamming8[1], 0.21473088, 1e-7);
     }
 
     #[test]

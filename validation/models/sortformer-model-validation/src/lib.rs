@@ -399,6 +399,8 @@ pub fn load_named_construct(
 
 #[cfg(test)]
 mod tests {
+    use bunsen::support::testing::int_tensor_to_vec;
+
     use super::*;
 
     /// The fixture is what the crate docs say it is, and covers the
@@ -501,10 +503,7 @@ mod tests {
         let device = bunsen::support::testing::cpu_device();
         assert_eq!(synthetic_chunk(16, &device).dims(), [1, 16, N_MELS]);
         assert_eq!(synthetic_embeddings(3, 1, &device).dims(), [1, 3, D_ENC]);
-        let v: Vec<i64> = graph_length(7, &device)
-            .into_data()
-            .try_to_vec::<i64>()
-            .unwrap();
+        let v: Vec<i64> = int_tensor_to_vec(&graph_length(7, &device));
         assert_eq!(v, [7]);
     }
 }

@@ -984,7 +984,11 @@ mod tests {
             diarization::SpeakerActivityModel,
             support::testing::ScriptedDiarizer,
         },
-        support::testing::cpu_device,
+        support::testing::{
+            assert_scalar_close,
+            cpu_device,
+            tensor_to_vec_as,
+        },
     };
 
     /// Samples per second.
@@ -1131,8 +1135,8 @@ mod tests {
                 .into_iter()
                 .map(|request| {
                     self.decodes.fetch_add(1, Ordering::SeqCst);
-                    let level = request.level.max.into_data().try_to_vec::<f32>().unwrap()[0];
-                    let values = request.window.into_data().try_to_vec::<f32>().unwrap();
+                    let level = tensor_to_vec_as::<f32, _>(&request.level.max)[0];
+                    let values = tensor_to_vec_as::<f32, _>(&request.window);
                     let silent = values.iter().take_while(|&&v| v <= 0.0).count();
                     if self.cut_silence && silent > 0 {
                         return WindowDecode::skipped(silent, level);
@@ -1332,9 +1336,9 @@ mod tests {
         let segments = committed(&events);
         assert_eq!(segments.len(), 2);
         // A window is 8 frames of 2 samples at 100 Hz: 0.16 s.
-        assert!((segments[0].start - 10.0).abs() < 1e-9);
-        assert!((segments[0].end - 10.16).abs() < 1e-9);
-        assert!((segments[1].end - 10.32).abs() < 1e-9);
+        assert_scalar_close(segments[0].start, 10.0, 1e-9);
+        assert_scalar_close(segments[0].end, 10.16, 1e-9);
+        assert_scalar_close(segments[1].end, 10.32, 1e-9);
     }
 
     /// With timed segments, the seek stops at the last complete one; the
@@ -1363,7 +1367,7 @@ mod tests {
         let segments = committed(&a);
         assert_eq!(segments.len(), 16);
         assert!(segments.windows(2).all(|w| w[0].end == w[1].start));
-        assert!((segments[15].end - 0.96).abs() < 1e-9);
+        assert_scalar_close(segments[15].end, 0.96, 1e-9);
     }
 
     /// Under `endpoint`, windows of silence are never decoded, and what is
@@ -1483,8 +1487,8 @@ mod tests {
             run(&mut ctx, &samples, &[samples.len()]);
             ctx.engine_state().last_level.unwrap()
         };
-        assert!((level(LevelPolicy::PerWindow) - 0.2).abs() < 1e-6);
-        assert!((level(LevelPolicy::Running) - 0.9).abs() < 1e-6);
+        assert_scalar_close(level(LevelPolicy::PerWindow), 0.2, 1e-6);
+        assert_scalar_close(level(LevelPolicy::Running), 0.9, 1e-6);
     }
 
     const FRAME: usize = 4;
@@ -1746,7 +1750,7 @@ mod tests {
 
         let first = &committed(&events)[0];
         let at = StreamClock::uniform(RATE).time_at(4 * HOP);
-        assert!((first.start - at).abs() < 1e-9, "{first:?}");
+        assert_scalar_close(first.start, at, 1e-9);
     }
 
     /// An engine that returns fewer decodes than it was asked for is an

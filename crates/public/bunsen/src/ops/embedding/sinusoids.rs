@@ -52,19 +52,23 @@ pub fn sinusoid_table(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        assert_scalar_close,
+        cpu_device,
+        tensor_to_vec_as,
+    };
 
     #[test]
     fn test_sinusoid_table() {
         let table = sinusoid_table(3, 6, 10000.0, &cpu_device());
         assert_eq!(table.dims(), [3, 6]);
-        let v: Vec<f32> = table.into_data().try_into_vec_as::<f32>().unwrap();
+        let v: Vec<f32> = tensor_to_vec_as::<f32, _>(&table);
         // Position 0: sines 0, cosines 1.
         assert_eq!(&v[..6], &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
         // Frequencies 1, 10000^(-1/2), 10000^-1.
         let expected = [1f32.sin(), 0.01f32.sin(), 0.0001f32.sin()];
         for (a, b) in v[6..9].iter().zip(expected) {
-            assert!((a - b).abs() < 1e-6, "{a} != {b}");
+            assert_scalar_close(*a, b, 1e-6);
         }
     }
 }

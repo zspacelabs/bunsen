@@ -38,7 +38,11 @@ use bunsen::{
     },
     support::{
         audio::load_audio_mono_sr,
-        testing::cpu_device,
+        testing::{
+            assert_scalar_close,
+            cpu_device,
+            tensor_to_vec_as,
+        },
     },
 };
 #[cfg(feature = "reference")]
@@ -114,7 +118,7 @@ fn record() -> RecordedVoiceActivity {
         sample_rate,
         chunk_size: chunk,
         samples,
-        probabilities: probs.to_data().try_into_vec_as::<f32>().unwrap(),
+        probabilities: tensor_to_vec_as::<f32, _>(&probs),
     }
 }
 
@@ -173,7 +177,7 @@ mod vad_16k {
 
             assert_eq!(parts.len(), whole.len());
             for (a, b) in parts.iter().zip(&whole) {
-                assert!((a - b).abs() < 1e-5, "{a} != {b}");
+                assert_scalar_close(*a, *b, 1e-5);
             }
             assert!(whole.iter().any(|&p| p > 0.5));
         }

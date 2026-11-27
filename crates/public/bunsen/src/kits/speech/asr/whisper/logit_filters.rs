@@ -334,7 +334,10 @@ mod tests {
     use burn::tensor::Device;
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        cpu_device,
+        tensor_to_vec_as,
+    };
 
     fn logits(
         rows: &[&[f32]],
@@ -347,7 +350,7 @@ mod tests {
 
     fn to_rows(t: Tensor<2>) -> Vec<Vec<f32>> {
         let [rows, vocab] = t.dims();
-        let flat = t.to_data().try_to_vec_as::<f32>().unwrap();
+        let flat = tensor_to_vec_as::<f32, _>(&t);
         flat.chunks(vocab).map(|c| c.to_vec()).collect::<Vec<_>>()[..rows].to_vec()
     }
 

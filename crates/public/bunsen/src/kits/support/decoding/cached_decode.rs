@@ -153,7 +153,10 @@ mod tests {
             GreedySearch,
             SuppressTokens,
         },
-        support::testing::cpu_device,
+        support::testing::{
+            cpu_device,
+            int_tensor_to_vec,
+        },
     };
 
     /// A model whose next token is always the last fed plus one, its state
@@ -170,7 +173,7 @@ mod tests {
             ids: Tensor<2, Int>,
             state: &mut Self::State,
         ) -> Tensor<2> {
-            let fed: Vec<i64> = ids.into_data().try_into_vec_as::<i64>().unwrap();
+            let fed: Vec<i64> = int_tensor_to_vec(&ids);
             let mut data = vec![0f32; fed.len() * self.vocab];
             for (row, &id) in fed.iter().enumerate() {
                 state[row].push(id);

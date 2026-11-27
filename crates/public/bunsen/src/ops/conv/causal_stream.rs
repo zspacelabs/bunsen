@@ -337,7 +337,10 @@ impl CausalConvTransposeStreamContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        cpu_device,
+        tensor_to_vec_as,
+    };
 
     /// `[1, 1, T]`: the frames `start..start + T`, each its own index.
     fn frames(
@@ -350,7 +353,7 @@ mod tests {
     }
 
     fn values(window: Option<Tensor<3>>) -> Vec<f32> {
-        window.map_or_else(Vec::new, |w| w.into_data().try_to_vec::<f32>().unwrap())
+        window.map_or_else(Vec::new, |w| tensor_to_vec_as::<f32, _>(&w))
     }
 
     /// `R = 4`, `s = 2`, zeros: 2 padding frames, then windows of whole

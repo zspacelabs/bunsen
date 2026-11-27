@@ -189,7 +189,11 @@ mod tests {
     use burn::prelude::TensorData;
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        cpu_device,
+        int_tensor_to_vec,
+        tensor_to_vec_as,
+    };
 
     /// Which ids of a row survive a filter.
     fn kept(
@@ -198,11 +202,7 @@ mod tests {
     ) -> Vec<usize> {
         let logits =
             Tensor::<2>::from_data(TensorData::new(row.to_vec(), [1, row.len()]), &cpu_device());
-        let out: Vec<f32> = filter
-            .apply(logits, &[], 0)
-            .into_data()
-            .try_into_vec_as::<f32>()
-            .unwrap();
+        let out: Vec<f32> = tensor_to_vec_as::<f32, _>(&filter.apply(logits, &[], 0));
         (0..row.len()).filter(|&i| out[i].is_finite()).collect()
     }
 
@@ -284,7 +284,7 @@ mod tests {
             ),
             &device,
         );
-        let ids = |t: Tensor<2, Int>| t.into_data().try_into_vec_as::<i64>().unwrap();
+        let ids = |t: Tensor<2, Int>| int_tensor_to_vec(&t);
         assert_eq!(
             ids(sample_softmax(logits.clone(), 0.0)),
             [1, 0],

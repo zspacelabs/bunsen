@@ -92,6 +92,8 @@ fn reference(clip: &std::path::Path) -> TtsVoiceReference {
 }
 
 mod zonos3_mini {
+    use bunsen::support::testing::tensor_to_vec_as;
+
     use super::*;
 
     /// The clip built into a voice; the voice's file round-trips; takes of
@@ -143,12 +145,8 @@ mod zonos3_mini {
                         .with_seed(2),
                 )
                 .unwrap();
-            let embedding: Vec<f32> = encoder
-                .embed(&speech.samples, rate)
-                .unwrap()
-                .into_data()
-                .try_into_vec::<f32>()
-                .unwrap();
+            let embedding: Vec<f32> =
+                tensor_to_vec_as::<f32, _>(&encoder.embed(&speech.samples, rate).unwrap());
             let (to_clone, to_stock) = (
                 cosine_similarity(&embedding, &clone),
                 cosine_similarity(&embedding, &stock),

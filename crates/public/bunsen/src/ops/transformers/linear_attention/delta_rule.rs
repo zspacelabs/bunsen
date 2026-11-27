@@ -402,11 +402,8 @@ mod tests {
         assert_tensors_close,
         cpu_device,
         seeded_tensor,
+        tensor_to_vec_as,
     };
-
-    fn values<const D: usize>(t: Tensor<D>) -> Vec<f64> {
-        t.into_data().try_into_vec_as::<f64>().unwrap()
-    }
 
     /// Seeded inputs of the rule's shapes: `g` in `(-1, 0)`, `β` in `(0, 1)`.
     fn inputs(
@@ -505,20 +502,20 @@ mod tests {
                 );
                 assert_eq!(out.dims(), [b, t, h, d_v]);
                 assert_eq!(state.dims(), [b, h, d_k, d_v]);
-                let start_values = values(start.clone());
+                let start_values = tensor_to_vec_as::<f64, _>(&start);
                 let (want_out, want_state) = scalar_rule(
                     dims,
-                    &values(q.clone()),
-                    &values(k.clone()),
-                    &values(v.clone()),
-                    &values(g.clone()),
-                    &values(beta.clone()),
+                    &tensor_to_vec_as::<f64, _>(&q),
+                    &tensor_to_vec_as::<f64, _>(&k),
+                    &tensor_to_vec_as::<f64, _>(&v),
+                    &tensor_to_vec_as::<f64, _>(&g),
+                    &tensor_to_vec_as::<f64, _>(&beta),
                     initial.then_some(start_values.as_slice()),
                     eps.is_some(),
                 );
                 for (got, want, what) in [
-                    (values(out), want_out, "out"),
-                    (values(state), want_state, "state"),
+                    (tensor_to_vec_as::<f64, _>(&out), want_out, "out"),
+                    (tensor_to_vec_as::<f64, _>(&state), want_state, "state"),
                 ] {
                     let worst = got
                         .iter()
@@ -576,9 +573,9 @@ mod tests {
         a: Tensor<D>,
         b: Tensor<D>,
     ) -> f64 {
-        values(a)
+        tensor_to_vec_as::<f64, _>(&a)
             .iter()
-            .zip(values(b))
+            .zip(tensor_to_vec_as::<f64, _>(&b))
             .map(|(a, b)| (a - b).abs())
             .fold(0.0, f64::max)
     }

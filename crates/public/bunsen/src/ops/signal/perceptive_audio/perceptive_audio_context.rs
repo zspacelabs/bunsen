@@ -458,6 +458,7 @@ mod tests {
             assert_tensor_close_to_vec,
             assert_tensors_close,
             performance_device,
+            tensor_to_vec_as,
         },
     };
 
@@ -665,7 +666,7 @@ mod tests {
 
         let dims = together.dims();
         let per_row = dims[1] * dims[2];
-        let together = together.to_data().try_to_vec_as::<f64>().unwrap();
+        let together = tensor_to_vec_as::<f64, _>(&together);
 
         for row in 0..batch {
             let (alone, _) = conv
@@ -674,7 +675,7 @@ mod tests {
                 .unwrap();
 
             assert_close_to_vec(
-                &alone.to_data().try_to_vec_as::<f64>().unwrap(),
+                &tensor_to_vec_as::<f64, _>(&alone),
                 &together[row * per_row..(row + 1) * per_row],
                 1e-4,
             );
@@ -790,7 +791,7 @@ mod tests {
         let x = from_rows(&host, &device);
 
         let (ext, ctx) = conv.new_context(1).t_stage_extend(x).unwrap();
-        let ext_host = ext.to_data().try_to_vec_as::<f64>().unwrap();
+        let ext_host = tensor_to_vec_as::<f64, _>(&ext);
 
         assert_eq!(ext_host.len(), pad + 1600);
 

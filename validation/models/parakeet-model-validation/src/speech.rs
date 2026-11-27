@@ -69,6 +69,8 @@ fn transcribe(
 
 #[cfg(feature = "reference")]
 mod reference_graphs_behind_bunsen_front_end {
+    use bunsen::support::testing::int_tensor_to_vec;
+
     use super::*;
 
     /// The reference graphs, behind bunsen's front end, decode what onnxruntime
@@ -98,7 +100,7 @@ mod reference_graphs_behind_bunsen_front_end {
         let encoder = reference::EncoderModel::load_pretrained(&device);
         let length = Tensor::<1, Int>::from_data(TensorData::from([frames[0] as i64]), &device);
         let (encoded, lengths) = encoder.forward(features, length);
-        let length = lengths.into_data().try_into_vec_as::<i64>().unwrap()[0] as usize;
+        let length = int_tensor_to_vec(&lengths)[0] as usize;
         assert_eq!(length, fixture.encoded_length);
         drop(encoder);
 

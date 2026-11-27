@@ -38,7 +38,10 @@ pub fn round_to_bf16<const D: usize>(x: Tensor<D>) -> Tensor<D> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        assert_scalar_close,
+        cpu_device,
+    };
 
     /// Rounding to `bf16` keeps 8 significant bits, ties to even, and leaves
     /// a value that is already `bf16` alone.
@@ -53,7 +56,7 @@ mod tests {
         assert_eq!(bf16_round(1.0 + 2f32.powi(-7)), 1.0 + 2f32.powi(-7));
         let x = 0.123_456_7f32;
         assert_eq!(bf16_round(bf16_round(x)), bf16_round(x));
-        assert!((bf16_round(x) - x).abs() <= x * 2f32.powi(-8));
+        assert_scalar_close(bf16_round(x), x, x * 2f32.powi(-8));
         assert_eq!(bf16_round(f32::INFINITY), f32::INFINITY);
         assert!(bf16_round(f32::NAN).is_nan());
     }

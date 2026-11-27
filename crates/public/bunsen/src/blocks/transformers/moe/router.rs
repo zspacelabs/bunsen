@@ -360,6 +360,7 @@ mod tests {
         support::testing::{
             assert_tensors_close,
             cpu_device,
+            int_tensor_to_vec,
             seeded_tensor,
         },
     };
@@ -373,12 +374,7 @@ mod tests {
     }
 
     fn ids(choice: &RouterChoice) -> Vec<i64> {
-        choice
-            .ids
-            .clone()
-            .into_data()
-            .try_into_vec_as::<i64>()
-            .unwrap()
+        int_tensor_to_vec(&choice.ids)
     }
 
     /// The bias moves the choice, not the weights: subtracted, it demotes

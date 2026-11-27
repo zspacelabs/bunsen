@@ -9,6 +9,8 @@ use bunsen::support::testing::{
 use super::*;
 
 mod voxtral_mini_4b_realtime_2602 {
+    use bunsen::support::testing::int_tensor_to_vec;
+
     use super::*;
 
     /// The generated audio encoder computes what onnxruntime computes for the
@@ -90,12 +92,7 @@ mod voxtral_mini_4b_realtime_2602 {
             synthetic_embeds(fixture.prefill, 0, &device),
             &empty_decoder_cache(&device),
         );
-        let argmax: Vec<i64> = logits
-            .clone()
-            .argmax(2)
-            .into_data()
-            .try_into_vec_as::<i64>()
-            .unwrap();
+        let argmax: Vec<i64> = int_tensor_to_vec(&logits.clone().argmax(2));
         assert_eq!(argmax, fixture.argmax, "prefill argmax");
         fixture
             .logits

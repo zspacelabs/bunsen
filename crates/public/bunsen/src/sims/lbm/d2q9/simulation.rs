@@ -331,6 +331,7 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
+            assert_scalar_close,
             performance_device,
         },
     };
@@ -426,8 +427,8 @@ mod tests {
             (mass - expected_mass).abs() <= 1e-4 * expected_mass,
             "mass {mass} != {expected_mass}"
         );
-        assert!((world.correct_total_mass - mass).abs() <= 1e-4 * expected_mass);
-        assert!((world.correction_term() - 1.0).abs() <= 1e-6);
+        assert_scalar_close(world.correct_total_mass, mass, 1e-4 * expected_mass);
+        assert_scalar_close(world.correction_term(), 1.0, 1e-6);
     }
 
     #[test]
@@ -459,7 +460,7 @@ mod tests {
             (mass - initial_mass).abs() <= 1e-4 * initial_mass,
             "mass drifted: {mass} vs {initial_mass}"
         );
-        assert!((world.correction_term() - 1.0).abs() <= 1e-4);
+        assert_scalar_close(world.correction_term(), 1.0, 1e-4);
 
         // The bump has spread: momentum is nonzero somewhere.
         let max_momentum: f64 = macroscopic_momentum(world.dist.clone(), world.lbm_tables.e_vec())

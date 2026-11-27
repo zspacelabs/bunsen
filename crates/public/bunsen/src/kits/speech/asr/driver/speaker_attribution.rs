@@ -161,6 +161,7 @@ impl SpeakerAttribution for TurnOverlap {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::assert_scalar_close;
 
     /// Two speakers over eight frames of 10 samples: speaker 0 talks in the
     /// first half, speaker 1 in the second.
@@ -186,7 +187,7 @@ mod tests {
         assert!(mixed.confidence < pure.confidence);
 
         // Means 0.9 and 0.1, normalized.
-        assert!((rule.attribute(&a, 100, 140).unwrap().confidence - 0.9).abs() < 1e-6);
+        assert_scalar_close(rule.attribute(&a, 100, 140).unwrap().confidence, 0.9, 1e-6);
     }
 
     #[test]
@@ -219,11 +220,11 @@ mod tests {
         let a = activity();
         let label = rule.attribute(&a, 120, 180).unwrap();
         assert_eq!(label.index, 1);
-        assert!((label.confidence - 40.0 / 60.0).abs() < 1e-6);
+        assert_scalar_close(label.confidence, 40.0 / 60.0, 1e-6);
 
         let label = rule.attribute(&a, 100, 130).unwrap();
         assert_eq!(label.index, 0);
-        assert!((label.confidence - 1.0).abs() < 1e-6);
+        assert_scalar_close(label.confidence, 1.0, 1e-6);
 
         // Nobody above the thresholds: nobody.
         let quiet = SpeakerActivity::try_new(0, 10, 2, vec![0.1; 8]).unwrap();

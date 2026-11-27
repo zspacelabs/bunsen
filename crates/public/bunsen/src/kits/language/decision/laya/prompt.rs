@@ -546,7 +546,10 @@ impl LayaModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::support::tokens::Detokenizer;
+    use crate::{
+        kits::support::tokens::Detokenizer,
+        support::testing::assert_scalar_close,
+    };
 
     /// A tokenizer of a test's own: `[CLS]` 1, `[SEP]` 2, `[MASK]` 3, `[PAD]`
     /// 0 as whole tokens; every other character its own id, `10 +` its
@@ -773,7 +776,7 @@ mod tests {
         let a = LayaAnswer::new(&choice(), vec![0.25, 0.75], 0.1);
         assert_eq!(a.answer, "close");
         let h = -(0.25f64 * 0.25f64.ln() + 0.75 * 0.75f64.ln());
-        assert!((a.confidence - (1.0 - h / 2f64.ln())).abs() < 1e-12);
+        assert_scalar_close(a.confidence, 1.0 - h / 2f64.ln(), 1e-12);
         assert_eq!(a.score, None);
         let yaml = serde_json::to_string(&a).unwrap();
         assert!(

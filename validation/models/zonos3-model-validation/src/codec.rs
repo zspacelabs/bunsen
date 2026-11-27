@@ -4,6 +4,7 @@
 use bunsen::support::testing::{
     DeviceMemoryGuard,
     performance_device,
+    tensor_to_vec_as,
 };
 
 use super::*;
@@ -38,11 +39,8 @@ fn check_cases(
         )
         .transpose()
         .unsqueeze::<3>();
-        let audio: Vec<f32> = decode(&construct, codes)
-            .cast(FloatDType::F32)
-            .into_data()
-            .try_into_vec::<f32>()
-            .unwrap();
+        let audio: Vec<f32> =
+            tensor_to_vec_as::<f32, _>(&decode(&construct, codes).cast(FloatDType::F32));
         let stats = fixture.doubles(&at("audio.stats"));
         assert_eq!(audio.len() as f64, stats[0], "{label} {case}: the samples");
         let n = audio.len() as f64;

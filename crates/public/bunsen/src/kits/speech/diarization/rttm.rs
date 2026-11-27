@@ -110,6 +110,7 @@ impl core::fmt::Display for RttmSegment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::assert_scalar_close;
 
     #[test]
     fn test_round_trip() {
@@ -138,7 +139,7 @@ mod tests {
         let back = RttmSegment::parse(&text).unwrap();
         assert_eq!(back.len(), 2);
         assert_eq!(back[1].speaker, "speaker_1");
-        assert!((back[1].end() - 5.147).abs() < 1e-9);
+        assert_scalar_close(back[1].end(), 5.147, 1e-9);
     }
 
     #[test]

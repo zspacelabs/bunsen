@@ -305,6 +305,7 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         performance_device,
+        tensor_to_vec_as,
     };
 
     #[test]
@@ -404,7 +405,7 @@ mod tests {
 
         let (rho, u) = moments(dist.clone(), &lbm_tables);
 
-        let rho_data = rho.to_data().try_to_vec_as::<f32>().unwrap();
+        let rho_data = tensor_to_vec_as::<f32, _>(&rho);
 
         u.to_data().assert_approx_eq::<f32>(
             &Tensor::<3>::from_data(

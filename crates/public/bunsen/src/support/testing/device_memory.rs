@@ -100,7 +100,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        cpu_device,
+        tensor_to_vec_as,
+    };
 
     /// The release path runs, and leaves live tensors alone.
     ///
@@ -116,9 +119,6 @@ mod tests {
             release_cached_device_memory(&device);
         }
 
-        assert_eq!(
-            tensor.into_data().try_to_vec_as::<f32>().unwrap(),
-            vec![1.0, 2.0]
-        );
+        assert_eq!(tensor_to_vec_as::<f32, _>(&tensor), vec![1.0, 2.0]);
     }
 }

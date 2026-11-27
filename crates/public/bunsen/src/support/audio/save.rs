@@ -43,7 +43,10 @@ pub fn save_wav_mono(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::audio::load_audio_mono_sr;
+    use crate::support::{
+        audio::load_audio_mono_sr,
+        testing::assert_scalar_close,
+    };
 
     /// Saved samples load back within the 16-bit step, clipped to `[-1, 1]`.
     #[test]
@@ -56,7 +59,7 @@ mod tests {
         let expected = [0.0, 0.5, -0.25, 1.0, -1.0];
         assert_eq!(loaded.len(), expected.len());
         for (got, want) in loaded.iter().zip(expected) {
-            assert!((got - want).abs() < 1e-4, "{got} vs {want}");
+            assert_scalar_close(*got, want, 1e-4);
         }
     }
 }

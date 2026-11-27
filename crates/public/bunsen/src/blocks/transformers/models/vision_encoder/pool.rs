@@ -192,7 +192,10 @@ mod tests {
     use super::*;
     use crate::{
         errors::testing::ErrorMatcher,
-        support::testing::cpu_device,
+        support::testing::{
+            cpu_device,
+            tensor_to_vec_as,
+        },
     };
 
     /// Each pool over `[1, 3, 2]` tokens, one prefix token `(9, 9)` and the
@@ -238,13 +241,7 @@ mod tests {
             &device,
         );
         let pool = TokenPool::try_new(TokenPoolConfig::Distilled, 2).unwrap();
-        assert_eq!(
-            pool.forward(tokens)
-                .into_data()
-                .try_to_vec::<f32>()
-                .unwrap(),
-            [3., 4.]
-        );
+        assert_eq!(tensor_to_vec_as::<f32, _>(&pool.forward(tokens)), [3., 4.]);
         ErrorMatcher::illegal()
             .message_contains("reads 2 prefix tokens: there are 1")
             .assert_err(&TokenPool::try_new(TokenPoolConfig::Distilled, 1));

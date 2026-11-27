@@ -453,6 +453,7 @@ mod tests {
     use crate::{
         ops::signal::kernels::window::CosineWindowConfig,
         support::testing::{
+            assert_scalar_close,
             assert_tensor_close_to_vec,
             performance_device,
             tensor_to_vec_as,
@@ -524,7 +525,7 @@ mod tests {
                 normalized_sinc(0.3 + n as f64)
             );
         }
-        assert!((normalized_sinc(0.5) - 2.0 / PI).abs() < 1e-15);
+        assert_scalar_close(normalized_sinc(0.5), 2.0 / PI, 1e-15);
     }
 
     /// The windowed kernel is the sinc at its centre, and zero at and beyond
@@ -536,7 +537,7 @@ mod tests {
         assert!(kernel.at(6.0).abs() < 1e-30);
         assert_eq!(kernel.at(6.5), 0.0);
         let expected = normalized_sinc(0.5) * (PI / 24.0).cos().powi(2);
-        assert!((kernel.at(0.5) - expected).abs() < 1e-15);
+        assert_scalar_close(kernel.at(0.5), expected, 1e-15);
     }
 
     /// The geometry, as `torchaudio` sizes it: 24 kHz to 16 kHz is 3:2, a

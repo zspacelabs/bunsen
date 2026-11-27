@@ -525,6 +525,7 @@ mod tests {
             DeviceMemoryGuard,
             cpu_device,
             performance_device,
+            tensor_to_vec_as,
         },
     };
 
@@ -587,7 +588,7 @@ mod tests {
         // The stored window is right-padded from win_len to fft_size, with
         // the coefficients at the frame start and zeros in the tail.
         assert_eq!(coef.window.dims(), [64]);
-        let window: Vec<f64> = coef.window.to_data().try_into_vec_as::<f64>().unwrap();
+        let window: Vec<f64> = tensor_to_vec_as::<f64, _>(&coef.window);
         let host = cfg.window.to_vec_window(48);
         for (n, (&w, &h)) in window.iter().zip(&host).enumerate() {
             assert!((w - h).abs() <= 1e-6, "window[{n}]: {w} vs {h}");

@@ -2,6 +2,8 @@
 use burn::Tensor;
 use serde::Deserialize;
 
+use crate::support::testing::tensor_to_vec_as;
+
 /// A reference tensor, recorded compactly: its shape, two sums, and every
 /// `stride`-th element of its row-major flattening.
 ///
@@ -106,10 +108,7 @@ impl TensorRecord {
         &self,
         actual: Tensor<D>,
     ) -> Vec<f32> {
-        actual
-            .into_data()
-            .try_into_vec_as::<f32>()
-            .expect("read back f32 values")
+        tensor_to_vec_as::<f32, _>(&actual)
     }
 
     /// The largest absolute sample difference in `values`.

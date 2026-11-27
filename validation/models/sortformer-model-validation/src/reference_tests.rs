@@ -9,6 +9,8 @@ use bunsen::support::testing::{
 use super::*;
 
 mod nemotron_3_diarization {
+    use bunsen::support::testing::int_tensor_to_vec;
+
     use super::*;
 
     /// The generated streaming step computes what onnxruntime computes for the
@@ -37,7 +39,7 @@ mod nemotron_3_diarization {
                 graph_length(step.fifo_valid, &device),
             );
 
-            let lengths: Vec<i64> = lengths.into_data().try_into_vec_as::<i64>().unwrap();
+            let lengths: Vec<i64> = int_tensor_to_vec(&lengths);
             assert_eq!(lengths, step.chunk_pre_encode_lengths, "{what}: lengths");
             step.preds_diar
                 .assert_matches(&format!("{what}: preds_diar"), preds, 1e-3, 1e-4);
@@ -54,6 +56,8 @@ mod nemotron_3_diarization {
 }
 
 mod sortformer_v2_1 {
+    use bunsen::support::testing::int_tensor_to_vec;
+
     use super::*;
 
     /// The generated v2.1 step computes what onnxruntime computes for the same
@@ -86,7 +90,7 @@ mod sortformer_v2_1 {
                 graph_length(step.fifo_valid, &device),
             );
 
-            let lengths: Vec<i64> = lengths.into_data().try_into_vec_as::<i64>().unwrap();
+            let lengths: Vec<i64> = int_tensor_to_vec(&lengths);
             assert_eq!(lengths, step.chunk_pre_encode_lengths, "{what}: lengths");
             let preds = step
                 .preds

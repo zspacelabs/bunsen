@@ -27,6 +27,7 @@ use crate::{
     support::testing::{
         ToyFixture,
         assert_io_close,
+        assert_scalar_close,
         performance_device,
     },
 };
@@ -148,9 +149,5 @@ fn test_short_clip() {
     assert!(format!("{err}").contains("100 samples"), "{err}");
     let prepared = model.prepare(&[0.5; 48_000], 48_000);
     assert_eq!(prepared.len(), 16_000, "resampled to 16 kHz");
-    assert!(
-        (prepared[8000] - 16391.64).abs() < 0.05,
-        "{}",
-        prepared[8000]
-    );
+    assert_scalar_close(prepared[8000], 16391.64, 0.05);
 }

@@ -29,6 +29,7 @@ use bunsen::{
     },
     support::testing::{
         DeviceMemoryGuard,
+        int_tensor_to_vec,
         performance_device,
     },
 };
@@ -126,14 +127,13 @@ fn greedy_reference(
         let tokens: Tensor<2, Int> =
             Tensor::from_data(TensorData::new(prefix.clone(), [1, len]), device);
 
-        let picked: Vec<i64> = decoder
-            .forward(tokens, xa.clone())
-            .0
-            .slice_dim(1, (len - 1) as isize..len as isize)
-            .argmax(2)
-            .into_data()
-            .try_into_vec_as::<i64>()
-            .unwrap();
+        let picked: Vec<i64> = int_tensor_to_vec(
+            &decoder
+                .forward(tokens, xa.clone())
+                .0
+                .slice_dim(1, (len - 1) as isize..len as isize)
+                .argmax(2),
+        );
 
         if picked[0] == config.eot_token {
             break;

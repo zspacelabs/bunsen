@@ -18,6 +18,8 @@ use super::*;
 const EXPORT_DELAY: usize = 6;
 
 mod voxtral_mini_4b_realtime_2602 {
+    use bunsen::support::testing::int_tensor_to_vec;
+
     use super::*;
 
     /// bunsen's audio encoder and projector compute what the published encoder
@@ -84,12 +86,7 @@ mod voxtral_mini_4b_realtime_2602 {
             &cond,
             Some(&mut cache),
         ));
-        let argmax: Vec<i64> = logits
-            .clone()
-            .argmax(2)
-            .into_data()
-            .try_into_vec_as::<i64>()
-            .unwrap();
+        let argmax: Vec<i64> = int_tensor_to_vec(&logits.clone().argmax(2));
         assert_eq!(argmax, d.argmax, "prefill argmax");
         let error = d
             .logits

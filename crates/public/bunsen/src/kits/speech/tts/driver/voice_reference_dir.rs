@@ -279,7 +279,10 @@ mod tests {
     use super::*;
     use crate::{
         errors::BunsenErrorKind,
-        support::audio::save_wav_mono,
+        support::{
+            audio::save_wav_mono,
+            testing::assert_scalar_close,
+        },
     };
 
     fn clip(
@@ -312,7 +315,7 @@ mod tests {
         assert_eq!(reference.clips.len(), 2);
         assert_eq!(reference.clips[0].record.samples, 1600);
         assert_eq!(reference.clips[1].sample_rate(), 16_000);
-        assert!((reference.seconds() - 0.15).abs() < 1e-9);
+        assert_scalar_close(reference.seconds(), 0.15, 1e-9);
         assert_eq!(fs::read(&a).unwrap(), fs::read(dir.join("a.wav")).unwrap());
         let again = TtsVoiceReference::read_dir(&dir).unwrap();
         assert_eq!(again, reference);

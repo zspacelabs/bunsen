@@ -380,6 +380,7 @@ impl Zonos3PromptConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::int_tensor_to_vec;
 
     const PAD: u32 = 9;
 
@@ -452,15 +453,7 @@ mod tests {
         assert_eq!(prompt.ids(&device).dims(), [1, 8, 4]);
         let rows = prompt.conditioning(&device);
         assert_eq!(rows.speaker.unwrap().0, 0);
-        assert_eq!(
-            rows.conditions
-                .unwrap()
-                .1
-                .into_data()
-                .try_into_vec_as::<i64>()
-                .unwrap(),
-            [1, 6]
-        );
+        assert_eq!(int_tensor_to_vec(&rows.conditions.unwrap().1), [1, 6]);
     }
 
     /// A reference prefix: the first frames only, sheared and flushed with

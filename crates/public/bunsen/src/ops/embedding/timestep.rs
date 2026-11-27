@@ -56,27 +56,26 @@ pub fn timestep_embedding(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        assert_scalar_close,
+        cpu_device,
+        tensor_to_vec_as,
+    };
 
     #[test]
     fn test_timestep_embedding() {
         let e = timestep_embedding(6.0, 8, 10_000.0, &cpu_device());
-        let values: Vec<f32> = e.into_data().try_into_vec_as::<f32>().unwrap();
+        let values: Vec<f32> = tensor_to_vec_as::<f32, _>(&e);
         let f: Vec<f64> = (0..4)
             .map(|i| (-(10_000f64).ln() * i as f64 / 4.0).exp())
             .collect();
         for i in 0..4 {
-            assert!((values[i] as f64 - (6.0 * f[i]).cos()).abs() < 1e-6, "{i}");
-            assert!(
-                (values[4 + i] as f64 - (6.0 * f[i]).sin()).abs() < 1e-6,
-                "{i}"
-            );
+            assert_scalar_close(values[i] as f64, (6.0 * f[i]).cos(), 1e-6);
+            assert_scalar_close(values[4 + i] as f64, (6.0 * f[i]).sin(), 1e-6);
         }
         // At t = 0 every cosine is 1 and every sine 0.
-        let zero: Vec<f32> = timestep_embedding(0.0, 6, 10_000.0, &cpu_device())
-            .into_data()
-            .try_into_vec_as::<f32>()
-            .unwrap();
+        let zero: Vec<f32> =
+            tensor_to_vec_as::<f32, _>(&timestep_embedding(0.0, 6, 10_000.0, &cpu_device()));
         assert_eq!(zero, [1.0, 1.0, 1.0, 0.0, 0.0, 0.0]);
     }
 }

@@ -243,7 +243,10 @@ impl LogitFilter for RepetitionPenalty {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::support::testing::{
+        cpu_device,
+        tensor_to_vec_as,
+    };
 
     /// `filter` over `rows`, read back.
     fn filtered(
@@ -254,11 +257,7 @@ mod tests {
     ) -> Vec<Vec<f32>> {
         let flat: Vec<f32> = rows.iter().flatten().copied().collect();
         let logits = Tensor::<2>::from_data(TensorData::new(flat, [rows.len(), 4]), &cpu_device());
-        let out: Vec<f32> = filter
-            .apply(logits, tokens, prompt_len)
-            .into_data()
-            .try_into_vec_as::<f32>()
-            .unwrap();
+        let out: Vec<f32> = tensor_to_vec_as::<f32, _>(&filter.apply(logits, tokens, prompt_len));
         out.chunks(4).map(<[f32]>::to_vec).collect()
     }
 
@@ -309,9 +308,7 @@ mod tests {
         let row =
             |n: usize| Tensor::<2>::from_data(TensorData::new(vec![1.0f32; n], [1, n]), &device);
         let kept = |out: Tensor<2>| -> Vec<bool> {
-            out.into_data()
-                .try_into_vec_as::<f32>()
-                .unwrap()
+            tensor_to_vec_as::<f32, _>(&out)
                 .iter()
                 .map(|x| x.is_finite())
                 .collect()

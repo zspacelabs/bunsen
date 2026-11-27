@@ -613,7 +613,9 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
+            assert_scalar_close,
             performance_device,
+            tensor_to_vec_as,
         },
     };
 
@@ -679,15 +681,12 @@ mod tests {
             assert_eq!(rounded.apply(x.cast(DType::BF16)).dtype(), DType::BF16);
         }
         for (e, r) in [(exact.cos, rounded.cos), (exact.sin, rounded.sin)] {
-            let e = e.into_data().try_to_vec::<f32>().unwrap();
-            let r = r.cast(DType::F32).into_data().try_to_vec::<f32>().unwrap();
+            let e = tensor_to_vec_as::<f32, _>(&e);
+            let r = tensor_to_vec_as::<f32, _>(&r.cast(DType::F32));
             assert!(e != r, "rounding changed nothing");
             for (e, r) in e.iter().zip(&r) {
                 assert_eq!(bf16::from_f32(*r).to_f32(), *r, "{r} is not a bf16 value");
-                assert!(
-                    (e - r).abs() <= e.abs() * 2f32.powi(-8) + 1e-30,
-                    "{e} -> {r}"
-                );
+                assert_scalar_close(*e, *r, e.abs() * 2f32.powi(-8) + 1e-30);
             }
         }
     }
@@ -786,7 +785,7 @@ mod tests {
             let rotary: RotaryEmbedding = RotaryEmbeddingConfig::new(8, 4)
                 .with_base(base)
                 .init(&device);
-            rotary.cos.into_data().try_to_vec::<f32>().unwrap()
+            tensor_to_vec_as::<f32, _>(&rotary.cos)
         };
         assert_ne!(tables(10.5), tables(10.0));
     }
@@ -938,12 +937,7 @@ mod tests {
                 .with_direction(RotaryDirection::Forward)
                 .with_pair_layout(layout)
                 .init(&device);
-            let y: Vec<f32> = re
-                .apply(x.clone())
-                .slice_dim(1, 1..2)
-                .into_data()
-                .try_into_vec_as::<f32>()
-                .unwrap();
+            let y: Vec<f32> = tensor_to_vec_as::<f32, _>(&re.apply(x.clone()).slice_dim(1, 1..2));
             for (y, e) in y.iter().zip(expected) {
                 assert!((y - e).abs() < 1e-6, "{layout:?}: {y:?} vs {expected:?}");
             }
@@ -1013,11 +1007,7 @@ mod tests {
             let re: RotaryEmbedding = RotaryEmbeddingConfig::new(2, 2)
                 .with_direction(direction)
                 .init(&device);
-            let y: Vec<f32> = re
-                .apply(x.clone())
-                .into_data()
-                .try_into_vec_as::<f32>()
-                .unwrap();
+            let y: Vec<f32> = tensor_to_vec_as::<f32, _>(&re.apply(x.clone()));
             assert!((y[2] - 1f32.cos()).abs() < 1e-6, "{direction:?}: {y:?}");
             assert!(
                 (y[3] - sign * 1f32.sin()).abs() < 1e-6,

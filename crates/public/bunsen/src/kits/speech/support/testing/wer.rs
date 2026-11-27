@@ -186,9 +186,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::kits::support::text::{
-        BunsenLanguageTag,
-        TextNormalizerChain,
+    use crate::{
+        kits::support::text::{
+            BunsenLanguageTag,
+            TextNormalizerChain,
+        },
+        support::testing::assert_scalar_close,
     };
 
     /// Speaks one number, as a normalizer that verbalizes would.
@@ -246,15 +249,15 @@ mod tests {
 
         // One substitution out of seven.
         let sub = words("we choose to go to the sun");
-        assert!((word_error_rate(&sub, &refr) - 1.0 / 7.0).abs() < 1e-12);
+        assert_scalar_close(word_error_rate(&sub, &refr), 1.0 / 7.0, 1e-12);
 
         // One deletion out of seven.
         let del = words("we choose to go to moon");
-        assert!((word_error_rate(&del, &refr) - 1.0 / 7.0).abs() < 1e-12);
+        assert_scalar_close(word_error_rate(&del, &refr), 1.0 / 7.0, 1e-12);
 
         // One insertion out of seven.
         let ins = words("we choose to go to the big moon");
-        assert!((word_error_rate(&ins, &refr) - 1.0 / 7.0).abs() < 1e-12);
+        assert_scalar_close(word_error_rate(&ins, &refr), 1.0 / 7.0, 1e-12);
     }
 
     #[test]
@@ -279,7 +282,7 @@ mod tests {
         // Speaker B's words given to A: missing from B and inserted into A,
         // two errors each.
         let merged = [t("x", "we choose to go to the moon")];
-        assert!((cp_word_error_rate(&reference, &merged) - 4.0 / 7.0).abs() < 1e-12);
+        assert_scalar_close(cp_word_error_rate(&reference, &merged), 4.0 / 7.0, 1e-12);
 
         // A third hypothesis speaker costs all its words.
         let extra = [
@@ -287,7 +290,7 @@ mod tests {
             t("y", "to go"),
             t("z", "applause"),
         ];
-        assert!((cp_word_error_rate(&reference, &extra) - 1.0 / 7.0).abs() < 1e-12);
+        assert_scalar_close(cp_word_error_rate(&reference, &extra), 1.0 / 7.0, 1e-12);
 
         assert_eq!(cp_word_error_rate(&[], &[]), 0.0);
     }
