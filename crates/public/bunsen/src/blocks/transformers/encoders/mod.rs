@@ -35,6 +35,13 @@ pub mod conformer;
 
 mod encoder_transformer;
 mod subsampled;
+/// Encoder stacks to test with: [`rope_stack`](testing::rope_stack), a
+/// toy-width pre-norm rotary stack.
+///
+/// This module exists with the `testing` feature, and in bunsen's own unit
+/// tests.
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
 
 pub use encoder_transformer::*;
 pub use subsampled::*;

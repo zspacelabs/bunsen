@@ -253,7 +253,7 @@ mod tests {
                     ConformerBlockConfig,
                     ConformerTransformerConfig,
                 },
-                encoder_transformer::test_rope_stack,
+                testing::rope_stack,
             },
         },
         support::testing::cpu_device,
@@ -306,7 +306,7 @@ mod tests {
         let device = cpu_device();
         let stacking = SubsampledEncoderConfig::new(
             EncoderSubsamplingConfig::Stacking(FeatureStackingConfig::new(6, 8).with_factor(2)),
-            test_rope_stack(8, 2, 1).into(),
+            rope_stack(8, 2, 1).into(),
         );
         for config in [conformer(BoundaryPermutes::SWAP_IN), stacking] {
             let encoder: SubsampledEncoder = config.init(&device);
@@ -332,7 +332,7 @@ mod tests {
     fn test_widths_must_agree() {
         let config = SubsampledEncoderConfig::new(
             EncoderSubsamplingConfig::Stacking(FeatureStackingConfig::new(6, 16).with_factor(2)),
-            test_rope_stack(8, 2, 1).into(),
+            rope_stack(8, 2, 1).into(),
         );
         assert!(config.try_init(&cpu_device()).is_err());
     }
