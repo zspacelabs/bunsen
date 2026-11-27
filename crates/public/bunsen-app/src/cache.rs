@@ -5,9 +5,12 @@
 //! weights (one that keeps converted weights by default passes its command
 //! through [`converted_weights_by_default`]), and mounts [`CacheCommand`] as
 //! a `cache` subcommand:
-//! `cache path`, `cache list [NAME]`, and
+//! `cache path`, `cache list [NAME]`,
 //! `cache clear [NAME] [--partial] [--age AGE] [--yes]`, `NAME` selecting the
-//! files cached under a name (`qwen`, `openai/whisper/base`, `hf/openai`).
+//! files cached under a name (`qwen`, `openai/whisper/base`, `hf/openai`), and
+//! `cache gc [--max-age AGE] [--max-cache SIZE] [--keep-shadowed]
+//! [--keep-stale-converted] [--yes]`, collecting what no load needs
+//! ([`ResourceCache::gc_plan`]).
 use std::{
     io::Write,
     path::PathBuf,
@@ -21,8 +24,11 @@ use bunsen::{
     data::{
         cache::BunsenDiskCacheOptions,
         resources::{
+            CacheGcOptions,
             CacheSelector,
             CachedFile,
+            DEFAULT_GC_MAX_AGE,
+            GcPlan,
             ResourceCache,
             ResourceCacheOptions,
         },
@@ -189,6 +195,53 @@ pub enum CacheAction {
         #[arg(long)]
         yes: bool,
     },
+
+    /// Remove what no load needs; without `--yes`, only list what would go.
+    ///
+    /// Each file the first reason that holds: unfinished downloads, always;
+    /// converted copies no load of this bunsen reads (another version's, or
+    /// from before copies had manifests); files not loaded within
+    /// `--max-age`; a checkpoint every converted copy standing for it is
+    /// newer than (it was not read since); then, with `--max-cache`, the
+    /// least recently used until the rest fits. A copy and its manifest go
+    /// together. Only the cache's own files: never a local directory's.
+    Gc {
+        /// Remove files not loaded for this long (`7d`), or `none`.
+        ///
+        /// A count and a unit (`90m`, `12h`, `7d`, `2w`); `none` keeps files
+        /// whatever their age. Units: `s`, `m`, `h`, `d`, `w`. A file whose
+        /// last use the file system does not record is kept.
+        #[arg(long, value_parser = parse_max_age, default_value = "7d")]
+        max_age: MaxAge,
+
+        /// Then remove the least recently used until the cache fits this size.
+        ///
+        /// A count and a decimal unit: `500M`, `50G`, `1.5T`.
+        #[arg(long, value_parser = parse_size)]
+        max_cache: Option<u64>,
+
+        /// Keep checkpoints that converted copies stand for.
+        #[arg(long)]
+        keep_shadowed: bool,
+
+        /// Keep converted copies no load of this bunsen reads.
+        #[arg(long)]
+        keep_stale_converted: bool,
+
+        /// Remove them.
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
+/// `cache gc --max-age`: a maximum age, or none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MaxAge(pub Option<Duration>);
+
+impl Default for MaxAge {
+    fn default() -> Self {
+        Self(Some(DEFAULT_GC_MAX_AGE))
+    }
 }
 
 impl CacheCommand {
@@ -271,8 +324,73 @@ impl CacheAction {
                 )
                 .map_err(w)
             }
+            CacheAction::Gc {
+                max_age,
+                max_cache,
+                keep_shadowed,
+                keep_stale_converted,
+                yes,
+            } => {
+                let options = CacheGcOptions::default()
+                    .with_max_age(max_age.0)
+                    .with_max_cache(*max_cache)
+                    .with_shadowed(!keep_shadowed)
+                    .with_stale_converted(!keep_stale_converted);
+                let plan = cache.gc_plan(&options, SystemTime::now())?;
+                let kept = summary(&plan.keep);
+                if plan.remove.is_empty() {
+                    return writeln!(out, "nothing to collect; keeping {kept}").map_err(w);
+                }
+                write_gc_table(&plan, out).map_err(sys_at("write to", "stdout"))?;
+                let files = plan.files();
+                if !yes {
+                    return writeln!(
+                        out,
+                        "{} would be removed, keeping {kept}; pass --yes to remove them",
+                        summary(&files)
+                    )
+                    .map_err(w);
+                }
+                let freed = cache.remove_cached(&files)?;
+                writeln!(
+                    out,
+                    "removed {} file{}, {}; kept {kept}",
+                    files.len(),
+                    if files.len() == 1 { "" } else { "s" },
+                    human_bytes(freed)
+                )
+                .map_err(w)
+            }
         }
     }
+}
+
+/// `--max-age`: an age as [`parse_age`] reads it, or `none`.
+fn parse_max_age(text: &str) -> Result<MaxAge, String> {
+    if text == "none" {
+        return Ok(MaxAge(None));
+    }
+    parse_age(text).map(|age| MaxAge(Some(age)))
+}
+
+/// `--max-cache`: a size, a count (decimals allowed) and an optional decimal
+/// unit, `B`, `K`, `M`, `G` or `T` (`kB`, `MB`, `GB`, `TB` too), any case.
+fn parse_size(text: &str) -> Result<u64, String> {
+    let bad = || format!("{text:?}: a size, as 500M, 50G or 1.5T");
+    let split = text
+        .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .unwrap_or(text.len());
+    let (count, unit) = text.split_at(split);
+    let count: f64 = count.parse().map_err(|_| bad())?;
+    let scale: u64 = match unit.to_ascii_lowercase().as_str() {
+        "" | "b" => 1,
+        "k" | "kb" => 1_000,
+        "m" | "mb" => 1_000_000,
+        "g" | "gb" => 1_000_000_000,
+        "t" | "tb" => 1_000_000_000_000,
+        _ => return Err(bad()),
+    };
+    Ok((count * scale as f64) as u64)
 }
 
 /// `n files, size`.
@@ -320,6 +438,41 @@ fn write_table(
     files: &[CachedFile],
     out: &mut impl Write,
 ) -> std::io::Result<()> {
+    let rows: Vec<(&CachedFile, String)> = files.iter().map(|f| (f, String::new())).collect();
+    write_rows(&rows, None, out)
+}
+
+/// [`write_table`] for a gc plan's removals, each row led by its reason.
+fn write_gc_table(
+    plan: &GcPlan,
+    out: &mut impl Write,
+) -> std::io::Result<()> {
+    let rows: Vec<(&CachedFile, String)> = plan
+        .remove
+        .iter()
+        .map(|c| (&c.file, c.reason.to_string()))
+        .collect();
+    write_rows(&rows, Some("REASON"), out)
+}
+
+/// [`write_table`]'s rows, led by a column headed `lead` when given.
+fn write_rows(
+    rows: &[(&CachedFile, String)],
+    lead: Option<&str>,
+    out: &mut impl Write,
+) -> std::io::Result<()> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let r = lead.map_or(0, |head| {
+        rows.iter()
+            .fold(head.len(), |r, (_, reason)| r.max(reason.len()))
+    });
+    let led = |text: &str| match lead {
+        Some(_) => format!("{text:r$}  "),
+        None => String::new(),
+    };
+    let files: Vec<&CachedFile> = rows.iter().map(|(f, _)| *f).collect();
     if files.is_empty() {
         return Ok(());
     }
@@ -336,14 +489,20 @@ fn write_table(
     let [n, f] = widths;
     writeln!(
         out,
-        "{:n$}  {:f$}  {:>9}  {:16}  {:16}  PIN",
-        "NAME", "FILE", "SIZE", "FETCHED (UTC)", "LAST USED (UTC)"
+        "{}{:n$}  {:f$}  {:>9}  {:16}  {:16}  PIN",
+        led(lead.unwrap_or("")),
+        "NAME",
+        "FILE",
+        "SIZE",
+        "FETCHED (UTC)",
+        "LAST USED (UTC)"
     )?;
-    for file in files {
+    for (file, reason) in rows {
         let pin: String = file.pin.chars().take(12).collect();
         writeln!(
             out,
-            "{:n$}  {:f$}  {:>9}  {:16}  {:16}  {pin}",
+            "{}{:n$}  {:f$}  {:>9}  {:16}  {:16}  {pin}",
+            led(reason),
             file.name,
             name(file),
             human_bytes(file.bytes),
@@ -524,6 +683,79 @@ mod tests {
             cmd.action,
             CacheAction::Clear { age: Some(age), .. } if age == Duration::from_secs(2_592_000)
         ));
+    }
+
+    #[test]
+    fn test_parse_gc_flags() {
+        assert_eq!(parse_max_age("none"), Ok(MaxAge(None)));
+        assert_eq!(
+            parse_max_age("2d"),
+            Ok(MaxAge(Some(Duration::from_secs(172_800))))
+        );
+        assert!(parse_max_age("never").is_err());
+        assert_eq!(parse_size("500M"), Ok(500_000_000));
+        assert_eq!(parse_size("50gb"), Ok(50_000_000_000));
+        assert_eq!(parse_size("1.5T"), Ok(1_500_000_000_000));
+        assert_eq!(parse_size("1024"), Ok(1_024));
+        for bad in ["", "G", "5Q", "1..5G", "-5G"] {
+            assert!(parse_size(bad).is_err(), "{bad:?}");
+        }
+        let cli = Cli::try_parse_from(["x", "cache", "gc"]).unwrap();
+        let Cmd::Cache(cmd) = cli.cmd;
+        assert!(matches!(
+            cmd.action,
+            CacheAction::Gc {
+                max_age,
+                max_cache: None,
+                keep_shadowed: false,
+                keep_stale_converted: false,
+                yes: false,
+            } if max_age == MaxAge::default()
+        ));
+    }
+
+    /// `gc` lists what it would collect, each file's reason first, and with
+    /// `--yes` removes it, keeping the rest.
+    #[test]
+    fn test_gc() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path());
+        let (a, b) = ("a".repeat(64), "b".repeat(64));
+        put(&cache, &format!("m/checkpoint/{a}/w.bin.partial"), 500);
+        put(&cache, &format!("m/checkpoint/{b}/old.bin"), 1_000);
+        put(&cache, &format!("m/config/{b}/config.json"), 10);
+        let old = cache
+            .resources_dir()
+            .join(format!("m/checkpoint/{b}/old.bin"));
+        fs::File::options()
+            .write(true)
+            .open(&old)
+            .unwrap()
+            .set_modified(SystemTime::now() - Duration::from_secs(30 * 86_400))
+            .unwrap();
+
+        let gc = |yes| CacheAction::Gc {
+            max_age: MaxAge::default(),
+            max_cache: None,
+            keep_shadowed: false,
+            keep_stale_converted: false,
+            yes,
+        };
+        let shown = run(&gc(false), &cache);
+        let lines: Vec<&str> = shown.lines().collect();
+        assert!(lines[0].starts_with("REASON   NAME"), "{shown}");
+        assert!(lines[1].starts_with("partial  m/checkpoint"), "{shown}");
+        assert!(lines[2].starts_with("aged     m/checkpoint"), "{shown}");
+        assert!(
+            lines[3].starts_with("2 files, 1.5 kB would be removed, keeping 1 file, 10 B"),
+            "{shown}"
+        );
+        assert_eq!(
+            cache.cached_files(&CacheSelector::default()).unwrap().len(),
+            3
+        );
+        assert!(run(&gc(true), &cache).contains("removed 2 files, 1.5 kB; kept 1 file, 10 B"));
+        assert!(run(&gc(true), &cache).contains("nothing to collect; keeping 1 file, 10 B"));
     }
 
     /// `list` shows when each file was fetched and last loaded, in UTC;
