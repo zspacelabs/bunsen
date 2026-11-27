@@ -1,5 +1,4 @@
 use alloc::{
-    format,
     vec,
     vec::Vec,
 };
@@ -25,8 +24,9 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     kits::images::classification::swin::common::{
         SwinStages,
@@ -142,15 +142,26 @@ impl ToStructureConfig for SwinV1ContractConfig {
     fn try_to_structure(&self) -> BunsenResult<StagedVisionEncoderStructureConfig> {
         let n = self.depths.len();
         if !self.stage_window_sizes.is_empty() && self.stage_window_sizes.len() != n {
-            return Err(BunsenError::illegal(format!(
-                "SwinV1ContractConfig: {} stage windows for {n} stages",
-                self.stage_window_sizes.len()
-            )));
+            return Err(ConstraintError::new(
+                "SwinV1ContractConfig",
+                "stage_window_sizes",
+                Rule::Relation {
+                    lhs: (
+                        "stage_window_sizes.len()".into(),
+                        self.stage_window_sizes.len().to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("depths.len()".into(), n.to_string()),
+                },
+            )
+            .into());
         }
         if (0..n).any(|i| self.stage_window_size(i) == 0) {
-            return Err(BunsenError::illegal(
-                "SwinV1ContractConfig: a zero window".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(
+                "SwinV1ContractConfig",
+                "stage_window_sizes",
+            )
+            .into());
         }
         let drop_paths = swin_block_drop_paths(&self.depths, self.drop_path_rate);
         SwinStages {
@@ -251,10 +262,16 @@ mod tests {
         };
         illegal(
             SwinV1ContractConfig::new(32, 16, vec![2, 2], vec![2], 4, 10),
-            "2 stages of depths, 1 of heads",
+            "num_heads.len() (1) must be == depths.len() (2)",
         );
-        illegal(tiny().with_stage_window_sizes(vec![4]), "1 stage windows");
-        illegal(tiny().with_stage_window_sizes(vec![4, 0]), "a zero window");
+        illegal(
+            tiny().with_stage_window_sizes(vec![4]),
+            "stage_window_sizes.len() (1) must be == depths.len() (2)",
+        );
+        illegal(
+            tiny().with_stage_window_sizes(vec![4, 0]),
+            "SwinV1ContractConfig.stage_window_sizes: must not be zero",
+        );
         illegal(
             SwinV1ContractConfig {
                 image_size: 30,

@@ -12,9 +12,10 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
         ResultContext,
+        Rule,
     },
     kits::images::classification::resnet::ResNetContractConfig,
 };
@@ -72,18 +73,23 @@ impl ResNeStContractConfig {
     /// attends itself (timm's `ResNestBottleneck` refuses both).
     pub fn try_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         if self.resnet.bottleneck_policy.is_none() {
-            return Err(BunsenError::illegal(
-                "ResNeStContractConfig: a ResNeSt's blocks are bottlenecks",
-            ));
+            return Err(ConstraintError::new(
+                "ResNeStContractConfig",
+                "resnet.bottleneck_policy",
+                Rule::Missing,
+            )
+            .into());
         }
         if self.radix == 0 {
-            return Err(BunsenError::illegal("ResNeStContractConfig: a radix of 0"));
+            return Err(ConstraintError::zero_or_empty("ResNeStContractConfig", "radix").into());
         }
         if self.resnet.anti_alias.is_some() || self.resnet.attention.is_some() {
-            return Err(BunsenError::illegal(
-                "ResNeStContractConfig: a ResNeSt's blocks take no anti-aliasing or attention \
-                 of the ResNet's",
-            ));
+            return Err(ConstraintError::custom(
+                "ResNeStContractConfig",
+                "resnet",
+                "a ResNeSt's blocks take no anti-aliasing or attention of the ResNet's",
+            )
+            .into());
         }
         let mut net = self.resnet.try_to_conv_net()?;
         net.layers.mixer = ConvMixerKind::SplitAttn {
@@ -160,7 +166,7 @@ mod tests {
         };
         illegal(
             ResNeStContractConfig::new(ResNetContractConfig::new(vec![2, 2, 2, 2], 1000)),
-            "a ResNeSt's blocks are bottlenecks",
+            "resnet.bottleneck_policy: is required",
         );
         illegal(
             ResNeStContractConfig::new(

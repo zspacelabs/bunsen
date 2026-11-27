@@ -2,7 +2,6 @@
 // generic conv net.
 
 use alloc::{
-    format,
     vec,
     vec::Vec,
 };
@@ -37,9 +36,10 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
         ResultContext,
+        Rule,
     },
     support::math::make_divisible,
 };
@@ -212,26 +212,36 @@ impl ResNetV2ContractConfig {
     /// builds its bottlenecks whatever `basic` says).
     pub fn try_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         if self.layers.len() != self.channels.len() {
-            return Err(BunsenError::illegal(format!(
-                "ResNetV2ContractConfig: {} stages of layers and {} of channels",
-                self.layers.len(),
-                self.channels.len()
-            )));
+            return Err(ConstraintError::new(
+                "ResNetV2ContractConfig",
+                "channels",
+                Rule::Relation {
+                    lhs: ("channels.len()".into(), self.channels.len().to_string()),
+                    op: "==",
+                    rhs: ("layers.len()".into(), self.layers.len().to_string()),
+                },
+            )
+            .into());
         }
         if self.layers.is_empty() && self.preact {
-            return Err(BunsenError::illegal(
-                "ResNetV2ContractConfig: a pre-activation net of no stages, its stem's conv bare",
-            ));
+            return Err(ConstraintError::custom(
+                "ResNetV2ContractConfig",
+                "layers",
+                "a pre-activation net of no stages, its stem's conv bare",
+            )
+            .into());
         }
         let unit = match (self.preact, self.basic) {
             (true, true) => ConvUnitKind::PreBasic,
             (true, false) => ConvUnitKind::PreBottleneck,
             (false, false) => ConvUnitKind::Bottleneck,
             (false, true) => {
-                return Err(BunsenError::illegal(
-                    "ResNetV2ContractConfig: basic units on a net that is not pre-activation; \
-                     timm's are bottlenecks",
-                ));
+                return Err(ConstraintError::custom(
+                    "ResNetV2ContractConfig",
+                    "basic",
+                    "basic units on a net that is not pre-activation; timm's are bottlenecks",
+                )
+                .into());
             }
         };
         let stages = self
@@ -431,7 +441,7 @@ mod tests {
     fn test_illegal_policies() {
         let illegal = || ErrorMatcher::illegal();
         illegal()
-            .message_contains("3 stages of layers and 4 of channels")
+            .message_contains("channels.len() (4) must be == layers.len() (3)")
             .assert_err(&ResNetV2ContractConfig::new(vec![3, 4, 6], 1000).try_to_structure());
         illegal()
             .message_contains("a pre-activation net of no stages")

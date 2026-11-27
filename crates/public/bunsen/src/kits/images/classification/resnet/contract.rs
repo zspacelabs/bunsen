@@ -32,6 +32,9 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
+        WithOkOrPanic,
     },
 };
 
@@ -229,16 +232,19 @@ impl ResNetContractConfig {
     /// replaced stem pool with anti-aliasing.
     pub fn try_to_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         if self.layers.is_empty() {
-            return Err(BunsenError::illegal(
-                "ResNetContractConfig: a ResNet has at least one stage",
-            ));
+            return Err(ConstraintError::zero_or_empty("ResNetContractConfig", "layers").into());
         }
         if self.channels.len() != self.layers.len() {
-            return Err(BunsenError::illegal(format!(
-                "ResNetContractConfig: {} channels for {} stages; one width per stage",
-                self.channels.len(),
-                self.layers.len()
-            )));
+            return Err(ConstraintError::new(
+                "ResNetContractConfig",
+                "channels",
+                Rule::Relation {
+                    lhs: ("channels.len()".into(), self.channels.len().to_string()),
+                    op: "==",
+                    rhs: ("layers.len()".into(), self.layers.len().to_string()),
+                },
+            )
+            .into());
         }
         let stages = self
             .layers
@@ -316,7 +322,7 @@ impl ResNetContractConfig {
     ///
     /// When it is not.
     pub fn to_conv_net(&self) -> ConvNetContractConfig {
-        self.try_to_conv_net().unwrap_or_else(|e| panic!("{e}"))
+        self.try_to_conv_net().ok_or_panic()
     }
 }
 
@@ -457,7 +463,7 @@ mod tests {
             .with_channels(vec![])
             .try_init(&device);
         illegal()
-            .message_contains("a ResNet has at least one stage")
+            .constraint("ResNetContractConfig", "layers")
             .assert_err(&none);
         let empty: BunsenResult<ConvNetModel> = ResNetContractConfig::new(vec![1, 0], 7)
             .with_channels(vec![8, 16])
@@ -468,7 +474,7 @@ mod tests {
         let unmatched: BunsenResult<ConvNetModel> =
             ResNetContractConfig::new(vec![1, 1], 7).try_init(&device);
         illegal()
-            .message_contains("4 channels for 2 stages")
+            .message_contains("channels.len() (4) must be == layers.len() (2)")
             .assert_err(&unmatched);
     }
 

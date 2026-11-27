@@ -53,9 +53,10 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
         ResultContext,
+        Rule,
     },
     kits::images::classification::resnetv2::{
         BIT_STD_CONV_EPSILON,
@@ -387,10 +388,19 @@ impl ToStructureConfig for ViTContractConfig {
             .as_ref()
             .map(|backbone| -> BunsenResult<VisionBackboneConfig> {
                 if backbone.in_channels != self.in_channels {
-                    return Err(BunsenError::illegal(format!(
-                        "ViTContractConfig: {} image channels, its backbone's {}",
-                        self.in_channels, backbone.in_channels
-                    )));
+                    return Err(ConstraintError::new(
+                        "ViTContractConfig",
+                        "backbone.in_channels",
+                        Rule::Relation {
+                            lhs: (
+                                "backbone.in_channels".into(),
+                                backbone.in_channels.to_string(),
+                            ),
+                            op: "==",
+                            rhs: ("in_channels".into(), self.in_channels.to_string()),
+                        },
+                    )
+                    .into());
                 }
                 Ok(VisionBackboneConfig::new(
                     backbone.try_to_structure()?,
@@ -410,33 +420,52 @@ impl ToStructureConfig for ViTContractConfig {
         patch_embed
             .try_validate()
             .context("ViTContractConfig's patches")?;
-        if heads == 0 || d % heads != 0 {
-            return Err(BunsenError::illegal(format!(
-                "ViTContractConfig: {heads} heads don't divide a width of {d}"
-            )));
+        if heads == 0 {
+            return Err(ConstraintError::zero_or_empty("ViTContractConfig", "num_heads").into());
+        }
+        if !d.is_multiple_of(heads) {
+            return Err(ConstraintError::new(
+                "ViTContractConfig",
+                "embed_dim",
+                Rule::NotMultiple {
+                    value: d,
+                    of: format!("num_heads ({heads})"),
+                },
+            )
+            .into());
         }
         if self.global_pool == TokenPoolConfig::Token && !self.class_token {
-            return Err(BunsenError::illegal(
-                "ViTContractConfig: the class-token pool needs a class token",
-            ));
+            return Err(ConstraintError::custom(
+                "ViTContractConfig",
+                "class_token",
+                "the class-token pool needs a class token",
+            )
+            .into());
         }
         if self.scale_mlp_norm && self.mlp_layer != ViTMlpLayer::Mlp {
-            return Err(BunsenError::illegal(format!(
-                "ViTContractConfig: the MLP's hidden norm (scale_mlp_norm) is a plain MLP's, not \
-                 {:?}'s",
-                self.mlp_layer
-            )));
+            return Err(ConstraintError::custom(
+                "ViTContractConfig",
+                "scale_mlp_norm",
+                format!(
+                    "the MLP's hidden norm is a plain MLP's, not {:?}'s",
+                    self.mlp_layer
+                ),
+            )
+            .into());
         }
         if self.mlp_layer == ViTMlpLayer::SwiGluPacked && !self.mlp_hidden().is_multiple_of(2) {
-            return Err(BunsenError::illegal(format!(
-                "ViTContractConfig: a packed SwiGLU halves its hidden width, {}",
-                self.mlp_hidden()
-            )));
+            return Err(ConstraintError::new(
+                "ViTContractConfig",
+                "mlp_ratio",
+                Rule::NotMultiple {
+                    value: self.mlp_hidden(),
+                    of: "2, as a packed SwiGLU halves its hidden width".into(),
+                },
+            )
+            .into());
         }
         if self.depth == 0 {
-            return Err(BunsenError::illegal(
-                "ViTContractConfig: a ViT has at least one layer",
-            ));
+            return Err(ConstraintError::zero_or_empty("ViTContractConfig", "depth").into());
         }
         let fc_norm = self.uses_fc_norm();
         let tokens = self.tokens(patch_embed.num_patches());
@@ -576,12 +605,12 @@ mod tests {
         );
         illegal(
             ViTContractConfig::new(16, 4, 8, 2, 3, 5),
-            "3 heads don't divide a width of 8",
+            "embed_dim: 8 is not a multiple of num_heads (3)",
         );
         illegal(tiny().with_class_token(false), "needs a class token");
         illegal(
             ViTContractConfig::new(16, 4, 8, 0, 2, 5),
-            "at least one layer",
+            "ViTContractConfig.depth: must not be zero",
         );
     }
 
@@ -629,7 +658,7 @@ mod tests {
         let mut gray = config;
         gray.in_channels = 1;
         ErrorMatcher::illegal()
-            .message_contains("1 image channels, its backbone's 3")
+            .message_contains("backbone.in_channels (3) must be == in_channels (1)")
             .assert_err(&gray.try_to_structure());
     }
 }

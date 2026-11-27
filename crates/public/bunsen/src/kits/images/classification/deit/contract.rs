@@ -9,8 +9,8 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     kits::images::classification::vit::ViTContractConfig,
 };
@@ -54,10 +54,13 @@ impl ToStructureConfig for DeiTContractConfig {
             return Ok(structure);
         }
         if self.vit.global_pool != TokenPoolConfig::Token || self.vit.uses_fc_norm() {
-            return Err(BunsenError::illegal(
-                "DeiTContractConfig: a distilled head reads the class and distillation tokens, \
-                 with no norm after its pool",
-            ));
+            return Err(ConstraintError::custom(
+                "DeiTContractConfig",
+                "vit.global_pool",
+                "a distilled head reads the class and distillation tokens, with no norm after its \
+                 pool",
+            )
+            .into());
         }
         structure.tokens.dist_token = true;
         structure.pool = TokenPoolConfig::Distilled;

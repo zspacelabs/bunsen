@@ -27,6 +27,10 @@ use crate::{
             },
         },
     },
+    errors::{
+        ConstraintError,
+        Rule,
+    },
     kits::images::support::{
         encoder::ImageEncoder,
         labels::ImageLabelSet,
@@ -117,29 +121,37 @@ pub struct ClassPrediction {
 ///
 /// `k` is clamped to the class count.
 ///
-/// # Panics
-/// When `labels` does not have the logits' class count.
-pub fn top_k(
+/// # Errors
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+/// [`ConstraintError`](crate::errors::ConstraintError) on `labels`, when
+/// `labels` does not have the logits' class count.
+pub fn try_top_k(
     logits: Tensor<2>,
     k: usize,
     labels: Option<&ImageLabelSet>,
-) -> Vec<Vec<ClassPrediction>> {
+) -> crate::errors::BunsenResult<Vec<Vec<ClassPrediction>>> {
     let [batch, n_classes] = crate::contracts::unpack_shape_contract!(
         ["batch", "n_classes"],
         &logits,
         &["batch", "n_classes"],
     );
-    if let Some(labels) = labels {
-        assert_eq!(
-            labels.len(),
-            n_classes,
-            "top_k: {} labels for {n_classes} classes",
-            labels.len()
-        );
+    if let Some(labels) = labels
+        && labels.len() != n_classes
+    {
+        return Err(ConstraintError::new(
+            "try_top_k",
+            "labels",
+            Rule::Relation {
+                lhs: ("labels.len()".into(), labels.len().to_string()),
+                op: "==",
+                rhs: ("the logits' classes".into(), n_classes.to_string()),
+            },
+        )
+        .into());
     }
     let k = k.min(n_classes);
     if k == 0 {
-        return (0..batch).map(|_| Vec::new()).collect();
+        return Ok((0..batch).map(|_| Vec::new()).collect());
     }
     let probabilities = softmax(logits.cast(burn::tensor::DType::F32), 1);
     let (values, indices) = probabilities.topk_with_indices(k, 1);
@@ -153,7 +165,7 @@ pub fn top_k(
         .convert::<i64>()
         .try_into_vec::<i64>()
         .unwrap();
-    (0..batch)
+    Ok((0..batch)
         .map(|row| {
             (0..k)
                 .map(|j| {
@@ -167,7 +179,20 @@ pub fn top_k(
                 })
                 .collect()
         })
-        .collect()
+        .collect())
+}
+
+/// [`try_top_k`], panicking with its error's report.
+///
+/// # Panics
+/// When `labels` does not have the logits' class count.
+pub fn top_k(
+    logits: Tensor<2>,
+    k: usize,
+    labels: Option<&ImageLabelSet>,
+) -> Vec<Vec<ClassPrediction>> {
+    use crate::errors::WithOkOrPanic;
+    try_top_k(logits, k, labels).ok_or_panic()
 }
 
 #[cfg(test)]

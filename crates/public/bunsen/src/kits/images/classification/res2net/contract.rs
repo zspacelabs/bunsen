@@ -10,9 +10,10 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
         ResultContext,
+        Rule,
     },
     kits::images::classification::resnet::ResNetContractConfig,
 };
@@ -51,12 +52,15 @@ impl Res2NetContractConfig {
     /// for basic blocks, or a scale of 0.
     pub fn try_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         if self.resnet.bottleneck_policy.is_none() {
-            return Err(BunsenError::illegal(
-                "Res2NetContractConfig: a Res2Net's blocks are bottlenecks",
-            ));
+            return Err(ConstraintError::new(
+                "Res2NetContractConfig",
+                "resnet.bottleneck_policy",
+                Rule::Missing,
+            )
+            .into());
         }
         if self.scale == 0 {
-            return Err(BunsenError::illegal("Res2NetContractConfig: a scale of 0"));
+            return Err(ConstraintError::zero_or_empty("Res2NetContractConfig", "scale").into());
         }
         let mut net = self.resnet.try_to_conv_net()?;
         for stage in &mut net.stages {
@@ -118,7 +122,7 @@ mod tests {
     #[test]
     fn test_illegal_policies() {
         ErrorMatcher::illegal()
-            .message_contains("a Res2Net's blocks are bottlenecks")
+            .constraint("Res2NetContractConfig", "resnet.bottleneck_policy")
             .assert_err(
                 &Res2NetContractConfig::new(ResNetContractConfig::new(vec![2, 2, 2, 2], 1000))
                     .try_to_structure(),

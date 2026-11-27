@@ -34,8 +34,9 @@ use crate::{
         },
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
 };
 
@@ -117,11 +118,20 @@ impl SwinStages<'_> {
         block: impl Fn(&SwinBlockSite) -> BunsenResult<CausalDecoderBlockConfig>,
     ) -> BunsenResult<StagedVisionEncoderStructureConfig> {
         let (config, n) = (self.config, self.depths.len());
-        if n == 0 || self.num_heads.len() != n {
-            return Err(BunsenError::illegal(format!(
-                "{config}: {n} stages of depths, {} of heads",
-                self.num_heads.len()
-            )));
+        if n == 0 {
+            return Err(ConstraintError::zero_or_empty(config, "depths").into());
+        }
+        if self.num_heads.len() != n {
+            return Err(ConstraintError::new(
+                config,
+                "num_heads",
+                Rule::Relation {
+                    lhs: ("num_heads.len()".into(), self.num_heads.len().to_string()),
+                    op: "==",
+                    rhs: ("depths.len()".into(), n.to_string()),
+                },
+            )
+            .into());
         }
         let patch_embed = PatchEmbedConfig::new(
             [self.image_size; 2],
@@ -136,11 +146,21 @@ impl SwinStages<'_> {
         let mut stages = Vec::with_capacity(n);
         for stage in 0..n {
             let heads = self.num_heads[stage];
-            if heads == 0 || !width(stage).is_multiple_of(heads) {
-                return Err(BunsenError::illegal(format!(
-                    "{config}: stage {stage}'s {heads} heads don't divide its width of {}",
-                    width(stage)
-                )));
+            if heads == 0 {
+                return Err(
+                    ConstraintError::zero_or_empty(config, format!("num_heads[{stage}]")).into(),
+                );
+            }
+            if !width(stage).is_multiple_of(heads) {
+                return Err(ConstraintError::new(
+                    config,
+                    format!("num_heads[{stage}]"),
+                    Rule::NotMultiple {
+                        value: width(stage),
+                        of: format!("stage {stage}'s heads ({heads})"),
+                    },
+                )
+                .into());
             }
             let downsample = (stage > 0).then(|| {
                 PatchMergeConfig::new(grid, width(stage - 1), width(stage), swin_norm())

@@ -7,7 +7,7 @@ use burn::prelude::Device;
 use super::{
     ClassPrediction,
     ImageClassifier,
-    top_k,
+    try_top_k,
 };
 use crate::{
     errors::BunsenResult,
@@ -38,7 +38,7 @@ pub fn classify_files(
     device: &Device,
 ) -> BunsenResult<Vec<Vec<ClassPrediction>>> {
     let images = try_load_eval_batch(&card.transform, paths, device)?;
-    Ok(top_k(model.forward_logits(images), k, card.labels.as_ref()))
+    try_top_k(model.forward_logits(images), k, card.labels.as_ref())
 }
 
 #[cfg(test)]
