@@ -194,3 +194,124 @@ pub fn timm_providers(
         Arc::new(crate::data::builds::HfProvider::new()),
     ]
 }
+
+/// Test helpers for the timm image kits' pretrained pathways: the audits
+/// every kit's provider tests run.
+///
+/// This module exists with the `testing` feature, and in bunsen's own unit
+/// tests.
+#[cfg(any(test, feature = "testing"))]
+pub mod testing {
+    use alloc::{
+        collections::BTreeMap,
+        string::{
+            String,
+            ToString,
+        },
+        vec::Vec,
+    };
+
+    use super::{
+        TimmConstructConfig,
+        TimmImageContract,
+    };
+    use crate::{
+        data::{
+            builds::{
+                BuildFactory,
+                CHECKPOINT,
+                CONFIG,
+            },
+            catalog::resolve::ResolvedBuild,
+            pretrained::Prefabs,
+        },
+        kits::images::support::card::{
+            LABEL_NAMES,
+            LABELS,
+        },
+    };
+
+    /// What [`assert_timm_rows`] holds the rows' labels to.
+    #[derive(Clone, Copy, Debug)]
+    pub enum LabelRule<'a> {
+        /// The rows by label set, `""` for the unlabelled ones (a headless
+        /// trunk, a pretraining-only repo).
+        Counts(&'a [(&'a str, usize)]),
+        /// Only that a row with labels names them too; the kit checks the
+        /// rest on the rows returned.
+        Any,
+    }
+
+    /// Asserts that `factory` lists `n_rows` rows, each a timm hub repo of an
+    /// architecture `C` has a prefab of (`timm/{arch}.{tag}`), its
+    /// checkpoint pinned, with its `config.json`, and its labels (where it
+    /// has them) with their names, the label sets as `labels` says.
+    ///
+    /// # Returns
+    /// The rows, by name, for the kit's own further checks.
+    ///
+    /// # Panics
+    /// When a row breaks any of that; the message names the row.
+    #[track_caller]
+    pub fn assert_timm_rows<C: TimmImageContract + Prefabs>(
+        factory: &BuildFactory<TimmConstructConfig<C>>,
+        n_rows: usize,
+        labels: LabelRule<'_>,
+    ) -> Vec<(String, ResolvedBuild)> {
+        let rows = factory.list();
+        assert_eq!(rows.len(), n_rows, "{}'s rows", C::KIT);
+        let architectures = C::prefab_names();
+        let mut by_labels: BTreeMap<String, usize> = BTreeMap::new();
+        let mut named = Vec::new();
+        for (_, row) in rows {
+            let name = row.name.to_string();
+            let map = row.resource_set();
+            map.validate().unwrap_or_else(|e| panic!("{name}: {e:#}"));
+            let arch = name
+                .strip_prefix("timm/")
+                .and_then(|n| n.split_once('.'))
+                .map(|(arch, _)| arch)
+                .unwrap_or_else(|| panic!("{name}: a timm repo's name"));
+            assert!(
+                architectures.contains(&arch),
+                "{name}: an architecture {} builds",
+                C::KIT
+            );
+            assert!(
+                map.get(CHECKPOINT)
+                    .and_then(|c| c.sha256.as_ref())
+                    .is_some(),
+                "{name}: a pinned checkpoint"
+            );
+            assert!(map.get(CONFIG).is_some(), "{name}: a config.json");
+            let label_set = map.get(LABELS).map(|l| l.name.to_string());
+            assert_eq!(
+                label_set.is_some(),
+                map.get(LABEL_NAMES).is_some(),
+                "{name}: labels and their names together"
+            );
+            *by_labels.entry(label_set.unwrap_or_default()).or_default() += 1;
+            named.push((name, row));
+        }
+        if let LabelRule::Counts(counts) = labels {
+            let want: BTreeMap<String, usize> =
+                counts.iter().map(|(k, n)| (k.to_string(), *n)).collect();
+            assert_eq!(by_labels, want, "{}'s rows by label set", C::KIT);
+        }
+        named
+    }
+
+    /// Asserts that `factory` serves `C`'s kit through the built-in catalog,
+    /// then `hf:`.
+    ///
+    /// # Panics
+    /// When it doesn't.
+    #[track_caller]
+    pub fn assert_timm_defaults_register<C: TimmImageContract>(
+        factory: &BuildFactory<TimmConstructConfig<C>>
+    ) {
+        assert_eq!(factory.kit(), C::KIT);
+        let names: Vec<&str> = factory.providers().iter().map(|p| p.name()).collect();
+        assert_eq!(names, ["catalog", "hf"], "{}'s providers", C::KIT);
+    }
+}

@@ -79,14 +79,7 @@ mod tests {
     #[test]
     fn test_rows_are_pinned_and_named() {
         let factory = default_parakeet_factory().unwrap();
-        for (_, row) in factory.list() {
-            let map = &row.resource_set();
-            map.validate().unwrap();
-            let checkpoint = map.get(CHECKPOINT).unwrap();
-            assert!(checkpoint.is_pinned(), "{}", map.name);
-            assert_eq!(checkpoint.urls().len(), 1, "{}", map.name);
-        }
-        assert_eq!(factory.kit(), PARAKEET_KIT);
+        crate::kits::support::pretrained::testing::assert_rows_pinned(&factory, &[], None);
         assert_eq!(
             factory.ids(),
             [
@@ -94,14 +87,7 @@ mod tests {
                 "catalog:nvidia/parakeet-tdt-0.6b-v3"
             ]
         );
-        assert_eq!(
-            factory
-                .providers()
-                .iter()
-                .map(|p| p.name())
-                .collect::<Vec<_>>(),
-            ["catalog", "hf"]
-        );
+        crate::kits::support::pretrained::testing::assert_catalog_then_hf(&factory);
         for spec in [
             DEFAULT_PARAKEET_MODEL,
             "phonon-2",

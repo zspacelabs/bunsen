@@ -41,62 +41,26 @@ pub fn default_resnetv2_factory()
 
 #[cfg(test)]
 mod tests {
-    use alloc::collections::BTreeMap;
 
     use super::*;
-    use crate::{
-        data::{
-            builds::CONFIG,
-            pretrained::Prefabs,
-        },
-        kits::images::{
-            classification::resnetv2::{
-                ResNetV2ContractConfig,
-                pretrained::RESNETV2_KIT,
-            },
-            support::card::{
-                LABEL_NAMES,
-                LABELS,
-            },
-        },
-    };
+    use crate::kits::images::classification::resnetv2::ResNetV2ContractConfig;
 
     /// Every row is a timm hub repo of a prefab's architecture, pinned: its
     /// checkpoint, its `config.json`, and its labels: `ImageNet`-1k's, or
     /// Google's 21k for the `BiT` `goog_in21k` heads.
     #[test]
     fn test_every_row_is_a_pinned_timm_repo() {
-        let factory = super::super::default_resnetv2_factory().unwrap();
-        let rows = factory.list();
-        assert_eq!(rows.len(), 24);
-        let architectures = ResNetV2ContractConfig::prefab_names();
-        let mut by_labels: BTreeMap<String, usize> = BTreeMap::new();
-        for (_, row) in &rows {
-            let name = row.name.to_string();
-            let map = &row.resource_set();
-            map.validate().unwrap();
-            let arch = name
-                .strip_prefix("timm/")
-                .and_then(|n| n.split_once('.'))
-                .map(|(arch, _)| arch)
-                .unwrap_or_else(|| panic!("{name}: a timm repo's name"));
-            assert!(architectures.contains(&arch), "{name}");
-            assert!(map.get(CHECKPOINT).unwrap().sha256.is_some(), "{name}");
-            assert!(map.get(CONFIG).is_some(), "{name}");
-            assert!(map.get(LABEL_NAMES).is_some(), "{name}");
-            let labels = map
-                .get(LABELS)
-                .unwrap_or_else(|| panic!("{name}: labels"))
-                .name
-                .to_string();
-            *by_labels.entry(labels).or_default() += 1;
-        }
-        assert_eq!(
-            by_labels,
-            BTreeMap::from([
-                ("imagenet/synsets-1k".into(), 18),
-                ("imagenet/synsets-21k-goog".into(), 6),
-            ])
+        use crate::kits::images::support::pretrained::testing::{
+            LabelRule,
+            assert_timm_rows,
+        };
+        assert_timm_rows::<ResNetV2ContractConfig>(
+            &super::super::default_resnetv2_factory().unwrap(),
+            24,
+            LabelRule::Counts(&[
+                ("imagenet/synsets-1k", 18),
+                ("imagenet/synsets-21k-goog", 6),
+            ]),
         );
     }
 
@@ -104,8 +68,8 @@ mod tests {
     /// kit.
     #[test]
     fn test_the_defaults_register() {
-        let factory = default_resnetv2_factory().unwrap();
-        assert_eq!(factory.kit(), RESNETV2_KIT);
-        assert_eq!(factory.providers().len(), 2);
+        crate::kits::images::support::pretrained::testing::assert_timm_defaults_register(
+            &default_resnetv2_factory().unwrap(),
+        );
     }
 }

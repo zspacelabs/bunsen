@@ -81,15 +81,7 @@ mod tests {
     #[test]
     fn test_rows_are_pinned() {
         let factory = default_qwen3_5_factory().unwrap();
-        assert_eq!(factory.kit(), QWEN3_5_KIT);
-        assert_eq!(
-            factory
-                .providers()
-                .iter()
-                .map(|p| p.name())
-                .collect::<Vec<_>>(),
-            ["catalog", "hf"]
-        );
+        crate::kits::support::pretrained::testing::assert_catalog_then_hf(&factory);
         let names = [
             "qwen3.5-0.8b",
             "qwen3.5-0.8b-base",
@@ -108,19 +100,14 @@ mod tests {
                 .map(|n| format!("catalog:qwen/qwen3.5/{n}"))
                 .collect::<Vec<_>>()
         );
+        crate::kits::support::pretrained::testing::assert_rows_pinned(
+            &factory,
+            &[CONFIG, TOKENIZER, TOKENIZER_CONFIG, "checkpoint.index"],
+            Some("/Qwen/Qwen3.5-"),
+        );
         for name in names {
             let (_, row) = factory.lookup(name).unwrap();
             let map = &row.resource_set();
-            map.validate().unwrap();
-            for resource in map.resources.values() {
-                assert!(resource.is_pinned(), "{name}: {}", resource.slot);
-                let urls = resource.urls();
-                assert_eq!(urls.len(), 1, "{name}: {}", resource.slot);
-                assert!(urls[0].contains("/Qwen/Qwen3.5-"), "{name}: {}", urls[0]);
-            }
-            for key in [CONFIG, TOKENIZER, TOKENIZER_CONFIG, "checkpoint.index"] {
-                assert!(map.get(key).is_some(), "{name}: {key}");
-            }
             assert_eq!(
                 map.get(CHAT_TEMPLATE).is_some(),
                 !name.ends_with("-base"),

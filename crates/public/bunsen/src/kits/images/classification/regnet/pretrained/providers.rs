@@ -41,73 +41,43 @@ pub fn default_regnet_factory()
 
 #[cfg(test)]
 mod tests {
-    use alloc::collections::BTreeMap;
 
     use super::*;
-    use crate::{
-        data::{
-            builds::CONFIG,
-            pretrained::Prefabs,
-        },
-        kits::images::{
-            classification::regnet::{
-                RegNetContractConfig,
-                pretrained::REGNET_KIT,
-            },
-            support::card::{
-                LABEL_NAMES,
-                LABELS,
-            },
-        },
-    };
+    use crate::kits::images::classification::regnet::RegNetContractConfig;
 
     /// Every row is a timm hub repo of a prefab's architecture, pinned: its
     /// checkpoint and its `config.json`. A row with labels names them too;
     /// the headless `SEER` trunks have none.
     #[test]
     fn test_every_row_is_a_pinned_timm_repo() {
-        let factory = super::super::default_regnet_factory().unwrap();
-        let rows = factory.list();
-        assert_eq!(rows.len(), 65);
-        let architectures = RegNetContractConfig::prefab_names();
-        let mut by_labels: BTreeMap<String, usize> = BTreeMap::new();
-        for (_, row) in &rows {
-            let name = row.name.to_string();
-            let map = &row.resource_set();
-            map.validate().unwrap();
-            let arch = name
-                .strip_prefix("timm/")
-                .and_then(|n| n.split_once('.'))
-                .map(|(arch, _)| arch)
-                .unwrap_or_else(|| panic!("{name}: a timm repo's name"));
-            assert!(architectures.contains(&arch), "{name}");
-            assert!(map.get(CHECKPOINT).unwrap().sha256.is_some(), "{name}");
-            assert!(map.get(CONFIG).is_some(), "{name}");
-            let labels = map.get(LABELS).map(|l| l.name.to_string());
-            assert_eq!(
-                labels.is_some(),
-                map.get(LABEL_NAMES).is_some(),
-                "{name}: labels and their names together"
-            );
-            assert_eq!(labels.is_none(), name.ends_with(".seer"), "{name}");
-            *by_labels.entry(labels.unwrap_or_default()).or_default() += 1;
-        }
-        assert_eq!(
-            by_labels,
-            BTreeMap::from([
-                (String::new(), 3),
-                ("imagenet/synsets-12k".into(), 2),
-                ("imagenet/synsets-1k".into(), 60),
-            ])
+        use crate::kits::images::support::pretrained::testing::{
+            LabelRule,
+            assert_timm_rows,
+        };
+        let rows = assert_timm_rows::<RegNetContractConfig>(
+            &super::super::default_regnet_factory().unwrap(),
+            65,
+            LabelRule::Counts(&[
+                ("", 3),
+                ("imagenet/synsets-12k", 2),
+                ("imagenet/synsets-1k", 60),
+            ]),
         );
+        for (name, row) in rows {
+            let unlabelled = row
+                .resource_set()
+                .get(crate::kits::images::support::card::LABELS)
+                .is_none();
+            assert_eq!(unlabelled, name.ends_with(".seer"), "{name}");
+        }
     }
 
     /// The default factory is the catalog provider, then `hf:`, serving the
     /// kit.
     #[test]
     fn test_the_defaults_register() {
-        let factory = default_regnet_factory().unwrap();
-        assert_eq!(factory.kit(), REGNET_KIT);
-        assert_eq!(factory.providers().len(), 2);
+        crate::kits::images::support::pretrained::testing::assert_timm_defaults_register(
+            &default_regnet_factory().unwrap(),
+        );
     }
 }

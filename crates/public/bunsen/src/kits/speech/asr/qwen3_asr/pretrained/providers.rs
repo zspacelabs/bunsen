@@ -88,14 +88,7 @@ mod tests {
     #[test]
     fn test_rows_are_pinned_and_named() {
         let factory = default_qwen3_asr_factory().unwrap();
-        for (_, row) in factory.list() {
-            let map = &row.resource_set();
-            map.validate().unwrap();
-            let checkpoint = map.get(CHECKPOINT).unwrap();
-            assert!(checkpoint.is_pinned(), "{}", map.name);
-            assert_eq!(checkpoint.urls().len(), 1, "{}", map.name);
-        }
-        assert_eq!(factory.kit(), QWEN3_ASR_KIT);
+        crate::kits::support::pretrained::testing::assert_rows_pinned(&factory, &[], None);
         assert_eq!(
             factory.ids(),
             [
@@ -106,14 +99,7 @@ mod tests {
                 "catalog:qwen/qwen3-asr-1.7b",
             ]
         );
-        assert_eq!(
-            factory
-                .providers()
-                .iter()
-                .map(|p| p.name())
-                .collect::<Vec<_>>(),
-            ["catalog", "hf"]
-        );
+        crate::kits::support::pretrained::testing::assert_catalog_then_hf(&factory);
         for spec in [
             DEFAULT_QWEN3_ASR_MODEL,
             "phonon-1",

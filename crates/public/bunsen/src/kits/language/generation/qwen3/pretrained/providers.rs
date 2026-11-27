@@ -96,15 +96,7 @@ mod tests {
     #[test]
     fn test_rows_are_pinned_and_match_their_prefabs() {
         let factory = default_qwen3_factory().unwrap();
-        assert_eq!(factory.kit(), QWEN3_KIT);
-        assert_eq!(
-            factory
-                .providers()
-                .iter()
-                .map(|p| p.name())
-                .collect::<Vec<_>>(),
-            ["catalog", "hf"]
-        );
+        crate::kits::support::pretrained::testing::assert_catalog_then_hf(&factory);
         let names = [
             "qwen3-0.6b",
             "qwen3-0.6b-base",
@@ -128,22 +120,15 @@ mod tests {
                 .map(|n| format!("catalog:qwen/qwen3/{n}"))
                 .collect::<Vec<_>>()
         );
+        crate::kits::support::pretrained::testing::assert_rows_pinned(
+            &factory,
+            &[CONFIG, TOKENIZER, TOKENIZER_CONFIG, GENERATION_CONFIG],
+            None,
+        );
         for name in names {
             let (_, row) = factory.lookup(name).unwrap();
             assert_eq!(row.name, format!("qwen/qwen3/{name}"));
             let map = &row.resource_set();
-            map.validate().unwrap();
-            for resource in map.resources.values() {
-                assert!(resource.is_pinned(), "{name}: {}", resource.slot);
-                assert_eq!(resource.urls().len(), 1, "{name}: {}", resource.slot);
-            }
-            for key in [CONFIG, TOKENIZER, TOKENIZER_CONFIG, GENERATION_CONFIG] {
-                assert!(map.get(key).is_some(), "{name}: {key}");
-            }
-            assert!(
-                map.get(CHECKPOINT).is_some() || map.get("checkpoint.index").is_some(),
-                "{name}"
-            );
 
             let path = testdata!(format!("qwen3/{name}.config.json"));
             assert_eq!(

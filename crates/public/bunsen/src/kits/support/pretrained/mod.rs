@@ -21,6 +21,13 @@
 pub mod catalog_contracts;
 mod kinds;
 mod probes;
+/// Audits a kit's factory and its rows: the shapes every kit's provider
+/// tests share.
+///
+/// This module exists with the `testing` feature, and in bunsen's own unit
+/// tests.
+#[cfg(all(any(test, feature = "testing"), feature = "store"))]
+pub mod testing;
 mod transformers_lm;
 
 pub use kinds::*;

@@ -90,7 +90,6 @@ mod tests {
         }
 
         let factory = default_sortformer_factory().unwrap();
-        assert_eq!(factory.kit(), SORTFORMER_KIT);
         assert_eq!(
             factory.ids(),
             [
@@ -99,14 +98,7 @@ mod tests {
                 "catalog:nvidia/sortformer/diar_streaming_sortformer_4spk-v2.1",
             ]
         );
-        assert_eq!(
-            factory
-                .providers()
-                .iter()
-                .map(|p| p.name())
-                .collect::<Vec<_>>(),
-            ["catalog", "hf"]
-        );
+        crate::kits::support::pretrained::testing::assert_catalog_then_hf(&factory);
         for (spec, name) in [
             (
                 DEFAULT_SORTFORMER_MODEL,
