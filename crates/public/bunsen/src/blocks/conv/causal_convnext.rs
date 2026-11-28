@@ -16,17 +16,20 @@ use burn::{
             Conv1dConfig,
         },
     },
-    tensor::{
-        Device,
-        activation::gelu,
-    },
+    tensor::Device,
 };
 
 use crate::{
-    blocks::norm::{
-        BunsenLayerNormConfig,
-        BunsenNormalization,
-        BunsenNormalizationConfig,
+    blocks::{
+        activation::{
+            BunsenActivation,
+            BunsenActivationConfig,
+        },
+        norm::{
+            BunsenLayerNormConfig,
+            BunsenNormalization,
+            BunsenNormalizationConfig,
+        },
     },
     burner::module::ModuleInit,
     contracts::unpack_shape_contract,
@@ -72,6 +75,10 @@ pub struct CausalConvNext1dConfig {
         default = "BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0).with_epsilon(1e-6))"
     )]
     pub norm: BunsenNormalizationConfig,
+
+    /// The activation after the expansion: `GELU`, `ConvNeXt`'s.
+    #[config(default = "BunsenActivationConfig::Gelu")]
+    pub act: BunsenActivationConfig,
 
     /// Whether the branch is scaled per channel, by `γ`, before the residual
     /// add (`ConvNeXt`'s layer scale). Off by default.
@@ -122,6 +129,7 @@ impl ModuleInit<CausalConvNext1d> for CausalConvNext1dConfig {
                 .init(device),
             norm: self.norm.clone().with_num_features(c).try_init(device)?,
             pwconv1: LinearConfig::new(c, self.hidden).init(device),
+            act: self.act.try_init(device)?,
             pwconv2: LinearConfig::new(self.hidden, c).init(device),
             gamma: self
                 .layer_scale
@@ -134,7 +142,7 @@ impl ModuleInit<CausalConvNext1d> for CausalConvNext1dConfig {
 ///
 /// ```text
 /// h = dwconv(x)           (depthwise, each channel over its own past: k - 1 left padding)
-/// y = x + γ ⊙ pwconv2(gelu(pwconv1(norm(h))))
+/// y = x + γ ⊙ pwconv2(act(pwconv1(norm(h))))
 /// ```
 ///
 /// with `γ` a per-channel layer scale when
@@ -155,6 +163,9 @@ pub struct CausalConvNext1d {
 
     /// The expansion, `[C, H]`.
     pub pwconv1: Linear,
+
+    /// The activation after the expansion.
+    pub act: BunsenActivation,
 
     /// The projection back, `[H, C]`.
     pub pwconv2: Linear,
@@ -221,7 +232,7 @@ impl CausalConvNext1d {
         };
         let h = self
             .pwconv2
-            .forward(gelu(self.pwconv1.forward(self.norm.forward(h))));
+            .forward(self.act.forward(self.pwconv1.forward(self.norm.forward(h))));
         let h = match &self.gamma {
             Some(gamma) => h * gamma.val().reshape([1, 1, c]),
             None => h,
@@ -244,6 +255,7 @@ mod tests {
         tensor::{
             Distribution,
             Tolerance,
+            activation::gelu,
         },
     };
 

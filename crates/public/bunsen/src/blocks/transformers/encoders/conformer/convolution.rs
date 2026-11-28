@@ -14,15 +14,13 @@ use burn::{
     prelude::Bool,
     tensor::{
         Device,
-        activation::{
-            glu,
-            silu,
-        },
+        activation::glu,
     },
 };
 
 use crate::{
     blocks::{
+        activation::BunsenActivationConfig,
         conv::{
             ConvBlock1d,
             ConvBlock1dConfig,
@@ -58,6 +56,15 @@ pub struct ConformerConvolutionConfig {
     /// Whether the three convolutions carry a bias.
     #[config(default = true)]
     pub bias: bool,
+
+    /// The depthwise convolution's norm, its width filled in: a batch norm,
+    /// the paper's.
+    #[config(default = "BunsenNormalizationConfig::Batch(BatchNormConfig::new(0))")]
+    pub norm: BunsenNormalizationConfig,
+
+    /// The activation after the depthwise norm: `SiLU`, the paper's.
+    #[config(default = "BunsenActivationConfig::Silu")]
+    pub act: BunsenActivationConfig,
 }
 
 impl ConformerConvolutionMeta for ConformerConvolutionConfig {
@@ -87,10 +94,8 @@ impl ModuleInit<ConformerConvolution> for ConformerConvolutionConfig {
                     .with_padding(PaddingConfig1d::Explicit(pad, pad))
                     .with_bias(self.bias),
             )
-            .with_norm(Some(BunsenNormalizationConfig::Batch(
-                BatchNormConfig::new(c),
-            )))
-            .with_act(None)
+            .with_norm(Some(self.norm.clone().with_num_features(c)))
+            .with_act(Some(self.act.clone()))
             .try_init(device)?,
             pointwise_conv2: Conv1dConfig::new(c, c, 1).with_bias(self.bias).init(device),
         })
@@ -100,8 +105,8 @@ impl ModuleInit<ConformerConvolution> for ConformerConvolutionConfig {
 /// The Conformer's convolution module.
 ///
 /// Pointwise convolution to twice the width, GLU over the channels, a
-/// depthwise convolution with batch normalization, `SiLU`, and a pointwise
-/// convolution back: Gulati et al. (2020), figure 2.
+/// depthwise convolution with its norm (batch) and activation (`SiLU`), and a
+/// pointwise convolution back: Gulati et al. (2020), figure 2.
 ///
 /// Built by [`ConformerConvolutionConfig`].
 /// Implements [`ConformerConvolutionMeta`].
@@ -110,7 +115,7 @@ pub struct ConformerConvolution {
     /// `d_model -> 2 * d_model`, kernel 1.
     pub pointwise_conv1: Conv1d,
 
-    /// The depthwise convolution and its batch normalization.
+    /// The depthwise convolution, its norm and its activation.
     pub depthwise: ConvBlock1d,
 
     /// `d_model -> d_model`, kernel 1.
@@ -164,7 +169,7 @@ impl ConformerConvolution {
             Some(valid) => x.mask_fill(valid.bool_not().unsqueeze_dim::<3>(1), 0.0),
             None => x,
         };
-        let x = self.depthwise.map_forward(x, silu);
+        let x = self.depthwise.forward(x);
         let y = self.pointwise_conv2.forward(x).swap_dims(1, 2);
 
         #[cfg(any(debug_assertions, test))]
