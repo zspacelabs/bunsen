@@ -18,7 +18,7 @@ use crate::{
             CHAT_TEMPLATE,
             END_OF_TURN,
             GENERATION_CONFIG,
-            GemmaConfig,
+            GemmaContractConfig,
             GemmaModel,
             TOKENIZER_CONFIG,
             interop::transformers::{
@@ -53,20 +53,20 @@ use crate::{
 pub struct GemmaConstructConfig;
 
 impl TransformersLmKit for GemmaConstructConfig {
-    type Config = GemmaConfig;
+    type Config = GemmaContractConfig;
     type Model = GemmaModel;
 
     const CHECKPOINT: &'static str = CHECKPOINT;
     const KIT: &'static str = GEMMA_KIT;
     const NAME: &'static str = "Gemma";
 
-    fn config(c: &TransformersConfigJson) -> BunsenResult<GemmaConfig> {
+    fn config(c: &TransformersConfigJson) -> BunsenResult<GemmaContractConfig> {
         gemma_config(c)
     }
 
     fn load(
         loaded: &LoadedResourceSet,
-        config: &GemmaConfig,
+        config: &GemmaContractConfig,
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<GemmaModel> {

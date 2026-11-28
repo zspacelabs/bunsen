@@ -3,14 +3,14 @@ use crate::{
     blocks::transformers::attention::csa::AttentionOutputGate,
     burner::module::testing::assert_rekeys,
     errors::testing::ErrorMatcher,
-    kits::language::generation::qwen3_5::Qwen3_5Config,
+    kits::language::generation::qwen3_5::Qwen3_5ContractConfig,
 };
 
 /// The checkpoints' names land on the model's canonical names, the
 /// vision tower and the prediction head dropped.
 #[test]
 fn test_qwen3_5_rekey() {
-    let rekey = qwen3_5_rekey(&Qwen3_5Config::qwen3_5_0_8b());
+    let rekey = qwen3_5_rekey(&Qwen3_5ContractConfig::qwen3_5_0_8b());
     assert_rekeys(
         &rekey,
         [
@@ -66,7 +66,7 @@ fn test_qwen3_5_rekey() {
 /// and everything else, as stored.
 #[test]
 fn test_zero_centered_norms() {
-    let rekey = qwen3_5_rekey(&Qwen3_5Config::qwen3_5_0_8b());
+    let rekey = qwen3_5_rekey(&Qwen3_5ContractConfig::qwen3_5_0_8b());
     let transformed = |name: &str| {
         rekey
             .target(name)
@@ -89,7 +89,8 @@ fn test_zero_centered_norms() {
         assert!(!transformed(name), "{name}: as stored");
     }
 
-    let as_stored = qwen3_5_rekey(&Qwen3_5Config::qwen3_5_0_8b().with_zero_centered_norms(false));
+    let as_stored =
+        qwen3_5_rekey(&Qwen3_5ContractConfig::qwen3_5_0_8b().with_zero_centered_norms(false));
     for name in [
         "model.language_model.layers.0.input_layernorm.weight",
         "model.language_model.layers.3.self_attn.q_norm.weight",
@@ -163,7 +164,10 @@ fn test_reads_the_0_8b() {
     assert_eq!(config.rope_theta, 10_000_000.0);
     assert_eq!(config.rotary_dim(), 64);
     assert!(config.tied_head && config.attn_output_gate == Some(AttentionOutputGate::Elementwise));
-    assert_eq!(config.layer_kinds, Qwen3_5Config::every_nth_full(24, 4));
+    assert_eq!(
+        config.layer_kinds,
+        Qwen3_5ContractConfig::every_nth_full(24, 4)
+    );
 }
 
 /// A file that omits the layer types, the tie and the rotary share takes
@@ -183,7 +187,10 @@ fn test_defaults() {
     let config = qwen3_5_config_from_str(&json).unwrap();
     assert!(!config.tied_head);
     assert_eq!(config.rotary_dim(), 64);
-    assert_eq!(config.layer_kinds, Qwen3_5Config::every_nth_full(24, 3));
+    assert_eq!(
+        config.layer_kinds,
+        Qwen3_5ContractConfig::every_nth_full(24, 3)
+    );
 }
 
 /// An f32 delta-rule state, as the release's files state it, is read.

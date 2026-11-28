@@ -10,7 +10,7 @@ use crate::{
     },
     kits::{
         language::generation::qwen3::{
-            Qwen3Config,
+            Qwen3ContractConfig,
             interop::transformers::text_layer_rekey,
         },
         speech::tts::qwen3_tts::blocks::{
@@ -67,7 +67,7 @@ pub fn talker_config(t: &TransformersConfigJson) -> BunsenResult<Qwen3TtsTalkerC
             )));
         }
     }
-    let lm = Qwen3Config::new(
+    let lm = Qwen3ContractConfig::new(
         t.usize("vocab_size")?,
         d.hidden_size,
         d.num_hidden_layers,

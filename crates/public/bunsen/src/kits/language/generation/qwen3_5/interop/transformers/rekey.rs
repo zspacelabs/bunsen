@@ -8,7 +8,7 @@ use crate::{
         TensorLoadTransform,
     },
     kits::{
-        language::generation::qwen3_5::Qwen3_5Config,
+        language::generation::qwen3_5::Qwen3_5ContractConfig,
         support::transformers::interop::llama_layer_keys,
     },
 };
@@ -41,14 +41,14 @@ pub fn text_layer_rekey() -> Rekey {
 /// under either of [`QWEN3_5_TEXT_PREFIXES`], the layers by
 /// [`text_layer_rekey`], the embedding (`embed_tokens`, the model's
 /// `embedding`) and the final norm; `lm_head.weight`, the head's projection;
-/// when `config`'s [`zero_centered_norms`](Qwen3_5Config::zero_centered_norms)
+/// when `config`'s [`zero_centered_norms`](Qwen3_5ContractConfig::zero_centered_norms)
 /// says so, every `1 + w` norm's gain, stored as `w`, loaded as `1 + w`
 /// ([`TensorLoadTransform::zero_centered_gain`]). Anything else is dropped: the
 /// vision tower, and the multi-token-prediction head (`mtp.`).
 ///
 /// A tied model has no `lm_head` to load: a checkpoint's `lm_head.weight`
 /// is then unused, as `transformers` ties over it.
-pub fn qwen3_5_rekey(config: &Qwen3_5Config) -> Rekey {
+pub fn qwen3_5_rekey(config: &Qwen3_5ContractConfig) -> Rekey {
     let zero_centered: &[&str] = if config.zero_centered_norms {
         &ZERO_CENTERED_LAYER_NORMS
     } else {

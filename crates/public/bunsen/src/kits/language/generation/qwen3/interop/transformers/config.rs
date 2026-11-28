@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::{
     errors::BunsenResult,
     kits::{
-        language::generation::qwen3::Qwen3Config,
+        language::generation::qwen3::Qwen3ContractConfig,
         support::transformers::interop::{
             TransformersConfigJson,
             TransformersDecoderSection,
@@ -15,8 +15,8 @@ use crate::{
     },
 };
 
-/// The [`Qwen3Config`] of a `transformers` `Qwen3ForCausalLM` `config.json`:
-/// what an `hf:` repo's geometry is, any dense Qwen3's.
+/// The [`Qwen3ContractConfig`] of a `transformers` `Qwen3ForCausalLM`
+/// `config.json`: what an `hf:` repo's geometry is, any dense Qwen3's.
 ///
 /// As [`qwen3_config`] over the whole file, which must say `model_type`
 /// `qwen3`: a mixture of experts (`qwen3_moe`) is refused. The head is
@@ -25,7 +25,7 @@ use crate::{
 ///
 /// # Errors
 /// As [`config_from_str`] and [`qwen3_config`].
-pub fn qwen3_config_from_str(json: &str) -> BunsenResult<Qwen3Config> {
+pub fn qwen3_config_from_str(json: &str) -> BunsenResult<Qwen3ContractConfig> {
     config_from_str(json, |t| qwen3_config(t, false))
 }
 
@@ -34,11 +34,11 @@ pub fn qwen3_config_from_str(json: &str) -> BunsenResult<Qwen3Config> {
 ///
 /// # Errors
 /// As [`config_from_path`] and [`qwen3_config`].
-pub fn qwen3_config_from_path(path: &Path) -> BunsenResult<Qwen3Config> {
+pub fn qwen3_config_from_path(path: &Path) -> BunsenResult<Qwen3ContractConfig> {
     config_from_path(path, |t| qwen3_config(t, false))
 }
 
-/// The [`Qwen3Config`] of a `transformers` Qwen3 text config: a whole
+/// The [`Qwen3ContractConfig`] of a `transformers` Qwen3 text config: a whole
 /// `Qwen3ForCausalLM` `config.json`, or the `text_config` section of a model
 /// a Qwen3 is the text model of. `tie_default` is whether the head is tied
 /// when the section does not say.
@@ -56,14 +56,14 @@ pub fn qwen3_config_from_path(path: &Path) -> BunsenResult<Qwen3Config> {
 pub fn qwen3_config(
     t: &TransformersConfigJson,
     tie_default: bool,
-) -> BunsenResult<Qwen3Config> {
+) -> BunsenResult<Qwen3ContractConfig> {
     t.expect_str("model_type", "qwen3")?;
     let d = TransformersDecoderSection::read(t)?;
     t.expect_eq("hidden_act", d.hidden_act.as_str(), "silu")?;
     t.expect_eq("attention_bias", d.attention_bias, false)?;
     t.expect_eq("sliding_window", d.sliding_window, None)?;
     t.expect_eq("rope_parameters.rope_type", d.rope_type.as_str(), "default")?;
-    Ok(Qwen3Config::new(
+    Ok(Qwen3ContractConfig::new(
         t.usize("vocab_size")?,
         d.hidden_size,
         d.num_hidden_layers,

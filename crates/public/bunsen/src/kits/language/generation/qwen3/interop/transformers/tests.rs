@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     burner::module::testing::assert_rekeys,
     errors::testing::ErrorMatcher,
-    kits::language::generation::qwen3::Qwen3Config,
+    kits::language::generation::qwen3::Qwen3ContractConfig,
     support::testing::assert_config_eq,
 };
 
@@ -72,72 +72,72 @@ fn test_qwen3_config_from_str() {
         (
             "qwen3-0.6b",
             config_json!("qwen3-0.6b"),
-            Qwen3Config::qwen3_0_6b(),
+            Qwen3ContractConfig::qwen3_0_6b(),
         ),
         (
             "qwen3-0.6b-base",
             config_json!("qwen3-0.6b-base"),
-            Qwen3Config::qwen3_0_6b(),
+            Qwen3ContractConfig::qwen3_0_6b(),
         ),
         (
             "qwen3-1.7b",
             config_json!("qwen3-1.7b"),
-            Qwen3Config::qwen3_1_7b(),
+            Qwen3ContractConfig::qwen3_1_7b(),
         ),
         (
             "qwen3-1.7b-base",
             config_json!("qwen3-1.7b-base"),
-            Qwen3Config::qwen3_1_7b(),
+            Qwen3ContractConfig::qwen3_1_7b(),
         ),
         (
             "qwen3-4b",
             config_json!("qwen3-4b"),
-            Qwen3Config::qwen3_4b(),
+            Qwen3ContractConfig::qwen3_4b(),
         ),
         (
             "qwen3-4b-base",
             config_json!("qwen3-4b-base"),
-            Qwen3Config::qwen3_4b(),
+            Qwen3ContractConfig::qwen3_4b(),
         ),
         (
             "qwen3-4b-instruct-2507",
             config_json!("qwen3-4b-instruct-2507"),
-            Qwen3Config::qwen3_4b_2507(),
+            Qwen3ContractConfig::qwen3_4b_2507(),
         ),
         (
             "qwen3-4b-thinking-2507",
             config_json!("qwen3-4b-thinking-2507"),
-            Qwen3Config::qwen3_4b_2507(),
+            Qwen3ContractConfig::qwen3_4b_2507(),
         ),
         (
             "qwen3-8b",
             config_json!("qwen3-8b"),
-            Qwen3Config::qwen3_8b(),
+            Qwen3ContractConfig::qwen3_8b(),
         ),
         (
             "qwen3-8b-base",
             config_json!("qwen3-8b-base"),
-            Qwen3Config::qwen3_8b(),
+            Qwen3ContractConfig::qwen3_8b(),
         ),
         (
             "qwen3-4b-saferl",
             config_json!("qwen3-4b-saferl"),
-            Qwen3Config::qwen3_4b(),
+            Qwen3ContractConfig::qwen3_4b(),
         ),
         (
             "qwen3guard-gen-0.6b",
             config_json!("qwen3guard-gen-0.6b"),
-            Qwen3Config::qwen3_0_6b(),
+            Qwen3ContractConfig::qwen3_0_6b(),
         ),
         (
             "qwen3guard-gen-4b",
             config_json!("qwen3guard-gen-4b"),
-            Qwen3Config::qwen3_4b(),
+            Qwen3ContractConfig::qwen3_4b(),
         ),
         (
             "qwen3guard-gen-8b",
             config_json!("qwen3guard-gen-8b"),
-            Qwen3Config::qwen3_8b(),
+            Qwen3ContractConfig::qwen3_8b(),
         ),
     ] {
         let config = qwen3_config_from_str(json).unwrap();

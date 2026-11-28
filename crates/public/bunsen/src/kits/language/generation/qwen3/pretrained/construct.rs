@@ -15,7 +15,7 @@ use crate::{
     kits::{
         language::generation::qwen3::{
             GENERATION_CONFIG,
-            Qwen3Config,
+            Qwen3ContractConfig,
             Qwen3Model,
             TOKENIZER_CONFIG,
             interop::transformers::{
@@ -50,20 +50,20 @@ use crate::{
 pub struct Qwen3ConstructConfig;
 
 impl TransformersLmKit for Qwen3ConstructConfig {
-    type Config = Qwen3Config;
+    type Config = Qwen3ContractConfig;
     type Model = Qwen3Model;
 
     const CHECKPOINT: &'static str = CHECKPOINT;
     const KIT: &'static str = QWEN3_KIT;
     const NAME: &'static str = "Qwen3";
 
-    fn config(c: &TransformersConfigJson) -> BunsenResult<Qwen3Config> {
+    fn config(c: &TransformersConfigJson) -> BunsenResult<Qwen3ContractConfig> {
         qwen3_config(c, false)
     }
 
     fn load(
         loaded: &LoadedResourceSet,
-        config: &Qwen3Config,
+        config: &Qwen3ContractConfig,
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<Qwen3Model> {

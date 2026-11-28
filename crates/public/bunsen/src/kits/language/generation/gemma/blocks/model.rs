@@ -78,7 +78,7 @@ pub enum GemmaLayerKind {
 ///
 /// Implements [`LmDecoderMeta`].
 #[derive(Config, Debug)]
-pub struct GemmaConfig {
+pub struct GemmaContractConfig {
     /// The token count.
     pub n_vocab: usize,
 
@@ -166,7 +166,7 @@ pub struct GemmaConfig {
     pub kv_cache_pre_size: usize,
 }
 
-impl LmDecoderMeta for GemmaConfig {
+impl LmDecoderMeta for GemmaContractConfig {
     fn n_vocab(&self) -> usize {
         self.n_vocab
     }
@@ -188,7 +188,7 @@ impl LmDecoderMeta for GemmaConfig {
     }
 }
 
-impl GemmaConfig {
+impl GemmaContractConfig {
     /// `n` layers, every `full_every`-th full and the rest sliding:
     /// `transformers`' pattern, from layer `full_every - 1`.
     pub fn every_nth_full(
@@ -373,7 +373,7 @@ impl GemmaConfig {
     pub fn try_stack(&self) -> BunsenResult<PatternedStackConfig> {
         if !self.layer_kinds.is_empty() && self.layer_kinds.len() != self.n_layers {
             return Err(ConstraintError::new(
-                "GemmaConfig",
+                "GemmaContractConfig",
                 "layer_kinds",
                 Rule::Relation {
                     lhs: ("layer_kinds.len".into(), self.layer_kinds.len().to_string()),
@@ -385,7 +385,9 @@ impl GemmaConfig {
         }
         let sliding = self.layer_kinds.contains(&GemmaLayerKind::Sliding);
         if sliding && self.sliding_window.is_none() {
-            return Err(ConstraintError::zero_or_empty("GemmaConfig", "sliding_window").into());
+            return Err(
+                ConstraintError::zero_or_empty("GemmaContractConfig", "sliding_window").into(),
+            );
         }
         let global = self.rotary(self.rope_theta, self.rope_scaling);
         let (alts, sliding_rotary) = match self.rope_local_theta {
@@ -412,14 +414,14 @@ impl GemmaConfig {
     }
 }
 
-/// The language model: [`embedding`](GemmaConfig::embedding),
-/// [`head`](GemmaConfig::head) and [`try_stack`](GemmaConfig::try_stack), its KV
-/// cache [`kv_cache_pre_size`](GemmaConfig::kv_cache_pre_size) positions up
+/// The language model: [`embedding`](GemmaContractConfig::embedding),
+/// [`head`](GemmaContractConfig::head) and [`try_stack`](GemmaContractConfig::try_stack), its KV
+/// cache [`kv_cache_pre_size`](GemmaContractConfig::kv_cache_pre_size) positions up
 /// front.
 ///
 /// # Errors
-/// As [`try_stack`](GemmaConfig::try_stack).
-impl ToStructureConfig for GemmaConfig {
+/// As [`try_stack`](GemmaContractConfig::try_stack).
+impl ToStructureConfig for GemmaContractConfig {
     type Structure = LmDecoderVariantConfig;
 
     fn try_to_structure(&self) -> BunsenResult<LmDecoderVariantConfig> {
@@ -432,8 +434,8 @@ impl ToStructureConfig for GemmaConfig {
 
 /// Google's Gemma decoder-only language model, generations 1 to 3 (text):
 /// an [`LmDecoderModel`] of `GeGLU` layers with `1 + w` RMS norms, sliding
-/// and full attention by layer ([`GemmaConfig::try_stack`]); the embedding
-/// scaled by `√d_model`; the head tied to it.
+/// and full attention by layer ([`GemmaContractConfig::try_stack`]); the
+/// embedding scaled by `√d_model`; the head tied to it.
 ///
 /// [`gemma_rekey`](crate::kits::language::generation::gemma::interop::transformers::gemma_rekey)
 /// maps `transformers`' `GemmaModel` names onto the [`LmDecoderModel`]'s, and
@@ -447,7 +449,7 @@ impl ToStructureConfig for GemmaConfig {
 /// ([`LmKvForwardHidden`](crate::blocks::transformers::models::language_decoder::LmKvForwardHidden),
 /// [`KVCacheModel`](crate::ops::transformers::attention::KVCacheModel)).
 ///
-/// Built by [`GemmaConfig`].
+/// Built by [`GemmaContractConfig`].
 /// Implements [`LmDecoderMeta`].
 #[derive(Module, Debug)]
 pub struct GemmaModel {
@@ -480,8 +482,8 @@ mod tests {
         support::testing::cpu_device,
     };
 
-    fn config() -> GemmaConfig {
-        GemmaConfig::new(40, 12, 3, 2, 1, 8, 24)
+    fn config() -> GemmaContractConfig {
+        GemmaContractConfig::new(40, 12, 3, 2, 1, 8, 24)
             .with_post_norms(true)
             .with_qk_norm(true)
             .with_layer_kinds(vec![

@@ -11,7 +11,7 @@ use bunsen::{
         resources::ResourceSet,
     },
     kits::language::generation::qwen3_5::{
-        Qwen3_5Config,
+        Qwen3_5ContractConfig,
         interop::transformers::qwen3_5_config_from_path,
         pretrained::default_qwen3_5_factory,
     },
@@ -34,7 +34,7 @@ fn test_every_row_is_a_prefab() {
             .unwrap_or_else(|e| panic!("{id}: {e}"));
         let config = format!("{config:?}");
         assert!(
-            Qwen3_5Config::PREFABS
+            Qwen3_5ContractConfig::PREFABS
                 .iter()
                 .any(|(_, prefab)| format!("{:?}", prefab()) == config),
             "{id}: no prefab is its geometry"

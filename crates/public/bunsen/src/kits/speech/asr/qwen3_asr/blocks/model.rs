@@ -38,7 +38,7 @@ use crate::{
         BunsenResult,
     },
     kits::language::generation::qwen3::{
-        Qwen3Config,
+        Qwen3ContractConfig,
         Qwen3Model,
     },
 };
@@ -70,7 +70,7 @@ pub struct Qwen3AsrConfig {
     pub audio: Qwen3AsrAudioEncoderConfig,
 
     /// The text model.
-    pub text: Qwen3Config,
+    pub text: Qwen3ContractConfig,
 
     /// The token whose positions the audio frames take in a prompt.
     #[config(default = "QWEN3_ASR_AUDIO_TOKEN")]
@@ -86,7 +86,7 @@ impl Qwen3AsrConfig {
     pub fn qwen3_asr_0_6b() -> Self {
         Self::new(
             Qwen3AsrAudioEncoderConfig::qwen3_asr_0_6b(),
-            Qwen3Config::qwen3_0_6b(),
+            Qwen3ContractConfig::qwen3_0_6b(),
         )
     }
 
@@ -94,7 +94,7 @@ impl Qwen3AsrConfig {
     pub fn qwen3_asr_1_7b() -> Self {
         Self::new(
             Qwen3AsrAudioEncoderConfig::qwen3_asr_1_7b(),
-            Qwen3Config::qwen3_1_7b(),
+            Qwen3ContractConfig::qwen3_1_7b(),
         )
     }
 }
@@ -324,7 +324,7 @@ mod tests {
     fn test_meta() {
         let config = Qwen3AsrConfig::new(
             Qwen3AsrAudioEncoderConfig::new(16, 32, 4, 64, 1, 8),
-            Qwen3Config::new(50, 24, 1, 4, 2, 8, 48),
+            Qwen3ContractConfig::new(50, 24, 1, 4, 2, 8, 48),
         )
         .with_audio_token(7);
         let model: Qwen3Asr = config.init(&cpu_device());

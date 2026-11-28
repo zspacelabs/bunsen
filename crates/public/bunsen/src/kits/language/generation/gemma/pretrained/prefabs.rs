@@ -4,7 +4,7 @@ use crate::{
         PrefabTable,
         Prefabs,
     },
-    kits::language::generation::gemma::GemmaConfig,
+    kits::language::generation::gemma::GemmaContractConfig,
 };
 
 /// The Gemma prefabs: the geometries bunsen's rows instantiate, by name,
@@ -14,7 +14,7 @@ use crate::{
 /// bytes are fetched; a checkpoint's `-it` (or `-pt`) sibling has its
 /// geometry. The `config.json`s are not committed: the validation crate
 /// checks each prefab against its rows' files.
-impl Prefabs for GemmaConfig {
+impl Prefabs for GemmaContractConfig {
     const PREFABS: PrefabTable<Self> = &[
         ("gemma-3-270m", Self::gemma_3_270m),
         ("gemma-3-1b", Self::gemma_3_1b),
@@ -40,23 +40,23 @@ mod tests {
     /// two tables, Gemma 2's alternation and caps, Gemma 1's plain stack.
     #[test]
     fn test_prefabs() {
-        let g3 = GemmaConfig::expect_prefab("gemma-3-4b");
+        let g3 = GemmaContractConfig::expect_prefab("gemma-3-4b");
         assert_eq!((g3.d_model(), g3.n_layers()), (2560, 34));
         assert_eq!(g3.layer_kind(5), GemmaLayerKind::Full);
         assert_eq!(g3.layer_kind(6), GemmaLayerKind::Sliding);
         assert!(g3.qk_norm && g3.post_norms && g3.rope_local_theta.is_some());
-        let g2 = GemmaConfig::expect_prefab("gemma-2-2b");
+        let g2 = GemmaContractConfig::expect_prefab("gemma-2-2b");
         assert_eq!(g2.layer_kind(0), GemmaLayerKind::Sliding);
         assert_eq!(g2.layer_kind(1), GemmaLayerKind::Full);
         assert_eq!(
             (g2.attn_softcap, g2.final_softcap),
             (Some(50.0), Some(30.0))
         );
-        let g1 = GemmaConfig::expect_prefab("gemma-7b");
+        let g1 = GemmaContractConfig::expect_prefab("gemma-7b");
         assert!(!g1.post_norms && g1.layer_kinds.is_empty());
-        for (_, prefab) in GemmaConfig::PREFABS {
+        for (_, prefab) in GemmaContractConfig::PREFABS {
             prefab().try_stack().unwrap();
         }
-        ErrorMatcher::lookup().assert_err(&GemmaConfig::try_prefab("gemma-3-27b"));
+        ErrorMatcher::lookup().assert_err(&GemmaContractConfig::try_prefab("gemma-3-27b"));
     }
 }

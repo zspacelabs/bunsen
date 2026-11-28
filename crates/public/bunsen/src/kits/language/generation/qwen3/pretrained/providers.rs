@@ -78,7 +78,7 @@ mod tests {
         },
         kits::{
             language::generation::qwen3::{
-                Qwen3Config,
+                Qwen3ContractConfig,
                 interop::transformers::qwen3_config_from_str,
             },
             support::construct::{
@@ -138,7 +138,7 @@ mod tests {
             );
             let config = qwen3_config_from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
             assert!(
-                Qwen3Config::PREFABS
+                Qwen3ContractConfig::PREFABS
                     .iter()
                     .any(|(_, prefab)| crate::support::testing::config_eq(&prefab(), &config)),
                 "{name}: its config.json is no prefab's geometry"

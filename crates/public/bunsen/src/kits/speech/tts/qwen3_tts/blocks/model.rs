@@ -116,7 +116,7 @@ mod tests {
     use super::*;
     use crate::{
         kits::{
-            language::generation::qwen3::Qwen3Config,
+            language::generation::qwen3::Qwen3ContractConfig,
             speech::tts::qwen3_tts::blocks::release_text_projection,
         },
         support::testing::cpu_device,
@@ -129,13 +129,13 @@ mod tests {
     fn test_model_meta() {
         let config = Qwen3TtsModelConfig::new(
             Qwen3TtsTalkerConfig::new(
-                Qwen3Config::new(11, 8, 1, 2, 1, 4, 12),
+                Qwen3ContractConfig::new(11, 8, 1, 2, 1, 4, 12),
                 13,
                 6,
                 release_text_projection(6, 8),
                 4,
             ),
-            Qwen3TtsCodePredictorConfig::new(Qwen3Config::new(7, 4, 1, 2, 1, 2, 6), 8, 3),
+            Qwen3TtsCodePredictorConfig::new(Qwen3ContractConfig::new(7, 4, 1, 2, 1, 2, 6), 8, 3),
         );
         let model: Qwen3TtsModel = config.init(&cpu_device());
         for meta in [&config as &dyn Qwen3TtsModelMeta, &model] {

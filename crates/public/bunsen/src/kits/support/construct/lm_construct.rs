@@ -165,7 +165,7 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         kits::language::generation::qwen3::{
-            Qwen3Config,
+            Qwen3ContractConfig,
             Qwen3Model,
         },
         support::testing::cpu_device,
@@ -173,7 +173,8 @@ mod tests {
 
     #[test]
     fn test_files_by_key() {
-        let model: Qwen3Model = Qwen3Config::new(40, 12, 1, 3, 1, 6, 20).init(&cpu_device());
+        let model: Qwen3Model =
+            Qwen3ContractConfig::new(40, 12, 1, 3, 1, 6, 20).init(&cpu_device());
         let bundle = LmConstruct::new(model)
             .with_max_positions(Some(512))
             .with_file(TOKENIZER, "/x/tokenizer.json");

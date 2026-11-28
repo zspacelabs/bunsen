@@ -42,7 +42,7 @@ pub fn load_gemma_tensors(
 #[cfg(feature = "cache")]
 pub fn load_gemma(
     loaded: &crate::data::resources::LoadedResourceSet,
-    config: &crate::kits::language::generation::gemma::GemmaConfig,
+    config: &crate::kits::language::generation::gemma::GemmaContractConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<GemmaModel> {

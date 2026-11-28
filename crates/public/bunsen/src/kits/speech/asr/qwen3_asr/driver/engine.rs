@@ -363,7 +363,7 @@ mod tests {
         burner::module::ModuleInit,
         errors::testing::ErrorMatcher,
         kits::{
-            language::generation::qwen3::Qwen3Config,
+            language::generation::qwen3::Qwen3ContractConfig,
             speech::{
                 asr::{
                     driver::{
@@ -412,7 +412,7 @@ mod tests {
     ) -> Qwen3AsrConstruct {
         let config = Qwen3AsrConfig::new(
             Qwen3AsrAudioEncoderConfig::new(16, 32, 4, 64, 2, 8).with_n_window_infer(200),
-            Qwen3Config::new(VOCAB, 24, 2, 4, 2, 8, 48),
+            Qwen3ContractConfig::new(VOCAB, 24, 2, 4, 2, 8, 48),
         )
         .with_audio_token(7);
         let model: Qwen3Asr = config.init(device);

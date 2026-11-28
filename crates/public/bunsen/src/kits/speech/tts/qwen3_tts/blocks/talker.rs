@@ -29,7 +29,7 @@ use crate::{
     burner::module::ModuleInit,
     errors::BunsenResult,
     kits::language::generation::qwen3::{
-        Qwen3Config,
+        Qwen3ContractConfig,
         Qwen3Model,
     },
     ops::transformers::attention::{
@@ -246,7 +246,7 @@ impl KVCacheModel for Qwen3TtsTalker {
 pub struct Qwen3TtsTalkerConfig {
     /// The decoder: a Qwen3 stack over the codec table (`n_vocab`, the
     /// codes and the control rows), its head a projection of its own.
-    pub lm: Qwen3Config,
+    pub lm: Qwen3ContractConfig,
 
     /// The text table's rows.
     pub text_vocab: usize,
@@ -266,7 +266,7 @@ pub struct Qwen3TtsTalkerConfig {
 mod tests {
     use super::*;
     use crate::{
-        kits::language::generation::qwen3::Qwen3Config,
+        kits::language::generation::qwen3::Qwen3ContractConfig,
         support::testing::cpu_device,
     };
 
@@ -275,7 +275,7 @@ mod tests {
     #[test]
     fn test_talker_meta() {
         let config = Qwen3TtsTalkerConfig::new(
-            Qwen3Config::new(11, 8, 1, 2, 1, 4, 12),
+            Qwen3ContractConfig::new(11, 8, 1, 2, 1, 4, 12),
             13,
             6,
             BunsenMlpConfig::new(6, 5, 8).with_activation(BunsenActivationConfig::Gelu),

@@ -28,7 +28,7 @@ use crate::{
     burner::module::ModuleInit,
     errors::testing::ErrorMatcher,
     kits::{
-        language::generation::qwen3::Qwen3Config,
+        language::generation::qwen3::Qwen3ContractConfig,
         speech::asr::qwen3_asr::blocks::Qwen3AsrFrontEndConfig,
     },
     ops::transformers::attention::{
@@ -59,7 +59,7 @@ const FEATURE_LEN: usize = 250;
 fn toy_config() -> Qwen3AsrConfig {
     Qwen3AsrConfig::new(
         Qwen3AsrAudioEncoderConfig::new(16, 32, 4, 64, 2, 8).with_n_window_infer(200),
-        Qwen3Config::new(50, 24, 2, 4, 2, 8, 48),
+        Qwen3ContractConfig::new(50, 24, 2, 4, 2, 8, 48),
     )
     .with_audio_token(AUDIO_TOKEN)
 }
