@@ -7,7 +7,7 @@ use crate::{
     errors::BunsenResult,
     kits::{
         language::generation::qwen3::{
-            Qwen3Config,
+            Qwen3ContractConfig,
             interop::transformers::text_layer_rekey,
         },
         speech::tts::qwen3_tts::blocks::Qwen3TtsCodePredictorConfig,
@@ -41,7 +41,7 @@ pub fn code_predictor_config(
     t.expect_eq("attention_bias", d.attention_bias, false)?;
     t.expect_eq("sliding_window", d.sliding_window, None)?;
     t.expect_eq("rope_scaling.rope_type", d.rope_type.as_str(), "default")?;
-    let lm = Qwen3Config::new(
+    let lm = Qwen3ContractConfig::new(
         t.usize("vocab_size")?,
         d.hidden_size,
         d.num_hidden_layers,

@@ -10,7 +10,7 @@
 //! [`default_qwen3_factory`] is the index a caller holds, over two providers.
 //! First the catalog rows, the built-in catalog's builds of
 //! [`QWEN3_CATALOG_CONTRACT`], whose geometries are
-//! [`Qwen3Config`](crate::kits::language::generation::qwen3::Qwen3Config)'s prefabs'; each
+//! [`Qwen3ContractConfig`](crate::kits::language::generation::qwen3::Qwen3ContractConfig)'s prefabs'; each
 //! is a `transformers` checkpoint (bf16), its `config.json`, `tokenizer.json`,
 //! `tokenizer_config.json` and `generation_config.json`:
 //!

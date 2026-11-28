@@ -9,7 +9,7 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::BunsenResult,
-    kits::language::generation::qwen3::Qwen3Config,
+    kits::language::generation::qwen3::Qwen3ContractConfig,
 };
 
 /// Config for Qwen3-TTS's code predictor: a Qwen3 stack (QK-norm before the
@@ -25,7 +25,7 @@ pub struct Qwen3TtsCodePredictorConfig {
     /// The stack's geometry; its `n_vocab` is the codes per codebook. Only
     /// the stack is built from it: the tables and heads are the depth
     /// decoder's own.
-    pub lm: Qwen3Config,
+    pub lm: Qwen3ContractConfig,
 
     /// The talker's width: the rows the predictor is given, and its tables'.
     pub talker_width: usize,
@@ -79,8 +79,11 @@ mod tests {
     #[test]
     fn test_lowering_agrees() {
         let device = cpu_device();
-        let config =
-            Qwen3TtsCodePredictorConfig::new(Qwen3Config::new(11, 8, 2, 2, 1, 4, 16), 12, 3);
+        let config = Qwen3TtsCodePredictorConfig::new(
+            Qwen3ContractConfig::new(11, 8, 2, 2, 1, 4, 16),
+            12,
+            3,
+        );
         let structure = config.to_structure();
         let direct: DepthDecoder = config.init(&device);
         let lowered: DepthDecoder = structure.init(&device);

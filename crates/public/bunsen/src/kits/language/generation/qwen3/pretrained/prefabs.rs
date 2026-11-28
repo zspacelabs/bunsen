@@ -4,7 +4,7 @@ use crate::{
         PrefabTable,
         Prefabs,
     },
-    kits::language::generation::qwen3::Qwen3Config,
+    kits::language::generation::qwen3::Qwen3ContractConfig,
 };
 
 /// The Qwen3 prefabs: the geometries bunsen's rows instantiate, by name,
@@ -12,7 +12,7 @@ use crate::{
 ///
 /// A pretrained row names its prefab, so a name means a shape before any
 /// bytes are fetched. A `-Base` checkpoint has its chat model's geometry.
-impl Prefabs for Qwen3Config {
+impl Prefabs for Qwen3ContractConfig {
     const PREFABS: PrefabTable<Self> = &[
         ("qwen3-0.6b", Self::qwen3_0_6b),
         ("qwen3-1.7b", Self::qwen3_1_7b),
@@ -33,12 +33,12 @@ mod tests {
 
     #[test]
     fn test_prefabs() {
-        let config = Qwen3Config::expect_prefab("qwen3-4b");
+        let config = Qwen3ContractConfig::expect_prefab("qwen3-4b");
         assert_eq!(config.d_model(), 2560);
         assert_eq!(config.n_layers(), 36);
-        let config = Qwen3Config::expect_prefab("qwen3-8b");
+        let config = Qwen3ContractConfig::expect_prefab("qwen3-8b");
         assert_eq!(config.d_model(), 4096);
         assert!(!config.tied_head);
-        ErrorMatcher::lookup().assert_err(&Qwen3Config::try_prefab("qwen3-14b"));
+        ErrorMatcher::lookup().assert_err(&Qwen3ContractConfig::try_prefab("qwen3-14b"));
     }
 }

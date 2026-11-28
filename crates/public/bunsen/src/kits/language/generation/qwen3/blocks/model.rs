@@ -47,9 +47,9 @@ use crate::{
 
 /// The cache a Qwen3 of this geometry decodes with, before it is built: its
 /// KV heads, head width and layer count,
-/// [`kv_cache_pre_size`](Qwen3Config::kv_cache_pre_size) positions up front,
+/// [`kv_cache_pre_size`](Qwen3ContractConfig::kv_cache_pre_size) positions up front,
 /// uncapped; the built model's ([`LmDecoderModel`]'s) is the same.
-impl KVCacheModel for Qwen3Config {
+impl KVCacheModel for Qwen3ContractConfig {
     fn kv_cache_config(&self) -> KVCacheConfig {
         KVCacheConfig::for_decode(
             self.n_kv_heads(),
@@ -60,12 +60,12 @@ impl KVCacheModel for Qwen3Config {
     }
 }
 
-/// Config for [`Qwen3Model`]: `transformers`' `Qwen3Config`, as far as a
-/// decode needs it.
+/// Config for [`Qwen3Model`]: `transformers`' `Qwen3Config`, as far as
+/// a decode needs it.
 ///
 /// Implements [`LmDecoderMeta`].
 #[derive(Config, Debug)]
-pub struct Qwen3Config {
+pub struct Qwen3ContractConfig {
     /// The token count.
     pub n_vocab: usize,
 
@@ -134,7 +134,7 @@ pub struct Qwen3Config {
     pub kv_cache_pre_size: usize,
 }
 
-impl Qwen3Config {
+impl Qwen3ContractConfig {
     /// The text model of `Qwen3-ASR-0.6B` (`Qwen3-0.6B`'s geometry): 151936
     /// tokens, 28 layers of width 1024, 16 query and 8 key/value heads of
     /// width 128, a 3072-wide feed-forward, and a rotary base of 10^6.
@@ -214,13 +214,13 @@ impl Qwen3Config {
     }
 }
 
-/// The language model: [`embedding`](Qwen3Config::embedding),
-/// [`head`](Qwen3Config::head) and [`stack`](Qwen3Config::stack), its KV cache
-/// [`kv_cache_pre_size`](Qwen3Config::kv_cache_pre_size) positions up front.
+/// The language model: [`embedding`](Qwen3ContractConfig::embedding),
+/// [`head`](Qwen3ContractConfig::head) and [`stack`](Qwen3ContractConfig::stack), its KV cache
+/// [`kv_cache_pre_size`](Qwen3ContractConfig::kv_cache_pre_size) positions up front.
 ///
 /// # Errors
 /// Never: a Qwen3's lowering is total.
-impl ToStructureConfig for Qwen3Config {
+impl ToStructureConfig for Qwen3ContractConfig {
     type Structure = LmDecoderVariantConfig;
 
     fn try_to_structure(&self) -> BunsenResult<LmDecoderVariantConfig> {
@@ -231,7 +231,7 @@ impl ToStructureConfig for Qwen3Config {
     }
 }
 
-impl LmDecoderMeta for Qwen3Config {
+impl LmDecoderMeta for Qwen3ContractConfig {
     fn n_vocab(&self) -> usize {
         self.n_vocab
     }
@@ -257,8 +257,8 @@ impl LmDecoderMeta for Qwen3Config {
 /// checkpoints, their head tied to the embedding (up to 4B) or a linear map
 /// of its own (8B), and the text model of Qwen3-ASR.
 ///
-/// An [`LmDecoderModel`] whose stack ([`Qwen3Config::stack`]) is RMS norms, a
-/// `SwiGLU`, and QK-norm before the rotary embedding;
+/// An [`LmDecoderModel`] whose stack ([`Qwen3ContractConfig::stack`]) is RMS
+/// norms, a `SwiGLU`, and QK-norm before the rotary embedding;
 /// [`qwen3_rekey`](crate::kits::language::generation::qwen3::interop::transformers::qwen3_rekey)
 /// maps `transformers`' `Qwen3ForCausalLM` names onto the
 /// [`LmDecoderModel`]'s, and the load is into [`lm`](Self::lm).
@@ -271,7 +271,7 @@ impl LmDecoderMeta for Qwen3Config {
 /// ([`LmKvForwardHidden`](crate::blocks::transformers::models::language_decoder::LmKvForwardHidden),
 /// [`KVCacheModel`]).
 ///
-/// Built by [`Qwen3Config`].
+/// Built by [`Qwen3ContractConfig`].
 /// Implements [`LmDecoderMeta`].
 #[derive(Module, Debug)]
 pub struct Qwen3Model {
@@ -336,7 +336,7 @@ mod tests {
     /// uncached forward's.
     #[test]
     fn test_meta_and_cache() {
-        let config = Qwen3Config::new(40, 12, 2, 3, 1, 6, 20)
+        let config = Qwen3ContractConfig::new(40, 12, 2, 3, 1, 6, 20)
             .with_rms_eps(1e-5)
             .with_rope_theta(500.0)
             .with_rotary_direction(RotaryDirection::Reverse)
@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn test_untied_head() {
         let device = cpu_device();
-        let model: Qwen3Model = Qwen3Config::new(40, 12, 1, 3, 1, 6, 20)
+        let model: Qwen3Model = Qwen3ContractConfig::new(40, 12, 1, 3, 1, 6, 20)
             .with_tied_head(false)
             .init(&device);
         let head = model.lm.decoder.head.proj.as_ref().expect("an untied head");
@@ -442,7 +442,7 @@ mod tests {
     #[test]
     fn test_decode_cached() {
         let device = cpu_device();
-        let model: Qwen3Model = Qwen3Config::new(40, 12, 2, 3, 1, 6, 20).init(&device);
+        let model: Qwen3Model = Qwen3ContractConfig::new(40, 12, 2, 3, 1, 6, 20).init(&device);
         let prompt = vec![1i64, 5, 7];
         let ids = |ids: &[i64], rows: usize| {
             let data: Vec<i64> = (0..rows).flat_map(|_| ids.iter().copied()).collect();

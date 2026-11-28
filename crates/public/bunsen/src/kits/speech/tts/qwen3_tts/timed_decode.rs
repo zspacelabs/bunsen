@@ -164,7 +164,7 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         kits::{
-            language::generation::qwen3::Qwen3Config,
+            language::generation::qwen3::Qwen3ContractConfig,
             speech::tts::qwen3_tts::{
                 blocks::{
                     Qwen3TtsCodePredictorConfig,
@@ -218,13 +218,13 @@ mod tests {
         let device = cpu_device();
         let model: Qwen3TtsModel = Qwen3TtsModelConfig::new(
             Qwen3TtsTalkerConfig::new(
-                Qwen3Config::new(11, 8, 1, 2, 1, 4, 12),
+                Qwen3ContractConfig::new(11, 8, 1, 2, 1, 4, 12),
                 1000,
                 6,
                 release_text_projection(6, 8),
                 4,
             ),
-            Qwen3TtsCodePredictorConfig::new(Qwen3Config::new(7, 4, 1, 2, 1, 2, 6), 8, 3),
+            Qwen3TtsCodePredictorConfig::new(Qwen3ContractConfig::new(7, 4, 1, 2, 1, 2, 6), 8, 3),
         )
         .init(&device);
         let len = 3;
@@ -279,13 +279,13 @@ mod tests {
         let device = cpu_device();
         let model: Qwen3TtsModel = Qwen3TtsModelConfig::new(
             Qwen3TtsTalkerConfig::new(
-                Qwen3Config::new(11, 8, 1, 2, 1, 4, 12),
+                Qwen3ContractConfig::new(11, 8, 1, 2, 1, 4, 12),
                 1000,
                 6,
                 release_text_projection(6, 8),
                 4,
             ),
-            Qwen3TtsCodePredictorConfig::new(Qwen3Config::new(7, 4, 1, 2, 1, 2, 6), 8, 3),
+            Qwen3TtsCodePredictorConfig::new(Qwen3ContractConfig::new(7, 4, 1, 2, 1, 2, 6), 8, 3),
         )
         .init(&device);
         let _ = model.timed_state(2, 8, KVCacheStorage::Auto, &device);

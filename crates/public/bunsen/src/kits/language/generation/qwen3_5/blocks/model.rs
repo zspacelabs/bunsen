@@ -74,7 +74,7 @@ pub enum Qwen3_5LayerKind {
 ///
 /// Implements [`LmDecoderMeta`].
 #[derive(Config, Debug)]
-pub struct Qwen3_5Config {
+pub struct Qwen3_5ContractConfig {
     /// The token count.
     pub n_vocab: usize,
 
@@ -175,7 +175,7 @@ pub struct Qwen3_5Config {
     pub logits_dtype: Option<FloatDType>,
 }
 
-impl LmDecoderMeta for Qwen3_5Config {
+impl LmDecoderMeta for Qwen3_5ContractConfig {
     fn n_vocab(&self) -> usize {
         self.n_vocab
     }
@@ -197,7 +197,7 @@ impl LmDecoderMeta for Qwen3_5Config {
     }
 }
 
-impl Qwen3_5Config {
+impl Qwen3_5ContractConfig {
     /// A published dense Qwen3.5's text model: 248320 tokens, full-attention
     /// heads of width 256 over `heads` (query, key/value), 16 linear key
     /// heads and `linear_value_heads` value heads of width 128, every fourth
@@ -370,7 +370,7 @@ impl Qwen3_5Config {
     pub fn try_stack(&self) -> BunsenResult<PatternedStackConfig> {
         if !self.layer_kinds.is_empty() && self.layer_kinds.len() != self.n_layers {
             return Err(ConstraintError::new(
-                "Qwen3_5Config",
+                "Qwen3_5ContractConfig",
                 "layer_kinds",
                 Rule::Relation {
                     lhs: ("layer_kinds.len".into(), self.layer_kinds.len().to_string()),
@@ -398,12 +398,12 @@ impl Qwen3_5Config {
     }
 }
 
-/// The language model: [`embedding`](Qwen3_5Config::embedding),
-/// [`head`](Qwen3_5Config::head) and [`try_stack`](Qwen3_5Config::try_stack).
+/// The language model: [`embedding`](Qwen3_5ContractConfig::embedding),
+/// [`head`](Qwen3_5ContractConfig::head) and [`try_stack`](Qwen3_5ContractConfig::try_stack).
 ///
 /// # Errors
-/// As [`try_stack`](Qwen3_5Config::try_stack).
-impl ToStructureConfig for Qwen3_5Config {
+/// As [`try_stack`](Qwen3_5ContractConfig::try_stack).
+impl ToStructureConfig for Qwen3_5ContractConfig {
     type Structure = LmDecoderVariantConfig;
 
     fn try_to_structure(&self) -> BunsenResult<LmDecoderVariantConfig> {
@@ -418,8 +418,8 @@ impl ToStructureConfig for Qwen3_5Config {
 /// The Qwen3.5 decoder-only language model (Qwen team, 2026), the text model
 /// of the dense Qwen3.5 checkpoints: a hybrid [`LmDecoderModel`] of gated
 /// `DeltaNet` layers and gated full-attention layers
-/// ([`Qwen3_5Config::try_stack`]), its head tied to the embedding or a linear
-/// map of its own.
+/// ([`Qwen3_5ContractConfig::try_stack`]), its head tied to the embedding or a
+/// linear map of its own.
 ///
 /// [`qwen3_5_rekey`](crate::kits::language::generation::qwen3_5::interop::transformers::qwen3_5_rekey)
 /// maps `transformers`' `Qwen3_5ForCausalLM` names onto the
@@ -433,7 +433,7 @@ impl ToStructureConfig for Qwen3_5Config {
 /// and runs uncached through
 /// [`LmKvForwardHidden`](crate::blocks::transformers::models::language_decoder::LmKvForwardHidden).
 ///
-/// Built by [`Qwen3_5Config`].
+/// Built by [`Qwen3_5ContractConfig`].
 /// Implements [`LmDecoderMeta`].
 #[derive(Module, Debug)]
 pub struct Qwen3_5Model {
@@ -475,8 +475,8 @@ mod tests {
         support::testing::cpu_device,
     };
 
-    fn config() -> Qwen3_5Config {
-        Qwen3_5Config::new(40, 16, 4, 4, 2, 8, 24, 2, 4, 4, 3)
+    fn config() -> Qwen3_5ContractConfig {
+        Qwen3_5ContractConfig::new(40, 16, 4, 4, 2, 8, 24, 2, 4, 4, 3)
             .with_partial_rotary_factor(0.5)
             .with_layer_kinds(vec![
                 Qwen3_5LayerKind::Linear,
@@ -531,10 +531,10 @@ mod tests {
         }
         assert_eq!(model.rotary(5, &device).tables[0].cos.dims(), [1, 5, 1, 2]);
 
-        let default = Qwen3_5Config::new(40, 16, 8, 4, 2, 8, 24, 2, 4, 4, 3);
+        let default = Qwen3_5ContractConfig::new(40, 16, 8, 4, 2, 8, 24, 2, 4, 4, 3);
         assert_eq!(
             (0..8).map(|i| default.layer_kind(i)).collect::<Vec<_>>(),
-            Qwen3_5Config::every_nth_full(8, 4),
+            Qwen3_5ContractConfig::every_nth_full(8, 4),
             "every fourth layer full by default"
         );
         ErrorMatcher::illegal().assert_err(
@@ -567,17 +567,17 @@ mod tests {
             other => panic!("a full layer attends: {other:?}"),
         }
 
-        let every_third =
-            Qwen3_5Config::new(40, 16, 6, 4, 2, 8, 24, 2, 4, 4, 3).with_full_attention_interval(3);
+        let every_third = Qwen3_5ContractConfig::new(40, 16, 6, 4, 2, 8, 24, 2, 4, 4, 3)
+            .with_full_attention_interval(3);
         assert_eq!(
             (0..6)
                 .map(|i| every_third.layer_kind(i))
                 .collect::<Vec<_>>(),
-            Qwen3_5Config::every_nth_full(6, 3)
+            Qwen3_5ContractConfig::every_nth_full(6, 3)
         );
         assert_eq!(
             every_third.with_every_nth_full().layer_kinds,
-            Qwen3_5Config::every_nth_full(6, 3)
+            Qwen3_5ContractConfig::every_nth_full(6, 3)
         );
     }
 }

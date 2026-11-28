@@ -46,7 +46,7 @@ pub fn load_qwen3_tensors(
 #[cfg(feature = "cache")]
 pub fn load_qwen3(
     loaded: &crate::data::resources::LoadedResourceSet,
-    config: &crate::kits::language::generation::qwen3::Qwen3Config,
+    config: &crate::kits::language::generation::qwen3::Qwen3ContractConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<Qwen3Model> {

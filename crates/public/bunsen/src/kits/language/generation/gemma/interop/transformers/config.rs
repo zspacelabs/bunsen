@@ -10,7 +10,7 @@ use crate::{
     },
     kits::{
         language::generation::gemma::{
-            GemmaConfig,
+            GemmaContractConfig,
             GemmaLayerKind,
         },
         support::transformers::interop::{
@@ -29,10 +29,10 @@ enum Generation {
     Gemma3,
 }
 
-/// The [`GemmaConfig`] of a `transformers` Gemma `config.json`: `model_type`
-/// `gemma`, `gemma2`, `gemma3_text`, or `gemma3` (a multimodal model, read
-/// from its `text_config`; its vision tower is not part of bunsen's model,
-/// and its text path applies no final soft-cap).
+/// The [`GemmaContractConfig`] of a `transformers` Gemma `config.json`:
+/// `model_type` `gemma`, `gemma2`, `gemma3_text`, or `gemma3` (a multimodal
+/// model, read from its `text_config`; its vision tower is not part of bunsen's
+/// model, and its text path applies no final soft-cap).
 ///
 /// Read in both spellings `transformers` has written: the rotary bases as
 /// `rope_parameters` (per layer kind, for Gemma 3) or as `rope_theta`,
@@ -51,7 +51,7 @@ enum Generation {
 /// naming the field, when the file lacks one or does not parse;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Gemma is not.
-pub fn gemma_config(c: &TransformersConfigJson) -> BunsenResult<GemmaConfig> {
+pub fn gemma_config(c: &TransformersConfigJson) -> BunsenResult<GemmaContractConfig> {
     let root = c.clone();
     let tie_default = root.bool_or("tie_word_embeddings", true)?;
     let (t, generation, multimodal) = match root.str("model_type")? {
@@ -94,7 +94,7 @@ pub fn gemma_config(c: &TransformersConfigJson) -> BunsenResult<GemmaConfig> {
     )?;
 
     let n_layers = t.usize("num_hidden_layers")?;
-    let mut config = GemmaConfig::new(
+    let mut config = GemmaContractConfig::new(
         t.usize("vocab_size")?,
         hidden,
         n_layers,
@@ -220,14 +220,14 @@ fn layer_kinds(
             None => t.usize_opt("_sliding_window_pattern")?.unwrap_or(6),
         },
     };
-    Ok(GemmaConfig::every_nth_full(n_layers, full_every))
+    Ok(GemmaContractConfig::every_nth_full(n_layers, full_every))
 }
 
 /// [`gemma_config`] of a `config.json`'s text.
 ///
 /// # Errors
 /// As [`config_from_str`] and [`gemma_config`].
-pub fn gemma_config_from_str(json: &str) -> BunsenResult<GemmaConfig> {
+pub fn gemma_config_from_str(json: &str) -> BunsenResult<GemmaContractConfig> {
     config_from_str(json, gemma_config)
 }
 
@@ -236,6 +236,6 @@ pub fn gemma_config_from_str(json: &str) -> BunsenResult<GemmaConfig> {
 ///
 /// # Errors
 /// As [`config_from_path`] and [`gemma_config`].
-pub fn gemma_config_from_path(path: &Path) -> BunsenResult<GemmaConfig> {
+pub fn gemma_config_from_path(path: &Path) -> BunsenResult<GemmaContractConfig> {
     config_from_path(path, gemma_config)
 }

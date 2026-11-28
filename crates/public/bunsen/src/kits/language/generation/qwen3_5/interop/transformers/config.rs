@@ -10,7 +10,7 @@ use crate::{
     },
     kits::{
         language::generation::qwen3_5::{
-            Qwen3_5Config,
+            Qwen3_5ContractConfig,
             Qwen3_5LayerKind,
         },
         support::transformers::interop::{
@@ -22,10 +22,10 @@ use crate::{
     },
 };
 
-/// The [`Qwen3_5Config`] of a `transformers` dense Qwen3.5 `config.json`: a
-/// `Qwen3_5ForConditionalGeneration`'s (`model_type` `qwen3_5`, read from its
-/// `text_config`; its vision tower is not part of bunsen's model), or a bare
-/// text model's (`qwen3_5_text`).
+/// The [`Qwen3_5ContractConfig`] of a `transformers` dense Qwen3.5
+/// `config.json`: a `Qwen3_5ForConditionalGeneration`'s (`model_type`
+/// `qwen3_5`, read from its `text_config`; its vision tower is not part of
+/// bunsen's model), or a bare text model's (`qwen3_5_text`).
 ///
 /// The layer kinds come from `layer_types`, or without them from
 /// `full_attention_interval` (4 by default) as `transformers` derives them;
@@ -46,7 +46,7 @@ use crate::{
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Qwen3.5 is not (a mixture of
 /// experts, `qwen3_5_moe`, among them).
-pub fn qwen3_5_config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5Config> {
+pub fn qwen3_5_config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5ContractConfig> {
     let root = c.clone();
     let tie_default = root.bool_or("tie_word_embeddings", false)?;
     let (t, architecture) = match root.str("model_type")? {
@@ -96,7 +96,7 @@ pub fn qwen3_5_config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5Config>
     };
 
     let n_layers = d.num_hidden_layers;
-    let config = Qwen3_5Config::new(
+    let config = Qwen3_5ContractConfig::new(
         t.usize("vocab_size")?,
         d.hidden_size,
         n_layers,
@@ -156,7 +156,7 @@ pub fn qwen3_5_config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5Config>
 ///
 /// # Errors
 /// As [`config_from_str`] and [`qwen3_5_config`].
-pub fn qwen3_5_config_from_str(json: &str) -> BunsenResult<Qwen3_5Config> {
+pub fn qwen3_5_config_from_str(json: &str) -> BunsenResult<Qwen3_5ContractConfig> {
     config_from_str(json, qwen3_5_config)
 }
 
@@ -165,6 +165,6 @@ pub fn qwen3_5_config_from_str(json: &str) -> BunsenResult<Qwen3_5Config> {
 ///
 /// # Errors
 /// As [`config_from_path`] and [`qwen3_5_config`].
-pub fn qwen3_5_config_from_path(path: &Path) -> BunsenResult<Qwen3_5Config> {
+pub fn qwen3_5_config_from_path(path: &Path) -> BunsenResult<Qwen3_5ContractConfig> {
     config_from_path(path, qwen3_5_config)
 }

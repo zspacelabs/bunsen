@@ -8,9 +8,9 @@
 //! every few full attention, with QK-norm, a sigmoid gate on its output and
 //! a rotary embedding over a quarter of each head; a `SwiGLU` in every
 //! layer, and `1 + w` RMS norms. One [`Qwen3_5Model`] is built from a
-//! [`Qwen3_5Config`].
+//! [`Qwen3_5ContractConfig`].
 //!
-//! - [`blocks`]: the model, built from a [`Qwen3_5Config`].
+//! - [`blocks`]: the model, built from a [`Qwen3_5ContractConfig`].
 //! - Decoding: the model wraps an
 //!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
 //!   with linear-attention layers, and is a

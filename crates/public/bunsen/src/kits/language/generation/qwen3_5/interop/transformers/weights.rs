@@ -10,7 +10,7 @@ use crate::{
     errors::BunsenResult,
     kits::{
         language::generation::qwen3_5::{
-            Qwen3_5Config,
+            Qwen3_5ContractConfig,
             Qwen3_5Model,
         },
         support::interop::load_lm_rekeyed,
@@ -27,7 +27,7 @@ use crate::{
 /// As [`load_lm_rekeyed`].
 pub fn load_qwen3_5_tensors(
     model: &mut Qwen3_5Model,
-    config: &Qwen3_5Config,
+    config: &Qwen3_5ContractConfig,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: Option<FloatDType>,
 ) -> BunsenResult<NamedTensorsApplied> {
@@ -45,7 +45,7 @@ pub fn load_qwen3_5_tensors(
 #[cfg(feature = "cache")]
 pub fn load_qwen3_5(
     loaded: &crate::data::resources::LoadedResourceSet,
-    config: &crate::kits::language::generation::qwen3_5::Qwen3_5Config,
+    config: &crate::kits::language::generation::qwen3_5::Qwen3_5ContractConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<Qwen3_5Model> {

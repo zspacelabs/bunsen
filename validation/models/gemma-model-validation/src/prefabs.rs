@@ -12,7 +12,7 @@ use bunsen::{
         resources::ResourceSet,
     },
     kits::language::generation::gemma::{
-        GemmaConfig,
+        GemmaContractConfig,
         interop::transformers::gemma_config_from_path,
         pretrained::default_gemma_factory,
     },
@@ -35,7 +35,7 @@ fn test_every_row_is_a_prefab() {
             .unwrap_or_else(|e| panic!("{id}: {e}"));
         let config = format!("{config:?}");
         assert!(
-            GemmaConfig::PREFABS
+            GemmaContractConfig::PREFABS
                 .iter()
                 .any(|(_, prefab)| format!("{:?}", prefab()) == config),
             "{id}: no prefab is its geometry"

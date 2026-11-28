@@ -5,7 +5,7 @@
 //! RMS normalization before a rotary embedding, a `SwiGLU` feed-forward, and a
 //! head tied to the embedding or a linear map of its own
 //! (`tie_word_embeddings`). [`Qwen3Model`] is built from a
-//! [`Qwen3Config`] out of the shared
+//! [`Qwen3ContractConfig`] out of the shared
 //! [`CausalSelfAttention`](crate::blocks::transformers::attention::csa::CausalSelfAttention),
 //! [`BunsenGatedMlp`](crate::blocks::mlp::BunsenGatedMlp) and
 //! [`RotaryEmbedding`](crate::blocks::transformers::embedding::RotaryEmbedding),
@@ -21,7 +21,7 @@
 //! the text model of
 //! [`kits::speech::asr::qwen3_asr`](crate::kits::speech::asr::qwen3_asr).
 //!
-//! - [`blocks`]: the model, built from a [`Qwen3Config`].
+//! - [`blocks`]: the model, built from a [`Qwen3ContractConfig`].
 //! - Decoding: the model is a
 //!   [`StackedLm`](crate::kits::support::decoding::StackedLm), its decode state
 //!   its stack's

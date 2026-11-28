@@ -111,6 +111,11 @@
 //!   - A family's user-facing config over another family's structure is that
 //!     family's own, and keeps the bare name: [`ConformerEncoderConfig`] lowers
 //!     to [`SubsampledEncoderConfig`].
+//!   - A model family's policy over a *generic* model is
+//!     `{Family}ContractConfig`, though it has no structure config of its own:
+//!     `ResNetContractConfig` lowers onto the conv net, `Qwen3ContractConfig`
+//!     onto the language decoder. A family that builds its own model keeps the
+//!     Simple name (`LayaConfig` builds `LayaModel`).
 //!   - Promote a Simple family to Stacked when its user-facing knobs diverge
 //!     from the implementation's parameters, when a second default policy
 //!     appears, or when loaders and tooling need the unrolled tree.

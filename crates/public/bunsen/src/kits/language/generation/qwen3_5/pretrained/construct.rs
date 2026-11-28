@@ -16,7 +16,7 @@ use crate::{
         language::generation::qwen3_5::{
             CHAT_TEMPLATE,
             GENERATION_CONFIG,
-            Qwen3_5Config,
+            Qwen3_5ContractConfig,
             Qwen3_5Model,
             TOKENIZER_CONFIG,
             interop::transformers::{
@@ -55,20 +55,20 @@ pub const END_OF_TEXT: &str = "<|endoftext|>";
 pub struct Qwen3_5ConstructConfig;
 
 impl TransformersLmKit for Qwen3_5ConstructConfig {
-    type Config = Qwen3_5Config;
+    type Config = Qwen3_5ContractConfig;
     type Model = Qwen3_5Model;
 
     const CHECKPOINT: &'static str = CHECKPOINT;
     const KIT: &'static str = QWEN3_5_KIT;
     const NAME: &'static str = "Qwen3.5";
 
-    fn config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5Config> {
+    fn config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5ContractConfig> {
         qwen3_5_config(c)
     }
 
     fn load(
         loaded: &LoadedResourceSet,
-        config: &Qwen3_5Config,
+        config: &Qwen3_5ContractConfig,
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<Qwen3_5Model> {
