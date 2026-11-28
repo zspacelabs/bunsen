@@ -245,7 +245,7 @@ pub struct NanoChatGptContractConfig {
 
     /// The MLP's activation, before its square (`relu(x)²` by default).
     #[config(default = "BunsenActivationConfig::Relu")]
-    pub activation: BunsenActivationConfig,
+    pub act: BunsenActivationConfig,
 
     /// Normalization.
     /// This normalization will be adapted to the appropriate feature count.
@@ -388,8 +388,8 @@ impl NanoChatGptContractConfig {
                 )
                 .into(),
             BunsenMlpConfig::expansion(self.d_model, self.expansion_factor)
-                .with_activation(BunsenActivationConfig::Chain(vec![
-                    self.activation.clone(),
+                .with_act(BunsenActivationConfig::Chain(vec![
+                    self.act.clone(),
                     BunsenActivationConfig::Pow(2.0),
                 ]))
                 .into(),

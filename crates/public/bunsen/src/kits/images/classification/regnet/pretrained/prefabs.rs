@@ -193,7 +193,7 @@ impl RegNetContractConfig {
         Self::regnet(22, 96, 31.41, 2.24, 64)
             .with_se_ratio(0.25)
             .with_preact(true)
-            .with_act_layer(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
     }
 
     /// The `regnetv_064` prefab: `RegNetV` of 6.4 GF; squeeze-excite of 0.25,
@@ -203,7 +203,7 @@ impl RegNetContractConfig {
             .with_se_ratio(0.25)
             .with_downsample(RegNetDownsampleKind::Avg)
             .with_preact(true)
-            .with_act_layer(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
     }
 
     /// The `regnetz_040` prefab: `RegNetZ` of 4 GF; a bottleneck 4x its unit's
@@ -215,7 +215,7 @@ impl RegNetContractConfig {
             .with_se_ratio(0.25)
             .with_downsample(RegNetDownsampleKind::None)
             .with_linear_out(true)
-            .with_act_layer(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
     }
 
     /// The `regnetz_040_h` prefab: `RegNetZ` of 4 GF; a bottleneck 4x its
@@ -228,7 +228,7 @@ impl RegNetContractConfig {
             .with_downsample(RegNetDownsampleKind::None)
             .with_linear_out(true)
             .with_num_features(1536)
-            .with_act_layer(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
     }
     // gen_regnet_prefabs: end fns
 }

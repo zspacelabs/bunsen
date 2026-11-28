@@ -249,7 +249,7 @@ impl GemmaContractConfig {
                 .with_softmax_widening(self.softmax_widening)
                 .into(),
             BunsenGatedMlpConfig::new(self.d_model, self.d_ff)
-                .with_activation(BunsenActivationConfig::GeluApproximate)
+                .with_act(BunsenActivationConfig::GeluApproximate)
                 .into(),
         )
         .with_norm(norm(0))

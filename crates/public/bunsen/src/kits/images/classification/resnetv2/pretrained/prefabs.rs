@@ -9,7 +9,10 @@ use alloc::{
     vec::Vec,
 };
 
+use burn::nn::BatchNormConfig;
+
 use crate::{
+    blocks::norm::EvoNormS0Config,
     data::pretrained::{
         PrefabTable,
         Prefabs,
@@ -17,7 +20,6 @@ use crate::{
     kits::images::classification::resnetv2::{
         BIT_STD_CONV_EPSILON,
         ResNetV2ContractConfig,
-        ResNetV2Norm,
         ResNetV2StemKind,
     },
 };
@@ -34,7 +36,7 @@ impl ResNetV2ContractConfig {
     pub fn resnetv2_18() -> Self {
         Self::resnetv2(vec![2, 2, 2, 2])
             .with_channels(vec![64, 128, 256, 512])
-            .with_norm_layer(ResNetV2Norm::BatchNorm)
+            .with_norm(BatchNormConfig::new(0).into())
             .with_basic(true)
             .with_bottle_ratio(1.0)
     }
@@ -45,7 +47,7 @@ impl ResNetV2ContractConfig {
         Self::resnetv2(vec![2, 2, 2, 2])
             .with_channels(vec![64, 128, 256, 512])
             .with_stem_type(ResNetV2StemKind::Deep)
-            .with_norm_layer(ResNetV2Norm::BatchNorm)
+            .with_norm(BatchNormConfig::new(0).into())
             .with_basic(true)
             .with_bottle_ratio(1.0)
             .with_avg_down(true)
@@ -55,7 +57,7 @@ impl ResNetV2ContractConfig {
     pub fn resnetv2_34() -> Self {
         Self::resnetv2(vec![3, 4, 6, 3])
             .with_channels(vec![64, 128, 256, 512])
-            .with_norm_layer(ResNetV2Norm::BatchNorm)
+            .with_norm(BatchNormConfig::new(0).into())
             .with_basic(true)
             .with_bottle_ratio(1.0)
     }
@@ -66,7 +68,7 @@ impl ResNetV2ContractConfig {
         Self::resnetv2(vec![3, 4, 6, 3])
             .with_channels(vec![64, 128, 256, 512])
             .with_stem_type(ResNetV2StemKind::Deep)
-            .with_norm_layer(ResNetV2Norm::BatchNorm)
+            .with_norm(BatchNormConfig::new(0).into())
             .with_basic(true)
             .with_bottle_ratio(1.0)
             .with_avg_down(true)
@@ -74,7 +76,7 @@ impl ResNetV2ContractConfig {
 
     /// The `resnetv2_50` prefab: `ResNetV2` `50`; batch norms.
     pub fn resnetv2_50() -> Self {
-        Self::resnetv2(vec![3, 4, 6, 3]).with_norm_layer(ResNetV2Norm::BatchNorm)
+        Self::resnetv2(vec![3, 4, 6, 3]).with_norm(BatchNormConfig::new(0).into())
     }
 
     /// The `resnetv2_50d_evos` prefab: `ResNetV2` `50d_evos`; the `deep` stem,
@@ -82,7 +84,7 @@ impl ResNetV2ContractConfig {
     pub fn resnetv2_50d_evos() -> Self {
         Self::resnetv2(vec![3, 4, 6, 3])
             .with_stem_type(ResNetV2StemKind::Deep)
-            .with_norm_layer(ResNetV2Norm::EvoNormS0)
+            .with_norm(EvoNormS0Config::new(0).into())
             .with_avg_down(true)
     }
 
@@ -96,7 +98,7 @@ impl ResNetV2ContractConfig {
 
     /// The `resnetv2_101` prefab: `ResNetV2` `101`; batch norms.
     pub fn resnetv2_101() -> Self {
-        Self::resnetv2(vec![3, 4, 23, 3]).with_norm_layer(ResNetV2Norm::BatchNorm)
+        Self::resnetv2(vec![3, 4, 23, 3]).with_norm(BatchNormConfig::new(0).into())
     }
 
     /// The `resnetv2_50x1_bit` prefab: `BiT` `50x1`; the `fixed` stem,

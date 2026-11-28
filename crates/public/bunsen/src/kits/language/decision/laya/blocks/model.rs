@@ -172,7 +172,7 @@ impl LayaConfig {
                 .with_mask(AttentionMask::Bidirectional)
                 .into(),
             BunsenMlpConfig::expansion(d, 4)
-                .with_activation(BunsenActivationConfig::Relu)
+                .with_act(BunsenActivationConfig::Relu)
                 .with_bias(true)
                 .into(),
         )
@@ -202,7 +202,7 @@ impl ModuleInit<LayaModel> for LayaConfig {
         let d = self.d_model();
         let mlp = |d_in, d_hidden, d_out| {
             BunsenMlpConfig::new(d_in, d_hidden, d_out)
-                .with_activation(BunsenActivationConfig::Gelu)
+                .with_act(BunsenActivationConfig::Gelu)
                 .try_init(device)
         };
         Ok(LayaModel {

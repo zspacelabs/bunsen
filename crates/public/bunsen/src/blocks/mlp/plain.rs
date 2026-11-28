@@ -64,7 +64,7 @@ pub struct BunsenMlpConfig {
 
     /// The activation between the projections.
     #[config(default = "BunsenActivationConfig::Relu")]
-    pub activation: BunsenActivationConfig,
+    pub act: BunsenActivationConfig,
 
     /// Whether the projections carry a bias term.
     #[config(default = true)]
@@ -134,7 +134,7 @@ impl ModuleInit<BunsenMlp> for BunsenMlpConfig {
             linear1: LinearConfig::new(self.d_input, self.d_hidden)
                 .with_bias(self.bias)
                 .init(device),
-            act: self.activation.try_init(device)?,
+            act: self.act.try_init(device)?,
             linear2: LinearConfig::new(self.d_hidden, self.d_output)
                 .with_bias(self.down_bias())
                 .init(device),
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn test_meta() {
         let config = BunsenMlpConfig::new(3, 7, 5)
-            .with_activation(BunsenActivationConfig::Gelu)
+            .with_act(BunsenActivationConfig::Gelu)
             .with_bias(false)
             .with_dropout(0.25);
         let mlp: BunsenMlp = config.init(&cpu_device());
@@ -287,7 +287,7 @@ mod tests {
     fn test_forward() {
         let device = cpu_device();
         let mlp: BunsenMlp = BunsenMlpConfig::new(4, 6, 3)
-            .with_activation(BunsenActivationConfig::Gelu)
+            .with_act(BunsenActivationConfig::Gelu)
             .init(&device);
         let x = seeded_tensor::<4>(1, [2, 3, 5, 4], Distribution::Default, &device);
         let y = mlp.forward(x.clone());

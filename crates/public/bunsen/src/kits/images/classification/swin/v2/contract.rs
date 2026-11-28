@@ -177,7 +177,7 @@ impl ToStructureConfig for SwinV2ContractConfig {
                     .with_attn_drop(self.attn_drop_rate)
                     .into(),
                 BunsenMlpConfig::new(width, (width as f64 * self.mlp_ratio) as usize, width)
-                    .with_activation(BunsenActivationConfig::Gelu)
+                    .with_act(BunsenActivationConfig::Gelu)
                     .with_bias(true)
                     .into(),
             )

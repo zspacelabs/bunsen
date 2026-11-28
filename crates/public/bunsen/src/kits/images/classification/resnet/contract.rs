@@ -196,11 +196,11 @@ pub struct ResNetContractConfig {
     /// The norm after each conv, the stem's included; its feature count is
     /// matched to each conv.
     #[config(default = "BunsenNormalizationConfig::Batch(BatchNormConfig::new(0))")]
-    pub normalization: BunsenNormalizationConfig,
+    pub norm: BunsenNormalizationConfig,
 
     /// The activation.
     #[config(default = "BunsenActivationConfig::Relu")]
-    pub activation: BunsenActivationConfig,
+    pub act: BunsenActivationConfig,
 }
 
 impl ResNetContractConfig {
@@ -307,8 +307,8 @@ impl ResNetContractConfig {
             .with_output_stride(self.output_stride)
             .with_layers(
                 ConvLayersConfig::new()
-                    .with_norm(self.normalization.clone())
-                    .with_act(self.activation.clone())
+                    .with_norm(self.norm.clone())
+                    .with_act(self.act.clone())
                     .with_shortcut(shortcut)
                     .with_attn(self.attention)
                     .with_aa(self.anti_alias),
@@ -430,7 +430,7 @@ mod tests {
             .with_channels(vec![8, 16])
             .with_conv_stem_width(8)
             .with_bottleneck(true)
-            .with_activation(BunsenActivationConfig::Gelu);
+            .with_act(BunsenActivationConfig::Gelu);
         let structure = policy.to_structure();
         assert_eq!(structure.d_features(), 64);
         assert!(matches!(

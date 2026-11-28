@@ -149,8 +149,7 @@ pub fn release_text_projection(
     text_width: usize,
     d_model: usize,
 ) -> BunsenMlpConfig {
-    BunsenMlpConfig::new(text_width, text_width, d_model)
-        .with_activation(BunsenActivationConfig::Silu)
+    BunsenMlpConfig::new(text_width, text_width, d_model).with_act(BunsenActivationConfig::Silu)
 }
 
 impl Qwen3TtsTalkerMeta for Qwen3TtsTalker {
@@ -275,7 +274,7 @@ mod tests {
             Qwen3ContractConfig::new(11, 8, 1, 2, 1, 4, 12),
             13,
             6,
-            BunsenMlpConfig::new(6, 5, 8).with_activation(BunsenActivationConfig::Gelu),
+            BunsenMlpConfig::new(6, 5, 8).with_act(BunsenActivationConfig::Gelu),
             4,
         );
         let talker: Qwen3TtsTalker = config.init(&cpu_device());

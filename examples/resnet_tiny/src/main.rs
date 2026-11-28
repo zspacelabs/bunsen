@@ -231,7 +231,7 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
     device.seed(args.seed);
 
     let contract = ResNetContractConfig::try_prefab(&args.resnet_prefab)?
-        .with_activation(BunsenActivationConfig::Gelu);
+        .with_act(BunsenActivationConfig::Gelu);
     let resnet: ConvNetModel = contract.to_structure().try_init(&device)?;
 
     let resnet: ConvNetModel = match &args.resnet_pretrained {

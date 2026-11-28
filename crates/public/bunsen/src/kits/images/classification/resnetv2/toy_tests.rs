@@ -13,17 +13,22 @@
 //! [`load_resnetv2_tensors`]; each stage output, the pooled features and the
 //! logits are checked against timm's.
 
-use burn::prelude::*;
+use burn::{
+    nn::BatchNormConfig,
+    prelude::*,
+};
 
 use super::{
     BIT_STD_CONV_EPSILON,
     ResNetV2ContractConfig,
-    ResNetV2Norm,
     ResNetV2StemKind,
     interop::timm::load_resnetv2_tensors,
 };
 use crate::{
-    blocks::images::models::conv_net::ConvNetModel,
+    blocks::{
+        images::models::conv_net::ConvNetModel,
+        norm::EvoNormS0Config,
+    },
     burner::module::ModuleInit,
     kits::images::{
         classification::driver::ImageClassifier,
@@ -119,7 +124,7 @@ fn test_bit_odd_toy_is_timms() {
 fn test_bn_toy_is_timms() {
     check_toy(
         "toy_bn",
-        toy_policy([64, 128, 128, 256], 32).with_norm_layer(ResNetV2Norm::BatchNorm),
+        toy_policy([64, 128, 128, 256], 32).with_norm(BatchNormConfig::new(0).into()),
     );
 }
 
@@ -131,7 +136,7 @@ fn test_basic_deep_toy_is_timms() {
         deep([16, 32, 64, 128], 32)
             .with_basic(true)
             .with_bottle_ratio(1.0)
-            .with_norm_layer(ResNetV2Norm::BatchNorm),
+            .with_norm(BatchNormConfig::new(0).into()),
     );
 }
 
@@ -146,7 +151,7 @@ fn test_gn_deep_toy_is_timms() {
 fn test_evos_toy_is_timms() {
     check_toy(
         "toy_evos",
-        deep([128, 128, 256, 256], 64).with_norm_layer(ResNetV2Norm::EvoNormS0),
+        deep([128, 128, 256, 256], 64).with_norm(EvoNormS0Config::new(0).into()),
     );
 }
 

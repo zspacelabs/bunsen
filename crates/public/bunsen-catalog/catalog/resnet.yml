@@ -37,7 +37,7 @@ torchvision:
           - 0.224
           - 0.225
       geometry:
-        activation: Relu
+        act: Relu
         anti_alias: null
         attention: null
         avg_down: false
@@ -56,7 +56,7 @@ torchvision:
           - 2
           - 2
           - 2
-        normalization:
+        norm:
           Batch:
             epsilon: 0.00001
             momentum: 0.1
@@ -105,7 +105,7 @@ torchvision:
           - 0.224
           - 0.225
       geometry:
-        activation: Relu
+        act: Relu
         anti_alias: null
         attention: null
         avg_down: false
@@ -124,7 +124,7 @@ torchvision:
           - 4
           - 6
           - 3
-        normalization:
+        norm:
           Batch:
             epsilon: 0.00001
             momentum: 0.1
@@ -173,7 +173,7 @@ torchvision:
           - 0.224
           - 0.225
       geometry:
-        activation: Relu
+        act: Relu
         anti_alias: null
         attention: null
         avg_down: false
@@ -195,7 +195,7 @@ torchvision:
           - 4
           - 6
           - 3
-        normalization:
+        norm:
           Batch:
             epsilon: 0.00001
             momentum: 0.1
@@ -244,7 +244,7 @@ torchvision:
           - 0.224
           - 0.225
       geometry:
-        activation: Relu
+        act: Relu
         anti_alias: null
         attention: null
         avg_down: false
@@ -266,7 +266,7 @@ torchvision:
           - 4
           - 23
           - 3
-        normalization:
+        norm:
           Batch:
             epsilon: 0.00001
             momentum: 0.1
@@ -315,7 +315,7 @@ torchvision:
           - 0.224
           - 0.225
       geometry:
-        activation: Relu
+        act: Relu
         anti_alias: null
         attention: null
         avg_down: false
@@ -337,7 +337,7 @@ torchvision:
           - 8
           - 36
           - 3
-        normalization:
+        norm:
           Batch:
             epsilon: 0.00001
             momentum: 0.1

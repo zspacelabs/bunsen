@@ -78,7 +78,7 @@ pub struct Qwen3AsrStemConfig {
 
     /// The activation after each convolution.
     #[config(default = "BunsenActivationConfig::Gelu")]
-    pub activation: BunsenActivationConfig,
+    pub act: BunsenActivationConfig,
 }
 
 impl Qwen3AsrStemConfig {
@@ -258,7 +258,7 @@ impl Qwen3AsrAudioEncoderConfig {
                     })
                     .into(),
                 BunsenMlpConfig::new(d, self.d_ff, d)
-                    .with_activation(BunsenActivationConfig::Gelu)
+                    .with_act(BunsenActivationConfig::Gelu)
                     .with_bias(true)
                     .into(),
             )
@@ -287,7 +287,7 @@ impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
                         s.padding, s.padding, s.padding, s.padding,
                     )),
             )
-            .with_act(Some(s.activation.clone()))
+            .with_act(Some(s.act.clone()))
         };
         Ok(Qwen3AsrAudioEncoder {
             stem: ConvSeq2dConfig::new(
@@ -543,7 +543,7 @@ mod tests {
                     .with_convs(2)
                     .with_kernel(5)
                     .with_padding(2)
-                    .with_activation(BunsenActivationConfig::Silu),
+                    .with_act(BunsenActivationConfig::Silu),
             )
             .with_key_bias(false)
             .with_conv_out_bias(true)

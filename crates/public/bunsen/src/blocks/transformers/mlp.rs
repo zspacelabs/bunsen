@@ -255,7 +255,7 @@ mod tests {
                 let t = 3;
                 let d_model = 10;
 
-                let cfg = BunsenMlpConfig::expansion(d_model, ef).with_activation(
+                let cfg = BunsenMlpConfig::expansion(d_model, ef).with_act(
                     BunsenActivationConfig::Chain(vec![
                         activation.clone(),
                         BunsenActivationConfig::Pow(2.0),

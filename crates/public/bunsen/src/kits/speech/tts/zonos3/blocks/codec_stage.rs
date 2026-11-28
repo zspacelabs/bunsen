@@ -67,7 +67,7 @@ impl Zonos3CodecStageConfig {
                 .with_sliding_window(Some(self.window))
                 .into(),
             BunsenMlpConfig::expansion(self.width, self.expansion)
-                .with_activation(BunsenActivationConfig::Gelu)
+                .with_act(BunsenActivationConfig::Gelu)
                 .into(),
         )
         .with_norm(BunsenNormalizationConfig::Layer(

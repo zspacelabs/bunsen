@@ -47,7 +47,7 @@ impl ResNetContractConfig {
     /// The `resnet50_gn` prefab: ResNet-50 with timm's group norm (32
     /// groups, epsilon `1e-5`) for every norm, the stem's included.
     pub fn resnet50_gn() -> Self {
-        Self::resnet50().with_normalization(GroupNormConfig::new(32, 0).into())
+        Self::resnet50().with_norm(GroupNormConfig::new(32, 0).into())
     }
 
     /// The `resnet101` prefab: ResNet-101 [3, 4, 23, 3] Bottleneck.

@@ -285,7 +285,7 @@ impl NemotronDiarizationConfig {
                     .with_mask(AttentionMask::Bidirectional)
                     .into(),
                 BunsenMlpConfig::expansion(self.d_model, self.ff_expansion)
-                    .with_activation(BunsenActivationConfig::Gelu)
+                    .with_act(BunsenActivationConfig::Gelu)
                     .with_bias(true)
                     .into(),
             )
@@ -480,7 +480,7 @@ impl ToStructureConfig for SortformerV2Config {
                 .with_mask(AttentionMask::Bidirectional)
                 .into(),
             BunsenMlpConfig::expansion(d, self.transformer_ff_expansion)
-                .with_activation(BunsenActivationConfig::Relu)
+                .with_act(BunsenActivationConfig::Relu)
                 .with_bias(true)
                 .into(),
         )
