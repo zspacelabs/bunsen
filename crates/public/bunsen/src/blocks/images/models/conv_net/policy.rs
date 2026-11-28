@@ -69,6 +69,7 @@ use crate::{
     },
     ops::conv::{
         CONV_INTO_RELU_INITIALIZER,
+        Conv2dVariantOptions,
         build_square_conv2d_padding_config,
     },
 };
@@ -379,6 +380,14 @@ impl Default for ConvLayersConfig {
 }
 
 impl ConvLayersConfig {
+    /// The conv variant [`weight_std`](Self::weight_std) and
+    /// [`same_pad`](Self::same_pad) state, as the blocks hold it.
+    pub fn variant(&self) -> Conv2dVariantOptions {
+        Conv2dVariantOptions::new()
+            .with_weight_std(self.weight_std)
+            .with_same_pad(self.same_pad)
+    }
+
     /// A `k x k` conv: no bias, padded to keep the size at stride 1; under
     /// [`same_pad`](Self::same_pad), unpadded (its input is padded).
     fn conv2d(
@@ -414,8 +423,7 @@ impl ConvLayersConfig {
         ConvBlock2dConfig::new(self.conv2d(channels, kernel_size, stride, dilation, groups))
             .with_norm(Some(self.norm.clone()))
             .with_act(act.then(|| self.act.clone()))
-            .with_weight_std(self.weight_std)
-            .with_same_pad(self.same_pad)
+            .with_variant(self.variant())
             .match_norm_features()
     }
 
@@ -556,8 +564,7 @@ impl ConvLayersConfig {
     ) -> PreActConvConfig {
         let conv =
             PreActConvConfig::new(self.conv2d(channels, kernel_size, stride, dilation, groups))
-                .with_weight_std(self.weight_std)
-                .with_same_pad(self.same_pad);
+                .with_variant(self.variant());
         match norm_act {
             true => conv
                 .with_norm(Some(self.norm.clone()))

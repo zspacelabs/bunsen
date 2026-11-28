@@ -388,7 +388,7 @@ mod tests {
             .with_preact(false);
         let structure = r50.to_structure();
         let stem = &structure.stem.convs[0];
-        assert!(stem.norm.is_some() && stem.act.is_some() && stem.same_pad);
+        assert!(stem.norm.is_some() && stem.act.is_some() && stem.variant.same_pad);
         assert!(matches!(
             structure.stem.pool,
             Some(ConvStemPoolConfig::SameMax(_))
@@ -396,7 +396,7 @@ mod tests {
         let unit = &structure.stages[1].units[0];
         assert!(unit.pre.is_none() && unit.act.is_some());
         let shortcut = &unit.shortcut.as_ref().unwrap().block;
-        assert!(shortcut.norm.is_some() && shortcut.act.is_none() && shortcut.same_pad);
+        assert!(shortcut.norm.is_some() && shortcut.act.is_none() && shortcut.variant.same_pad);
         assert!(structure.final_conv.is_none());
         assert_eq!(structure.d_features(), 1024);
         assert_eq!(structure.try_feature_size([384, 384]).unwrap(), [24, 24]);
