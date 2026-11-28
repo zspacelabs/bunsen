@@ -71,7 +71,7 @@ impl ResNeStContractConfig {
     /// As the `ResNet`'s; [`Illegal`](crate::errors::BunsenErrorKind::Illegal)
     /// for basic blocks, a radix of 0, or a `ResNet` that anti-aliases or
     /// attends itself (timm's `ResNestBottleneck` refuses both).
-    pub fn try_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
+    pub fn try_to_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         if self.resnet.bottleneck_policy.is_none() {
             return Err(ConstraintError::new(
                 "ResNeStContractConfig",
@@ -106,15 +106,15 @@ impl ResNeStContractConfig {
 impl ToStructureConfig for ResNeStContractConfig {
     type Structure = ConvNetStructureConfig;
 
-    /// The conv net of this `ResNeSt` ([`try_conv_net`](Self::try_conv_net)),
+    /// The conv net of this `ResNeSt` ([`try_to_conv_net`](Self::try_to_conv_net)),
     /// resolved.
     ///
     /// # Errors
     ///
-    /// As [`try_conv_net`](Self::try_conv_net) and the conv net's lowering,
+    /// As [`try_to_conv_net`](Self::try_to_conv_net) and the conv net's lowering,
     /// under a frame naming the `ResNeSt`.
     fn try_to_structure(&self) -> BunsenResult<ConvNetStructureConfig> {
-        self.try_conv_net()
+        self.try_to_conv_net()
             .and_then(|net| net.try_to_structure())
             .context("ResNeStContractConfig")
     }

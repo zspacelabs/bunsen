@@ -50,7 +50,7 @@ impl Res2NetContractConfig {
     ///
     /// As the `ResNet`'s; [`Illegal`](crate::errors::BunsenErrorKind::Illegal)
     /// for basic blocks, or a scale of 0.
-    pub fn try_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
+    pub fn try_to_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         if self.resnet.bottleneck_policy.is_none() {
             return Err(ConstraintError::new(
                 "Res2NetContractConfig",
@@ -74,15 +74,15 @@ impl Res2NetContractConfig {
 impl ToStructureConfig for Res2NetContractConfig {
     type Structure = ConvNetStructureConfig;
 
-    /// The conv net of this `Res2Net` ([`try_conv_net`](Self::try_conv_net)),
+    /// The conv net of this `Res2Net` ([`try_to_conv_net`](Self::try_to_conv_net)),
     /// resolved.
     ///
     /// # Errors
     ///
-    /// As [`try_conv_net`](Self::try_conv_net) and the conv net's lowering,
+    /// As [`try_to_conv_net`](Self::try_to_conv_net) and the conv net's lowering,
     /// under a frame naming the `Res2Net`.
     fn try_to_structure(&self) -> BunsenResult<ConvNetStructureConfig> {
-        self.try_conv_net()
+        self.try_to_conv_net()
             .and_then(|net| net.try_to_structure())
             .context("Res2NetContractConfig")
     }

@@ -18,7 +18,7 @@ use crate::{
         BIT_STD_CONV_EPSILON,
         ResNetV2ContractConfig,
         ResNetV2Norm,
-        ResNetV2Stem,
+        ResNetV2StemKind,
     },
 };
 
@@ -44,7 +44,7 @@ impl ResNetV2ContractConfig {
     pub fn resnetv2_18d() -> Self {
         Self::resnetv2(vec![2, 2, 2, 2])
             .with_channels(vec![64, 128, 256, 512])
-            .with_stem_type(ResNetV2Stem::Deep)
+            .with_stem_type(ResNetV2StemKind::Deep)
             .with_norm_layer(ResNetV2Norm::BatchNorm)
             .with_basic(true)
             .with_bottle_ratio(1.0)
@@ -65,7 +65,7 @@ impl ResNetV2ContractConfig {
     pub fn resnetv2_34d() -> Self {
         Self::resnetv2(vec![3, 4, 6, 3])
             .with_channels(vec![64, 128, 256, 512])
-            .with_stem_type(ResNetV2Stem::Deep)
+            .with_stem_type(ResNetV2StemKind::Deep)
             .with_norm_layer(ResNetV2Norm::BatchNorm)
             .with_basic(true)
             .with_bottle_ratio(1.0)
@@ -81,7 +81,7 @@ impl ResNetV2ContractConfig {
     /// `EvoNorm-S0`, average-pool shortcuts.
     pub fn resnetv2_50d_evos() -> Self {
         Self::resnetv2(vec![3, 4, 6, 3])
-            .with_stem_type(ResNetV2Stem::Deep)
+            .with_stem_type(ResNetV2StemKind::Deep)
             .with_norm_layer(ResNetV2Norm::EvoNormS0)
             .with_avg_down(true)
     }
@@ -90,7 +90,7 @@ impl ResNetV2ContractConfig {
     /// group norms, average-pool shortcuts.
     pub fn resnetv2_50d_gn() -> Self {
         Self::resnetv2(vec![3, 4, 6, 3])
-            .with_stem_type(ResNetV2Stem::Deep)
+            .with_stem_type(ResNetV2StemKind::Deep)
             .with_avg_down(true)
     }
 
@@ -103,7 +103,7 @@ impl ResNetV2ContractConfig {
     /// weight-standardized convs, group norms.
     pub fn resnetv2_50x1_bit() -> Self {
         Self::resnetv2(vec![3, 4, 6, 3])
-            .with_stem_type(ResNetV2Stem::Fixed)
+            .with_stem_type(ResNetV2StemKind::Fixed)
             .with_std_conv(Some(BIT_STD_CONV_EPSILON))
     }
 
@@ -112,7 +112,7 @@ impl ResNetV2ContractConfig {
     pub fn resnetv2_50x3_bit() -> Self {
         Self::resnetv2(vec![3, 4, 6, 3])
             .with_width_factor(3)
-            .with_stem_type(ResNetV2Stem::Fixed)
+            .with_stem_type(ResNetV2StemKind::Fixed)
             .with_std_conv(Some(BIT_STD_CONV_EPSILON))
     }
 
@@ -120,7 +120,7 @@ impl ResNetV2ContractConfig {
     /// weight-standardized convs, group norms.
     pub fn resnetv2_101x1_bit() -> Self {
         Self::resnetv2(vec![3, 4, 23, 3])
-            .with_stem_type(ResNetV2Stem::Fixed)
+            .with_stem_type(ResNetV2StemKind::Fixed)
             .with_std_conv(Some(BIT_STD_CONV_EPSILON))
     }
 
@@ -129,7 +129,7 @@ impl ResNetV2ContractConfig {
     pub fn resnetv2_101x3_bit() -> Self {
         Self::resnetv2(vec![3, 4, 23, 3])
             .with_width_factor(3)
-            .with_stem_type(ResNetV2Stem::Fixed)
+            .with_stem_type(ResNetV2StemKind::Fixed)
             .with_std_conv(Some(BIT_STD_CONV_EPSILON))
     }
 
@@ -138,7 +138,7 @@ impl ResNetV2ContractConfig {
     pub fn resnetv2_152x2_bit() -> Self {
         Self::resnetv2(vec![3, 8, 36, 3])
             .with_width_factor(2)
-            .with_stem_type(ResNetV2Stem::Fixed)
+            .with_stem_type(ResNetV2StemKind::Fixed)
             .with_std_conv(Some(BIT_STD_CONV_EPSILON))
     }
 
@@ -147,7 +147,7 @@ impl ResNetV2ContractConfig {
     pub fn resnetv2_152x4_bit() -> Self {
         Self::resnetv2(vec![3, 8, 36, 3])
             .with_width_factor(4)
-            .with_stem_type(ResNetV2Stem::Fixed)
+            .with_stem_type(ResNetV2StemKind::Fixed)
             .with_std_conv(Some(BIT_STD_CONV_EPSILON))
     }
     // gen_resnetv2_prefabs: end fns

@@ -19,7 +19,7 @@ use super::{
     BIT_STD_CONV_EPSILON,
     ResNetV2ContractConfig,
     ResNetV2Norm,
-    ResNetV2Stem,
+    ResNetV2StemKind,
     interop::timm::load_resnetv2_tensors,
 };
 use crate::{
@@ -50,7 +50,7 @@ fn toy_policy(
 /// `toy_bit`'s knobs.
 fn bit() -> ResNetV2ContractConfig {
     toy_policy([128, 128, 256, 256], 32)
-        .with_stem_type(ResNetV2Stem::Fixed)
+        .with_stem_type(ResNetV2StemKind::Fixed)
         .with_std_conv(Some(BIT_STD_CONV_EPSILON))
 }
 
@@ -60,14 +60,14 @@ fn deep(
     stem_chs: usize,
 ) -> ResNetV2ContractConfig {
     toy_policy(channels, stem_chs)
-        .with_stem_type(ResNetV2Stem::Deep)
+        .with_stem_type(ResNetV2StemKind::Deep)
         .with_avg_down(true)
 }
 
 /// The hybrid `ViT`'s backbone's knobs (timm's `_resnetv2`), with a head.
 fn hybrid() -> ResNetV2ContractConfig {
     toy_policy([128, 128, 256, 256], 32)
-        .with_stem_type(ResNetV2Stem::Same)
+        .with_stem_type(ResNetV2StemKind::Same)
         .with_std_conv(Some(BIT_STD_CONV_EPSILON))
         .with_same_pad(true)
         .with_preact(false)

@@ -18,7 +18,7 @@ use burn::prelude::*;
 
 use super::{
     RegNetContractConfig,
-    RegNetDownsample,
+    RegNetDownsampleKind,
     interop::timm::load_regnet_tensors,
 };
 use crate::{
@@ -131,7 +131,7 @@ fn regnet_v() -> RegNetContractConfig {
 fn regnet_z() -> RegNetContractConfig {
     toy_policy()
         .with_bottle_ratio(4.0)
-        .with_downsample(RegNetDownsample::None)
+        .with_downsample(RegNetDownsampleKind::None)
         .with_linear_out(true)
         .with_act_layer(BunsenActivationConfig::Silu)
         .with_se_ratio(0.25)
@@ -150,7 +150,7 @@ fn test_v_toy_is_timms() {
 fn test_v_avg_toy_is_timms() {
     check_toy(
         "toy_v_avg",
-        regnet_v().with_downsample(RegNetDownsample::Avg),
+        regnet_v().with_downsample(RegNetDownsampleKind::Avg),
     );
 }
 

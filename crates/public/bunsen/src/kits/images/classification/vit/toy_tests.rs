@@ -25,7 +25,7 @@ use burn::prelude::*;
 
 use super::{
     ViTContractConfig,
-    ViTMlpLayer,
+    ViTMlpKind,
     ViTNormLayer,
     interop::timm::load_vit_tensors,
 };
@@ -260,7 +260,7 @@ fn test_aimv2_toy_is_timms() {
     check_toy(
         "toy_aimv2",
         toy_policy()
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
             .with_norm_layer(ViTNormLayer::RmsNorm)
             .with_norm_epsilon(1e-5)
@@ -281,7 +281,7 @@ fn test_glu_toy_is_timms() {
     check_toy(
         "toy_glu",
         toy_policy()
-            .with_mlp_layer(ViTMlpLayer::SwiGluPacked)
+            .with_mlp_layer(ViTMlpKind::SwiGluPacked)
             .with_activation(BunsenActivationConfig::Silu)
             .with_layer_scale(true),
     );

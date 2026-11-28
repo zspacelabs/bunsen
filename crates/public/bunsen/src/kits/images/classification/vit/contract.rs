@@ -61,7 +61,7 @@ use crate::{
     kits::images::classification::resnetv2::{
         BIT_STD_CONV_EPSILON,
         ResNetV2ContractConfig,
-        ResNetV2Stem,
+        ResNetV2StemKind,
     },
 };
 
@@ -74,7 +74,7 @@ pub const CLIP_NORM_EPSILON: f64 = 1e-5;
 
 /// A `ViT` block's MLP, timm's `mlp_layer`.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
-pub enum ViTMlpLayer {
+pub enum ViTMlpKind {
     /// timm's `Mlp`: `fc2(act(fc1(x)))`.
     Mlp,
 
@@ -145,8 +145,8 @@ pub struct ViTContractConfig {
     pub proj_bias: bool,
 
     /// The blocks' MLP (timm's `mlp_layer`).
-    #[config(default = "ViTMlpLayer::Mlp")]
-    pub mlp_layer: ViTMlpLayer,
+    #[config(default = "ViTMlpKind::Mlp")]
+    pub mlp_layer: ViTMlpKind,
 
     /// The norms' kind (timm's `norm_layer`), every norm's: the blocks', the
     /// final one, the pool's and the patch embedding's.
@@ -249,7 +249,7 @@ impl ViTContractConfig {
         let channels = ResNetV2ContractConfig::new(vec![], 0).channels;
         ResNetV2ContractConfig::new(layers.to_vec(), 0)
             .with_channels(channels[..layers.len()].to_vec())
-            .with_stem_type(ResNetV2Stem::Same)
+            .with_stem_type(ResNetV2StemKind::Same)
             .with_std_conv(Some(BIT_STD_CONV_EPSILON))
             .with_same_pad(true)
             .with_preact(false)
@@ -313,13 +313,13 @@ impl ViTContractConfig {
                 .into()
         };
         match self.mlp_layer {
-            ViTMlpLayer::Mlp => BunsenMlpConfig::new(d, hidden, d)
+            ViTMlpKind::Mlp => BunsenMlpConfig::new(d, hidden, d)
                 .with_activation(act.clone())
                 .with_bias(self.proj_bias)
                 .with_hidden_norm(self.scale_mlp_norm.then(|| self.norm()))
                 .into(),
-            ViTMlpLayer::SwiGlu => gated(hidden),
-            ViTMlpLayer::SwiGluPacked => gated(hidden / 2),
+            ViTMlpKind::SwiGlu => gated(hidden),
+            ViTMlpKind::SwiGluPacked => gated(hidden / 2),
         }
     }
 
@@ -442,7 +442,7 @@ impl ToStructureConfig for ViTContractConfig {
             )
             .into());
         }
-        if self.scale_mlp_norm && self.mlp_layer != ViTMlpLayer::Mlp {
+        if self.scale_mlp_norm && self.mlp_layer != ViTMlpKind::Mlp {
             return Err(ConstraintError::custom(
                 "ViTContractConfig",
                 "scale_mlp_norm",
@@ -453,7 +453,7 @@ impl ToStructureConfig for ViTContractConfig {
             )
             .into());
         }
-        if self.mlp_layer == ViTMlpLayer::SwiGluPacked && !self.mlp_hidden().is_multiple_of(2) {
+        if self.mlp_layer == ViTMlpKind::SwiGluPacked && !self.mlp_hidden().is_multiple_of(2) {
             return Err(ConstraintError::new(
                 "ViTContractConfig",
                 "mlp_ratio",

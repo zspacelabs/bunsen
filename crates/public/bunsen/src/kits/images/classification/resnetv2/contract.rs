@@ -49,7 +49,7 @@ pub const BIT_STD_CONV_EPSILON: f64 = 1e-8;
 
 /// A `ResNetV2`'s stem, timm's `stem_type`.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
-pub enum ResNetV2Stem {
+pub enum ResNetV2StemKind {
     /// A `7x7` conv of stride 2, then a `3x3` max pool of stride 2 (timm's
     /// `''`).
     Plain,
@@ -122,8 +122,8 @@ pub struct ResNetV2ContractConfig {
     pub stem_chs: usize,
 
     /// The stem (timm's `stem_type`).
-    #[config(default = "ResNetV2Stem::Plain")]
-    pub stem_type: ResNetV2Stem,
+    #[config(default = "ResNetV2StemKind::Plain")]
+    pub stem_type: ResNetV2StemKind,
 
     /// Each conv's weight standardization epsilon (timm's `conv_layer`
     /// `StdConv2d`, `BiT`'s [`BIT_STD_CONV_EPSILON`]); none when `None`.
@@ -210,7 +210,7 @@ impl ResNetV2ContractConfig {
     /// one width per stage, no stages and a pre-activation net (whose stem
     /// is bare), or basic units on a net that is not pre-activation (timm
     /// builds its bottlenecks whatever `basic` says).
-    pub fn try_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
+    pub fn try_to_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         if self.layers.len() != self.channels.len() {
             return Err(ConstraintError::new(
                 "ResNetV2ContractConfig",
@@ -283,18 +283,18 @@ impl ResNetV2ContractConfig {
             .with_pre_identity(false);
         let stem_width = self.stem_width();
         let stem = match self.stem_type {
-            ResNetV2Stem::Plain | ResNetV2Stem::Fixed | ResNetV2Stem::Same => {
+            ResNetV2StemKind::Plain | ResNetV2StemKind::Fixed | ResNetV2StemKind::Same => {
                 ConvStemContractConfig::new(vec![stem_width])
             }
-            ResNetV2Stem::Deep => {
+            ResNetV2StemKind::Deep => {
                 ConvStemContractConfig::new(vec![stem_width / 2, stem_width / 2, stem_width])
                     .with_kernel_size(3)
             }
         }
         .with_pool(match self.stem_type {
-            ResNetV2Stem::Fixed => ConvStemPoolKind::ZeroPadMax,
-            ResNetV2Stem::Same => ConvStemPoolKind::SameMax,
-            ResNetV2Stem::Plain | ResNetV2Stem::Deep => ConvStemPoolKind::Max,
+            ResNetV2StemKind::Fixed => ConvStemPoolKind::ZeroPadMax,
+            ResNetV2StemKind::Same => ConvStemPoolKind::SameMax,
+            ResNetV2StemKind::Plain | ResNetV2StemKind::Deep => ConvStemPoolKind::Max,
         })
         .with_last_norm_act(!self.preact);
         Ok(ConvNetContractConfig::new(stem, stages, self.num_classes)
@@ -310,15 +310,15 @@ impl ResNetV2ContractConfig {
 impl ToStructureConfig for ResNetV2ContractConfig {
     type Structure = ConvNetStructureConfig;
 
-    /// The conv net of this `ResNetV2` ([`try_conv_net`](Self::try_conv_net)),
+    /// The conv net of this `ResNetV2` ([`try_to_conv_net`](Self::try_to_conv_net)),
     /// resolved.
     ///
     /// # Errors
     ///
-    /// As [`try_conv_net`](Self::try_conv_net) and the conv net's lowering,
+    /// As [`try_to_conv_net`](Self::try_to_conv_net) and the conv net's lowering,
     /// under a frame naming the `ResNetV2`.
     fn try_to_structure(&self) -> BunsenResult<ConvNetStructureConfig> {
-        self.try_conv_net()
+        self.try_to_conv_net()
             .and_then(|net| net.try_to_structure())
             .context("ResNetV2ContractConfig")
     }
@@ -345,7 +345,7 @@ mod tests {
     /// timm's `resnetv2_50x1_bit`.
     fn bit50() -> ResNetV2ContractConfig {
         ResNetV2ContractConfig::new(vec![3, 4, 6, 3], 1000)
-            .with_stem_type(ResNetV2Stem::Fixed)
+            .with_stem_type(ResNetV2StemKind::Fixed)
             .with_std_conv(Some(BIT_STD_CONV_EPSILON))
     }
 
@@ -386,7 +386,7 @@ mod tests {
             .with_channels(vec![64, 128, 256, 512])
             .with_basic(true)
             .with_bottle_ratio(1.0)
-            .with_stem_type(ResNetV2Stem::Deep)
+            .with_stem_type(ResNetV2StemKind::Deep)
             .with_avg_down(true);
         let structure = config.to_structure();
         let widths: Vec<_> = structure
@@ -407,7 +407,7 @@ mod tests {
     fn test_hybrid_backbone_lowering() {
         let r50 = ResNetV2ContractConfig::new(vec![3, 4, 9], 0)
             .with_channels(vec![256, 512, 1024])
-            .with_stem_type(ResNetV2Stem::Same)
+            .with_stem_type(ResNetV2StemKind::Same)
             .with_std_conv(Some(BIT_STD_CONV_EPSILON))
             .with_same_pad(true)
             .with_preact(false);
