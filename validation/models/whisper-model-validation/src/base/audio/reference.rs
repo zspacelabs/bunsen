@@ -297,12 +297,15 @@ pub fn clip_mels(
         .expect("a Whisper rate")
         .try_init(device)
         .expect("mel converter");
-    let ctx = converter.new_context(1);
-    let (mels, ctx) = ctx
-        .transform(Tensor::from_data(TensorData::new(values, [1, n]), device))
+    let mut ctx = converter.new_stream_context(1);
+    let mels = converter
+        .transform_stream(
+            Tensor::from_data(TensorData::new(values, [1, n]), device),
+            &mut ctx,
+        )
         .expect("mel conversion");
 
-    let joined = match ctx.finish() {
+    let joined = match converter.finish_stream(&mut ctx) {
         Some(tail) => Tensor::cat(vec![mels, tail], 1),
         None => mels,
     };

@@ -19,9 +19,18 @@
 //! cache and passes it in on every call. One model can then serve several
 //! caches or streams in one process.
 //! [`KVCache`](transformers::attention::KVCache),
-//! [`SlidingStftContext`](signal::SlidingStftContext) and
+//! [`SlidingStftStreamContext`](signal::SlidingStftStreamContext) and
 //! [`WhisperStreamContext`](crate::kits::speech::asr::whisper::driver::WhisperStreamContext)
 //! are examples.
+//!
+//! A stream through an op or a block has one vocabulary: the module's
+//! `new_stream_context` opens a `{Name}StreamContext`, `{verb}_stream(input,
+//! &mut ctx)` advances it (`forward_stream`, `analyze_stream`, `istft_stream`,
+//! `transform_stream`), and `finish_stream` flushes what it still holds. The
+//! context holds the stream's state and nothing else; the module does the
+//! work. [`StreamingResampler`](signal::resample::StreamingResampler) is the
+//! one exception, a host-side type over `Vec<f32>` that is module and state in
+//! one.
 //!
 //! In practice `ops` is mostly free functions plus small configuration
 //! values, and a few Modules and Configs that hold cached tables or stream

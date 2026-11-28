@@ -17,7 +17,13 @@ use super::{
     patch_up,
 };
 use crate::{
-    blocks::transformers::decoders::stack::DecoderStackMeta,
+    blocks::{
+        conv::{
+            CausalConvNext1d,
+            CausalConvNext1dStreamContext,
+        },
+        transformers::decoders::stack::DecoderStackMeta,
+    },
     burner::module::ModuleInit,
     contracts::unpack_shape_contract,
     ops::{
@@ -56,14 +62,14 @@ const STREAM_CACHE_PRE_SIZE: usize = 128;
 /// visited.
 #[derive(Module, Debug)]
 pub struct Zonos3CodecStreamContext {
-    /// Each semantic `ConvNeXt` block's last inputs; `None` before the first.
-    pub semantic: Vec<Option<Tensor<3>>>,
+    /// Each semantic `ConvNeXt` block's stream.
+    pub semantic: Vec<CausalConvNext1dStreamContext>,
 
     /// Each trunk stage's KV cache.
     pub stages: Vec<KVCache>,
 
-    /// Each head `ConvNeXt` block's last inputs; `None` before the first.
-    pub head: Vec<Option<Tensor<3>>>,
+    /// Each head `ConvNeXt` block's stream.
+    pub head: Vec<CausalConvNext1dStreamContext>,
 
     /// Each iSTFT branch's stream.
     pub istfts: Vec<InverseStftStreamContext>,
@@ -111,7 +117,11 @@ impl Zonos3Codec {
     ) -> Zonos3CodecStreamContext {
         let k = self.mixer.weight.dims()[2];
         Zonos3CodecStreamContext {
-            semantic: self.semantic_blocks.iter().map(|_| None).collect(),
+            semantic: self
+                .semantic_blocks
+                .iter()
+                .map(CausalConvNext1d::new_stream_context)
+                .collect(),
             stages: self
                 .stages
                 .iter()
@@ -123,7 +133,11 @@ impl Zonos3Codec {
                         .init(device)
                 })
                 .collect(),
-            head: self.head_blocks.iter().map(|_| None).collect(),
+            head: self
+                .head_blocks
+                .iter()
+                .map(CausalConvNext1d::new_stream_context)
+                .collect(),
             istfts: self
                 .istfts
                 .iter()
@@ -169,10 +183,8 @@ impl Zonos3Codec {
         let codebook = |i: usize| codes.clone().slice(s![.., i..i + 1, ..]).reshape([b, t]);
 
         let mut semantic = self.quantizers[0].forward(codebook(0));
-        for (block, state) in self.semantic_blocks.iter().zip(&mut ctx.semantic) {
-            let (y, next) = block.forward_with_state(semantic, state.take());
-            *state = Some(next);
-            semantic = y;
+        for (block, stream) in self.semantic_blocks.iter().zip(&mut ctx.semantic) {
+            semantic = block.forward_stream(semantic, stream);
         }
         let latent = self
             .quantizers
@@ -193,10 +205,8 @@ impl Zonos3Codec {
 
         let frames = x.dims()[1];
         let mut h = x;
-        for (block, state) in self.head_blocks.iter().zip(&mut ctx.head) {
-            let (y, next) = block.forward_with_state(h, state.take());
-            *state = Some(next);
-            h = y;
+        for (block, stream) in self.head_blocks.iter().zip(&mut ctx.head) {
+            h = block.forward_stream(h, stream);
         }
         let h = self.head_norm.forward(h).cast(DType::F32);
         for i in 0..self.istfts.len() {

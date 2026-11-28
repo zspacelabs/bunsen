@@ -149,7 +149,7 @@ impl ModuleInit<CausalConvNext1d> for CausalConvNext1dConfig {
 /// [`layer_scale`](CausalConvNext1dMeta::layer_scale) is set (Qwen3-TTS's
 /// codec's), and 1 otherwise (ZONOS3's). Channels last, `[B, T, C]`. The
 /// depthwise convolution continues from a carried state
-/// ([`forward_with_state`](Self::forward_with_state)), so a stream run in
+/// ([`forward_stream`](Self::forward_stream)), so a stream run in
 /// chunks is the same as one run whole.
 ///
 /// Built by [`CausalConvNext1dConfig`].
@@ -204,18 +204,36 @@ impl CausalConvNext1d {
         &self,
         x: Tensor<3>,
     ) -> Tensor<3> {
-        self.forward_with_state(x, None).0
+        self.forward_from(x, None).0
     }
 
-    /// The block over the next `T` positions of a stream.
+    /// A stream through the block, not yet started.
+    pub fn new_stream_context(&self) -> CausalConvNext1dStreamContext {
+        CausalConvNext1dStreamContext { history: None }
+    }
+
+    /// The block over the stream's next `T` positions; joined, the chunks'
+    /// outputs are [`forward`](Self::forward)'s over the whole sequence.
     ///
     /// # Arguments
     /// - `x`: `[B, T, C]`.
-    /// - `state`: `[B, K - 1, C]`, the inputs before `x`; `None`, zeros.
+    /// - `ctx`: the stream, advanced past `x`.
     ///
     /// # Returns
-    /// - `[B, T, C]`, and the next call's `[B, K - 1, C]` state.
-    pub fn forward_with_state(
+    /// - `[B, T, C]`.
+    pub fn forward_stream(
+        &self,
+        x: Tensor<3>,
+        ctx: &mut CausalConvNext1dStreamContext,
+    ) -> Tensor<3> {
+        let (y, history) = self.forward_from(x, ctx.history.take());
+        ctx.history = Some(history);
+        y
+    }
+
+    /// The block over `x`, after `state`'s `[B, K - 1, C]` inputs (`None`,
+    /// zeros); and the next chunk's state.
+    fn forward_from(
         &self,
         x: Tensor<3>,
         state: Option<Tensor<3>>,
@@ -246,6 +264,18 @@ impl CausalConvNext1d {
         );
         (y, state)
     }
+}
+
+/// One stream through a [`CausalConvNext1d`]: the `[B, K - 1, C]` inputs
+/// before its next chunk, the depthwise convolution's history. Built by
+/// [`new_stream_context`](CausalConvNext1d::new_stream_context).
+///
+/// A `Module` over bare tensors: moved with `to_device`, never recorded or
+/// visited.
+#[derive(Module, Debug)]
+pub struct CausalConvNext1dStreamContext {
+    /// The last `K - 1` inputs; `None` before the first chunk.
+    history: Option<Tensor<3>>,
 }
 
 #[cfg(test)]
@@ -303,12 +333,10 @@ mod tests {
             .init(&device);
         let x: Tensor<3> = seeded_tensor(2, [1, 11, 4], Distribution::Default, &device);
         let whole = block.forward(x.clone());
-        let mut state = None;
+        let mut ctx = block.new_stream_context();
         let mut parts = Vec::new();
         for (from, to) in [(0, 2), (2, 7), (7, 8), (8, 11)] {
-            let (y, next) = block.forward_with_state(x.clone().slice_dim(1, from..to), state);
-            parts.push(y);
-            state = Some(next);
+            parts.push(block.forward_stream(x.clone().slice_dim(1, from..to), &mut ctx));
         }
         assert_tensors_close(&Tensor::cat(parts, 1), &whole, Tolerance::default());
     }

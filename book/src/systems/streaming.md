@@ -41,11 +41,11 @@ spells out for the audio front ends:
 The pairs in the tree:
 
 - [`SlidingStft`](bunsen::ops::signal::SlidingStft) and
-  [`SlidingStftContext`](bunsen::ops::signal::SlidingStftContext): an STFT
+  [`SlidingStftStreamContext`](bunsen::ops::signal::SlidingStftStreamContext): an STFT
   over a stream of samples.
 - [`PerceptiveAudioConverter`](bunsen::ops::signal::perceptive_audio::PerceptiveAudioConverter)
   and
-  [`PerceptiveAudioConversionContext`](bunsen::ops::signal::perceptive_audio::PerceptiveAudioConversionContext):
+  [`PerceptiveAudioConverterStreamContext`](bunsen::ops::signal::perceptive_audio::PerceptiveAudioConverterStreamContext):
   waveform to log-mel, Whisper's front end.
 - [`CausalSelfAttention`](bunsen::blocks::transformers::attention::csa::CausalSelfAttention)
   and [`KVCache`](bunsen::ops::transformers::attention::KVCache): one
@@ -120,12 +120,15 @@ on the converter: a clamp relative to a maximum reduces over whatever it is
 given, so inside a streaming converter it would make the chunking visible
 ([why](bunsen::ops::signal::perceptive_audio#dynamic-range-packaging-is-the-callers-step)).
 
-### Constructor names vary
+### Constructor names
 
-The pattern is consistent, but the names of the methods that open a context
-are not, yet. A context comes from
-[`SlidingStft::init_state`](bunsen::ops::signal::SlidingStft::init_state),
-[`PerceptiveAudioConverter::new_context`](bunsen::ops::signal::perceptive_audio::PerceptiveAudioConverter::new_context),
+In `ops` and `blocks` the names are one vocabulary: a module's
+`new_stream_context` opens its `{Name}StreamContext`, its `{verb}_stream`
+methods advance it, and `finish_stream` flushes it
+([`SlidingStft::new_stream_context`](bunsen::ops::signal::SlidingStft::new_stream_context),
+[`PerceptiveAudioConverter::new_stream_context`](bunsen::ops::signal::perceptive_audio::PerceptiveAudioConverter::new_stream_context),
+[`InverseStft::new_stream_context`](bunsen::ops::signal::InverseStft::new_stream_context)).
+Above them a context comes from
 [`WhisperStreamDriver::new_context`](bunsen::kits::speech::asr::whisper::driver::WhisperStreamDriver::new_context),
 [`KVCacheModel::new_kv_cache`](bunsen::ops::transformers::attention::KVCacheModel::new_kv_cache) (a model's),
 [`KVCacheConfig`](bunsen::ops::transformers::attention::KVCacheConfig)'s

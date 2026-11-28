@@ -174,8 +174,11 @@ fn test_streaming_logmel_matches_librosa_center_true() {
 
     let (x, _) = signal_tensor(&device);
 
-    let (mels, ctx) = conv.new_context(1).transform(x).unwrap();
-    let tail = ctx.finish().expect("reflect end padding yields a tail");
+    let mut ctx = conv.new_stream_context(1);
+    let mels = conv.transform_stream(x, &mut ctx).unwrap();
+    let tail = conv
+        .finish_stream(&mut ctx)
+        .expect("reflect end padding yields a tail");
 
     // 199 from the padded first call, 2 from the flush; librosa gives 201.
     assert_eq!(mels.dims()[1], 199);
@@ -209,8 +212,9 @@ fn test_whisper_logmel_matches_reference() {
 
     let (x, _) = signal_tensor(&device);
 
-    let (mels, ctx) = conv.new_context(1).transform(x).unwrap();
-    let tail = ctx.finish().unwrap();
+    let mut ctx = conv.new_stream_context(1);
+    let mels = conv.transform_stream(x, &mut ctx).unwrap();
+    let tail = conv.finish_stream(&mut ctx).unwrap();
     let joined: Tensor<3> = Tensor::cat(vec![mels, tail], 1);
     assert_eq!(joined.dims(), [1, 201, conv.n_mels()]);
 
@@ -245,7 +249,7 @@ fn test_chunked_streaming_matches_librosa_center_true() {
 
     let samples = fixture("signal_2s_16k.f32");
 
-    let mut ctx = conv.new_context(1);
+    let mut ctx = conv.new_stream_context(1);
     let mut pieces = Vec::new();
     let mut at = 0;
 
@@ -254,14 +258,13 @@ fn test_chunked_streaming_matches_librosa_center_true() {
             TensorData::new(samples[at..at + n].to_vec(), [1, n]),
             &device,
         );
-        let (mels, next) = ctx.transform(chunk).unwrap();
-        ctx = next;
+        let mels = conv.transform_stream(chunk, &mut ctx).unwrap();
         pieces.push(mels);
         at += n;
     }
     assert_eq!(at, samples.len());
 
-    pieces.push(ctx.finish().unwrap());
+    pieces.push(conv.finish_stream(&mut ctx).unwrap());
 
     let joined: Tensor<3> = Tensor::cat(pieces, 1);
     assert_eq!(joined.dims(), [1, 201, conv.n_mels()]);

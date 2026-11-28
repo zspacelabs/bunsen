@@ -14,6 +14,7 @@ use super::{
 };
 use crate::{
     blocks::{
+        conv::CausalConvNext1dStreamContext,
         signals::DacDecoderStreamContext,
         transformers::decoders::stack::DecoderStackMeta,
     },
@@ -42,10 +43,8 @@ pub struct Qwen3TtsCodecUpsampleStreamContext {
     /// The transposed convolution's.
     pub up: CausalConvTransposeStreamContext,
 
-    /// `[B, K - 1, L]`, the `ConvNeXt` block's last inputs
-    /// ([`forward_with_state`](crate::blocks::conv::CausalConvNext1d::forward_with_state));
-    /// `None` before the first.
-    pub block: Option<Tensor<3>>,
+    /// The `ConvNeXt` block's.
+    pub block: CausalConvNext1dStreamContext,
 }
 
 impl Qwen3TtsCodecUpsample {
@@ -53,7 +52,7 @@ impl Qwen3TtsCodecUpsample {
     pub fn new_stream_context(&self) -> Qwen3TtsCodecUpsampleStreamContext {
         Qwen3TtsCodecUpsampleStreamContext {
             up: self.up.new_stream_context(),
-            block: None,
+            block: self.block.new_stream_context(),
         }
     }
 
@@ -65,9 +64,9 @@ impl Qwen3TtsCodecUpsample {
         ctx: &mut Qwen3TtsCodecUpsampleStreamContext,
     ) -> Tensor<3> {
         let up = self.up.forward_stream(x, &mut ctx.up).swap_dims(1, 2);
-        let (y, state) = self.block.forward_with_state(up, ctx.block.take());
-        ctx.block = Some(state);
-        y.swap_dims(1, 2)
+        self.block
+            .forward_stream(up, &mut ctx.block)
+            .swap_dims(1, 2)
     }
 }
 

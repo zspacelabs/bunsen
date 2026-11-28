@@ -230,7 +230,7 @@ impl LogMelFrontEndConfig {
     ///
     /// # Arguments
     /// * `joined` - `[batch, frames, n_mels]`, the concatenated output of a
-    ///   [`PerceptiveAudioConversionContext`](crate::ops::signal::perceptive_audio::PerceptiveAudioConversionContext)
+    ///   [`PerceptiveAudioConverterStreamContext`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverterStreamContext)
     ///   including its `finish` tail.
     ///
     /// # Returns
@@ -283,15 +283,16 @@ where
 /// `[batch, frames, n_mels]`, before any packaging.
 ///
 /// # Errors
-/// As [`PerceptiveAudioConversionContext::transform`](crate::ops::signal::perceptive_audio::PerceptiveAudioConversionContext::transform).
+/// As [`PerceptiveAudioConverter::transform_stream`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverter::transform_stream).
 pub fn log_mels_of(
     converter: &PerceptiveAudioConverter,
     wave: Tensor<2>,
 ) -> BunsenResult<Tensor<3>> {
     let [batch] =
         crate::contracts::unpack_shape_contract!(["batch", "samples"], &wave.dims(), &["batch"]);
-    let (mels, context) = converter.new_context(batch).transform(wave)?;
-    let joined = match context.finish() {
+    let mut stream = converter.new_stream_context(batch);
+    let mels = converter.transform_stream(wave, &mut stream)?;
+    let joined = match converter.finish_stream(&mut stream) {
         Some(tail) => Tensor::cat(vec![mels, tail], 1),
         None => mels,
     };

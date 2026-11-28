@@ -28,25 +28,18 @@ pub enum StreamPhase {
     Running,
 }
 
-/// Streaming state for waveform to log-mel conversion.
+/// One stream through a [`PerceptiveAudioConverter`]: the samples a future
+/// frame still needs, and where the stream sits in its lifecycle.
 ///
-/// Binds a carried sample queue to a [`PerceptiveAudioConverter`], so a
-/// signal can be fed in hop-aligned chunks and produce exactly the frames it
-/// would have produced in one call.
+/// Built by [`PerceptiveAudioConverter::new_stream_context`], which fixes the
+/// batch size; each batch row is an independent stream.
+/// [`transform_stream`](PerceptiveAudioConverter::transform_stream) feeds it
+/// hop-aligned chunks, each producing exactly the frames it would have
+/// produced in one call; [`finish_stream`](PerceptiveAudioConverter::finish_stream)
+/// flushes the end padding, once.
 ///
-/// Built by [`PerceptiveAudioConverter::new_context`], which fixes the batch
-/// size. Each batch row is an independent stream.
-///
-/// [`transform`](Self::transform) takes `self` and hands it back, rather than
-/// borrowing mutably, because that is what lets the pipeline be written as a
-/// fold over a fixed stack of stages, each shaped `(self, a) -> (b, Self)`.
-/// Only the first stage, which prepends the carry and takes off the next one,
-/// touches state; the rest delegate to the stateless
-/// [`PerceptiveAudioConverter`] stages. [`finish`](Self::finish) consumes the
-/// context, so transforming after finishing is a type error.
-///
-/// Like [`PerceptiveAudioConverter`], this is a `Module` over bare tensors —
-/// the carry rides `to_device` but is neither recorded nor visited.
+/// A `Module` over bare tensors: the carry rides `to_device` but is neither
+/// recorded nor visited.
 ///
 /// # Chunking
 ///
@@ -56,14 +49,12 @@ pub enum StreamPhase {
 /// [`RangeClamp`](crate::ops::signal::perceptive_audio::RangeClamp) — is
 /// deliberately not part of this pipeline; apply it once to the joined result.
 #[derive(Module, Debug)]
-pub struct PerceptiveAudioConversionContext {
-    /// The analysis constants; shared, never mutated.
-    converter: PerceptiveAudioConverter,
-
+pub struct PerceptiveAudioConverterStreamContext {
     /// The samples a future frame still needs: `[batch, carry_len]`.
     ///
     /// `None` before the first chunk. In steady state `carry_len` is
-    /// invariant — see [`transform`](Self::transform).
+    /// invariant — see
+    /// [`transform_stream`](PerceptiveAudioConverter::transform_stream).
     carry: Option<Tensor<2>>,
 
     #[module(skip)]
@@ -71,39 +62,12 @@ pub struct PerceptiveAudioConversionContext {
 
     #[module(skip)]
     phase: StreamPhase,
+
+    #[module(skip)]
+    finished: bool,
 }
 
-impl PerceptiveAudioConverterMeta for PerceptiveAudioConversionContext {
-    fn sample_rate(&self) -> usize {
-        self.converter.sample_rate()
-    }
-
-    fn n_fft(&self) -> usize {
-        self.converter.n_fft()
-    }
-
-    fn hop(&self) -> usize {
-        self.converter.hop()
-    }
-
-    fn n_mels(&self) -> usize {
-        self.converter.n_mels()
-    }
-
-    fn pad_to_pow2(&self) -> bool {
-        self.converter.pad_to_pow2()
-    }
-
-    fn start_padding(&self) -> PaddingMode {
-        self.converter.start_padding()
-    }
-
-    fn end_padding(&self) -> PaddingMode {
-        self.converter.end_padding()
-    }
-}
-
-impl PerceptiveAudioConversionContext {
+impl PerceptiveAudioConverterStreamContext {
     /// The number of independent streams; fixed at construction.
     pub fn batch_size(&self) -> usize {
         self.batch_size
@@ -114,26 +78,43 @@ impl PerceptiveAudioConversionContext {
         self.phase
     }
 
-    /// The converter supplying the analysis constants.
-    pub fn converter(&self) -> &PerceptiveAudioConverter {
-        &self.converter
-    }
-
     /// The carried samples, if any: `[batch, carry_len]`.
     pub fn carry(&self) -> Option<&Tensor<2>> {
         self.carry.as_ref()
     }
 
-    /// Drops the carry and returns to [`StreamPhase::Start`].
+    /// Drops the carry and returns to [`StreamPhase::Start`], unfinished.
     pub fn reset(&mut self) {
         self.carry = None;
         self.phase = StreamPhase::Start;
+        self.finished = false;
+    }
+}
+
+impl PerceptiveAudioConverter {
+    /// A stream of `batch_size` independent rows through these constants.
+    ///
+    /// # Panics
+    /// If `batch_size` is zero.
+    pub fn new_stream_context(
+        &self,
+        batch_size: usize,
+    ) -> PerceptiveAudioConverterStreamContext {
+        assert_ne!(
+            batch_size, 0,
+            "PerceptiveAudioConverter batch_size must be non-zero"
+        );
+        PerceptiveAudioConverterStreamContext {
+            carry: None,
+            batch_size,
+            phase: StreamPhase::Start,
+            finished: false,
+        }
     }
 
-    /// Converts one hop-aligned chunk of waveform into log-mels.
-    ///
-    /// A fold over the stage stack; see the `t_stage_*` methods for what each
-    /// step does.
+    /// Converts the stream's next hop-aligned chunk of waveform into
+    /// log-mels: the carry or the start padding prepended, then
+    /// [`forward`](Self::forward)'s stages.
     ///
     /// # Frame count
     ///
@@ -145,54 +126,58 @@ impl PerceptiveAudioConversionContext {
     /// The first call is the exception: it also absorbs the start padding, so
     /// it yields `(start_pad + samples - n_fft) / hop + 1`. For the default
     /// geometry over 30 s that is 2999 frames with a 360-sample carry, and
-    /// [`finish`](Self::finish) contributes the remaining 2 — 3001 in total,
-    /// matching `librosa` with `center=True`.
+    /// [`finish_stream`](Self::finish_stream) contributes the remaining 2 —
+    /// 3001 in total, matching `librosa` with `center=True`.
     ///
     /// # Arguments
     /// * `waves`: `[batch, samples]`, with `samples` a non-zero multiple of
     ///   `hop`.
+    /// * `ctx`: the stream, advanced past `waves`.
     ///
     /// # Returns
-    /// `[batch, frames, n_mels]` log-mels, and the advanced
-    /// context.
+    /// `[batch, frames, n_mels]` log-mels.
     ///
     /// # Errors
     ///
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the batch size
-    /// does not match, if `samples` is zero or not a multiple of `hop`, or if
-    /// the first chunk is too short to produce a frame.
-    pub fn transform(
-        self,
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the stream is
+    /// finished, if the batch size does not match, if `samples` is zero or
+    /// not a multiple of `hop`, or if the first chunk is too short to produce
+    /// a frame.
+    pub fn transform_stream(
+        &self,
         waves: Tensor<2>,
-    ) -> BunsenResult<(Tensor<3>, Self)> {
-        let (x, this) = self.t_stage_extend(waves)?;
-        let (x, this) = this.t_stage_preproc(x);
-        let (x, this) = this.t_stage_frame(x);
-        let (x, this) = this.t_stage_spectrum(x);
-        let (x, this) = this.t_stage_mel(x);
-        let (mels, this) = this.t_stage_compress(x);
+        ctx: &mut PerceptiveAudioConverterStreamContext,
+    ) -> BunsenResult<Tensor<3>> {
+        let x = self.extend_stream(waves, ctx)?;
+        let mels = self.forward(x);
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "frames", "n_mels"],
             &mels.dims(),
-            &[("batch", this.batch_size()), ("n_mels", this.n_mels())]
+            &[("batch", ctx.batch_size()), ("n_mels", self.n_mels())]
         );
-
-        Ok((mels, this))
+        Ok(mels)
     }
 
-    /// Flushes the carry through the end padding, if any is configured.
+    /// Flushes the stream's carry through the end padding, if any is
+    /// configured; the stream is then finished.
     ///
     /// Returns `None` when
     /// [`end_padding`](PerceptiveAudioConverterMeta::end_padding) is
-    /// [`PaddingMode::None`], or when nothing has been transformed yet.
-    ///
-    /// Consumes the context: a stream ends once.
+    /// [`PaddingMode::None`], when nothing has been transformed yet, or when
+    /// the stream was finished already.
     ///
     /// # Returns
     /// `[batch, frames, n_mels]` tail frames.
-    pub fn finish(self) -> Option<Tensor<3>> {
-        let carry = self.carry.clone()?;
+    pub fn finish_stream(
+        &self,
+        ctx: &mut PerceptiveAudioConverterStreamContext,
+    ) -> Option<Tensor<3>> {
+        if ctx.finished {
+            return None;
+        }
+        ctx.finished = true;
+        let carry = ctx.carry.take()?;
 
         let pad = self.end_padding().pad_len(self.n_fft());
         if pad == 0 {
@@ -203,7 +188,7 @@ impl PerceptiveAudioConversionContext {
             ["batch", "len"],
             &carry.dims(),
             &["len"],
-            &[("batch", self.batch_size)]
+            &[("batch", ctx.batch_size)]
         );
 
         let tail = match self.end_padding() {
@@ -212,7 +197,7 @@ impl PerceptiveAudioConversionContext {
             PaddingMode::Zero => Tensor::cat(
                 vec![
                     carry.clone(),
-                    Tensor::zeros([self.batch_size, pad], &carry.device()),
+                    Tensor::zeros([ctx.batch_size, pad], &carry.device()),
                 ],
                 1,
             ),
@@ -242,60 +227,59 @@ impl PerceptiveAudioConversionContext {
             ["batch", "len"],
             &tail.dims(),
             &["len"],
-            &[("batch", self.batch_size)]
+            &[("batch", ctx.batch_size)]
         );
-        if self.converter.frame_count(tail_len) == 0 {
+        if self.frame_count(tail_len) == 0 {
             return None;
         }
 
-        let mels = self.converter.forward(tail);
+        let mels = self.forward(tail);
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "frames", "n_mels"],
             &mels.dims(),
-            &[("batch", self.batch_size), ("n_mels", self.n_mels())]
+            &[("batch", ctx.batch_size), ("n_mels", self.n_mels())]
         );
         Some(mels)
     }
 
-    // ---- the stage stack ----------------------------------------------
-    //
-    // Each stage is `(self, a) -> (b, Self)`. They are `pub(crate)` so the
-    // test layer can drive a single stage, or a prefix of the stack, without
-    // constructing a whole valid stream — but they are not public API.
-
-    /// Prepends the start padding or the carry, and takes the new carry off
-    /// the tail.
-    ///
-    /// The only fallible stage, and the only one that touches state. The
-    /// carry holds **raw** samples: pre-emphasis needs unfiltered history.
+    /// Prepends the start padding or the carry to the stream's next chunk,
+    /// and takes the new carry off the tail: the one stage that touches
+    /// state. The carry holds **raw** samples, so a sample-domain filter (when
+    /// one lands) sees unfiltered history.
     ///
     /// `[batch, samples]` -> `[batch, extended]`.
-    pub(crate) fn t_stage_extend(
-        mut self,
+    pub(crate) fn extend_stream(
+        &self,
         waves: Tensor<2>,
-    ) -> BunsenResult<(Tensor<2>, Self)> {
+        ctx: &mut PerceptiveAudioConverterStreamContext,
+    ) -> BunsenResult<Tensor<2>> {
+        if ctx.finished {
+            return Err(BunsenError::illegal(
+                "PerceptiveAudioConverter: a push to a finished stream",
+            ));
+        }
         let [batch, samples] =
             crate::contracts::unpack_shape_contract!(["batch", "samples"], &waves.dims());
 
-        if batch != self.batch_size {
+        if batch != ctx.batch_size {
             return Err(BunsenError::illegal(format!(
-                "PerceptiveAudioConversionContext: waves batch ({batch}) must \
+                "PerceptiveAudioConverter: waves batch ({batch}) must \
                  match the context batch size ({})",
-                self.batch_size,
+                ctx.batch_size,
             )));
         }
 
         let hop = self.hop();
         if samples == 0 || samples % hop != 0 {
             return Err(BunsenError::illegal(format!(
-                "PerceptiveAudioConversionContext: waves samples ({samples}) \
+                "PerceptiveAudioConverter: waves samples ({samples}) \
                  must be a non-zero multiple of hop ({hop})",
             )));
         }
 
-        let extended = match self.phase {
-            StreamPhase::Running => match self.carry.take() {
+        let extended = match ctx.phase {
+            StreamPhase::Running => match ctx.carry.take() {
                 Some(carry) => Tensor::cat(vec![carry, waves], 1),
                 None => waves,
             },
@@ -317,7 +301,7 @@ impl PerceptiveAudioConversionContext {
                     PaddingMode::Reflect => {
                         if samples < self.min_first_chunk() {
                             return Err(BunsenError::illegal(format!(
-                                "PerceptiveAudioConversionContext: reflect start \
+                                "PerceptiveAudioConverter: reflect start \
                                  padding needs at least {} samples in the first \
                                  chunk, got {samples}",
                                 self.min_first_chunk(),
@@ -336,10 +320,10 @@ impl PerceptiveAudioConversionContext {
             &["extended"],
             &[("batch", batch)]
         );
-        let frames = self.converter.frame_count(extended_len);
+        let frames = self.frame_count(extended_len);
         if frames == 0 {
             return Err(BunsenError::illegal(format!(
-                "PerceptiveAudioConversionContext: first chunk of {samples} \
+                "PerceptiveAudioConverter: first chunk of {samples} \
                  samples is too short to fill a frame; with {:?} start padding \
                  it needs at least {} samples",
                 self.start_padding(),
@@ -351,92 +335,10 @@ impl PerceptiveAudioConversionContext {
         // Deriving it from the frame count keeps this correct on any geometry,
         // rather than depending on a closed form for the carry length.
         let consumed = frames * hop;
-        self.carry = Some(extended.clone().slice_dim(1, consumed as isize..));
-        self.phase = StreamPhase::Running;
+        ctx.carry = Some(extended.clone().slice_dim(1, consumed as isize..));
+        ctx.phase = StreamPhase::Running;
 
-        Ok((extended, self))
-    }
-
-    /// Sample-domain preprocessing.
-    ///
-    /// Currently the identity. This is where pre-emphasis and DC removal will
-    /// land; both are rejected by
-    /// [`try_validate`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverterConfig::try_validate)
-    /// until then, so the stage cannot silently drop a configured filter.
-    ///
-    /// `[batch, extended]` -> `[batch, extended]`.
-    pub(crate) fn t_stage_preproc(
-        self,
-        x: Tensor<2>,
-    ) -> (Tensor<2>, Self) {
-        (x, self)
-    }
-
-    /// Framing and windowing.
-    ///
-    /// `[batch, extended]` -> `[batch, frames, n_fft]`.
-    pub(crate) fn t_stage_frame(
-        self,
-        x: Tensor<2>,
-    ) -> (Tensor<3>, Self) {
-        let framed = self.converter.frame(x);
-        (framed, self)
-    }
-
-    /// Frames to a power or magnitude spectrum.
-    ///
-    /// `[batch, frames, n_fft]` -> `[batch, frames, n_bins]`.
-    pub(crate) fn t_stage_spectrum(
-        self,
-        x: Tensor<3>,
-    ) -> (Tensor<3>, Self) {
-        let spectrum = self.converter.spectrum(x);
-        (spectrum, self)
-    }
-
-    /// Spectrum onto the mel scale.
-    ///
-    /// `[batch, frames, n_bins]` -> `[batch, frames, n_mels]`.
-    pub(crate) fn t_stage_mel(
-        self,
-        x: Tensor<3>,
-    ) -> (Tensor<3>, Self) {
-        let mels = self.converter.mel(x);
-        (mels, self)
-    }
-
-    /// Mel energies to log-mels.
-    ///
-    /// `[batch, frames, n_mels]` -> `[batch, frames, n_mels]`.
-    pub(crate) fn t_stage_compress(
-        self,
-        x: Tensor<3>,
-    ) -> (Tensor<3>, Self) {
-        let mels = self.converter.compress(x);
-        (mels, self)
-    }
-}
-
-impl PerceptiveAudioConverter {
-    /// Opens a streaming conversion over these constants.
-    ///
-    /// # Arguments
-    /// * `batch_size`: the number of independent streams; must be non-zero.
-    pub fn new_context(
-        &self,
-        batch_size: usize,
-    ) -> PerceptiveAudioConversionContext {
-        assert_ne!(
-            batch_size, 0,
-            "PerceptiveAudioConverter batch_size must be non-zero"
-        );
-
-        PerceptiveAudioConversionContext {
-            converter: self.clone(),
-            carry: None,
-            batch_size,
-            phase: StreamPhase::Start,
-        }
+        Ok(extended)
     }
 }
 
@@ -499,33 +401,25 @@ mod tests {
         let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
-        let ctx = conv.new_context(2);
+        let mut ctx = conv.new_stream_context(2);
 
         assert_eq!(ctx.batch_size(), 2);
         assert_eq!(ctx.phase(), StreamPhase::Start);
         assert!(ctx.carry().is_none());
 
-        // Meta reads the same through the context as through the converter.
-        assert_eq!(ctx.n_fft(), conv.n_fft());
-        assert_eq!(ctx.hop(), conv.hop());
-        assert_eq!(ctx.n_mels(), conv.n_mels());
-        assert_eq!(ctx.n_bins(), conv.n_bins());
-        assert_eq!(ctx.min_first_chunk(), conv.min_first_chunk());
-
         let x = from_rows(&rows(2, 1600), &device);
-        let (_, ctx) = ctx.transform(x).unwrap();
+        conv.transform_stream(x, &mut ctx).unwrap();
 
         assert_eq!(ctx.phase(), StreamPhase::Running);
         assert!(ctx.carry().is_some());
 
-        let mut ctx = ctx;
         ctx.reset();
         assert_eq!(ctx.phase(), StreamPhase::Start);
         assert!(ctx.carry().is_none());
     }
 
     /// The frame accounting documented under
-    /// [`transform`](PerceptiveAudioConversionContext::transform)'s `# Frame
+    /// [`transform_stream`](PerceptiveAudioConverter::transform_stream)'s `# Frame
     /// count`, asserted against the real thing.
     #[test]
     #[serial_test::serial]
@@ -539,14 +433,17 @@ mod tests {
         let samples = 480_000;
         let x = from_rows(&rows(1, samples), &device);
 
-        let (mels, ctx) = conv.new_context(1).transform(x).unwrap();
+        let mut ctx = conv.new_stream_context(1);
+        let mels = conv.transform_stream(x, &mut ctx).unwrap();
 
         // Start padding is 200, which is not a hop multiple, so the first call
         // is short of `samples / hop` and leaves a 360-sample carry.
         assert_eq!(mels.dims(), [1, 2999, opts.n_mels]);
         assert_eq!(ctx.carry().unwrap().dims(), [1, 360]);
 
-        let tail = ctx.finish().expect("reflect end padding yields a tail");
+        let tail = conv
+            .finish_stream(&mut ctx)
+            .expect("reflect end padding yields a tail");
         assert_eq!(tail.dims(), [1, 2, opts.n_mels]);
 
         // 2999 + 2 == 3001, which is what `librosa` gives with center=True.
@@ -565,13 +462,12 @@ mod tests {
             .ok_or_panic();
         let hop = conv.hop();
 
-        let mut ctx = conv.new_context(2);
+        let mut ctx = conv.new_stream_context(2);
         let mut carry_len = None;
 
         for (step, chunk) in [3200, 1600, 4800, 1600].into_iter().enumerate() {
             let x = from_rows(&rows(2, chunk), &device);
-            let (mels, next) = ctx.transform(x).unwrap();
-            ctx = next;
+            let mels = conv.transform_stream(x, &mut ctx).unwrap();
 
             if step > 0 {
                 assert_eq!(
@@ -607,8 +503,9 @@ mod tests {
 
         // Whole-signal reference, plus its tail.
         let whole = from_rows(&host, &device);
-        let (whole_mels, whole_ctx) = conv.new_context(batch).transform(whole).unwrap();
-        let whole_tail = whole_ctx.finish().unwrap();
+        let mut whole_ctx = conv.new_stream_context(batch);
+        let whole_mels = conv.transform_stream(whole, &mut whole_ctx).unwrap();
+        let whole_tail = conv.finish_stream(&mut whole_ctx).unwrap();
 
         // Several hop-aligned splits, including a ragged one.
         for split in [
@@ -619,14 +516,15 @@ mod tests {
         ] {
             assert_eq!(split.iter().sum::<usize>(), total);
 
-            let mut ctx = conv.new_context(batch);
+            let mut ctx = conv.new_stream_context(batch);
             let mut pieces = Vec::new();
             let mut at = 0;
 
             for n in &split {
                 let chunk: Vec<Vec<f64>> = host.iter().map(|r| r[at..at + n].to_vec()).collect();
-                let (mels, next) = ctx.transform(from_rows(&chunk, &device)).unwrap();
-                ctx = next;
+                let mels = conv
+                    .transform_stream(from_rows(&chunk, &device), &mut ctx)
+                    .unwrap();
                 pieces.push(mels);
                 at += n;
             }
@@ -642,7 +540,7 @@ mod tests {
             // concatenated differently, so allow a small float tolerance.
             assert_tensors_close(&joined, &whole_mels, Tolerance::absolute(1e-4));
 
-            let tail = ctx.finish().unwrap();
+            let tail = conv.finish_stream(&mut ctx).unwrap();
             assert_tensors_close(&tail, &whole_tail, Tolerance::absolute(1e-4));
         }
     }
@@ -659,9 +557,11 @@ mod tests {
         let (batch, samples) = (3, 8_000);
         let host = rows(batch, samples);
 
-        let (together, _) = conv
-            .new_context(batch)
-            .transform(from_rows(&host, &device))
+        let together = conv
+            .transform_stream(
+                from_rows(&host, &device),
+                &mut conv.new_stream_context(batch),
+            )
             .unwrap();
 
         let dims = together.dims();
@@ -669,9 +569,11 @@ mod tests {
         let together = tensor_to_vec_as::<f64, _>(&together);
 
         for row in 0..batch {
-            let (alone, _) = conv
-                .new_context(1)
-                .transform(from_rows(&host[row..row + 1], &device))
+            let alone = conv
+                .transform_stream(
+                    from_rows(&host[row..row + 1], &device),
+                    &mut conv.new_stream_context(1),
+                )
                 .unwrap();
 
             assert_close_to_vec(
@@ -692,26 +594,26 @@ mod tests {
             .ok_or_panic();
 
         // Not a hop multiple.
-        let ctx = conv.new_context(2);
+        let mut ctx = conv.new_stream_context(2);
         let bad = from_rows(&rows(2, 1601), &device);
         ErrorMatcher::illegal()
             .message_contains("multiple of hop")
-            .assert_err(&ctx.transform(bad));
+            .assert_err(&conv.transform_stream(bad, &mut ctx));
 
         // Wrong batch.
-        let ctx = conv.new_context(2);
+        let mut ctx = conv.new_stream_context(2);
         let bad = from_rows(&rows(3, 1600), &device);
         ErrorMatcher::illegal()
             .message_contains("batch (3)")
-            .assert_err(&ctx.transform(bad));
+            .assert_err(&conv.transform_stream(bad, &mut ctx));
 
         // Too short to reflect: `min_first_chunk` is 201, and 160 is the
         // largest hop-aligned chunk below it.
-        let ctx = conv.new_context(1);
+        let mut ctx = conv.new_stream_context(1);
         let bad = from_rows(&rows(1, 160), &device);
         ErrorMatcher::illegal()
             .message_contains("reflect start padding")
-            .assert_err(&ctx.transform(bad));
+            .assert_err(&conv.transform_stream(bad, &mut ctx));
     }
 
     #[test]
@@ -725,14 +627,18 @@ mod tests {
             .with_end_padding(PaddingMode::None)
             .try_init(&device)
             .ok_or_panic();
-        let (_, ctx) = unpadded
-            .new_context(1)
-            .transform(from_rows(&rows(1, 3200), &device))
+        let mut ctx = unpadded.new_stream_context(1);
+        unpadded
+            .transform_stream(from_rows(&rows(1, 3200), &device), &mut ctx)
             .unwrap();
-        assert!(ctx.finish().is_none());
+        assert!(unpadded.finish_stream(&mut ctx).is_none());
 
         // Nothing transformed yet: nothing to flush either.
-        assert!(unpadded.new_context(1).finish().is_none());
+        assert!(
+            unpadded
+                .finish_stream(&mut unpadded.new_stream_context(1))
+                .is_none()
+        );
 
         // Zero end padding produces the same frame count as reflect; only the
         // values differ.
@@ -740,18 +646,19 @@ mod tests {
             .with_end_padding(PaddingMode::Zero)
             .try_init(&device)
             .ok_or_panic();
-        let (_, ctx) = zero
-            .new_context(1)
-            .transform(from_rows(&rows(1, 3200), &device))
+        let mut ctx = zero.new_stream_context(1);
+        zero.transform_stream(from_rows(&rows(1, 3200), &device), &mut ctx)
             .unwrap();
-        assert_eq!(ctx.finish().unwrap().dims()[1], 2);
+        assert_eq!(zero.finish_stream(&mut ctx).unwrap().dims()[1], 2);
+        // A stream finishes once.
+        assert!(zero.finish_stream(&mut ctx).is_none());
     }
 
-    /// Driving one stage at a time must match driving the whole fold — the
-    /// payoff for the stack being decomposed.
+    /// The stream's one stateful stage, then the stateless stages, is the
+    /// stream's transform.
     #[test]
     #[serial_test::serial]
-    fn test_stage_stack_matches_transform() {
+    fn test_extend_then_forward_is_the_transform() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let conv: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
@@ -760,20 +667,17 @@ mod tests {
 
         let x = from_rows(&rows(2, 3200), &device);
 
-        let (folded, _) = conv.new_context(2).transform(x.clone()).unwrap();
+        let mut whole = conv.new_stream_context(2);
+        let transformed = conv.transform_stream(x.clone(), &mut whole).unwrap();
 
-        let ctx = conv.new_context(2);
-        let (a, ctx) = ctx.t_stage_extend(x).unwrap();
-        let (a, ctx) = ctx.t_stage_preproc(a);
-        let (a, ctx) = ctx.t_stage_frame(a);
-        let (a, ctx) = ctx.t_stage_spectrum(a);
-        let (a, ctx) = ctx.t_stage_mel(a);
-        let (staged, _) = ctx.t_stage_compress(a);
+        let mut staged = conv.new_stream_context(2);
+        let extended = conv.extend_stream(x, &mut staged).unwrap();
+        let staged = conv.forward(extended);
 
-        assert_tensors_close(&staged, &folded, Tolerance::default());
+        assert_tensors_close(&staged, &transformed, Tolerance::default());
     }
 
-    /// `t_stage_extend` in isolation: the carry contents must be exactly the
+    /// `extend_stream` in isolation: the carry contents must be exactly the
     /// tail of the extended signal, and the extension must start with the
     /// mirrored prefix.
     #[test]
@@ -790,7 +694,8 @@ mod tests {
         let host = rows(1, 1600);
         let x = from_rows(&host, &device);
 
-        let (ext, ctx) = conv.new_context(1).t_stage_extend(x).unwrap();
+        let mut ctx = conv.new_stream_context(1);
+        let ext = conv.extend_stream(x, &mut ctx).unwrap();
         let ext_host = tensor_to_vec_as::<f64, _>(&ext);
 
         assert_eq!(ext_host.len(), pad + 1600);

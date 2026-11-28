@@ -31,7 +31,7 @@
 //! and
 //! its [`SileroVadContext`](crate::kits::speech::vad::silero_vad::SileroVadContext),
 //! the mel converter and its
-//! [`PerceptiveAudioConversionContext`](crate::ops::signal::perceptive_audio::PerceptiveAudioConversionContext),
+//! [`PerceptiveAudioConverterStreamContext`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverterStreamContext),
 //! and the text decoder and the
 //! [`KVCache`](crate::ops::transformers::attention::KVCache)
 //! each decode opens.
