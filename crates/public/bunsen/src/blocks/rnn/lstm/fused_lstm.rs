@@ -69,12 +69,15 @@ impl ModuleInit<FusedLstm> for FusedLstmConfig {
 
 /// A fused LSTM block.
 ///
-/// This is the fused LSTM used by the Silero VAD model.
 /// It is an open question as to alignment/abstraction of this
 /// with the common/generic burn.nn.Lstm module.
 ///
 /// Built by [`FusedLstmConfig`].
 /// Implements [`FusedLstmMeta`].
+///
+/// ## Discussion
+///
+/// This is the fused LSTM of the Silero VAD model.
 #[derive(Module, Debug)]
 pub struct FusedLstm {
     /// The LSTM input (feature -> gates) projection.

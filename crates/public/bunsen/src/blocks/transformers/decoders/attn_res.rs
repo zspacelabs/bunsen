@@ -1,7 +1,7 @@
 //! # Attention residuals
 //!
 //! [`AttnResRoutes`]: a [`DecoderStack`]'s learned routes when it has no
-//! residual stream. Full Attention Residuals (ZONOS3's `full_attnres`) route
+//! residual stream. Full Attention Residuals route
 //! each sublayer's input from a bank of the stack's input and every earlier
 //! sublayer's output ([`attn_res_route`]), a learned query per route; the
 //! sublayers' outputs are their branches' updates alone, never added to
@@ -11,6 +11,10 @@
 //! the stack's as ever: the layers and their configs, the input and final
 //! norms, the rotary tables and the decode's caches (the bank needs none:
 //! every source is per position).
+//!
+//! ## Discussion
+//!
+//! ZONOS3's `full_attnres` is Full Attention Residuals.
 
 use burn::{
     Tensor,
@@ -147,7 +151,7 @@ mod tests {
         },
     };
 
-    /// Linear, attention, linear: the shape of ZONOS3's pattern, with routes.
+    /// Linear, attention, linear, with routes.
     fn config() -> DecoderStackStructureConfig {
         let attention = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, 16)

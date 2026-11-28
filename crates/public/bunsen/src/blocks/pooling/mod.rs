@@ -4,10 +4,15 @@
 //!
 //! - [`AttentiveStatsPooling`]: each channel's attention-weighted mean and
 //!   standard deviation over time, the pooling of speaker encoders (ASTP's form
-//!   and ECAPA-TDNN's, by config).
+//!   and a form with a global context and a centered deviation, by config).
 //! - [`LatentAttentionPool`]: a learned query's attention over the tokens, then
 //!   an MLP: a vision transformer's attention pooling (timm's
-//!   `AttentionPoolLatent`, `SigLIP`'s).
+//!   `AttentionPoolLatent`).
+//!
+//! ## Discussion
+//!
+//! The global-context form of [`AttentiveStatsPooling`] is ECAPA-TDNN's, and
+//! [`LatentAttentionPool`] is `SigLIP`'s multi-head attention pooling.
 
 mod attentive_stats;
 mod latent_attention;

@@ -1,15 +1,15 @@
 //! # Attention blocks
 //!
-//! [`rel_pos::RelPosSelfAttention`] is Transformer-XL relative-position
-//! self-attention, the Conformer's; [`window::WindowAttention`] is a Swin
-//! block's shifted-window self-attention over a stage's grid, with its
-//! per-head relative position bias; the rest of this page is about
+//! [`rel_pos::RelPosSelfAttention`] is relative-position self-attention over
+//! a relative-position table; [`window::WindowAttention`] is shifted-window
+//! self-attention over a stage's grid, with its per-head relative position
+//! bias; the rest of this page is about
 //! [`CausalSelfAttention`], whose
 //! [`AttentionMask`](csa::AttentionMask) makes it a decoder's (causal) or an
 //! encoder's (bidirectional, every key seen, padding keys masked).
 //!
 //! [`CausalSelfAttention`] is bunsen's own multi-head causal self-attention
-//! layer, the one the [`NanoChatGpt`] kit stacks. It is a part of a module
+//! layer. It is a part of a module
 //! tree, built once per layer. The operations it calls and the cache state it
 //! carries live in [`crate::ops::transformers::attention`].
 //!
@@ -61,9 +61,9 @@
 //! ## Two attention stacks
 //!
 //! The other stack runs attention over burn's own
-//! [`MultiHeadAttention`] weights, with a per-layer cache, and serves the
-//! Whisper kit. [`crate::ops::transformers::attention`] compares the two and
-//! says when to use which.
+//! [`MultiHeadAttention`] weights, with a per-layer cache.
+//! [`crate::ops::transformers::attention`] compares the two and says when to
+//! use which.
 //!
 //! ## Lifecycle
 //!
@@ -71,6 +71,16 @@
 //! `init(layer_index, device)` rather than [`ModuleInit`], because the layer
 //! needs its index in the stack. [`CausalSelfAttentionMeta`] reads the same
 //! on the config and the module.
+//!
+//! ## Discussion
+//!
+//! - [`rel_pos::RelPosSelfAttention`] is Transformer-XL's relative-position
+//!   self-attention, the Conformer's.
+//! - [`window::WindowAttention`] is a Swin Transformer block's shifted-window
+//!   self-attention.
+//! - The [`NanoChatGpt`] kit stacks [`CausalSelfAttention`]; the Whisper kit
+//!   ([`crate::kits::speech::asr::whisper`]) runs on the [`MultiHeadAttention`]
+//!   stack.
 //!
 //! [`CausalSelfAttention`]: csa::CausalSelfAttention
 //! [`CausalSelfAttentionConfig`]: csa::CausalSelfAttentionConfig

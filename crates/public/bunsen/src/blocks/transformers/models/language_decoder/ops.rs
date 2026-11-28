@@ -26,9 +26,13 @@ use crate::blocks::transformers::{
 ///
 /// Every [`LmDecoderModel`] implements it, and
 /// every [`LmDecoderHolder`] through a blanket impl, as the model it holds;
-/// a model whose forward is its own (nanochat's, with inputs beside the
+/// a model whose forward is its own (with inputs beside the
 /// stack's) implements it by hand. The forward is [`LmPlainStackOps`]' and
 /// the kind's, where it is the bare stack's.
+///
+/// ## Discussion
+///
+/// nanochat's model, with inputs beside the stack's, implements it by hand.
 pub trait LmDecoderOps {
     /// The float dtype the weights are held, and computed, in.
     fn float_dtype(&self) -> DType;
@@ -57,10 +61,16 @@ pub trait LmDecoderOps {
 
 /// The API of a model whose forward is its [`DecoderStack`]'s alone, from
 /// [`embed`](LmDecoderOps::embed)'s embeddings: an [`LmDecoderModel`] and
-/// every [`LmDecoderWrapper`] (by a blanket impl), and nothing else, as
-/// [`StackedLm`](crate::kits::support::decoding::StackedLm)'s decode, the
-/// kinds' forwards and [`attention_weights`](Self::attention_weights) take
-/// the bare stack to be the forward.
+/// every [`LmDecoderWrapper`] (by a blanket impl), and nothing else, as a
+/// stack-cached decode, the kinds' forwards and
+/// [`attention_weights`](Self::attention_weights) take the bare stack to be
+/// the forward.
+///
+/// ## Discussion
+///
+/// The stack-cached decode is
+/// [`StackedLm`](crate::kits::support::decoding::StackedLm)'s, which every
+/// `LmPlainStackOps` model is by a blanket impl.
 pub trait LmPlainStackOps: LmDecoderOps {
     /// The decoder stack.
     fn stack(&self) -> &DecoderStack;

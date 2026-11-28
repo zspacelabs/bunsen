@@ -17,12 +17,11 @@
 //! its cache as an argument rather than holding it:
 //! [`CausalSelfAttention::forward`] takes a [`KVCache`].
 //!
-//! Where [`crate::kits`] supplies named models (`ResNet`, `NanoChatGpt`,
-//! Whisper, ...), with their configs, weights and quirks, `blocks` supplies
-//! the sub-modules those kits are assembled from, and the generic models
-//! several kits share (the conv net, the language decoder). A typical user
-//! picks an existing kit; an author building a new model reaches into
-//! `blocks`.
+//! Where a named model brings its config, weights and quirks, `blocks`
+//! supplies the sub-modules it is assembled from, and the generic models
+//! several named models share (the conv net, the language decoder). A typical
+//! user picks an existing named model; an author building a new model reaches
+//! into `blocks`.
 //!
 //! ## Lifecycle
 //!
@@ -48,8 +47,17 @@
 //!
 //! - **A block is a `Module` meant to be a root or a part of a module tree:**
 //!   its parameters, plus `ops` calls in order. A tensor operation or table
-//!   that blocks share lives in [`crate::ops`], and a block that only one kit
-//!   uses lives in that kit. Blocks stay composable and ops reusable.
+//!   that blocks share lives in [`crate::ops`]. A kit-generic block lives here
+//!   however many kits use it, one or none: the library of blocks is a good of
+//!   its own. Only a part that knows one model's layout lives in that kit.
+//!   Blocks stay composable and ops reusable.
+//! - **A block names no kit and no model family**, nor links one, except in a
+//!   `## Discussion` section at the end of its structure doc (the type's or
+//!   module's main doc, not a method's, field's or variant's), which may name
+//!   the models, papers and kits it comes from or serves. Elsewhere its docs
+//!   describe the mechanism: what a model uses a block for is the model's to
+//!   say. Upstream library names a field mirrors (timm's, `torch.nn`'s) are not
+//!   model families.
 //! - **A block that decodes or streams takes its state as an argument and never
 //!   holds it**, as [Ops and blocks](crate::ops#ops-and-blocks) defines:
 //!   [`CausalSelfAttention::forward`] takes a [`KVCache`]. One model then
@@ -101,10 +109,9 @@
 //!   ([`CausalDecoderBlock::layer_rekey`](transformers::decoders::causal::CausalDecoderBlock::layer_rekey)
 //!   over a [`DecoderLayerKeys`](transformers::decoders::causal::DecoderLayerKeys),
 //!   `ConvSeq2d::one_based_rekey`); the names an ecosystem gives a block's
-//!   parts (Llama's decoder layer, Whisper's, `PyTorch`'s
-//!   `nn.TransformerEncoderLayer`) are that ecosystem's interop's, in
-//!   `kits::support::interop`. Blocks stay format-free, and an ecosystem's
-//!   names live in one place.
+//!   parts (`PyTorch`'s `nn.TransformerEncoderLayer`, for one) are that
+//!   ecosystem's interop's, outside `blocks`. Blocks stay format-free, and an
+//!   ecosystem's names live in one place.
 //! - **A change that moves a block onto other combinators is a correct
 //!   rewrite**, held to every kit built on the block: each kit is checked
 //!   against its reference on a small real row, or, where none exists, the old
@@ -123,7 +130,7 @@
 //! - [`signals`]: learned layers over a signal's time axis, the counterpart of
 //!   [`ops::signal`](crate::ops::signal)'s fixed front ends: the frame-rate
 //!   changes `FeatureStacking` (frames stacked and projected),
-//!   `DwStridingSubsampling` (the `FastConformer`'s strided convolutions) and
+//!   `DwStridingSubsampling` (depthwise-striding convolutions) and
 //!   `SubpixelUpsample1d` (a sub-pixel convolution), and `EncoderSubsampling`,
 //!   an encoder front end chosen by config.
 //! - [`images`]: vision blocks.
@@ -133,7 +140,7 @@
 //!     behind the `ChannelAttention` seam.
 //!   - [`images::drop`]: structured drop layers, `DropBlock2d` and `DropPath`,
 //!     and the drop-path rate tables.
-//!   - [`images::patching`]: `PatchEmbed`, the Swin Transformer V2 patch
+//!   - [`images::patching`]: `PatchEmbed`, a vision transformer's patch
 //!     embedding.
 //! - [`mlp`]: position-wise MLPs over any rank: `BunsenMlp`, the general form
 //!   of burn's `PositionWiseFeedForward`.
@@ -143,7 +150,7 @@
 //!   channel's attention-weighted mean and deviation (speaker encoders').
 //! - [`quantization`]: a residual vector quantizer's decode, codes to their
 //!   latent: `EuclideanCodebook`, `ResidualVectorQuantizer` and
-//!   `SplitResidualVectorQuantizer` (Mimi's and Qwen3-TTS's codecs').
+//!   `SplitResidualVectorQuantizer`.
 //! - [`rnn`]: recurrent blocks: `FusedLstm`, a single-step LSTM with fused
 //!   gates, and its state type.
 //! - [`transformers`]: transformer blocks: the parts, and the layers and stacks
@@ -157,12 +164,23 @@
 //!     feed-forward (a `BunsenMlp`, a `BunsenGatedMlp` or a mixture of
 //!     experts).
 //!   - [`transformers::encoders`]: bidirectional encoder layers and stacks: the
-//!     residual layer, the rotary encoder, and the `FastConformer` encoder with
-//!     its relative-position attention, convolution and feed-forward modules
-//!     and depthwise-striding subsampling.
+//!     residual layer, the rotary encoder, and the Conformer encoder with its
+//!     relative-position attention, convolution and feed-forward modules and
+//!     depthwise-striding subsampling.
 //!
 //! See the per-item rustdoc for shape contracts, defaults, and the papers each
 //! block implements.
+//!
+//! ## Discussion
+//!
+//! - The named models are [`crate::kits`]' (`ResNet`, `NanoChatGpt`, Whisper,
+//!   ...): a typical user picks an existing kit.
+//! - The Llama and Whisper layer names, and `PyTorch`'s
+//!   `nn.TransformerEncoderLayer`'s, are in `kits::support::interop`.
+//! - The Conformer encoder, with its depthwise-striding subsampling
+//!   (`DwStridingSubsampling`), is the `FastConformer`'s; `PatchEmbed` is the
+//!   Swin Transformer V2 patch embedding; and `SplitResidualVectorQuantizer` is
+//!   Mimi's and Qwen3-TTS's codecs'.
 //!
 //! [`CausalSelfAttention::forward`]: transformers::attention::csa::CausalSelfAttention::forward
 //! [`KVCache`]: crate::ops::transformers::attention::KVCache

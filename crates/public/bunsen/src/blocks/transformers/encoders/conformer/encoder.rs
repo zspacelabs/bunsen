@@ -39,10 +39,12 @@ pub trait ConformerEncoderMeta {
 /// [`SubsampledEncoder`](crate::blocks::transformers::encoders::SubsampledEncoder) fed the
 /// striding's own `[batch, n_mels, time]`.
 ///
+/// Implements [`ConformerEncoderMeta`].
+///
+/// ## Discussion
+///
 /// This is the encoder of NVIDIA's Parakeet and Canary models, and of
 /// Sortformer v2's.
-///
-/// Implements [`ConformerEncoderMeta`].
 #[derive(Config, Debug)]
 pub struct ConformerEncoderConfig {
     /// The subsampling front of the encoder.
@@ -126,7 +128,7 @@ mod tests {
         assert_eq!(lengths, [3]);
     }
 
-    /// A small encoder that scales its input, as Sortformer v2's does.
+    /// A small encoder that scales its input.
     fn scaling_encoder() -> SubsampledEncoder {
         ConformerEncoderConfig::new(
             DwStridingSubsamplingConfig::new(24, 4, 16),

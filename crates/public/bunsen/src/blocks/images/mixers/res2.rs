@@ -1,4 +1,4 @@
-//! `Res2Net`'s scale split.
+//! [`Res2Conv`]: a scale split.
 
 use alloc::{
     format,
@@ -29,8 +29,8 @@ use crate::{
     },
 };
 
-/// `Res2Net`'s scale split, the config of a [`Res2Conv`] (timm's
-/// `Bottle2neck`, its `convs`, `bns` and `pool`).
+/// A scale split, the config of a [`Res2Conv`] (timm's `Bottle2neck`, its
+/// `convs`, `bns` and `pool`).
 ///
 /// The input's `width * scale` channels split into `scale` chunks of `width`.
 /// Each of the first `scale - 1` (one, at a `scale` of 1) goes through its
@@ -177,7 +177,12 @@ impl ModuleInit<Res2Conv> for Res2ConvConfig {
     }
 }
 
-/// `Res2Net`'s scale split; built by [`Res2ConvConfig`].
+/// A scale split; built by [`Res2ConvConfig`].
+///
+/// ## Discussion
+///
+/// This is `Res2Net`'s scale split
+/// ([arXiv:1904.01169](https://arxiv.org/abs/1904.01169)).
 #[derive(Module, Debug)]
 pub struct Res2Conv {
     /// The branch convs.

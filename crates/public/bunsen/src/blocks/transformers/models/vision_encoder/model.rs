@@ -100,11 +100,16 @@ pub trait VisionEncoderMeta {
 /// embedding, the prefix tokens and position embedding, the transformer, the
 /// token pool and the head.
 ///
-/// A family's policy (`ViTContractConfig`) lowers to it. `try_init` checks
+/// A family's policy lowers to it. `try_init` checks
 /// that the parts agree: one width, the tokens over the patch grid, a class
 /// token for a class-token pool.
 ///
 /// Implements [`VisionEncoderMeta`].
+///
+/// ## Discussion
+///
+/// The `ViT` kit's policy, `ViTContractConfig`, lowers to it; the hybrid
+/// `ViT`'s conv net is its [`backbone`](Self::backbone).
 #[derive(Config, Debug)]
 pub struct VisionEncoderStructureConfig {
     /// The patch embedding: over the images, or the backbone's map.
@@ -128,7 +133,7 @@ pub struct VisionEncoderStructureConfig {
     /// [`Distilled`](TokenPoolKind::Distilled) pool.
     pub head: ClassifierHeadConfig,
 
-    /// The conv backbone before the patch embedding (the hybrid `ViT`'s);
+    /// The conv backbone before the patch embedding (a hybrid's);
     /// none when `None`, the patch embedding cutting the images.
     #[config(default = "None")]
     pub backbone: Option<VisionBackboneConfig>,
@@ -324,7 +329,6 @@ impl ModuleInit<VisionEncoderModel> for VisionEncoderStructureConfig {
 /// [`DecoderStack`] of bidirectional layers, a [`TokenPool`] and a
 /// [`ClassifierHead`]: timm's `VisionTransformer`.
 ///
-/// Every `ViT` family is this type, built from its policy.
 /// [`forward`](Self::forward) maps `[batch, in_channels, height, width]`
 /// images to `[batch, num_classes]` logits;
 /// [`feature_tokens`](Self::feature_tokens),
@@ -335,6 +339,10 @@ impl ModuleInit<VisionEncoderModel> for VisionEncoderStructureConfig {
 /// for its patch grid.
 ///
 /// Implements [`VisionEncoderMeta`].
+///
+/// ## Discussion
+///
+/// Every `ViT` family is this type, built from its policy.
 #[derive(Module, Debug)]
 pub struct VisionEncoderModel {
     /// The conv backbone before the patch embedding, if any.

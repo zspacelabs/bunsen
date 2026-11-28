@@ -41,11 +41,16 @@ use crate::{
 
 /// The stem's pool: the config of a [`ConvStemPool`].
 ///
-/// A seam: each kind is a module of its own. Built: a max pool (`ResNet`'s
-/// `3x3`, stride 2), and the anti-aliased nets' (timm's `aa_layer`): an
-/// average pool, or a max pool of stride 1 and a blur of the stride;
-/// `ResNet-RS`'s strided conv block; and `BiT`'s zero-padded and the hybrid
-/// `ViT`'s SAME-padded max pools.
+/// A seam: each kind is a module of its own. Built: a max pool (`3x3`,
+/// stride 2), and the anti-aliased nets' (timm's `aa_layer`): an average
+/// pool, or a max pool of stride 1 and a blur of the stride; a strided conv
+/// block; and zero-padded and SAME-padded max pools.
+///
+/// ## Discussion
+///
+/// The `3x3` max pool is `ResNet`'s, the strided conv block `ResNet-RS`'s, the
+/// zero-padded max pool [`ZeroPadMax`](Self::ZeroPadMax) `BiT`'s `fixed` stem,
+/// and the SAME-padded [`SameMax`](Self::SameMax) the hybrid `ViT`'s.
 #[derive(Config, Debug)]
 pub enum ConvStemPoolConfig {
     /// A max pool.
@@ -62,9 +67,8 @@ pub enum ConvStemPoolConfig {
     MaxBlur(MaxBlurPoolConfig),
 
     /// A zero pad of 1 on each side, then a max pool of no padding of its
-    /// own (`BiT`'s `fixed` stem: `ConstantPad2d(1, 0)` and `MaxPool2d(3, 2,
-    /// padding=0)`); the zeros, unlike a max pool's own padding, can win
-    /// over a negative map.
+    /// own (`ConstantPad2d(1, 0)` and `MaxPool2d(3, 2, padding=0)`); the
+    /// zeros, unlike a max pool's own padding, can win over a negative map.
     ZeroPadMax(MaxPool2dConfig),
 
     /// The input SAME-padded from its own size with `-inf`, then a max pool
@@ -120,8 +124,12 @@ pub struct MaxBlurPoolConfig {
     pub blur: BlurPool2dConfig,
 }
 
-/// A max pool, then a blur that strides: an anti-aliased `ResNet`'s stem
-/// pool (timm's `MaxPool2d(3, 1, 1)` and `BlurPool2d`).
+/// A max pool, then a blur that strides: an anti-aliased stem pool (timm's
+/// `MaxPool2d(3, 1, 1)` and `BlurPool2d`).
+///
+/// ## Discussion
+///
+/// This is an anti-aliased `ResNet`'s stem pool.
 #[derive(Module, Debug)]
 pub struct MaxBlurPool {
     /// The max pool.
@@ -207,11 +215,15 @@ impl ConvStemPool {
 
 /// [`ConvStem`]'s config: its convs, in order, and its pool.
 ///
-/// A single `7x7` conv is `ResNet`'s stem; a run of `3x3`s its deep and
-/// tiered stems; a conv whose kernel is its stride, with no norm, a
-/// patchify stem.
+/// A single `7x7` conv is a plain stem; a run of `3x3`s a deep or tiered
+/// stem; a conv whose kernel is its stride, with no norm, a patchify stem.
 ///
 /// Implements [`ConvChainMeta`].
+///
+/// ## Discussion
+///
+/// The single `7x7` conv is `ResNet`'s stem, and the runs of `3x3`s its deep
+/// and tiered stems.
 #[derive(Config, Debug)]
 pub struct ConvStemConfig {
     /// The convs, in order; each one's output is the next one's input.
@@ -305,6 +317,11 @@ impl ModuleInit<ConvStem> for ConvStemConfig {
 /// A conv net's stem: convs, then a pool. Built by [`ConvStemConfig`].
 ///
 /// Implements [`ConvChainMeta`].
+///
+/// ## Discussion
+///
+/// On a `ResNet`, the convs' output
+/// ([`forward_convs`](Self::forward_convs)) is timm's `act1`, at stride 2.
 #[derive(Module, Debug)]
 pub struct ConvStem {
     /// The convs, in order.
@@ -333,8 +350,7 @@ impl ConvChainMeta for ConvStem {
 }
 
 impl ConvStem {
-    /// The convs' output, before the pool: timm's first feature map (`act1`
-    /// on a `ResNet`, at stride 2).
+    /// The convs' output, before the pool: timm's first feature map.
     ///
     /// # Arguments
     ///

@@ -52,7 +52,7 @@ pub trait CausalConvNext1dMeta {
     fn kernel(&self) -> usize;
 
     /// Whether the branch is scaled per channel, by `γ`, before the residual
-    /// add (`ConvNeXt`'s layer scale).
+    /// add (a layer scale).
     fn layer_scale(&self) -> bool;
 }
 
@@ -76,12 +76,12 @@ pub struct CausalConvNext1dConfig {
     )]
     pub norm: BunsenNormalizationConfig,
 
-    /// The activation after the expansion: `GELU`, `ConvNeXt`'s.
+    /// The activation after the expansion; `GELU` by default.
     #[config(default = "BunsenActivationConfig::Gelu")]
     pub act: BunsenActivationConfig,
 
     /// Whether the branch is scaled per channel, by `γ`, before the residual
-    /// add (`ConvNeXt`'s layer scale). Off by default.
+    /// add (a layer scale). Off by default.
     #[config(default = false)]
     pub layer_scale: bool,
 }
@@ -138,7 +138,7 @@ impl ModuleInit<CausalConvNext1d> for CausalConvNext1dConfig {
     }
 }
 
-/// A causal 1-d `ConvNeXt` block (`DualCodec`'s and ZONOS3's codec's):
+/// A causal 1-d `ConvNeXt` block:
 ///
 /// ```text
 /// h = dwconv(x)           (depthwise, each channel over its own past: k - 1 left padding)
@@ -146,13 +146,18 @@ impl ModuleInit<CausalConvNext1d> for CausalConvNext1dConfig {
 /// ```
 ///
 /// with `γ` a per-channel layer scale when
-/// [`layer_scale`](CausalConvNext1dMeta::layer_scale) is set (Qwen3-TTS's
-/// codec's), and 1 otherwise (ZONOS3's). Channels last, `[B, T, C]`. The
-/// depthwise convolution continues from a carried state
-/// ([`forward_stream`](Self::forward_stream)), so a stream run in
+/// [`layer_scale`](CausalConvNext1dMeta::layer_scale) is set, and 1 otherwise.
+/// Channels last, `[B, T, C]`. The depthwise convolution continues from a
+/// carried state ([`forward_stream`](Self::forward_stream)), so a stream run in
 /// chunks is the same as one run whole.
 ///
 /// Built by [`CausalConvNext1dConfig`].
+///
+/// ## Discussion
+///
+/// The layer scale and the `GELU` activation are `ConvNeXt`'s. This is the
+/// block of `DualCodec`'s and ZONOS3's codecs, ZONOS3's without the layer
+/// scale; Qwen3-TTS's codec's has the layer scale.
 #[derive(Module, Debug)]
 pub struct CausalConvNext1d {
     /// The depthwise convolution: weight `[C, 1, K]`, bias `[C]`.

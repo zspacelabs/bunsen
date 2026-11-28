@@ -39,11 +39,16 @@ pub trait EncoderTransformerMeta {
 /// Config for [`EncoderTransformer`]: which stack, and its config.
 ///
 /// Implements [`EncoderTransformerMeta`].
+///
+/// ## Discussion
+///
+/// `Nemotron-3-Diarization`'s pre-norm rotary encoder, an input norm before
+/// the layers, is an [`EncoderTransformerConfig::Stack`].
 #[derive(Config, Debug)]
 pub enum EncoderTransformerConfig {
     /// [`DecoderStack`]: its blocks' attention bidirectional, its rotary
-    /// table over the whole input (`Nemotron-3-Diarization`'s pre-norm rotary
-    /// encoder, an input norm before the layers).
+    /// table over the whole input (a pre-norm rotary encoder with an input
+    /// norm before the layers, say).
     Stack(DecoderStackStructureConfig),
 
     /// [`ConformerTransformer`]: Conformer blocks over one relative-position

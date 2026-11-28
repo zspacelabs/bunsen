@@ -22,10 +22,14 @@ use crate::{
 };
 
 /// A vision encoder's conv backbone: the config of a [`VisionBackbone`]
-/// (timm's `HybridEmbed`'s `backbone`, the hybrid `ViT`'s `ResNetV2`).
+/// (timm's `HybridEmbed`'s `backbone`).
 ///
 /// The images go through the conv net first; the patch embedding cuts its
 /// last map, not the images.
+///
+/// ## Discussion
+///
+/// The hybrid `ViT`'s backbone is a `ResNetV2`.
 #[derive(Config, Debug)]
 pub struct VisionBackboneConfig {
     /// The conv net, headless: its last map

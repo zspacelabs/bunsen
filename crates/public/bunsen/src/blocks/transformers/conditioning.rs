@@ -3,12 +3,16 @@
 //! Layers that let a vector outside the sequence steer a transformer layer.
 //!
 //! [`AdaptiveScale`] maps a conditioning vector to a per-channel scale,
-//! `1 + f(cond)`, that multiplies a sublayer's normalized input: the adaptive
-//! normalization of diffusion transformers (adaLN), and how Voxtral Realtime
-//! tells its decoder the transcription delay. A
+//! `1 + f(cond)`, that multiplies a sublayer's normalized input: adaptive
+//! normalization (adaLN). A
 //! [`CausalDecoderBlock`](super::decoders::causal::CausalDecoderBlock) with an
 //! [`mlp_scale`](super::decoders::causal::CausalDecoderBlockConfig::mlp_scale)
 //! applies one to its feed-forward's input.
+//!
+//! ## Discussion
+//!
+//! [`AdaptiveScale`] is the adaptive normalization of diffusion transformers,
+//! and how Voxtral Realtime tells its decoder the transcription delay.
 
 use burn::{
     Tensor,

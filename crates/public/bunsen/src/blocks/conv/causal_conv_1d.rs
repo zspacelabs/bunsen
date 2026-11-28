@@ -177,9 +177,7 @@ impl ModuleInit<CausalConv1d> for CausalConv1dConfig {
 /// frames before and [`right_padding`](CausalConv1dMeta::right_padding) after
 /// (the last stride made whole), then convolved without padding: `[B, C_in,
 /// T]` to `[B, C_out, ⌈T / s⌉]`. With a stride of 1 the right padding is
-/// none, and the output is as long as the input. That is
-/// the rule of the causal convolutions in Encodec, DAC, Mimi and Qwen3-TTS's
-/// codec.
+/// none, and the output is as long as the input.
 ///
 /// The convolution is burn's [`Conv1d`], as `conv`: checkpoints that hold it
 /// as `conv.weight` and `conv.bias` load as they are.
@@ -197,6 +195,11 @@ impl ModuleInit<CausalConv1d> for CausalConv1dConfig {
 /// no output.
 ///
 /// Built by [`CausalConv1dConfig`].
+///
+/// ## Discussion
+///
+/// This padding is the rule of the causal convolutions in Encodec, DAC, Mimi
+/// and Qwen3-TTS's codec.
 #[derive(Module, Debug)]
 pub struct CausalConv1d {
     /// The convolution, unpadded.
@@ -395,7 +398,7 @@ pub struct CausalConvTranspose1dConfig {
     pub stride: usize,
 
     /// The channel groups; each divides both channel counts (their common
-    /// count is a depthwise upsampler, Mimi's).
+    /// count is a depthwise upsampler).
     #[config(default = 1)]
     pub groups: usize,
 
@@ -456,8 +459,7 @@ impl ModuleInit<CausalConvTranspose1d> for CausalConvTranspose1dConfig {
 ///
 /// burn's unpadded [`ConvTranspose1d`] gives `(T - 1) · s + K` frames; the
 /// last [`right_trim`](CausalConvTranspose1dMeta::right_trim), `K - s`, are
-/// trimmed, leaving `T · s`: the overlap a later input would add to. That is
-/// the rule of the causal upsamplers in Encodec, DAC and Qwen3-TTS's codec.
+/// trimmed, leaving `T · s`: the overlap a later input would add to.
 ///
 /// The convolution is held as `conv`: checkpoints that hold it as
 /// `conv.weight` and `conv.bias` load as they are.
@@ -471,6 +473,12 @@ impl ModuleInit<CausalConvTranspose1d> for CausalConvTranspose1dConfig {
 /// outputs, joined, are [`forward`](Self::forward)'s over the whole input.
 ///
 /// Built by [`CausalConvTranspose1dConfig`].
+///
+/// ## Discussion
+///
+/// This trim is the rule of the causal upsamplers in Encodec, DAC and
+/// Qwen3-TTS's codec. A depthwise upsampler (groups equal to both channel
+/// counts) is Mimi's.
 #[derive(Module, Debug)]
 pub struct CausalConvTranspose1d {
     /// The transposed convolution, unpadded.

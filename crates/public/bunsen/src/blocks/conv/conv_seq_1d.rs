@@ -214,10 +214,9 @@ pub trait ConvSeq1dMeta {
 ///
 /// # Example
 ///
-/// Building a stride-2 down-sampling head (as used by the Whisper audio
-/// encoder): a "same"-padded 3-wide conv followed by a stride-2 conv that
-/// halves the length. Each block's `out_channels` feeds the next block's
-/// `in_channels`.
+/// Building a stride-2 down-sampling head: a "same"-padded 3-wide conv
+/// followed by a stride-2 conv that halves the length. Each block's
+/// `out_channels` feeds the next block's `in_channels`.
 ///
 /// ```rust,no_run
 /// use bunsen::{
@@ -264,6 +263,10 @@ pub trait ConvSeq1dMeta {
 /// // `try_init` builds and validates the sequence.
 /// let seq: ConvSeq1d = config.try_init(&device).unwrap();
 /// ```
+///
+/// ## Discussion
+///
+/// The example's down-sampling head is the Whisper audio encoder's.
 #[derive(Config, Debug)]
 pub struct ConvSeq1dConfig {
     /// The [`ConvBlock1dConfig`] modules, in sequence order.

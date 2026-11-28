@@ -1,9 +1,14 @@
 //! # Patch merging
 //!
 //! [`PatchMerge`]: a staged vision transformer's downsample between stages,
-//! timm's Swin `PatchMerging`: each `2x2` block of the token grid as one
-//! token of four times the channels, reduced to the next stage's width, and
-//! normed (before the reduction in Swin V1, after it in V2).
+//! timm's `PatchMerging`: each `2x2` block of the token grid as one token of
+//! four times the channels, reduced to the next stage's width, and normed
+//! (before the reduction, or after it).
+//!
+//! ## Discussion
+//!
+//! This is the Swin Transformer's patch merging: Swin V1 norms before the
+//! reduction, Swin V2 after it, and both double the width.
 
 use burn::{
     config::Config,
@@ -40,15 +45,14 @@ pub struct PatchMergeConfig {
     /// The width of the tokens it merges.
     pub d_input: usize,
 
-    /// The width of the merged tokens: twice the input's in Swin.
+    /// The width of the merged tokens.
     pub d_output: usize,
 
     /// The norm, sized at init: over the four tokens' channels before the
-    /// reduction (Swin V1), or over the output after it (Swin V2).
+    /// reduction, or over the output after it.
     pub norm: BunsenNormalizationConfig,
 
-    /// Whether the norm comes before the reduction (Swin V1), not after
-    /// (Swin V2).
+    /// Whether the norm comes before the reduction, not after.
     #[config(default = false)]
     pub norm_first: bool,
 }
@@ -99,10 +103,15 @@ impl ModuleInit<PatchMerge> for PatchMergeConfig {
     }
 }
 
-/// A staged vision transformer's patch merge, timm's Swin `PatchMerging`.
+/// A staged vision transformer's patch merge, timm's `PatchMerging`.
 /// Its parameters are `reduction` (no bias) and `norm`.
 ///
 /// Built by [`PatchMergeConfig`].
+///
+/// ## Discussion
+///
+/// This is the Swin Transformer's `PatchMerging`; Swin V1 sets
+/// [`norm_first`](Self::norm_first), Swin V2 does not.
 #[derive(Module, Debug)]
 pub struct PatchMerge {
     /// The grid it merges.

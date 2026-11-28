@@ -125,7 +125,7 @@ pub struct GatedDeltaNetConfig {
     /// The width of each value head.
     pub value_dim: usize,
 
-    /// The convolution's taps (Qwen3.5's `linear_conv_kernel_dim`).
+    /// The convolution's taps (`transformers`' `linear_conv_kernel_dim`).
     #[config(default = 4)]
     pub conv_kernel: usize,
 
@@ -250,9 +250,7 @@ impl GatedDeltaNetConfig {
     }
 }
 
-/// The gated `DeltaNet` (Yang et al., *Gated Delta Networks*), the
-/// linear-attention token mixer of Qwen3.5's hybrid layers
-/// (`transformers`' `Qwen3_5GatedDeltaNet`).
+/// The gated `DeltaNet`, a linear-attention token mixer.
 ///
 /// ```text
 /// q, k, v = split(silu(conv(in_proj_qkv(x))))     a causal depthwise conv
@@ -272,6 +270,12 @@ impl GatedDeltaNetConfig {
 /// ([`GatedDeltaRule::chunked`]); the two agree.
 ///
 /// Built by [`GatedDeltaNetConfig`].
+///
+/// ## Discussion
+///
+/// The gated `DeltaNet` is Yang et al., *Gated Delta Networks*. It is the
+/// linear-attention token mixer of Qwen3.5's hybrid layers (`transformers`'
+/// `Qwen3_5GatedDeltaNet`).
 #[derive(Module, Debug)]
 pub struct GatedDeltaNet {
     /// Its slot in a

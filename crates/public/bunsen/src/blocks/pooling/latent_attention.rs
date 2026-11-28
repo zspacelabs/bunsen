@@ -128,9 +128,13 @@ impl ModuleInit<LatentAttentionPool> for LatentAttentionPoolConfig {
 /// tokens, its biased `query`, `key`, `value` and `output` projections
 /// those of a [`MultiHeadAttention`], then `x + mlp(norm(x))`, the query's
 /// one output token the pooled vector. timm's `AttentionPoolLatent` with one
-/// latent (`global_pool='map'`, `SigLIP`'s multi-head attention pooling).
+/// latent (`global_pool='map'`).
 ///
 /// Built by [`LatentAttentionPoolConfig`].
+///
+/// ## Discussion
+///
+/// This is `SigLIP`'s multi-head attention pooling.
 #[derive(Module, Debug)]
 pub struct LatentAttentionPool {
     /// The query, `[1, 1, d_model]` (timm's `latent`).

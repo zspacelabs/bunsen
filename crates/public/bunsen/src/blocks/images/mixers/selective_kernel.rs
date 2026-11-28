@@ -1,4 +1,4 @@
-//! `SKNet`'s selective kernel.
+//! [`SelectiveKernel`]: a selective kernel.
 
 use alloc::{
     format,
@@ -40,7 +40,7 @@ use crate::{
     support::math::make_divisible,
 };
 
-/// `SKNet`'s selective kernel, the config of a [`SelectiveKernel`] (timm's
+/// A selective kernel, the config of a [`SelectiveKernel`] (timm's
 /// `SelectiveKernel` and `SelectiveKernelAttn`).
 ///
 /// Each path is a conv block of its own receptive field ([`paths`](Self::paths):
@@ -229,7 +229,12 @@ impl ModuleInit<SelectiveKernel> for SelectiveKernelConfig {
     }
 }
 
-/// `SKNet`'s selective kernel; built by [`SelectiveKernelConfig`].
+/// A selective kernel; built by [`SelectiveKernelConfig`].
+///
+/// ## Discussion
+///
+/// This is `SKNet`'s selective kernel
+/// ([arXiv:1903.06586](https://arxiv.org/abs/1903.06586)).
 #[derive(Module, Debug)]
 pub struct SelectiveKernel {
     /// The paths.

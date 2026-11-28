@@ -58,12 +58,12 @@ use crate::{
     },
 };
 
-/// A `ViT` layer norm of `d` features.
+/// A layer norm of `d` features, epsilon `1e-6`.
 fn norm(d: usize) -> BunsenNormalizationConfig {
     BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(d).with_epsilon(1e-6))
 }
 
-/// A tiny `ViT`: 16x16 images in 4x4 patches (a 4x4 grid), 8 wide, two
+/// A tiny vision encoder: 16x16 images in 4x4 patches (a 4x4 grid), 8 wide, two
 /// layers of two heads, `reg` register tokens, and 5 classes.
 fn tiny(
     pool: TokenPoolKind,

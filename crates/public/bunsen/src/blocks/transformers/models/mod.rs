@@ -10,13 +10,17 @@
 //! - [`vision_encoder`], the vision transformer
 //!   ([`VisionEncoderModel`](vision_encoder::VisionEncoderModel): a patch
 //!   embedding, prefix tokens, a bidirectional `DecoderStack` and a token
-//!   head). A `ViT` family's kit holds no model type of its own: its model is
-//!   this one, built from its config.
+//!   head).
 //! - [`staged_vision_encoder`], the hierarchical vision transformer
 //!   ([`StagedVisionEncoderModel`](staged_vision_encoder::StagedVisionEncoderModel):
 //!   a patch embedding, stages of a patch merge and a `DecoderStack` of
-//!   window-attention blocks, a token pool and the head): the Swin
-//!   Transformers'.
+//!   window-attention blocks, a token pool and the head).
+//!
+//! ## Discussion
+//!
+//! A `ViT` family's kit holds no model type of its own: its model is a
+//! `VisionEncoderModel`, built from its config. The Swin Transformers are
+//! `StagedVisionEncoderModel`s.
 
 pub mod language_decoder;
 pub mod staged_vision_encoder;

@@ -50,8 +50,8 @@ fn norm() -> BunsenNormalizationConfig {
     BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0))
 }
 
-/// A stage's stack: `depth` Swin V2 blocks over `grid`, every second
-/// shifted, res-post-norm.
+/// A stage's stack: `depth` window-attention blocks over `grid`, every
+/// second shifted, res-post-norm.
 fn stage_stack(
     d: usize,
     heads: usize,
@@ -85,7 +85,7 @@ fn stage_stack(
     stack
 }
 
-/// A tiny Swin V2: 32x32 images in 4x4 patches (an 8x8 grid), 8 wide; a
+/// A tiny staged encoder: 32x32 images in 4x4 patches (an 8x8 grid), 8 wide; a
 /// stage of two blocks, then a merge to a 4x4 grid 16 wide and two more; 5
 /// classes.
 fn tiny() -> StagedVisionEncoderStructureConfig {

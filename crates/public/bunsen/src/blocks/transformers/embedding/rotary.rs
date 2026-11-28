@@ -51,6 +51,26 @@ pub trait RotaryEmbeddingMeta {
 }
 
 /// Config for [`RotaryEmbedding`].
+///
+/// ## Discussion
+///
+/// The options here follow the rotary embeddings of several model families:
+///
+/// - Qwen3.5's `partial_rotary_factor` of 0.25 rotates 64 of a head's 256
+///   dimensions (a [`RotaryEmbeddingConfig`] `rotary_dim` of 64).
+/// - nanochat's 2025 model keeps its tables in bf16
+///   ([`RotaryEmbeddingConfig::table_dtype`]).
+/// - ZONOS3 rotates half inputs in f32 ([`RotaryEmbeddingConfig::widening`]).
+/// - Gemma 3's global table scales its frequencies by [`RopeScaling::Linear`]
+///   at 8.
+/// - [`RotaryDirection::Reverse`] is nanochat's convention;
+///   [`RotaryDirection::Forward`] is the `RoFormer` convention, Llama's and
+///   Qwen's.
+/// - [`RotaryPairLayout::Halves`] is Llama's, Qwen's and nanochat's layout;
+///   [`RotaryPairLayout::Interleaved`] is `RoFormer`'s original, Meta's Llama
+///   reference's, `DeepSeek`'s (`rope_interleave`) and ZONOS3's.
+/// - Whisper's audio encoder, whose input carries absolute positions, attends
+///   under an [`unrotated`](RotaryEmbeddingConfig::unrotated) rotary.
 #[derive(Config, Debug)]
 pub struct RotaryEmbeddingConfig {
     /// Sequence Length: the positions the table covers, from
@@ -63,7 +83,7 @@ pub struct RotaryEmbeddingConfig {
     pub head_dim: usize,
 
     /// The leading head dimensions rotated, `[..rotary_dim]`; the rest,
-    /// `[rotary_dim..]`, pass through unrotated (partial rotary: Qwen3.5's
+    /// `[rotary_dim..]`, pass through unrotated (partial rotary: a
     /// `partial_rotary_factor` of 0.25 rotates 64 of 256). The frequencies
     /// are spread over `rotary_dim`, as `transformers`' are over
     /// `head_dim * partial_rotary_factor`. `None` rotates all of
@@ -88,8 +108,8 @@ pub struct RotaryEmbeddingConfig {
 
     /// The dtype the `cos` / `sin` tables are kept in. They are computed in
     /// f32 whatever the device's default float, then rounded to this: for a
-    /// model trained with tables in a narrower dtype, as nanochat's 2025
-    /// model keeps them in bf16. `None` keeps them in f32, exact. On a device
+    /// model trained with tables in a narrower dtype. `None` keeps them in
+    /// f32, exact. On a device
     /// without the dtype (wgpu has no bf16), a narrower one's rounded values
     /// are kept in f32, which holds them exactly, and a wider one is not
     /// kept ([`RotaryTableDTypePolicy`]).
@@ -101,7 +121,7 @@ pub struct RotaryEmbeddingConfig {
     /// The dtype the rotation runs in, from the input's: the input and the
     /// tables widened, the rotated dimensions narrowed back to the input's
     /// dtype. [`Widening::NONE`] rotates in the input's dtype, as
-    /// `transformers` does; ZONOS3 rotates half inputs in f32.
+    /// `transformers` does.
     #[config(default = "Widening::NONE")]
     pub widening: Widening,
 
@@ -124,7 +144,7 @@ pub enum RopeScaling {
     None,
 
     /// Every inverse frequency divided by `factor` (`rope_type: linear`):
-    /// the positions stretched `factor` times. Gemma 3's global table, at 8.
+    /// the positions stretched `factor` times.
     Linear {
         /// The factor.
         factor: f64,
@@ -152,11 +172,11 @@ impl RopeScaling {
 /// every position backwards.
 #[derive(Config, Copy, Debug, PartialEq, Eq)]
 pub enum RotaryDirection {
-    /// `y1 = x1 cos + x2 sin`, `y2 = x2 cos - x1 sin`: `nanochat`'s.
+    /// `y1 = x1 cos + x2 sin`, `y2 = x2 cos - x1 sin`.
     Reverse,
 
-    /// `y1 = x1 cos - x2 sin`, `y2 = x2 cos + x1 sin`: the `RoFormer`
-    /// convention, `transformers`' `rotate_half` (Llama, Qwen).
+    /// `y1 = x1 cos - x2 sin`, `y2 = x2 cos + x1 sin`: `transformers`'
+    /// `rotate_half`.
     Forward,
 }
 
@@ -211,12 +231,11 @@ impl RotaryDirection {
 #[derive(Config, Copy, Debug, PartialEq, Eq)]
 pub enum RotaryPairLayout {
     /// Pair `i` is `(i, i + R/2)`: the head's first half against its second,
-    /// `transformers`' `rotate_half` (Llama, Qwen, nanochat).
+    /// `transformers`' `rotate_half`.
     Halves,
 
     /// Pair `i` is `(2i, 2i + 1)`: adjacent dimensions, the head read as
-    /// `R/2` complex numbers, as `RoFormer`'s original, Meta's Llama
-    /// reference, `DeepSeek`'s `rope_interleave` and ZONOS3 lay it out.
+    /// `R/2` complex numbers.
     Interleaved,
 }
 
@@ -287,7 +306,7 @@ impl RotaryEmbeddingMeta for RotaryEmbeddingConfig {
 
 impl RotaryEmbeddingConfig {
     /// The rotary of an attention without rotary positions (an encoder whose
-    /// input carries absolute positions, Whisper's): it rotates no head
+    /// input carries absolute positions): it rotates no head
     /// dimension, and [`apply`](RotaryEmbedding::apply) is the identity.
     pub fn unrotated(head_dim: usize) -> Self {
         Self::new(0, head_dim).with_rotary_dim(Some(0))

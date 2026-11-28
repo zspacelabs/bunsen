@@ -1,4 +1,18 @@
 //! # The top-k router
+//!
+//! ## Discussion
+//!
+//! The options here follow the routers of several model families, under
+//! their upstream names:
+//!
+//! - Qwen, `OLMoE` and ZONOS3 score by [`RouterScore::Softmax`]; `DeepSeek` V3
+//!   by [`RouterScore::Sigmoid`].
+//! - `DeepSeek`'s `n_group` / `topk_group` are [`RouterSelection::Grouped`].
+//! - ZONOS3's `balancing_biases` are a [`ChoiceBias`] on
+//!   [`ChoiceBiasSite::Logits`], [`ChoiceBiasMode::Subtract`]; `DeepSeek` V3's
+//!   `e_score_correction_bias` is one on [`ChoiceBiasSite::Scores`].
+//! - `DeepSeek`'s `routed_scaling_factor` is [`TopKRouterConfig::scale`].
+//! - ZONOS3's `rmsnorm_eda` is a [`TopKRouterConfig::input_norm`].
 
 use burn::{
     Tensor,
@@ -51,10 +65,10 @@ pub trait TopKRouterMeta {
 /// How a router turns its logits into scores.
 #[derive(Config, Copy, Debug, PartialEq, Eq)]
 pub enum RouterScore {
-    /// A softmax over the experts (Qwen, `OLMoE`, ZONOS3).
+    /// A softmax over the experts.
     Softmax,
 
-    /// A sigmoid per expert (`DeepSeek` V3). Not built: refused as
+    /// A sigmoid per expert. Not built: refused as
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
     Sigmoid,
 }
@@ -65,8 +79,8 @@ pub enum RouterSelection {
     /// The `k` best of all experts.
     TopK,
 
-    /// The `k` best within the `top_groups` best of `n_groups` equal groups
-    /// (`DeepSeek`'s `n_group` / `topk_group`). Not built: refused as
+    /// The `k` best within the `top_groups` best of `n_groups` equal groups.
+    /// Not built: refused as
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
     Grouped {
         /// The groups the experts are split into.
@@ -80,11 +94,11 @@ pub enum RouterSelection {
 /// Where a router's [`ChoiceBias`] applies.
 #[derive(Config, Copy, Debug, PartialEq, Eq)]
 pub enum ChoiceBiasSite {
-    /// On the raw logits (ZONOS3's `balancing_biases`).
+    /// On the raw logits.
     Logits,
 
-    /// On the scores (`DeepSeek` V3's `e_score_correction_bias`). Not built:
-    /// refused as [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
+    /// On the scores. Not built: refused as
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
     Scores,
 }
 
@@ -94,7 +108,7 @@ pub enum ChoiceBiasMode {
     /// `x + b`.
     Add,
 
-    /// `x - b` (ZONOS3's).
+    /// `x - b`.
     Subtract,
 }
 
@@ -141,12 +155,12 @@ pub struct TopKRouterConfig {
     #[config(default = true)]
     pub norm_top_k: bool,
 
-    /// A factor on the weights (`DeepSeek`'s `routed_scaling_factor`).
+    /// A factor on the weights.
     #[config(default = 1.0)]
     pub scale: f64,
 
-    /// A normalization of the router's input, its own (ZONOS3's
-    /// `rmsnorm_eda`); `None`, none. Its feature count is set to
+    /// A normalization of the router's input, its own; `None`, none. Its
+    /// feature count is set to
     /// [`width`](Self::width).
     #[config(default = "None")]
     pub input_norm: Option<BunsenNormalizationConfig>,

@@ -21,6 +21,10 @@ use crate::{
 };
 
 /// The config of an [`AntiAlias`]: its kind, and that kind's config.
+///
+/// ## Discussion
+///
+/// [`avd`](Self::avd) is `ResNeSt`'s `avd` downsampling.
 #[derive(Config, Debug)]
 pub enum AntiAliasConfig {
     /// A binomial blur, then the stride.
@@ -42,8 +46,8 @@ impl AntiAliasConfig {
         Self::Avg(AvgPool2dConfig::new([stride, stride]).with_strides([stride, stride]))
     }
 
-    /// `ResNeSt`'s `avd` at `stride`: `AvgPool2d(3, stride, padding=1)`, the
-    /// padding counted.
+    /// A padded average pool at `stride`: `AvgPool2d(3, stride, padding=1)`,
+    /// the padding counted.
     pub fn avd(stride: usize) -> Self {
         Self::Avg(
             AvgPool2dConfig::new([3, 3])

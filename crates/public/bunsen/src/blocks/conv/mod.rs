@@ -2,7 +2,7 @@
 //!
 //! Conv / norm / activation composites, in 1D and 2D. They are domain
 //! neutral: the 2D blocks build the generic conv net, and the 1D blocks build
-//! the Whisper audio encoder and Silero VAD.
+//! audio encoders and causal codecs.
 //!
 //! - [`ConvBlock1d`] / [`ConvBlock2d`]: a burn convolution ([`Conv1d`] /
 //!   [`Conv2d`]), an optional [`BunsenNormalization`], and an optional
@@ -13,17 +13,15 @@
 //! - [`CausalConv1d`] / [`CausalConvTranspose1d`]: 1-d convolutions over each
 //!   frame's past, channels first: padded before (zeros or the edge
 //!   [replicated](CausalPadding)) and convolved unpadded; and an upsampler
-//!   whose kernel's overlap past the last frame is trimmed. Encodec's, DAC's,
-//!   Mimi's and Qwen3-TTS's codec's. Both also run as streams, in chunks of any
-//!   size through a
+//!   whose kernel's overlap past the last frame is trimmed. Both also run as
+//!   streams, in chunks of any size through a
 //!   [`CausalConvStreamContext`](crate::ops::conv::CausalConvStreamContext) or
 //!   a [`CausalConvTransposeStreamContext`](crate::ops::conv::CausalConvTransposeStreamContext),
 //!   their outputs the whole forward's.
 //! - [`CausalConvNext1d`]: a causal 1-d `ConvNeXt` block, channels last: a
 //!   depthwise convolution over each channel's past, a norm, a pointwise
 //!   expansion and projection, an optional per-channel layer scale, residual;
-//!   it carries its convolution's state across chunks. ZONOS3's codec's, and
-//!   (with the layer scale) Qwen3-TTS's.
+//!   it carries its convolution's state across chunks.
 //! - [`ConvSeq1d`] / [`ConvSeq2d`]: blocks run in sequence. Building one
 //!   [validates](ConvSeq2dMeta::try_validate) that the sequence is non-empty
 //!   and that each block's output channels match the next block's input
@@ -42,6 +40,14 @@
 //!
 //! The 1D types follow the same pattern, with lengths in place of
 //! resolutions.
+//!
+//! ## Discussion
+//!
+//! - The 1D conv blocks build the Whisper audio encoder and Silero VAD.
+//! - The causal convolutions and upsamplers are Encodec's, DAC's, Mimi's and
+//!   Qwen3-TTS's codec's.
+//! - [`CausalConvNext1d`] is ZONOS3's codec's block, and (with the layer scale)
+//!   Qwen3-TTS's.
 //!
 //! [`Conv1d`]: burn::nn::conv::Conv1d
 //! [`Conv2d`]: burn::nn::conv::Conv2d

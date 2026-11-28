@@ -47,9 +47,13 @@ pub trait LmDecoderHolder {
 /// bare stack, from the embedding.
 ///
 /// The forward comes through blanket impls: every wrapper is
-/// [`LmPlainStackOps`](super::LmPlainStackOps), a
-/// [`StackedLm`](crate::kits::support::decoding::StackedLm) and
+/// [`LmPlainStackOps`](super::LmPlainStackOps) and
 /// [`LmKvForwardHidden`].
+///
+/// ## Discussion
+///
+/// Every wrapper, as an [`LmPlainStackOps`](super::LmPlainStackOps), is a
+/// [`StackedLm`](crate::kits::support::decoding::StackedLm) too.
 pub trait LmDecoderWrapper: LmDecoderHolder {}
 
 impl<W: LmDecoderWrapper> LmKvForwardHidden for W {

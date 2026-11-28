@@ -6,18 +6,24 @@
 //!   [`apply`](RotaryEmbedding::apply) rotates a `[B, T, H, D]` query or key,
 //!   and [`clip_range`](RotaryEmbedding::clip_range) narrows the tables to the
 //!   positions of a decode step. [`CausalSelfAttention`] takes one in its
-//!   `forward`; the `NanoChat` GPT holds one as a field of its module tree.
+//!   `forward`; a model can hold one as a field of its module tree.
 //! - [`RotarySet`] is a stack's rotary tables: one or more, and which one each
-//!   layer applies (Gemma 3's local and global tables).
+//!   layer applies (a local and a global table, say).
 //! - [`TokenEmbedding`] looks tokens up in a table, then, as its
-//!   [`TokenEmbeddingConfig`] says, normalizes and scales them: nanochat's
-//!   normed embedding, Gemma's scaled one.
+//!   [`TokenEmbeddingConfig`] says, normalizes and scales them.
 //! - `testing` (behind the `testing` feature) holds `iota_embedding` and
 //!   `identity_embedding`, burn `Embedding`s with weights you can check by
 //!   hand, as fixtures for tests.
 //!
 //! The table builders, and [`unembed`] for a tied output head, are operations
 //! in [`crate::ops::embedding`].
+//!
+//! ## Discussion
+//!
+//! - The `NanoChat` GPT holds a [`RotaryEmbedding`] as a field of its module
+//!   tree.
+//! - Gemma 3's local and global rotary tables are a two-table [`RotarySet`].
+//! - nanochat normalizes its [`TokenEmbedding`]; Gemma scales its.
 //!
 //! [`positional_frequency_table`]: crate::ops::embedding::positional_frequency_table
 //! [`unembed`]: crate::ops::embedding::unembed

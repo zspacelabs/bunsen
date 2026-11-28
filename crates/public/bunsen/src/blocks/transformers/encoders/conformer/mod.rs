@@ -1,8 +1,6 @@
 //! # Conformer blocks
 //!
-//! The parts of the Conformer (Gulati et al. 2020) in its `FastConformer` form
-//! (Rybakov et al. 2023), the encoder of NVIDIA's Parakeet and Canary speech
-//! models:
+//! The parts of the Conformer in its `FastConformer` form:
 //!
 //! - [`ConformerEncoderConfig`]: the encoder, as a policy that lowers to a
 //!   [`SubsampledEncoderConfig`](crate::blocks::transformers::encoders::SubsampledEncoderConfig):
@@ -14,8 +12,8 @@
 //!   back) around
 //!   [`RelPosSelfAttention`](crate::blocks::transformers::attention::rel_pos::RelPosSelfAttention)
 //!   and a [`ConformerConvolution`], each pre-normalized and residual.
-//! - [`RelPosSelfAttention`](crate::blocks::transformers::attention::rel_pos::RelPosSelfAttention): Transformer-XL relative-position self-attention,
-//!   over [`rel_position_table`](crate::ops::transformers::attention::rel_position_table)
+//! - [`RelPosSelfAttention`](crate::blocks::transformers::attention::rel_pos::RelPosSelfAttention):
+//!   relative-position self-attention, over [`rel_position_table`](crate::ops::transformers::attention::rel_position_table)
 //!   and [`rel_shift`](crate::ops::transformers::attention::rel_shift).
 //!
 //! Every forward takes the batch's per-item lengths as host values, and keeps
@@ -24,6 +22,12 @@
 //! convolution module zeroes padding before its depthwise convolution.
 //! [`length_mask`](crate::ops::transformers::attention::length_mask) builds
 //! the `[batch, time]` validity mask from them.
+//!
+//! ## Discussion
+//!
+//! The Conformer is Gulati et al. (2020); its `FastConformer` form is
+//! Rybakov et al. (2023), the encoder of NVIDIA's Parakeet and Canary speech
+//! models. Its relative-position self-attention is Transformer-XL's.
 
 mod block;
 mod convolution;

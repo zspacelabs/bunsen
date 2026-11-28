@@ -14,11 +14,15 @@ use crate::blocks::transformers::embedding::{
 /// each layer applies.
 ///
 /// Most stacks have one table, which every layer shares (`From` a
-/// [`RotaryEmbedding`]); Gemma 3's has two, a local one for its
+/// [`RotaryEmbedding`]); a stack can have two, a local one for its
 /// sliding-window layers and a global one for its full-attention layers.
 /// Every table covers the same positions.
 ///
 /// Made by [`DecoderStack::rotary`](crate::blocks::transformers::decoders::stack::DecoderStack::rotary).
+///
+/// ## Discussion
+///
+/// Gemma 3's stack has two tables, a local and a global one.
 #[derive(Module, Debug)]
 pub struct RotarySet {
     /// The tables; the first is the default.

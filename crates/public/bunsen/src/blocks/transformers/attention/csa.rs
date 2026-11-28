@@ -1,4 +1,32 @@
 //! # Causal Self-Attention
+//!
+//! ## Discussion
+//!
+//! The options here follow the attention layers of several model families:
+//!
+//! - Qwen3-ASR's audio encoder attends within blocks
+//!   ([`AttentionMask::Blocks`]).
+//! - Qwen3's heads are wider than `d_model / n_heads`: 16 heads of 128 over a
+//!   1024-wide model (a [`CausalSelfAttentionConfig`] `head_dim` of 128). Qwen3
+//!   normalizes its queries and keys before the rotary embedding
+//!   ([`QkNormPlacement::BeforeRope`]); `nanochat` after it
+//!   ([`QkNormPlacement::AfterRope`]).
+//! - Whisper-family stacks bias their queries and values but not their keys (a
+//!   `key_bias` of `Some(false)` under a `qkv_bias`).
+//! - `ModernBERT`'s `local_attention` of 128 (±64) is a
+//!   [`sliding_window`](CausalSelfAttentionConfig::sliding_window) of 65.
+//! - Gemma's score scale is `query_pre_attn_scalar^-0.5`, which need not be the
+//!   head width's; nanochat's 2026 gain `g` on the queries and keys is a
+//!   [`score_scale`](CausalSelfAttentionConfig::score_scale) of `g² / sqrt(d)`.
+//!   Gemma 2 soft-caps its scores at 50
+//!   ([`attn_softcap`](CausalSelfAttentionConfig::attn_softcap)).
+//! - `BEiT3`'s sub-LN is an
+//!   [`output_norm`](CausalSelfAttentionConfig::output_norm).
+//! - ZONOS3's `temp` is a
+//!   [`query_gain`](CausalSelfAttentionConfig::query_gain).
+//! - Qwen3.5's `attn_output_gate` is [`AttentionOutputGate::Elementwise`];
+//!   ZONOS3's `gater` (`qwen_gating_style: headwise`) is
+//!   [`AttentionOutputGate::Headwise`].
 
 use alloc::format;
 
@@ -96,8 +124,7 @@ pub enum AttentionMask {
 
     /// The keys of its own block, the input cut into blocks of `window`
     /// positions (the last one short when `window` does not divide the
-    /// length): an encoder's windowed attention, Qwen3-ASR's audio
-    /// encoder's ([`window_block_mask`]). Like
+    /// length): an encoder's windowed attention ([`window_block_mask`]). Like
     /// [`Bidirectional`](Self::Bidirectional), it takes no KV cache; it
     /// takes no sliding window.
     Blocks {
@@ -139,8 +166,8 @@ pub struct CausalSelfAttentionConfig {
 
     /// The width of each head; `None` is `d_model / n_heads`.
     ///
-    /// A model whose heads are wider or narrower than that (Qwen3's are 128
-    /// over 16 heads of a 1024-wide model) names it here; the query and
+    /// A model whose heads are wider or narrower than that (16 heads of 128
+    /// over a 1024-wide model, say) names it here; the query and
     /// output projections then map `d_model` to and from `n_heads * head_dim`.
     #[config(default = "None")]
     pub head_dim: Option<usize>,
@@ -156,8 +183,8 @@ pub struct CausalSelfAttentionConfig {
 
     /// Whether the key projection carries a bias; `None` follows `qkv_bias`.
     ///
-    /// Whisper-family stacks bias their queries and values but not their
-    /// keys (`Some(false)` under a `qkv_bias`).
+    /// A stack that biases its queries and values but not its keys sets
+    /// `Some(false)` under a `qkv_bias`.
     #[config(default = "None")]
     pub key_bias: Option<bool>,
 
@@ -171,8 +198,8 @@ pub struct CausalSelfAttentionConfig {
     /// also to the `sliding_window - 1` positions after it (`|i - j| <
     /// sliding_window`). `None` attends to every key the mask shows.
     ///
-    /// A two-sided window of `±r` positions is `r + 1` here: `ModernBERT`'s
-    /// `local_attention` of 128 (±64) is 65.
+    /// A two-sided window of `±r` positions is `r + 1` here: a window of 128
+    /// (±64) is 65.
     #[config(default = "None")]
     pub sliding_window: Option<usize>,
 
@@ -187,14 +214,14 @@ pub struct CausalSelfAttentionConfig {
     #[config(default = "Widening::NONE")]
     pub softmax_widening: Widening,
 
-    /// The scores' scale; `None`, `1 / sqrt(head_dim)`. Gemma's is
-    /// `query_pre_attn_scalar^-0.5`, which need not be the head width's;
-    /// nanochat's 2026 gain `g` on the queries and keys is `g² / sqrt(d)`.
+    /// The scores' scale; `None`, `1 / sqrt(head_dim)`. A scale need not be
+    /// the head width's; a gain `g` on both the queries and keys is
+    /// `g² / sqrt(d)`.
     #[config(default = "None")]
     pub score_scale: Option<f64>,
 
-    /// A soft-cap on the scaled scores before the mask, `c · tanh(s / c)`
-    /// (Gemma 2's 50); `None`, none.
+    /// A soft-cap on the scaled scores before the mask, `c · tanh(s / c)`;
+    /// `None`, none.
     #[config(default = "None")]
     pub attn_softcap: Option<f64>,
 
@@ -212,13 +239,13 @@ pub struct CausalSelfAttentionConfig {
 
     /// A norm on the attention's output, after the gate and before the output
     /// projection, sized to `n_heads * head_dim` whatever feature count it
-    /// names (`BEiT3`'s sub-LN, timm's `scale_norm`); `None` builds none.
+    /// names (timm's `scale_norm`); `None` builds none.
     #[config(default = "None")]
     pub output_norm: Option<BunsenNormalizationConfig>,
 
     /// A learned gain per query head, `[H]`, on the queries after the
-    /// QK-norm, applied as its absolute value: `q_h · |g_h|` (ZONOS3's
-    /// `temp`). It scales head `h`'s scores by `|g_h|`, so a norm that pins
+    /// QK-norm, applied as its absolute value: `q_h · |g_h|`. It scales head
+    /// `h`'s scores by `|g_h|`, so a norm that pins
     /// the queries' scale still leaves each head its own temperature; it
     /// commutes with the rotary embedding. Initialized to ones. `false`
     /// builds none.
@@ -226,8 +253,7 @@ pub struct CausalSelfAttentionConfig {
     pub query_gain: bool,
 }
 
-/// Config of a [`CausalSelfAttention`]'s value residual, `ResFormer`'s in
-/// nanochat's 2026 form:
+/// Config of a [`CausalSelfAttention`]'s value residual:
 ///
 /// ```text
 /// v += gate_scale * sigmoid(gate(x[.., :gate_channels])) * ve
@@ -236,6 +262,10 @@ pub struct CausalSelfAttentionConfig {
 /// The gate is one scalar per KV head, read from the attention input's first
 /// `gate_channels` channels; `ve` is a `[B, T, n_kv_heads * head_dim]` value
 /// embedding the caller supplies.
+///
+/// ## Discussion
+///
+/// This is `ResFormer`'s value residual, in nanochat's 2026 form.
 #[derive(Config, Debug)]
 pub struct ValueResidualConfig {
     /// How many of the attention input's leading channels the gate reads.
@@ -253,13 +283,12 @@ pub struct ValueResidualConfig {
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum AttentionOutputGate {
     /// One gate per output channel, `[B, T, H d]`, projected by the query
-    /// projection (Qwen3.5's `attn_output_gate`): `c_q` is `[D, 2 H d]`,
+    /// projection: `c_q` is `[D, 2 H d]`,
     /// each head's `d` queries followed by its `d` gates.
     Elementwise,
 
     /// One gate per head, `[B, T, H]`, from a projection of its own, `c_gate`
-    /// `[D, H]` without a bias, scaling each head's whole output (ZONOS3's
-    /// `gater`, `qwen_gating_style: headwise`).
+    /// `[D, H]` without a bias, scaling each head's whole output.
     Headwise,
 }
 
@@ -267,10 +296,10 @@ pub enum AttentionOutputGate {
 /// the rotary embedding.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum QkNormPlacement {
-    /// Rotate, then normalize: `nanochat`'s order.
+    /// Rotate, then normalize.
     AfterRope,
 
-    /// Normalize, then rotate: Qwen3's order.
+    /// Normalize, then rotate.
     BeforeRope,
 }
 

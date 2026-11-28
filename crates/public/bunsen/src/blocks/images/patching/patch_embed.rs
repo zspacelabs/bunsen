@@ -72,6 +72,14 @@ pub trait PatchEmbedMeta {
 }
 
 /// Configuration for [`PatchEmbed`].
+///
+/// ## Discussion
+///
+/// - `norm`: a Swin's patch norm is a `LayerNorm`; a `ViT`'s patch embedding
+///   has none.
+/// - `bias`: CLIP's `ViT` is pre-norm, and its projection has no bias.
+/// - `allow_remainder`: a `ViT` built by timm allows a remainder; a Swin
+///   refuses one.
 #[derive(Config, Debug)]
 pub struct PatchEmbedConfig {
     /// Input resolution (height, width).
@@ -86,20 +94,20 @@ pub struct PatchEmbedConfig {
     /// Output feature dimension size.
     d_output: usize,
 
-    /// The norm of each patch token, sized to `d_output` at init (a Swin's
-    /// `LayerNorm`); `None` for none (a `ViT`'s).
+    /// The norm of each patch token, sized to `d_output` at init; `None` for
+    /// none.
     #[config(default = "None")]
     norm: Option<BunsenNormalizationConfig>,
 
     /// Whether the projection has a bias. timm's `PatchEmbed` has one,
-    /// except under a pre-norm `ViT` (CLIP's), which normalises the tokens
-    /// before the first block.
+    /// except under a pre-norm vision transformer, which normalises the
+    /// tokens before the first block.
     #[config(default = true)]
     bias: bool,
 
     /// Whether a side may be other than a whole number of patches, the conv
-    /// dropping the pixels past the last whole patch (timm's `PatchEmbed`,
-    /// as a `ViT` builds it); `false`, such a geometry is refused (a Swin's).
+    /// dropping the pixels past the last whole patch (timm's `PatchEmbed`);
+    /// `false`, such a geometry is refused.
     #[config(default = false)]
     allow_remainder: bool,
 }
@@ -199,9 +207,13 @@ impl ModuleInit<PatchEmbed> for PatchEmbedConfig {
 /// A patch embedding: a strided `patch_size` conv that cuts an image into
 /// square patches and projects each to a token, then flattens the grid to a
 /// row-major sequence, and optionally normalises each token: timm's
-/// `PatchEmbed` (a `ViT`'s stem, and a Swin's, with the norm).
+/// `PatchEmbed`.
 ///
 /// Built by [`PatchEmbedConfig`].
+///
+/// ## Discussion
+///
+/// This is a `ViT`'s stem, and a Swin's, with the norm.
 #[derive(Module, Debug)]
 pub struct PatchEmbed {
     /// Input resolution (height, width).

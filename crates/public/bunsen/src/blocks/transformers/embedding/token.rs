@@ -39,6 +39,14 @@ pub trait TokenEmbeddingMeta {
 }
 
 /// Config for [`TokenEmbedding`].
+///
+/// ## Discussion
+///
+/// - nanochat's `norm(wte(idx))` is a parameter-free RMS norm on each row
+///   ([`TokenEmbeddingConfig::norm_eps`]).
+/// - `ModernBERT` normalizes each row with a `LayerNorm` without a bias
+///   ([`TokenEmbeddingConfig::norm`]).
+/// - Gemma scales each row by `√d_model` ([`TokenEmbeddingConfig::scale`]).
 #[derive(Config, Debug)]
 pub struct TokenEmbeddingConfig {
     /// The vocabulary: the table's rows.
@@ -47,18 +55,18 @@ pub struct TokenEmbeddingConfig {
     /// The embedding's width.
     pub d_model: usize,
 
-    /// The epsilon of a parameter-free RMS norm on each looked-up row
-    /// (nanochat's `norm(wte(idx))`); `None`, no norm.
+    /// The epsilon of a parameter-free RMS norm on each looked-up row;
+    /// `None`, no norm.
     #[config(default = "None")]
     pub norm_eps: Option<f64>,
 
     /// A norm with parameters on each looked-up row, sized to `d_model` at
-    /// init (`ModernBERT`'s `LayerNorm` without a bias); `None`, none. A
+    /// init (a `LayerNorm` without a bias, say); `None`, none. A
     /// config sets at most one of it and [`norm_eps`](Self::norm_eps).
     #[config(default = "None")]
     pub norm: Option<BunsenNormalizationConfig>,
 
-    /// A scale on each looked-up row, after any norm (Gemma's `√d_model`);
+    /// A scale on each looked-up row, after any norm (`√d_model`, say);
     /// `None`, no scale.
     #[config(default = "None")]
     pub scale: Option<f64>,
@@ -112,10 +120,15 @@ impl ModuleInit<TokenEmbedding> for TokenEmbeddingConfig {
 ///
 /// The table is `weight`, as in burn's `Embedding`, so a checkpoint's
 /// `embed_tokens.weight` loads as it would there. The scale is rounded to the
-/// table's dtype before it is applied, as `transformers` casts Gemma's: in
+/// table's dtype before it is applied, as `transformers` casts it: in
 /// bf16, `√1152` is `34.0`.
 ///
 /// Built by [`TokenEmbeddingConfig`].
+///
+/// ## Discussion
+///
+/// The scale's rounding follows `transformers`' Gemma, whose `√d_model`
+/// scale it casts to the table's dtype.
 #[derive(Module, Debug)]
 pub struct TokenEmbedding {
     /// `[n_vocab, d_model]`: the table.
@@ -238,7 +251,7 @@ mod tests {
     }
 
     /// The scale is rounded to the table's dtype
-    /// ([`round_scalar_to_dtype`]), as `transformers` rounds Gemma's.
+    /// ([`round_scalar_to_dtype`]), as `transformers` rounds it.
     #[test]
     fn test_scale_rounds_to_the_table_dtype() {
         let s = 1152f64.sqrt();

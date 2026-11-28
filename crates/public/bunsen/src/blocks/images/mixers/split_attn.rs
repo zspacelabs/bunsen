@@ -1,4 +1,4 @@
-//! `ResNeSt`'s split attention.
+//! [`SplitAttn`]: split attention.
 
 use alloc::format;
 
@@ -40,8 +40,8 @@ use crate::{
     support::math::make_divisible,
 };
 
-/// `ResNeSt`'s split attention, the config of a [`SplitAttn`] (timm's
-/// `SplitAttn`, "Splat").
+/// Split attention, the config of a [`SplitAttn`] (timm's `SplitAttn`,
+/// "Splat").
 ///
 /// A grouped conv widens the input to `radix` splits of `out_channels`, each
 /// split a group of its own ([`conv`](Self::conv), its norm and activation:
@@ -56,9 +56,8 @@ pub struct SplitAttnConfig {
     /// The splits (timm's `radix`).
     pub radix: usize,
 
-    /// The groups of each split (timm's `groups`, a `ResNeSt`'s
-    /// `cardinality`): the conv's groups are `groups * radix`, the
-    /// attention's `groups`.
+    /// The groups of each split (timm's `groups`): the conv's groups are
+    /// `groups * radix`, the attention's `groups`.
     pub groups: usize,
 
     /// The grouped conv, its norm and its activation: `in_channels` to
@@ -207,7 +206,13 @@ impl ModuleInit<SplitAttn> for SplitAttnConfig {
     }
 }
 
-/// `ResNeSt`'s split attention; built by [`SplitAttnConfig`].
+/// Split attention; built by [`SplitAttnConfig`].
+///
+/// ## Discussion
+///
+/// This is `ResNeSt`'s split attention
+/// ([arXiv:2004.08955](https://arxiv.org/abs/2004.08955)); its
+/// [`groups`](SplitAttnConfig::groups) is `ResNeSt`'s `cardinality`.
 #[derive(Module, Debug)]
 pub struct SplitAttn {
     /// The grouped conv, its norm and activation.

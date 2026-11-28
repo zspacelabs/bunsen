@@ -47,7 +47,7 @@ pub enum EncoderSubsamplingConfig {
     /// [`FeatureStacking`]: frames stacked and projected.
     Stacking(FeatureStackingConfig),
 
-    /// [`DwStridingSubsampling`]: the `FastConformer`'s strided convolutions.
+    /// [`DwStridingSubsampling`]: depthwise-striding convolutions.
     DwStriding(DwStridingSubsamplingConfig),
 }
 

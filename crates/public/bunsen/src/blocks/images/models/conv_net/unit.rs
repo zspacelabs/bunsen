@@ -106,9 +106,8 @@ pub trait ConvChainMeta {
 /// A seam: each kind is a module of its own. Built: a conv block
 /// ([`ConvBlock2dConfig`]), a pre-activation conv ([`PreActConvConfig`]),
 /// and the spatial mixers of [`mixers`](crate::blocks::images::mixers)
-/// (`Res2Net`'s scale split, [`Res2ConvConfig`]; `ResNeSt`'s split
-/// attention, [`SplitAttnConfig`]; `SKNet`'s selective kernel,
-/// [`SelectiveKernelConfig`]).
+/// (a scale split, [`Res2ConvConfig`]; split attention, [`SplitAttnConfig`];
+/// a selective kernel, [`SelectiveKernelConfig`]).
 #[derive(Config, Debug)]
 // A few per unit: the variants' size gap costs nothing worth a box.
 #[allow(clippy::large_enum_variant)]
@@ -119,13 +118,13 @@ pub enum ResidualConvConfig {
     /// A norm and activation, then a conv (a pre-activation unit's).
     PreAct(PreActConvConfig),
 
-    /// `Res2Net`'s scale split.
+    /// A scale split.
     Res2(Res2ConvConfig),
 
-    /// `ResNeSt`'s split attention.
+    /// Split attention.
     SplitAttn(SplitAttnConfig),
 
-    /// `SKNet`'s selective kernel.
+    /// A selective kernel.
     SelectiveKernel(SelectiveKernelConfig),
 }
 
@@ -222,13 +221,13 @@ pub enum ResidualConv {
     /// A norm and activation, then a conv.
     PreAct(PreActConv),
 
-    /// `Res2Net`'s scale split.
+    /// A scale split.
     Res2(Res2Conv),
 
-    /// `ResNeSt`'s split attention.
+    /// Split attention.
     SplitAttn(SplitAttn),
 
-    /// `SKNet`'s selective kernel.
+    /// A selective kernel.
     SelectiveKernel(SelectiveKernel),
 }
 
@@ -319,8 +318,13 @@ impl ResidualConv {
 /// channels or size: the config of a [`ConvShortcut`]. An optional average
 /// pool, then a conv block: a strided `1x1` conv and a norm with no pool
 /// (torchvision's `downsample`, [`conv`](Self::conv)), or a pool before a
-/// `1x1` conv at stride 1 (timm's `avg_down`, the `ResNet-D` variants,
+/// `1x1` conv at stride 1 (timm's `avg_down`,
 /// [`timm_avg_down`](Self::timm_avg_down)).
+///
+/// ## Discussion
+///
+/// The pooled shortcut ([`timm_avg_down`](Self::timm_avg_down)) is the
+/// `ResNet-D` variants'.
 #[derive(Config, Debug)]
 pub struct ConvShortcutConfig {
     /// The pool before the conv, if any.
@@ -497,14 +501,18 @@ impl ConvShortcut {
 }
 
 /// Where a [`ResidualUnit`]'s channel attention applies.
+///
+/// ## Discussion
+///
+/// [`Out`](Self::Out) is `ResNet`'s `se`, after `conv3`;
+/// [`Mixer`](Self::Mixer) is `RegNet`'s, before `conv3`.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum ConvAttentionPlace {
-    /// Over the path's output, before the add (`ResNet`'s `se`, after
-    /// `conv3`).
+    /// Over the path's output, before the add.
     Out,
 
     /// After the mixer (and its anti-aliasing pool), before the convs that
-    /// follow it (`RegNet`'s, before `conv3`).
+    /// follow it.
     Mixer,
 }
 
@@ -517,6 +525,17 @@ pub enum ConvAttentionPlace {
 /// The last conv carries no activation: the unit's `act` follows the add.
 ///
 /// Implements [`ConvChainMeta`].
+///
+/// ## Discussion
+///
+/// - [`pre`](Self::pre) is `RegNetV`'s `norm1`.
+/// - [`residual`](Self::residual) `false` is `RegNetZ`'s units that change
+///   shape.
+/// - [`pre_identity`](Self::pre_identity): `RegNetV`'s identity shortcut reads
+///   the pre-activated input, `ResNetV2`'s the raw one.
+/// - [`aa_first`](Self::aa_first) is `ResNeSt`'s `avd_first`.
+/// - [`attn_place`](Self::attn_place): `ResNet`'s attention is over the path's
+///   output, `RegNet`'s after the mixer.
 #[derive(Config, Debug)]
 pub struct ResidualUnitConfig {
     /// The residual path, in order; each conv's output is the next one's
@@ -528,21 +547,19 @@ pub struct ResidualUnitConfig {
     pub mixer: usize,
 
     /// A pre-activation unit's norm and activation over its input, before
-    /// both the path and the shortcut, which read its output (`RegNetV`'s
-    /// `norm1`); none when `None`. Its feature count is set to the unit's
-    /// input channels at init.
+    /// both the path and the shortcut, which read its output; none when
+    /// `None`. Its feature count is set to the unit's input channels at init.
     #[config(default = "None")]
     pub pre: Option<NormActConfig>,
 
     /// Whether the path's output adds to the shortcut's: `false`, the unit
-    /// is its path alone, with no shortcut (`RegNetZ`'s units that change
-    /// shape, timm's `downsample=None`).
+    /// is its path alone, with no shortcut (timm's `downsample=None`).
     #[config(default = true)]
     pub residual: bool,
 
     /// Under [`pre`](Self::pre), whether an identity shortcut reads the
-    /// pre-activated input (`RegNetV`'s) or the raw one (`ResNetV2`'s); a
-    /// projection shortcut reads the pre-activated input either way.
+    /// pre-activated input or the raw one; a projection shortcut reads the
+    /// pre-activated input either way.
     #[config(default = true)]
     pub pre_identity: bool,
 
@@ -552,8 +569,7 @@ pub struct ResidualUnitConfig {
     #[config(default = "None")]
     pub aa: Option<AntiAliasConfig>,
 
-    /// Whether [`aa`](Self::aa) goes before the mixer (`ResNeSt`'s
-    /// `avd_first`).
+    /// Whether [`aa`](Self::aa) goes before the mixer.
     #[config(default = false)]
     pub aa_first: bool,
 
@@ -568,8 +584,7 @@ pub struct ResidualUnitConfig {
     pub attn: Option<ChannelAttentionConfig>,
 
     /// Where the channel attention applies: over the path's output, before
-    /// the add (`ResNet`'s), or after the mixer, before the convs that follow
-    /// it (`RegNet`'s).
+    /// the add, or after the mixer, before the convs that follow it.
     #[config(default = "ConvAttentionPlace::Out")]
     pub attn_place: ConvAttentionPlace,
 

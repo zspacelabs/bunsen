@@ -47,7 +47,7 @@ pub enum TokenMixerConfig {
     /// A gated `DeltaNet`, linear attention.
     GatedDeltaNet(GatedDeltaNetConfig),
 
-    /// A Swin block's shifted-window attention over a stage's grid.
+    /// Shifted-window attention over a stage's grid.
     Window(WindowAttentionConfig),
 }
 
@@ -150,6 +150,11 @@ impl TokenMixerConfig {
 /// fields alone (`attn.branch.c_q`, `attn.branch.in_proj_qkv`).
 ///
 /// Built by [`TokenMixerConfig`].
+///
+/// ## Discussion
+///
+/// The [`Window`](TokenMixer::Window) mixer is a Swin Transformer block's
+/// attention.
 #[derive(Module, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum TokenMixer {
@@ -159,7 +164,7 @@ pub enum TokenMixer {
     /// A gated `DeltaNet`, linear attention.
     GatedDeltaNet(GatedDeltaNet),
 
-    /// A Swin block's shifted-window attention over a stage's grid.
+    /// Shifted-window attention over a stage's grid.
     Window(WindowAttention),
 }
 
