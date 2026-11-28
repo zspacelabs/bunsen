@@ -28,15 +28,17 @@ use crate::{
     },
     ops::{
         math::LogBase,
-        signal::kernels::{
-            mel::{
-                FilterNorm,
-                MelFilterbankConfig,
-                MelScale,
-            },
-            window::{
-                SamplingWindowBuilder,
-                StftWindowConfig,
+        signal::{
+            SlidingStft,
+            SlidingStftConfig,
+            SpectrumImpl,
+            kernels::{
+                mel::{
+                    FilterNorm,
+                    MelFilterbankConfig,
+                    MelScale,
+                },
+                window::StftWindowConfig,
             },
         },
     },
@@ -95,24 +97,6 @@ impl SpectrumKind {
             Self::Magnitude => power.sqrt(),
         }
     }
-}
-
-/// Which spectrum implementation to use.
-///
-/// One variant for now. `burn`'s `rfft` / `stft` are power-of-two only, so
-/// they cannot reach the default `n_fft = 400` geometry at all; a `Stft`
-/// variant is only worth adding alongside a power-of-two configuration that
-/// exercises it.
-///
-/// [`PerceptiveAudioConverter::spectrum`] matches on this exhaustively, so
-/// adding a variant does not compile until it has a path — it cannot be
-/// accepted and then ignored.
-#[derive(Config, Copy, Debug, PartialEq, Eq)]
-pub enum SpectrumImpl {
-    /// Explicit DFT by matrix multiply against precomputed cos/sin tables.
-    ///
-    /// Works at any `n_fft`, and unlike `rfft` it is differentiable.
-    DftMatmul,
 }
 
 /// A floor applied to log-mels, relative to a reference maximum.
@@ -316,7 +300,9 @@ pub struct PerceptiveAudioConverterConfig {
     pub log_floor: f64,
 
     // ---- impl ----
-    /// Which spectrum implementation to use.
+    /// How the spectrum is computed: [`DftMatmul`](SpectrumImpl::DftMatmul)
+    /// at any `n_fft` (the default, Whisper's 400), or
+    /// [`Rfft`](SpectrumImpl::Rfft) for a power-of-two `fft_len`.
     #[config(default = "SpectrumImpl::DftMatmul")]
     pub spectrum_impl: SpectrumImpl,
 }
@@ -497,26 +483,19 @@ impl PerceptiveAudioConverterConfig {
     /// Built in `f64` regardless of the tensor dtype — see the reduction note
     /// in the body.
     pub fn to_vec_dft_tables(&self) -> (Vec<f64>, Vec<f64>) {
-        let (n_fft, n_bins, fft_len) = (self.n_fft, self.n_bins(), self.fft_len());
-        let step = core::f64::consts::TAU / fft_len as f64;
+        self.to_sliding_stft_config().to_vec_dft_tables()
+    }
 
-        let mut cos_table = vec![0.0_f64; n_fft * n_bins];
-        let mut sin_table = vec![0.0_f64; n_fft * n_bins];
-
-        for n in 0..n_fft {
-            for k in 0..n_bins {
-                // Reduce `n * k` before scaling. The product reaches ~80_000
-                // at the default geometry, and `(n * k) * step` there has
-                // already lost the low bits that `((n * k) % fft_len) * step`
-                // keeps exact.
-                let theta = ((n * k) % fft_len) as f64 * step;
-
-                cos_table[n * n_bins + k] = theta.cos();
-                sin_table[n * n_bins + k] = -theta.sin();
-            }
-        }
-
-        (cos_table, sin_table)
+    /// The [`SlidingStftConfig`] the converter frames and transforms by: its
+    /// window `n_fft` long, its hop, its transform `fft_len` long, by
+    /// [`spectrum_impl`](Self::spectrum_impl).
+    pub fn to_sliding_stft_config(&self) -> SlidingStftConfig {
+        SlidingStftConfig::new()
+            .with_win_len(self.n_fft)
+            .with_hop(self.hop)
+            .with_n_fft(self.fft_len())
+            .with_window(self.window)
+            .with_spectrum_impl(self.spectrum_impl)
     }
 
     /// Validates the scalar geometry.
@@ -591,8 +570,8 @@ impl PerceptiveAudioConverterConfig {
             .into());
         }
 
-        // Rejected rather than silently ignored. `t_stage_preproc` is the
-        // identity today; these land there with the Kaldi-flavour work, where
+        // Rejected rather than silently ignored. They would land between a
+        // stream's carry and the framing, with the Kaldi-flavour work, where
         // they can be checked against `torchaudio.compliance.kaldi`.
         // Pre-emphasis also needs one extra carried sample, which changes the
         // streaming carry — not a change to make untested.
@@ -607,7 +586,9 @@ impl PerceptiveAudioConverterConfig {
             ));
         }
 
-        Ok(())
+        self.to_sliding_stft_config()
+            .try_validate()
+            .context("PerceptiveAudioConverterConfig's framing")
     }
 }
 
@@ -624,7 +605,7 @@ impl ModuleInit<PerceptiveAudioConverter> for PerceptiveAudioConverterConfig {
     ) -> BunsenResult<PerceptiveAudioConverter> {
         self.try_validate()?;
 
-        let (n_fft, n_bins, n_mels) = (self.n_fft, self.n_bins(), self.n_mels);
+        let (n_bins, n_mels) = (self.n_bins(), self.n_mels);
 
         // An empty mel triangle is a configuration error, and
         // `to_vec_filterbank_t` is where it surfaces — at init, not as a
@@ -634,18 +615,10 @@ impl ModuleInit<PerceptiveAudioConverter> for PerceptiveAudioConverterConfig {
             device,
         );
 
-        let window = self.window.to_tensor_window(n_fft, device);
-
-        let (cos_table, sin_table) = self.to_vec_dft_tables();
-        let dft_cos = Tensor::from_data(TensorData::new(cos_table, [n_fft, n_bins]), device);
-        let dft_sin = Tensor::from_data(TensorData::new(sin_table, [n_fft, n_bins]), device);
-
         Ok(PerceptiveAudioConverter {
             options: self.clone(),
-            window,
+            stft: self.to_sliding_stft_config().try_init(device)?,
             mel_t,
-            dft_cos,
-            dft_sin,
         })
     }
 }
@@ -668,23 +641,17 @@ pub struct PerceptiveAudioConverter {
     #[module(skip)]
     options: PerceptiveAudioConverterConfig,
 
-    /// The `[n_fft]` analysis window.
-    ///
-    /// Applied when framing, **not** folded into the DFT tables, so every
-    /// spectrum implementation sees the same windowed frames.
-    pub window: Tensor<1>,
+    /// The framing and the spectrum's transform: a [`SlidingStft`] of window
+    /// `n_fft`, transform `fft_len`
+    /// ([`to_sliding_stft_config`](PerceptiveAudioConverterConfig::to_sliding_stft_config)).
+    /// Its window is applied when framing, not folded into its tables, so
+    /// every spectrum implementation sees the same windowed frames.
+    pub stft: SlidingStft,
 
     /// The `[n_bins, n_mels]` mel filterbank, stored transposed.
     ///
     /// A `[.., n_bins]` spectrum becomes `[.., n_mels]` by a plain matmul.
     pub mel_t: Tensor<2>,
-
-    /// The `[n_fft, n_bins]` real-DFT cosine table.
-    pub dft_cos: Tensor<2>,
-
-    /// The `[n_fft, n_bins]` real-DFT sine table, carrying the forward
-    /// transform's negative sign.
-    pub dft_sin: Tensor<2>,
 }
 
 impl PerceptiveAudioConverter {
@@ -704,12 +671,7 @@ impl PerceptiveAudioConverter {
         &self,
         samples: usize,
     ) -> usize {
-        let n_fft = self.n_fft();
-        if samples < n_fft {
-            0
-        } else {
-            (samples - n_fft) / self.hop() + 1
-        }
+        self.stft.frame_count(samples)
     }
 
     /// Frames a signal into consecutive windowed frames.
@@ -730,66 +692,13 @@ impl PerceptiveAudioConverter {
         &self,
         x: Tensor<2>,
     ) -> Tensor<3> {
-        #[cfg(any(debug_assertions, test))]
-        let [batch, samples] = crate::contracts::unpack_shape_contract!(
-            ["batch", "samples"],
-            &x,
-            &["batch", "samples"],
-        );
-        #[cfg(any(debug_assertions, test))]
-        assert!(
-            samples >= self.n_fft(),
-            "PerceptiveAudioConverter samples ({samples}) must be >= n_fft ({})",
-            self.n_fft(),
-        );
-
-        let (n_fft, hop) = (self.n_fft(), self.hop());
-        let frames = self.frame_count(x.dims()[1]);
-
-        // ── burn 0.21 `unfold` hazard ──────────────────────────────────────
-        // Trim to exactly the span the frames cover before unfolding. On
-        // `CubeCL` backends (wgpu / cuda / metal; `Flex` is correct) `unfold`
-        // truncates the unfolded view's outer stride to the vectorization line
-        // width `v` — the largest power of two dividing both `size` and `step`
-        // — using `(len / v) * v` in place of `len`. Every batch row after the
-        // first is then read `len % v` elements early. Row 0 is always right,
-        // so a `batch == 1` test cannot see it.
-        //
-        // It fires when `size` and `step` are both even AND the uncovered tail
-        // `len - ((frames - 1) * hop + n_fft)` is not a multiple of `v`. The
-        // default Whisper geometry trips it at every chunk size: `n_fft` 400
-        // and `hop` 160 give `v` 16, and the steady-state tail is 120.
-        //
-        // Trimming makes that tail zero, so `tail % v == 0` on every geometry
-        // and the bug is unreachable rather than merely absent. It is also the
-        // honest framing — the trailing samples belong to the carry.
-        //
-        // Fixed upstream in burn 0.22.0-dev. Keep the slice on the bump (it
-        // states the contract), but delete this comment.
-        // ──────────────────────────────────────────────────────────────────
-        let covered = (frames - 1) * hop + n_fft;
-        let x = x.slice_dim(1, 0..covered as isize);
-
-        // [batch, frames, n_fft]
-        let framed: Tensor<3> = x.unfold(1, n_fft, hop);
-
-        // Broadcast the window across batch and frame.
-        let framed = framed.mul(self.window.clone().reshape([1, 1, n_fft]));
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract!(
-            ["batch", "frames", "n_fft"],
-            &framed,
-            &[("batch", batch), ("frames", frames), ("n_fft", n_fft)],
-        );
-
-        framed
+        self.stft.frame(x)
     }
 
     /// Transforms windowed frames into a power or magnitude spectrum.
     ///
-    /// Uses the precomputed DFT tables: `re = frame · dft_cos`,
-    /// `im = frame · dft_sin`, then `re² + im²` — or its square root when
+    /// The [`SlidingStft`]'s power spectrum, `re² + im²` (by its DFT tables
+    /// under [`DftMatmul`](SpectrumImpl::DftMatmul)) — or its square root when
     /// [`SpectrumKind::Magnitude`] is configured.
     ///
     /// # Arguments
@@ -802,50 +711,28 @@ impl PerceptiveAudioConverter {
         &self,
         frames: Tensor<3>,
     ) -> Tensor<3> {
-        #[cfg(any(debug_assertions, test))]
         let [batch, n_frames] = crate::contracts::unpack_shape_contract!(
             ["batch", "frames", "n_fft"],
-            &frames,
+            &frames.dims(),
             &["batch", "frames"],
             &[("n_fft", self.n_fft())],
         );
-        #[cfg(not(any(debug_assertions, test)))]
-        let [batch, n_frames] = [frames.dims()[0], frames.dims()[1]];
-
-        let (n_fft, n_bins) = (self.n_fft(), self.n_bins());
-
-        // Dispatched rather than assumed: this is the only thing that reads
-        // `spectrum_impl`, so a new variant is a compile error here until it
-        // is given a path, instead of being silently ignored.
-        let power = match self.options.spectrum_impl {
-            SpectrumImpl::DftMatmul => {
-                // Fold batch and frame together: one
-                // `[rows, n_fft] @ [n_fft, n_bins]` matmul beats broadcasting
-                // the tables across a batch axis.
-                let rows = batch * n_frames;
-                let flat: Tensor<2> = frames.reshape([rows, n_fft]);
-
-                let re = flat.clone().matmul(self.dft_cos.clone());
-                let im = flat.matmul(self.dft_sin.clone());
-
-                // Squaring by multiply rather than `powi_scalar(2)`: same
-                // result, and it is the form the fusion pass folds into the
-                // matmul epilogue.
-                re.clone().mul(re).add(im.clone().mul(im))
-            }
-        };
-
-        let out = self.options.spectrum.power_to_spectrum(power);
-
-        let out: Tensor<3> = out.reshape([batch, n_frames, n_bins]);
-
+        let out = self
+            .options
+            .spectrum
+            .power_to_spectrum(self.stft.power(frames));
         #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "frames", "n_bins"],
-            &out,
-            &[("batch", batch), ("frames", n_frames), ("n_bins", n_bins)],
+            &out.dims(),
+            &[
+                ("batch", batch),
+                ("frames", n_frames),
+                ("n_bins", self.n_bins())
+            ],
         );
-
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (batch, n_frames);
         out
     }
 
@@ -982,6 +869,7 @@ mod tests {
             WithOkOrPanic,
             testing::ErrorMatcher,
         },
+        ops::signal::kernels::window::SamplingWindowBuilder,
         support::testing::{
             DeviceMemoryGuard,
             assert_close_to_vec,
@@ -1000,10 +888,10 @@ mod tests {
         let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
-        assert_eq!(conv.window.dims(), [400]);
+        assert_eq!(conv.stft.window.dims(), [400]);
         assert_eq!(conv.mel_t.dims(), [201, 80]);
-        assert_eq!(conv.dft_cos.dims(), [400, 201]);
-        assert_eq!(conv.dft_sin.dims(), [400, 201]);
+        assert_eq!(conv.stft.dft_cos.as_ref().unwrap().dims(), [400, 201]);
+        assert_eq!(conv.stft.dft_sin.as_ref().unwrap().dims(), [400, 201]);
 
         // `pad_to_pow2` widens the transform, so the bin axis grows — but the
         // DFT tables keep `n_fft` rows, because the padding is zeros that
@@ -1013,9 +901,9 @@ mod tests {
             .try_init(&device)
             .ok_or_panic();
 
-        assert_eq!(pow2.window.dims(), [400]);
+        assert_eq!(pow2.stft.window.dims(), [400]);
         assert_eq!(pow2.mel_t.dims(), [257, 80]);
-        assert_eq!(pow2.dft_cos.dims(), [400, 257]);
+        assert_eq!(pow2.stft.dft_cos.as_ref().unwrap().dims(), [400, 257]);
     }
 
     #[test]
@@ -1028,7 +916,7 @@ mod tests {
 
         // The window is the same one `StftWindowConfig` builds on the host.
         assert_tensor_close_to_vec(
-            &conv.window,
+            &conv.stft.window,
             &opts.window.to_vec_window(opts.n_fft),
             Tolerance::absolute(1e-6),
         );
@@ -1041,8 +929,16 @@ mod tests {
         );
 
         let (cos_table, sin_table) = opts.to_vec_dft_tables();
-        assert_tensor_close_to_vec(&conv.dft_cos, &cos_table, Tolerance::absolute(1e-6));
-        assert_tensor_close_to_vec(&conv.dft_sin, &sin_table, Tolerance::absolute(1e-6));
+        assert_tensor_close_to_vec(
+            &conv.stft.dft_cos.clone().unwrap(),
+            &cos_table,
+            Tolerance::absolute(1e-6),
+        );
+        assert_tensor_close_to_vec(
+            &conv.stft.dft_sin.clone().unwrap(),
+            &sin_table,
+            Tolerance::absolute(1e-6),
+        );
     }
 
     /// The DFT tables carry a sign and a layout convention that is easy to get
@@ -1067,13 +963,17 @@ mod tests {
             .with_n_fft(n_fft)
             .with_hop(128);
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
-        assert_eq!(conv.dft_cos.dims(), [n_fft, n_bins]);
+        assert_eq!(conv.stft.dft_cos.as_ref().unwrap().dims(), [n_fft, n_bins]);
 
         let frames: Tensor<2> = Tensor::random([batch, n_fft], Distribution::Default, &device);
 
         // `X[k] = Σ x[n]·e^(-2πikn/N)`, so the tables give `(re, im)` directly.
-        let re = frames.clone().matmul(conv.dft_cos.clone());
-        let im = frames.clone().matmul(conv.dft_sin.clone());
+        let re = frames
+            .clone()
+            .matmul(conv.stft.dft_cos.clone().unwrap().clone());
+        let im = frames
+            .clone()
+            .matmul(conv.stft.dft_sin.clone().unwrap().clone());
 
         let (re_ref, im_ref) = rfft(frames, 1, Some(n_fft));
 
@@ -1104,7 +1004,7 @@ mod tests {
         let moved = conv.clone().to_device(&device);
         assert_eq!(moved.devices(), vec![device]);
         assert_tensor_close_to_vec(&moved.mel_t, &before, Tolerance::default());
-        assert_eq!(moved.window.dims(), conv.window.dims());
+        assert_eq!(moved.stft.window.dims(), conv.stft.window.dims());
         assert_eq!(moved.options().n_mels, conv.options().n_mels);
     }
 

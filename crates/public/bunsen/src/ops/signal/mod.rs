@@ -29,7 +29,9 @@
 //!
 //! - **STFT.** [`SlidingStftConfig`] -> [`SlidingStft`], with
 //!   [`SlidingStftMeta`] on both, and a [`SlidingStftStreamContext`] per
-//!   stream. Spectra are `numpy.fft.rfft`-compatible; see [`SlidingStft`]'s
+//!   stream; any FFT length, by [`SpectrumImpl`] (burn's `rfft` for a power of
+//!   two, a DFT by matmul for any). The log-mel converter frames and transforms
+//!   by one. Spectra are `numpy.fft.rfft`-compatible; see [`SlidingStft`]'s
 //!   *Spectrum convention*.
 //! - **Inverse STFT.** [`InverseStftConfig`] -> [`InverseStft`]: spectra back
 //!   to a waveform, as `torch.istft` computes it, at any FFT size; also as a
@@ -54,8 +56,8 @@
 //! - **Long audio.** [`quiet_cuts`] cuts a long recording into bounded windows
 //!   at its quietest points, for models that take bounded utterances.
 //!
-//! burn's counterpart is `burn::tensor::signal` (`stft`, `rfft`), which
-//! [`SlidingStft`] is built on.
+//! burn's counterpart is `burn::tensor::signal` (`stft`, `rfft`, power-of-two
+//! only); [`SlidingStft`]'s [`Rfft`](SpectrumImpl::Rfft) is built on it.
 //!
 //! [`PerceptiveAudioConverterConfig`]: perceptive_audio::PerceptiveAudioConverterConfig
 //! [`PerceptiveAudioConverter`]: perceptive_audio::PerceptiveAudioConverter
