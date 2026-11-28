@@ -77,7 +77,10 @@ use crate::{
         Rule,
         WithOkOrPanic,
     },
-    ops::drop::DropBlockOptions,
+    ops::{
+        conv::Conv2dVariantOptions,
+        drop::DropBlockOptions,
+    },
     support::validators::{
         expect_probability,
         try_probability,
@@ -393,16 +396,14 @@ impl ModuleInit<ConvShortcut> for ConvShortcutConfig {
             conv,
             norm,
             act,
-            weight_std,
-            same_pad,
+            variant,
         } = self.block.try_init(device)?;
         Ok(ConvShortcut {
             pool: self.pool.as_ref().map(AvgPool2dConfig::init),
             conv,
             norm,
             act,
-            weight_std,
-            same_pad,
+            variant,
         })
     }
 }
@@ -426,13 +427,9 @@ pub struct ConvShortcut {
     /// The activation after the norm.
     pub act: Option<BunsenActivation>,
 
-    /// The conv's weight standardization `eps`, if any.
+    /// timm's conv variant: SAME padding and weight standardization.
     #[module(skip)]
-    pub weight_std: Option<f64>,
-
-    /// Whether the conv's input is SAME-padded first.
-    #[module(skip)]
-    pub same_pad: bool,
+    pub variant: Conv2dVariantOptions,
 }
 
 impl ConvChainMeta for ConvShortcut {
@@ -477,8 +474,7 @@ impl ConvShortcut {
             Some(pool) => pool.forward(input),
             None => input,
         };
-        let x =
-            crate::ops::conv::conv2d_variant_forward(&self.conv, x, self.weight_std, self.same_pad);
+        let x = self.variant.forward(&self.conv, x);
         let x = match &self.norm {
             Some(norm) => norm.forward(x),
             None => x,

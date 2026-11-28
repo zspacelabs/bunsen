@@ -1,49 +1,116 @@
 //! Conv variants: SAME padding and weight standardization.
 
+use alloc::format;
+
 use burn::{
-    nn::conv::Conv2d,
+    config::Config,
+    nn::{
+        PaddingConfig2d,
+        conv::Conv2d,
+    },
     prelude::Tensor,
 };
 
 use super::{
+    get_same_padding,
     pad_same,
     weight_standardized_conv2d,
 };
+use crate::errors::{
+    BunsenResult,
+    ConstraintError,
+};
 
-/// `conv`'s forward over `input` under timm's conv variants:
+/// timm's conv variants, as one value: how a conv's input is padded and
+/// its weight standardized.
 ///
 /// - `same_pad`: the input padded with zeros first, TensorFlow's "SAME" from
-///   its own size ([`pad_same`]; timm's `Conv2dSame`), the conv itself
-///   unpadded;
+///   its own size ([`pad_same`]; timm's `Conv2dSame`), the conv itself unpadded
+///   (`Valid`);
 /// - `weight_std`: the conv's weight standardized by this `eps`
 ///   ([`weight_standardized_conv2d`]; timm's `StdConv2d`).
 ///
-/// Both together are timm's `StdConv2dSame`; neither, `conv.forward`.
-///
-/// # Arguments
-///
-/// - `conv`: the conv; unpadded (`Valid`) under `same_pad`.
-/// - `input`: `[batch, in_channels, height, width]`.
-/// - `weight_std`: the standardization's `eps`; none when `None`.
-/// - `same_pad`: whether to SAME-pad the input.
-///
-/// # Returns
-///
-/// `[batch, out_channels, out_height, out_width]`; under `same_pad`,
-/// `ceil(height / stride)` by `ceil(width / stride)`.
-pub fn conv2d_variant_forward(
-    conv: &Conv2d,
-    input: Tensor<4>,
-    weight_std: Option<f64>,
-    same_pad: bool,
-) -> Tensor<4> {
-    let input = match same_pad {
-        true => pad_same(input, conv.kernel_size, conv.stride, conv.dilation, 0.0),
-        false => input,
-    };
-    match weight_std {
-        Some(eps) => weight_standardized_conv2d(conv, input, eps),
-        None => conv.forward(input),
+/// Both together are timm's `StdConv2dSame`; neither, a plain conv. A
+/// config embeds it; a module holds it as `#[module(skip)]`.
+#[derive(Config, Debug, Copy, PartialEq)]
+pub struct Conv2dVariantOptions {
+    /// Weight standardization of the conv, by this `eps`; none when `None`.
+    #[config(default = "None")]
+    pub weight_std: Option<f64>,
+
+    /// Whether the input is SAME-padded from its own size before the conv,
+    /// which is then unpadded (`Valid`): timm's `Conv2dSame`, the odd pixel
+    /// bottom-right.
+    #[config(default = false)]
+    pub same_pad: bool,
+}
+
+impl Conv2dVariantOptions {
+    /// Checks the variant against the conv's own `padding`: a SAME-padded
+    /// conv pads its input, so its own padding is `Valid`.
+    ///
+    /// # Errors
+    ///
+    /// A [`ConstraintError`] on `owner`'s `conv.padding` otherwise.
+    pub fn try_check(
+        &self,
+        owner: &'static str,
+        padding: &PaddingConfig2d,
+    ) -> BunsenResult<()> {
+        if self.same_pad && !matches!(padding, PaddingConfig2d::Valid) {
+            return Err(ConstraintError::custom(
+                owner,
+                "conv.padding",
+                format!(
+                    "a SAME-padded conv pads its input, so its own padding is Valid, not {padding:?}"
+                ),
+            )
+            .into());
+        }
+        Ok(())
+    }
+
+    /// The total padding, per spatial axis, the variant adds to an input of
+    /// `input_resolution` before a conv of this geometry; `None` when it adds
+    /// none.
+    pub fn same_padding(
+        &self,
+        input_resolution: [usize; 2],
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        dilation: [usize; 2],
+    ) -> Option<[usize; 2]> {
+        self.same_pad.then(|| {
+            [0, 1].map(|d| {
+                get_same_padding(input_resolution[d], kernel_size[d], stride[d], dilation[d])
+            })
+        })
+    }
+
+    /// `conv`'s forward over `input` under the variant.
+    ///
+    /// # Arguments
+    ///
+    /// - `conv`: the conv; unpadded (`Valid`) under `same_pad`.
+    /// - `input`: `[batch, in_channels, height, width]`.
+    ///
+    /// # Returns
+    ///
+    /// `[batch, out_channels, out_height, out_width]`; under `same_pad`,
+    /// `ceil(height / stride)` by `ceil(width / stride)`.
+    pub fn forward(
+        &self,
+        conv: &Conv2d,
+        input: Tensor<4>,
+    ) -> Tensor<4> {
+        let input = match self.same_pad {
+            true => pad_same(input, conv.kernel_size, conv.stride, conv.dilation, 0.0),
+            false => input,
+        };
+        match self.weight_std {
+            Some(eps) => weight_standardized_conv2d(conv, input, eps),
+            None => conv.forward(input),
+        }
     }
 }
 
@@ -74,7 +141,10 @@ mod tests {
             .with_padding(PaddingConfig2d::Valid)
             .init(&device);
         let x = Tensor::<4>::random([1, 2, 8, 6], Distribution::Default, &device);
-        let ours = conv2d_variant_forward(&conv, x.clone(), None, true);
+        let ours = Conv2dVariantOptions::new()
+            .with_weight_std(None)
+            .with_same_pad(true)
+            .forward(&conv, x.clone());
         assert_eq!(ours.dims(), [1, 3, 4, 3]);
         let expected = conv.forward(x.pad((0, 1, 0, 1), 0.0));
         ours.into_data()
@@ -89,7 +159,10 @@ mod tests {
             .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .init(&device);
         let x = Tensor::<4>::random([1, 2, 5, 5], Distribution::Default, &device);
-        conv2d_variant_forward(&conv, x.clone(), None, false)
+        Conv2dVariantOptions::new()
+            .with_weight_std(None)
+            .with_same_pad(false)
+            .forward(&conv, x.clone())
             .into_data()
             .assert_eq(&conv.forward(x).into_data(), true);
     }
@@ -104,7 +177,10 @@ mod tests {
             .with_bias(false)
             .init(&device);
         let x = Tensor::<4>::random([1, 2, 12, 12], Distribution::Default, &device);
-        let ours = conv2d_variant_forward(&conv, x.clone(), Some(1e-8), true);
+        let ours = Conv2dVariantOptions::new()
+            .with_weight_std(Some(1e-8))
+            .with_same_pad(true)
+            .forward(&conv, x.clone());
         assert_eq!(ours.dims(), [1, 3, 6, 6]);
         // `get_same_padding(12, 7, 2, 1)` is 5: 2 before, 3 after.
         let expected = weight_standardized_conv2d(&conv, x.pad((2, 3, 2, 3), 0.0), 1e-8);

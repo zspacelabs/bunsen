@@ -685,7 +685,7 @@ fn test_resnetv2_pieces() {
         structure.stem.pool,
         Some(ConvStemPoolConfig::ZeroPadMax(_))
     ));
-    assert_eq!(structure.stem.convs[0].weight_std, Some(1e-8));
+    assert_eq!(structure.stem.convs[0].variant.weight_std, Some(1e-8));
     let unit = &structure.stages[0].units[0];
     assert!(unit.pre.is_some() && unit.shortcut.is_none() && !unit.pre_identity);
     assert_eq!(unit.mixer, 0);
@@ -693,7 +693,7 @@ fn test_resnetv2_pieces() {
         let ResidualConvConfig::PreAct(first) = &unit.convs[0],
         "a pre-activation conv",
     );
-    assert!(first.norm.is_none() && first.weight_std == Some(1e-8));
+    assert!(first.norm.is_none() && first.variant.weight_std == Some(1e-8));
     assert!(matches!(
         structure.final_conv,
         Some(ConvFinalConfig::NormAct(_))
@@ -707,7 +707,7 @@ fn test_resnetv2_pieces() {
     for conv in &mut zeroed.convs {
         if let ResidualConv::PreAct(conv) = conv {
             conv.conv.weight = conv.conv.weight.clone().map(|w| w.zeros_like());
-            conv.weight_std = None;
+            conv.variant.weight_std = None;
         }
     }
     let x = Tensor::<4>::random([1, 8, 4, 4], Distribution::Default, &device);
@@ -754,7 +754,7 @@ fn test_same_padded_net() {
             .chain(unit.shortcut.as_ref().map(|s| &s.block)),
     );
     for block in blocks {
-        assert!(block.same_pad && matches!(block.conv.padding, PaddingConfig2d::Valid));
+        assert!(block.variant.same_pad && matches!(block.conv.padding, PaddingConfig2d::Valid));
     }
     // 19: the stem's stride-2 conv, 10; its pool, 5; the stage, 3.
     assert_eq!(structure.try_feature_size([19, 21]).unwrap(), [3, 3]);

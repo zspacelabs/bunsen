@@ -32,8 +32,7 @@ use crate::{
         ConstraintError,
     },
     ops::conv::{
-        conv2d_variant_forward,
-        get_same_padding,
+        Conv2dVariantOptions,
         maybe_conv_output_shape,
     },
 };
@@ -61,10 +60,8 @@ pub trait ConvBlock2dMeta {
     /// Returns the padding configuration.
     fn padding(&self) -> PaddingConfig2d;
 
-    /// Whether the input is padded TensorFlow's "SAME" way, from its own
-    /// size, before an unpadded conv
-    /// ([`conv2d_variant_forward`](crate::ops::conv::conv2d_variant_forward)).
-    fn same_pad(&self) -> bool;
+    /// timm's conv variant: SAME padding and weight standardization.
+    fn variant(&self) -> Conv2dVariantOptions;
 
     /// Predicts the output resolution for a given input resolution.
     ///
@@ -96,11 +93,11 @@ pub trait ConvBlock2dMeta {
         let stride = self.stride();
         let kernel_size = self.kernel_size();
         let dilation = self.dilation();
+        let same = self
+            .variant()
+            .same_padding(input_resolution, kernel_size, stride, dilation);
         let total_padding = match self.padding() {
-            PaddingConfig2d::Valid if self.same_pad() => [0, 1].map(|d| {
-                get_same_padding(input_resolution[d], kernel_size[d], stride[d], dilation[d])
-            }),
-            PaddingConfig2d::Valid => [0, 0],
+            PaddingConfig2d::Valid => same.unwrap_or([0, 0]),
             // `Explicit` is `(top, left, bottom, right)`.
             PaddingConfig2d::Explicit(top, left, bottom, right) => [top + bottom, left + right],
             // Matches burn's same-padding (`calculate_same_padding`), which
@@ -154,17 +151,9 @@ pub struct ConvBlock2dConfig {
     #[config(default = "Some(BunsenActivationConfig::Relu)")]
     pub act: Option<BunsenActivationConfig>,
 
-    /// Weight standardization of the conv, by this `eps`
-    /// ([`weight_standardized_conv2d`](crate::ops::conv::weight_standardized_conv2d),
-    /// timm's `StdConv2d`); none when `None`.
-    #[config(default = "None")]
-    pub weight_std: Option<f64>,
-
-    /// Whether the input is SAME-padded from its own size before the conv,
-    /// which is then unpadded (`Valid`): timm's `Conv2dSame`, TensorFlow's
-    /// padding, the odd pixel bottom-right.
-    #[config(default = false)]
-    pub same_pad: bool,
+    /// timm's conv variant: SAME padding and weight standardization.
+    #[config(default = "Conv2dVariantOptions::new()")]
+    pub variant: Conv2dVariantOptions,
 }
 
 impl ConvBlock2dMeta for ConvBlock2dConfig {
@@ -196,8 +185,8 @@ impl ConvBlock2dMeta for ConvBlock2dConfig {
         self.conv.padding.clone()
     }
 
-    fn same_pad(&self) -> bool {
-        self.same_pad
+    fn variant(&self) -> Conv2dVariantOptions {
+        self.variant
     }
 }
 
@@ -224,17 +213,8 @@ impl ModuleInit<ConvBlock2d> for ConvBlock2dConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<ConvBlock2d> {
-        if self.same_pad && !matches!(self.conv.padding, PaddingConfig2d::Valid) {
-            return Err(ConstraintError::custom(
-                "ConvBlock2dConfig",
-                "conv.padding",
-                format!(
-                    "a SAME-padded conv pads its input, so its own padding is Valid, not {:?}",
-                    self.conv.padding
-                ),
-            )
-            .into());
-        }
+        self.variant
+            .try_check("ConvBlock2dConfig", &self.conv.padding)?;
         let out_channels = self.out_channels();
         Ok(ConvBlock2d {
             conv: self.conv.init(device),
@@ -253,8 +233,7 @@ impl ModuleInit<ConvBlock2d> for ConvBlock2dConfig {
                 .as_ref()
                 .map(|config| config.try_init(device))
                 .transpose()?,
-            weight_std: self.weight_std,
-            same_pad: self.same_pad,
+            variant: self.variant,
         })
     }
 }
@@ -283,13 +262,9 @@ pub struct ConvBlock2d {
     /// Activation layer.
     pub act: Option<BunsenActivation>,
 
-    /// The conv's weight standardization `eps`, if any.
+    /// timm's conv variant: SAME padding and weight standardization.
     #[module(skip)]
-    pub weight_std: Option<f64>,
-
-    /// Whether the input is SAME-padded before the conv.
-    #[module(skip)]
-    pub same_pad: bool,
+    pub variant: Conv2dVariantOptions,
 }
 
 impl ConvBlock2dMeta for ConvBlock2d {
@@ -321,8 +296,8 @@ impl ConvBlock2dMeta for ConvBlock2d {
         self.conv.padding.clone()
     }
 
-    fn same_pad(&self) -> bool {
-        self.same_pad
+    fn variant(&self) -> Conv2dVariantOptions {
+        self.variant
     }
 }
 
@@ -410,7 +385,7 @@ impl ConvBlock2d {
             .ok_or_panic();
         #[cfg(not(any(debug_assertions, test)))]
         let _ = (batch, in_height, in_width);
-        let x = conv2d_variant_forward(&self.conv, input, self.weight_std, self.same_pad);
+        let x = self.variant.forward(&self.conv, input);
 
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
@@ -624,7 +599,7 @@ mod tests {
                 .with_stride([2, 2])
                 .with_padding(PaddingConfig2d::Valid),
         )
-        .with_same_pad(true);
+        .with_variant(Conv2dVariantOptions::new().with_same_pad(true));
         assert_eq!(same.try_output_resolution([19, 12]).unwrap(), [10, 6]);
         let device = cpu_device();
         let block: ConvBlock2d = same.init(&device);
@@ -635,7 +610,7 @@ mod tests {
         let padded = ConvBlock2dConfig::new(
             Conv2dConfig::new([2, 4], [3, 3]).with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1)),
         )
-        .with_same_pad(true);
+        .with_variant(Conv2dVariantOptions::new().with_same_pad(true));
         ErrorMatcher::illegal()
             .message_contains("a SAME-padded conv pads its input")
             .assert_err(&padded.try_init(&device));
