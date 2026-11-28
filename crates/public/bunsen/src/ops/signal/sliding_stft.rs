@@ -298,13 +298,13 @@ impl SlidingStft {
         &self,
         signal: Tensor<2>,
     ) -> Tensor<4> {
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         let [batch, samples] = crate::contracts::unpack_shape_contract!(
             ["batch", "samples"],
             &signal,
             &["batch", "samples"],
         );
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         assert!(
             samples >= self.win_len(),
             "SlidingStft samples ({samples}) must be >= win_len ({})",
@@ -349,7 +349,7 @@ impl SlidingStft {
         // [batch, frames, n_bins, 2]
         let x = stft(signal, Some(self.window.clone()), self.to_options());
 
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract!(
             ["batch", "frames", "n_bins", 2],
             &x,
@@ -426,7 +426,7 @@ impl SlidingStftContext {
         &mut self,
         hop: Tensor<2>,
     ) -> Tensor<3> {
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract!(
             ["batch", "hop_size"],
             &hop,
@@ -466,7 +466,7 @@ impl SlidingStftContext {
         &mut self,
         hops: Tensor<3>,
     ) -> Tensor<4> {
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         let [steps] = crate::contracts::unpack_shape_contract!(
             ["steps", "batch", "hop_size"],
             &hops,
@@ -497,7 +497,7 @@ impl SlidingStftContext {
         // [steps, batch, n_bins, 2]
         let x = x.swap_dims(0, 1);
 
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract!(
             ["steps", "batch", "n_bins", 2],
             &x,

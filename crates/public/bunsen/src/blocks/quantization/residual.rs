@@ -23,10 +23,7 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -192,7 +189,8 @@ impl ResidualVectorQuantizer {
             Some(proj) => proj.forward(latent),
             None => latent,
         };
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "D", "T"],
             &latent.dims(),
             &[("B", b), ("D", self.output_dim()), ("T", t)]

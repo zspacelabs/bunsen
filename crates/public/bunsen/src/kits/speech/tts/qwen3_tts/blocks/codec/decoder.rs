@@ -265,6 +265,8 @@ impl Qwen3TtsCodecDecoder {
         let k = self.quantizer.rvq_first.codebooks.len() + self.quantizer.rvq_rest.codebooks.len();
         let [b, t] =
             unpack_shape_contract!(["B", "K", "T"], &codes.dims(), &["B", "T"], &[("K", k)]);
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (b, t);
         let quantized = self.quantizer.decode(codes);
         let pre_conv = self.pre_conv.forward(quantized.clone());
         let transformer = self
@@ -292,6 +294,7 @@ impl Qwen3TtsCodecDecoder {
             Some(c) => y.clamp(-c, c),
             None => y,
         };
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "C", "N"],
             &audio.dims(),

@@ -142,6 +142,7 @@ impl BunsenGatedMlp {
         &self,
         x: Tensor<D>,
     ) -> Tensor<D> {
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             [..., "n_embed"],
             &x.dims(),
@@ -149,6 +150,7 @@ impl BunsenGatedMlp {
         );
         let gate = self.act.forward(self.gate_proj.forward(x.clone()));
         let y = self.down_proj.forward(gate * self.up_proj.forward(x));
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             [..., "n_embed"],
             &y.dims(),

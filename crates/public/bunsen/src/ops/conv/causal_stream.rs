@@ -11,8 +11,6 @@ use burn::{
     prelude::*,
 };
 
-use crate::contracts::assert_shape_contract_periodically;
-
 /// What a causal convolution pads its input with.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum CausalPadding {
@@ -151,11 +149,14 @@ impl CausalConvStreamContext {
     ) -> Option<Tensor<3>> {
         assert!(!self.finished, "a push to a finished causal conv stream");
         let [b, c, t] = x.dims();
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (b, c);
         assert!(t >= 1, "a causal conv stream's push of at least one frame");
         let mut parts = Vec::with_capacity(2);
         match self.pending.take() {
             Some(pending) => {
-                assert_shape_contract_periodically!(
+                #[cfg(any(debug_assertions, test))]
+                crate::contracts::assert_shape_contract_periodically!(
                     ["B", "C", "P"],
                     &pending.dims(),
                     &[("B", b), ("C", c)]
@@ -304,6 +305,8 @@ impl CausalConvTransposeStreamContext {
         bias: Option<Tensor<1>>,
     ) -> Tensor<3> {
         let [b, c, n] = y.dims();
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = b;
         let (k, s, o) = (self.kernel_size, self.stride, self.overlap_frames());
         assert!(
             n >= k && (n - k) % s == 0,
@@ -312,7 +315,8 @@ impl CausalConvTransposeStreamContext {
         let t = (n - k) / s + 1;
         let y = match self.overlap.take() {
             Some(overlap) => {
-                assert_shape_contract_periodically!(
+                #[cfg(any(debug_assertions, test))]
+                crate::contracts::assert_shape_contract_periodically!(
                     ["B", "C", "O"],
                     &overlap.dims(),
                     &[("B", b), ("C", c), ("O", o)]

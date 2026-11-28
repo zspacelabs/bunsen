@@ -14,6 +14,7 @@ use crate::{
         BunsenResult,
         ConstraintError,
         ResultContext,
+        WithOkOrPanic,
     },
     kits::{
         speech::{
@@ -267,7 +268,7 @@ impl WhisperEngineConfig {
         construct: Arc<WhisperConstruct>,
         device: &Device,
     ) -> WhisperEngine {
-        crate::errors::WithOkOrPanic::ok_or_panic(self.try_init(construct, device))
+        self.try_init(construct, device).ok_or_panic()
     }
 }
 

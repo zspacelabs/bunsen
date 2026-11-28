@@ -20,10 +20,7 @@ use burn::{
 
 use crate::{
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -946,7 +943,8 @@ impl KVCache {
                 ("D", self.head_dim)
             ]
         );
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "H_kv", "T_add", "D"],
             &v.dims(),
             &[

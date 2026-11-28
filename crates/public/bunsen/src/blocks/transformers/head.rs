@@ -180,6 +180,8 @@ impl LmHead {
             &hidden.dims(),
             &["batch", "seq"],
         );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (batch, seq);
         let y = match &self.proj {
             Some(proj) => proj.forward(hidden),
             None => unembed(
@@ -199,6 +201,7 @@ impl LmHead {
             Some(dtype) => y.cast(DType::from(dtype)),
             None => y,
         };
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "seq", "n_vocab"],
             &y.dims(),

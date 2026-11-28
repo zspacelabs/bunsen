@@ -5,6 +5,8 @@ use burn::{
     tensor::kind::Basic,
 };
 
+use crate::contracts::unpack_shape_contract;
+
 /// Convolves a neighborhood function over a 2D tensor.
 ///
 /// Here ``h_wins`` and ``w_wins`` refer to
@@ -32,26 +34,21 @@ where
     KOut: Basic,
     F: Fn(Tensor<6, KIn>) -> Tensor<4, KOut>,
 {
-    #[cfg(debug_assertions)]
-    use crate::contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    };
-
-    #[cfg(debug_assertions)]
     let [batch, c_in, height, width] =
         unpack_shape_contract!(["batch", "c_in", "height", "width"], &input);
-    #[cfg(debug_assertions)]
+    #[cfg(not(any(debug_assertions, test)))]
+    let _ = (batch, c_in, height, width);
+    #[cfg(any(debug_assertions, test))]
     let h_wins = (height + stride[0]).saturating_sub(kernel[0]) / stride[0];
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, test))]
     let w_wins = (width + stride[1]).saturating_sub(kernel[1]) / stride[1];
 
     let x: Tensor<6, KIn> = input
         .unfold::<5, usize>(2, kernel[0], stride[0])
         .unfold::<6, usize>(3, kernel[1], stride[1]);
 
-    #[cfg(debug_assertions)]
-    assert_shape_contract_periodically!(
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
         ["batch", "c_in", "h_wins", "w_wins", "kernel0", "kernel1"],
         x.shape().as_slice(),
         &[
@@ -66,8 +63,8 @@ where
 
     let x: Tensor<6, KIn> = x.permute([0, 2, 3, 1, 4, 5]);
 
-    #[cfg(debug_assertions)]
-    assert_shape_contract_periodically!(
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
         ["batch", "h_wins", "w_wins", "c_in", "kernel0", "kernel1"],
         x.shape().as_slice(),
         &[
@@ -82,8 +79,8 @@ where
 
     let x = (func)(x);
 
-    #[cfg(debug_assertions)]
-    assert_shape_contract_periodically!(
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
         ["batch", "h_wins", "w_wins", "c_out"],
         x.shape().as_slice(),
         &[("batch", batch), ("h_wins", h_wins), ("w_wins", w_wins),]

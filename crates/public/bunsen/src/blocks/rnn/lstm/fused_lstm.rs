@@ -108,12 +108,9 @@ impl FusedLstm {
         hidden: Tensor<2>,
         cell: Tensor<2>,
     ) -> (Tensor<2>, Tensor<2>) {
-        #[cfg(any(test, debug_assertions))]
-        use crate::contracts::{
-            assert_shape_contract_periodically,
-            unpack_shape_contract,
-        };
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
+        use crate::contracts::unpack_shape_contract;
+        #[cfg(any(debug_assertions, test))]
         let batch = {
             let [batch] = unpack_shape_contract!(
                 ["batch", "d_model"],
@@ -121,12 +118,12 @@ impl FusedLstm {
                 &["batch"],
                 &[("d_model", self.d_model())],
             );
-            assert_shape_contract_periodically!(
+            crate::contracts::assert_shape_contract_periodically!(
                 ["batch", "d_model"],
                 &cell,
                 &[("batch", batch), ("d_model", self.d_model())]
             );
-            assert_shape_contract_periodically!(
+            crate::contracts::assert_shape_contract_periodically!(
                 ["batch", "d_model"],
                 &hidden,
                 &[("batch", batch), ("d_model", self.d_model())]
@@ -138,8 +135,8 @@ impl FusedLstm {
         // `feature`, split into [input, forget, cell, output] gates.
         let gates = self.features.forward(features) + self.hidden.forward(hidden);
 
-        #[cfg(any(test, debug_assertions))]
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", 4 * "d_model"],
             &gates,
             &[("batch", batch), ("d_model", self.d_model())]

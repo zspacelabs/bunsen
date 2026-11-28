@@ -178,7 +178,12 @@ pub fn expert_dispatch(
         &["N", "W"],
         &[("W", experts.width())]
     );
+    #[cfg(not(any(debug_assertions, test)))]
+    let _ = w;
     let [k] = unpack_shape_contract!(["N", "k"], &ids.dims(), &["k"], &[("N", n)]);
+    #[cfg(not(any(debug_assertions, test)))]
+    let _ = k;
+    #[cfg(any(debug_assertions, test))]
     crate::contracts::assert_shape_contract_periodically!(
         ["N", "k"],
         &weights.dims(),
@@ -191,6 +196,7 @@ pub fn expert_dispatch(
             gathered(x, ids, weights, experts, scope)
         }
     });
+    #[cfg(any(debug_assertions, test))]
     crate::contracts::assert_shape_contract_periodically!(
         ["N", "W"],
         &y.dims(),

@@ -309,6 +309,8 @@ impl TopKRouter {
         x: Tensor<2>,
     ) -> RouterChoice {
         let [n] = unpack_shape_contract!(["N", "W"], &x.dims(), &["N"], &[("W", self.width())]);
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = n;
         let x = match &self.input_norm {
             Some(norm) => norm.forward(x),
             None => x,
@@ -336,6 +338,7 @@ impl TopKRouter {
         } else {
             weights.mul_scalar(self.scale)
         };
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["N", "k"],
             &ids.dims(),

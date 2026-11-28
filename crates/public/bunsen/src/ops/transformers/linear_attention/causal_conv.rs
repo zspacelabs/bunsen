@@ -5,10 +5,7 @@ use burn::{
     prelude::s,
 };
 
-use crate::contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
-};
+use crate::contracts::unpack_shape_contract;
 
 /// A causal depthwise convolution over time: each channel's own kernel over
 /// its own past, `y[t, c] = Σ_j w[c, j] · x[t - (K - 1) + j, c]`, the inputs
@@ -45,7 +42,8 @@ pub fn causal_depthwise_conv1d(
     let device = x.device();
     let prev = match state {
         Some(state) => {
-            assert_shape_contract_periodically!(
+            #[cfg(any(debug_assertions, test))]
+            crate::contracts::assert_shape_contract_periodically!(
                 ["B", "K1", "C"],
                 &state.dims(),
                 &[("B", b), ("K1", k - 1), ("C", c)]

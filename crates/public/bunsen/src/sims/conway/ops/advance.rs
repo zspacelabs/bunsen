@@ -11,6 +11,7 @@ use burn::{
 };
 
 use crate::{
+    contracts::unpack_shape_contract,
     prelude::{
         TensorBoolOpExt,
         TensorOrderedOpExt,
@@ -70,7 +71,7 @@ pub fn next_state_wrapped_2d(state: Tensor<2, Bool>) -> Tensor<2, Bool> {
 /// # Returns
 /// - the `[H-2, W-2]` evolved interior state.
 pub fn next_interior_2d(state: Tensor<2, Bool>) -> Tensor<2, Bool> {
-    #[cfg(any(test, debug_assertions))]
+    #[cfg(any(debug_assertions, test))]
     let [h, w] = crate::contracts::unpack_shape_contract!(["h", "w"], &state.dims());
 
     // [H-2, W-2]
@@ -88,7 +89,7 @@ pub fn next_interior_2d(state: Tensor<2, Bool>) -> Tensor<2, Bool> {
 
     let inner = n_is_3.bool_or(n_is_4.bool_and(is_live));
 
-    #[cfg(any(test, debug_assertions))]
+    #[cfg(any(debug_assertions, test))]
     crate::contracts::assert_shape_contract_periodically!(
         ["h" - 2, "w" - 2],
         &inner.dims(),
@@ -130,8 +131,9 @@ pub fn next_interior_3d(
     state: Tensor<3, Bool>,
     rules: &ConwayRules,
 ) -> Tensor<3, Bool> {
-    #[cfg(debug_assertions)]
-    let [h, w, z] = crate::contracts::unpack_shape_contract!(["h", "w", "z"], &state.dims());
+    let [h, w, z] = unpack_shape_contract!(["h", "w", "z"], &state.dims());
+    #[cfg(not(any(debug_assertions, test)))]
+    let _ = (h, w, z);
 
     // [H-2, W-2, Z-2]
     let is_live = state.clone().slice(s![1..-1, 1..-1, 1..-1]);
@@ -153,7 +155,7 @@ pub fn next_interior_3d(
 
     let update = spawn_points.mask_where(is_live, keep_points);
 
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, test))]
     crate::contracts::assert_shape_contract_periodically!(
         ["h" - 2, "w" - 2, "z" - 2],
         &update.dims(),

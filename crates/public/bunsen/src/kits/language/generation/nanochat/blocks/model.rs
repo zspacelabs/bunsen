@@ -71,10 +71,7 @@ use crate::{
         Rekey,
         ToStructureConfig,
     },
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
     errors::BunsenResult,
     ops::transformers::attention::{
         KVCache,
@@ -761,6 +758,8 @@ impl NanoChatGpt {
         kv_cache: &mut Option<&mut KVCache>,
     ) -> Tensor<3> {
         let [b, t] = unpack_shape_contract!(["B", "T"], &idx.dims());
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = b;
 
         let t0 = match kv_cache {
             Some(kv_cache) => kv_cache.pos(),
@@ -805,7 +804,8 @@ impl NanoChatGpt {
             kv_cache.as_deref_mut(),
             sides,
         );
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "D"],
             &hidden.dims(),
             &[("B", b), ("T", t), ("D", self.n_embed())]
@@ -832,13 +832,16 @@ impl NanoChatGpt {
             &["B", "T"],
             &[("D", self.n_embed())]
         );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (b, t);
         let logits = self
             .lm
             .decoder
             .head
             .forward(hidden, Some(&self.lm.embedding.weight));
 
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "V"],
             &logits.dims(),
             &[("B", b), ("T", t), ("V", self.vocab_size())]

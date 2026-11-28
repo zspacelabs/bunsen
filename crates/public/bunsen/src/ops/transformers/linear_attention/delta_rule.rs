@@ -19,10 +19,7 @@ use crate::{
         Widening,
         WideningScope,
     },
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
 };
 
 /// The gated delta rule's options, and the rule as methods: one position at
@@ -134,7 +131,8 @@ impl GatedDeltaRule {
     ) -> ([usize; 5], Prepared) {
         let [b, t, h, d_k] =
             unpack_shape_contract!(["B", "T", "H", "Dk"], &q.dims(), &["B", "T", "H", "Dk"]);
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "H", "Dk"],
             &k.dims(),
             &[("B", b), ("T", t), ("H", h), ("Dk", d_k)]
@@ -222,12 +220,12 @@ impl GatedDeltaRule {
         out: &Tensor<4>,
         state: &Tensor<4>,
     ) {
-        assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "H", "Dv"],
             &out.dims(),
             &[("B", b), ("T", t), ("H", h), ("Dv", d_v)]
         );
-        assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "H", "Dk", "Dv"],
             &state.dims(),
             &[("B", b), ("H", h), ("Dk", d_k), ("Dv", d_v)]
@@ -352,7 +350,8 @@ fn initial_state(
     let compute = p.scope.compute();
     match state {
         Some(state) => {
-            assert_shape_contract_periodically!(
+            #[cfg(any(debug_assertions, test))]
+            crate::contracts::assert_shape_contract_periodically!(
                 ["B", "H", "Dk", "Dv"],
                 &state.dims(),
                 &[("B", b), ("H", h), ("Dk", d_k), ("Dv", d_v)]
@@ -372,7 +371,7 @@ fn unit_lower_inverse(
 ) -> Tensor<5> {
     #[cfg(any(debug_assertions, test))]
     let shape = {
-        assert_shape_contract_periodically!([..., "C", "C"], &system.dims(), &[("C", c)]);
+        crate::contracts::assert_shape_contract_periodically!([..., "C", "C"], &system.dims(), &[("C", c)]);
         system.dims()
     };
     let device = system.device();
