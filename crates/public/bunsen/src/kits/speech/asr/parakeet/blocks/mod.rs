@@ -10,10 +10,12 @@
 //! answer [`ParakeetTdtMeta`]. The prediction network's recurrent state is a
 //! [`TdtPredictionState`] the caller opens per decode, never on the model.
 
+mod front_end;
 mod joint;
 mod model;
 mod prediction;
 
+pub use front_end::*;
 pub use joint::*;
 pub use model::*;
 pub use prediction::*;
