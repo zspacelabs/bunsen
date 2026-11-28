@@ -42,6 +42,7 @@ use crate::{
             mlp::TransformerFeedForwardConfig,
             models::vision_encoder::{
                 TokenPoolConfig,
+                TokenPoolKind,
                 VisionBackboneConfig,
                 VisionEncoderStructureConfig,
             },
@@ -182,10 +183,10 @@ pub struct ViTContractConfig {
     pub fc_norm: Option<bool>,
 
     /// The head's pool (timm's `global_pool`); a
-    /// [`Map`](TokenPoolConfig::Map) pool is an attention pool of the
+    /// [`Map`](TokenPoolKind::Map) pool is an attention pool of the
     /// model's heads, MLP, norm and activation (timm's `AttentionPoolLatent`).
-    #[config(default = "TokenPoolConfig::Token")]
-    pub global_pool: TokenPoolConfig,
+    #[config(default = "TokenPoolKind::Token")]
+    pub global_pool: TokenPoolKind,
 
     /// Layer scale on each sublayer (timm's `init_values` set, on its
     /// `Block`).
@@ -351,7 +352,7 @@ impl ToStructureConfig for ViTContractConfig {
     ///   [`norm_placement`](Self::norm_placement) puts them; an input norm
     ///   under `pre_norm`; the final norm, as
     ///   [`uses_last_norm`](Self::uses_last_norm) says;
-    /// - the head: the pool (under [`Map`](TokenPoolConfig::Map), an attention
+    /// - the head: the pool (under [`Map`](TokenPoolKind::Map), an attention
     ///   pool of `num_heads` heads, an MLP of [`mlp_hidden`](Self::mlp_hidden)
     ///   and the model's norm), its norm, the dropout, the classifier.
     ///
@@ -414,7 +415,7 @@ impl ToStructureConfig for ViTContractConfig {
             )
             .into());
         }
-        if self.global_pool == TokenPoolConfig::Token && !self.class_token {
+        if self.global_pool == TokenPoolKind::Token && !self.class_token {
             return Err(ConstraintError::custom(
                 "ViTContractConfig",
                 "class_token",
@@ -471,8 +472,15 @@ impl ToStructureConfig for ViTContractConfig {
             RotaryEmbeddingConfig::unrotated(d / heads),
         );
         stack.input_norm = self.pre_norm.then(|| self.sized_norm());
-        let latent_pool = (self.global_pool == TokenPoolConfig::Map)
-            .then(|| LatentAttentionPoolConfig::new(d, heads, self.pool_mlp(), self.sized_norm()));
+        let pool = match self.global_pool {
+            TokenPoolKind::Map => TokenPoolConfig::Map(LatentAttentionPoolConfig::new(
+                d,
+                heads,
+                self.pool_mlp(),
+                self.sized_norm(),
+            )),
+            kind => TokenPoolConfig::try_from_kind(kind)?,
+        };
         Ok(VisionEncoderStructureConfig::new(
             patch_embed,
             tokens,
@@ -481,8 +489,7 @@ impl ToStructureConfig for ViTContractConfig {
                 .with_fc_norm(fc_norm.then(|| self.sized_norm()))
                 .with_drop_rate(self.drop_rate),
         )
-        .with_pool(self.global_pool)
-        .with_latent_pool(latent_pool)
+        .with_pool(pool)
         .with_backbone(backbone))
     }
 }
@@ -522,7 +529,7 @@ mod tests {
         assert!(matches!(s.stack.norm, BunsenNormalizationConfig::Layer(_)));
         assert!(s.head.fc_norm.is_none());
 
-        let avg = tiny().with_global_pool(TokenPoolConfig::Avg).to_structure();
+        let avg = tiny().with_global_pool(TokenPoolKind::Avg).to_structure();
         assert!(matches!(
             avg.stack.norm,
             BunsenNormalizationConfig::Identity
@@ -546,7 +553,7 @@ mod tests {
         assert_eq!(tiny().with_mlp_ratio(2.5).mlp_hidden(), 20);
 
         let bare = tiny()
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_final_norm(false)
             .to_structure();
         assert!(matches!(

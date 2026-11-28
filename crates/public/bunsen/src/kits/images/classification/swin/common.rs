@@ -29,7 +29,10 @@ use crate::{
                     StagedVisionEncoderStructureConfig,
                     VisionStageConfig,
                 },
-                vision_encoder::TokenPoolConfig,
+                vision_encoder::{
+                    TokenPoolConfig,
+                    TokenPoolKind,
+                },
             },
         },
     },
@@ -83,7 +86,7 @@ pub(crate) struct SwinStages<'a> {
     pub depths: &'a [usize],
     pub num_heads: &'a [usize],
     pub num_classes: usize,
-    pub global_pool: TokenPoolConfig,
+    pub global_pool: TokenPoolKind,
     pub drop_rate: f64,
     /// Whether a merge norms before its reduction (V1), not after (V2).
     pub merge_norm_first: bool,
@@ -196,7 +199,7 @@ impl SwinStages<'_> {
             ClassifierHeadConfig::new(width(n - 1), self.num_classes)
                 .with_drop_rate(self.drop_rate),
         )
-        .with_pool(self.global_pool))
+        .with_pool(TokenPoolConfig::try_from_kind(self.global_pool)?))
     }
 }
 

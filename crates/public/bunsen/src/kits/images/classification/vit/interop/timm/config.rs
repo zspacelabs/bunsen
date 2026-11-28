@@ -3,7 +3,7 @@
 use alloc::format;
 
 use crate::{
-    blocks::transformers::models::vision_encoder::TokenPoolConfig,
+    blocks::transformers::models::vision_encoder::TokenPoolKind,
     errors::{
         BunsenError,
         BunsenResult,
@@ -41,7 +41,7 @@ pub fn with_timm_config(
 ) -> BunsenResult<ViTContractConfig> {
     let architecture = config.architecture.as_str();
     if let Some(pool) = config.global_pool.as_deref() {
-        contract.global_pool = TokenPoolConfig::from_timm(pool).ok_or_else(|| {
+        contract.global_pool = TokenPoolKind::from_timm(pool).ok_or_else(|| {
             BunsenError::unsupported(format!(
                 "timm's {architecture} with a {pool:?} pool: the vit kit pools by token, avg, \
                  max, avgmax or map"

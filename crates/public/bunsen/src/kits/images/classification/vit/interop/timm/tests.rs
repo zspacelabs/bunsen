@@ -2,7 +2,7 @@ use alloc::format;
 
 use super::*;
 use crate::{
-    blocks::transformers::models::vision_encoder::TokenPoolConfig,
+    blocks::transformers::models::vision_encoder::TokenPoolKind,
     burner::module::testing::assert_rekeys,
     data::pretrained::Prefabs,
     errors::testing::ErrorMatcher,
@@ -51,9 +51,9 @@ fn test_prefab_architectures_map() {
         let mut want = ViTContractConfig::expect_prefab(name);
         want.num_classes = 21843;
         let pool = match want.global_pool {
-            TokenPoolConfig::Token => "token",
-            TokenPoolConfig::Avg => "avg",
-            TokenPoolConfig::Map => "map",
+            TokenPoolKind::Token => "token",
+            TokenPoolKind::Avg => "avg",
+            TokenPoolKind::Map => "map",
             other => panic!("{name}: a {other:?} prefab"),
         };
         assert_config_eq(

@@ -3,7 +3,7 @@
 use alloc::format;
 
 use crate::{
-    blocks::transformers::models::vision_encoder::TokenPoolConfig,
+    blocks::transformers::models::vision_encoder::TokenPoolKind,
     errors::{
         BunsenError,
         BunsenResult,
@@ -22,12 +22,12 @@ pub(crate) fn swin_timm_input(
     config: &TimmModelConfigMirror,
     kit: &str,
     in_channels: usize,
-) -> BunsenResult<(usize, Option<TokenPoolConfig>)> {
+) -> BunsenResult<(usize, Option<TokenPoolKind>)> {
     let architecture = config.architecture.as_str();
     let pool = match config.global_pool.as_deref() {
         Some(pool) => Some(
-            TokenPoolConfig::from_timm(pool)
-                .filter(|p| *p != TokenPoolConfig::Token)
+            TokenPoolKind::from_timm(pool)
+                .filter(|p| *p != TokenPoolKind::Token)
                 .ok_or_else(|| {
                     BunsenError::unsupported(format!(
                         "timm's {architecture} with a {pool:?} pool: the {kit} kit pools by avg, \

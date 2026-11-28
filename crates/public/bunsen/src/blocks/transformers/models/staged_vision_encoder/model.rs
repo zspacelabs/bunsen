@@ -252,7 +252,9 @@ impl StagedVisionEncoderStructureConfig {
             )
             .into());
         }
-        TokenPool::try_new(self.pool, 0).context("the pool, over a grid with no prefix")?;
+        self.pool
+            .try_check(0)
+            .context("the pool, over a grid with no prefix")?;
         Ok(())
     }
 }
@@ -293,7 +295,7 @@ impl ModuleInit<StagedVisionEncoderModel> for StagedVisionEncoderStructureConfig
                 .clone()
                 .with_num_features(width)
                 .try_init(device)?,
-            pool: TokenPool::try_new(self.pool, 0)?,
+            pool: self.pool.try_init(0, device)?,
             head: self.head.try_init(device).context("the head")?,
         })
     }
