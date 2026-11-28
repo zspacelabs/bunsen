@@ -11,7 +11,6 @@ use serde::{
 use super::{
     Qwen3AsrGreedyDecoderConfig,
     Qwen3AsrPromptConfig,
-    Qwen3AsrReplyForm,
     Qwen3AsrTranscript,
     blocks::{
         Qwen3Asr,
@@ -228,52 +227,8 @@ impl Qwen3AsrConstruct {
             .collect())
     }
 
-    /// Transcribes one waveform of any length, in windows of at most
-    /// `max_window` samples.
-    ///
-    /// A recording longer than the model's range is cut into windows, each
-    /// cut at the quietest mel frame of the window's last sixth
-    /// ([`quiet_cuts`](crate::ops::signal::quiet_cuts)), and each window is
-    /// transcribed alone. The texts are joined with spaces; the language is
-    /// the first window's that names one; the form is
-    /// [`Unheaded`](Qwen3AsrReplyForm::Unheaded) when any window's is.
-    ///
-    /// # Errors
-    /// As [`transcribe`](Self::transcribe).
-    ///
-    /// # Panics
-    /// If `max_window` is shorter than six mel frames.
-    pub fn transcribe_long(
-        &self,
-        samples: &[f32],
-        max_window: usize,
-        device: &Device,
-    ) -> BunsenResult<Qwen3AsrTranscript> {
-        let windows = crate::ops::signal::quiet_cuts(samples, max_window, self.front_end.hop());
-        let mut joined = Qwen3AsrTranscript {
-            tokens: Vec::new(),
-            language: None,
-            text: String::new(),
-            form: Qwen3AsrReplyForm::Headed,
-        };
-        let mut texts = Vec::new();
-        for (a, b) in windows {
-            let t = self.transcribe(&samples[a..b], device)?;
-            joined.tokens.extend(t.tokens);
-            joined.language = joined.language.or(t.language);
-            if t.form == Qwen3AsrReplyForm::Unheaded {
-                joined.form = Qwen3AsrReplyForm::Unheaded;
-            }
-            if !t.text.is_empty() {
-                texts.push(t.text);
-            }
-        }
-        joined.text = texts.join(" ");
-        Ok(joined)
-    }
-
-    /// The longest window [`transcribe_long`](Self::transcribe_long) is
-    /// meant to take, in samples: the front end's chunk
+    /// The longest window the model is meant to take, in samples: the front
+    /// end's chunk
     /// ([`chunk_seconds`](Qwen3AsrFrontEndConfig::chunk_seconds)), the
     /// utterances the model was trained on.
     pub fn max_window(&self) -> usize {

@@ -15,12 +15,14 @@
 //!
 //! ## Map
 //!
-//! - **Shape arithmetic.** [`maybe_conv1d_output_size`] for one axis;
-//!   [`maybe_conv_output_shape`] over a `[usize; D]` shape, and
-//!   [`maybe_conv_output_shape_dyn`] over slices, for a rank known only at run
-//!   time. Each `maybe_*` returns `None` when no output is legal (the kernel
-//!   does not fit the padded input); its `expect_*` twin panics instead.
-//!   [`stride_div_output_resolution`] is the downsample-by-stride shortcut.
+//! - **Shape arithmetic.** [`try_conv1d_output_size`] for one axis;
+//!   [`try_conv_output_shape`] over a `[usize; D]` shape, and
+//!   [`try_conv_output_shape_dyn`] over slices, for a rank known only at run
+//!   time. Each refuses a zero size, kernel, stride or dilation, and a kernel
+//!   that does not fit the padded input, with a
+//!   [`ConstraintError`](crate::errors::ConstraintError) naming the geometry;
+//!   its twin without `try_` panics instead. [`stride_div_output_resolution`]
+//!   is the downsample-by-stride shortcut.
 //! - **Padding.** [`get_square_conv2d_padding`] and
 //!   [`build_square_conv2d_padding_config`] give the symmetric padding for a
 //!   square kernel. [`get_same_padding`] and [`pad_same`] give TensorFlow-style

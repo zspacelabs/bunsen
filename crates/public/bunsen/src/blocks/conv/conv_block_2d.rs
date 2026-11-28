@@ -33,7 +33,7 @@ use crate::{
     },
     ops::conv::{
         Conv2dVariantOptions,
-        maybe_conv_output_shape,
+        try_conv_output_shape,
     },
 };
 
@@ -113,12 +113,12 @@ pub trait ConvBlock2dMeta {
             }
         };
         // Fold the (possibly asymmetric) total padding into the effective input
-        // resolution so we can reuse the symmetric `maybe_conv_output_shape`.
+        // resolution so we can reuse the symmetric `try_conv_output_shape`.
         let effective = [
             input_resolution[0] + total_padding[0],
             input_resolution[1] + total_padding[1],
         ];
-        maybe_conv_output_shape(effective, kernel_size, stride, [0, 0], dilation).ok_or_else(|| {
+        try_conv_output_shape(effective, kernel_size, stride, [0, 0], dilation).map_err(|_| {
             ConstraintError::custom(
                 "ConvBlock2d",
                 "input_resolution",
