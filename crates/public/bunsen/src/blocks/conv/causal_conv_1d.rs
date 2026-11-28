@@ -21,10 +21,7 @@ use burn::{
 pub use crate::ops::conv::CausalPadding;
 use crate::{
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -273,16 +270,21 @@ impl CausalConv1d {
         x: Tensor<3>,
     ) -> Tensor<3> {
         let [c_in, c_out] = self.channels();
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = c_out;
         let [b, t] = unpack_shape_contract!(
             ["B", "C_in", "T"],
             &x.dims(),
             &["B", "T"],
             &[("C_in", c_in)]
         );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = b;
         assert!(t >= 1, "a causal convolution over at least one frame");
         let x = self.pad(x, self.left_padding(), self.right_padding(t));
         let y = self.conv.forward(x);
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "C_out", "T_out"],
             &y.dims(),
             &[("B", b), ("C_out", c_out), ("T_out", self.output_frames(t))]
@@ -316,8 +318,14 @@ impl CausalConv1d {
         x: Tensor<3>,
         ctx: &mut CausalConvStreamContext,
     ) -> Option<Tensor<3>> {
+        #[cfg(any(debug_assertions, test))]
         let [c_in, _] = self.channels();
-        assert_shape_contract_periodically!(["B", "C_in", "T"], &x.dims(), &[("C_in", c_in)]);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "C_in", "T"],
+            &x.dims(),
+            &[("C_in", c_in)]
+        );
         self.check_stream(ctx);
         ctx.push(x).map(|window| self.conv.forward(window))
     }
@@ -500,12 +508,16 @@ impl CausalConvTranspose1d {
         x: Tensor<3>,
     ) -> Tensor<3> {
         let [c_in, c_out] = self.channels();
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = c_out;
         let [b, t] = unpack_shape_contract!(
             ["B", "C_in", "T"],
             &x.dims(),
             &["B", "T"],
             &[("C_in", c_in)]
         );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = b;
         let y = self.conv.forward(x);
         let frames = t * self.stride();
         let y = if self.right_trim() > 0 {
@@ -513,7 +525,8 @@ impl CausalConvTranspose1d {
         } else {
             y
         };
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "C_out", "T_out"],
             &y.dims(),
             &[("B", b), ("C_out", c_out), ("T_out", frames)]
@@ -546,8 +559,14 @@ impl CausalConvTranspose1d {
         x: Tensor<3>,
         ctx: &mut CausalConvTransposeStreamContext,
     ) -> Tensor<3> {
+        #[cfg(any(debug_assertions, test))]
         let [c_in, _] = self.channels();
-        assert_shape_contract_periodically!(["B", "C_in", "T"], &x.dims(), &[("C_in", c_in)]);
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "C_in", "T"],
+            &x.dims(),
+            &[("C_in", c_in)]
+        );
         assert!(
             ctx.kernel_size == self.kernel_size() && ctx.stride == self.stride(),
             "a causal transposed conv stream of another geometry"

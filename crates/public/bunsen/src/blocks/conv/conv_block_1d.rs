@@ -26,6 +26,7 @@ use crate::{
         },
     },
     burner::module::ModuleInit,
+    contracts::unpack_shape_contract,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -332,15 +333,6 @@ impl ConvBlock1d {
     where
         F: FnOnce(Tensor<3>) -> Tensor<3>,
     {
-        #[cfg(debug_assertions)]
-        use crate::{
-            contracts::{
-                assert_shape_contract_periodically,
-                unpack_shape_contract,
-            },
-            errors::WithOkOrPanic,
-        };
-        #[cfg(debug_assertions)]
         let [batch, in_length] = unpack_shape_contract!(
             ["batch", "in_channels", "in_length"],
             &input.dims(),
@@ -348,12 +340,16 @@ impl ConvBlock1d {
             &[("in_channels", self.in_channels())]
         );
         // True conv arithmetic; factors in kernel size, padding, and dilation.
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, test))]
+        use crate::errors::WithOkOrPanic;
+        #[cfg(any(debug_assertions, test))]
         let out_length = self.try_output_length(in_length).ok_or_panic();
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (batch, in_length);
         let x = self.conv.forward(input);
 
-        #[cfg(debug_assertions)]
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "out_channels", "out_length"],
             &x.dims(),
             &[
@@ -375,8 +371,8 @@ impl ConvBlock1d {
             None => x,
         };
 
-        #[cfg(debug_assertions)]
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "out_channels", "out_length"],
             &x.dims(),
             &[

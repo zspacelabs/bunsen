@@ -5,7 +5,10 @@ use burn::{
     prelude::s,
 };
 
-use crate::sims::lbm::d2q9::space;
+use crate::{
+    contracts::unpack_shape_contract,
+    sims::lbm::d2q9::space,
+};
 
 /// Applies the streaming update step to the non-border cells of a population.
 ///
@@ -16,13 +19,14 @@ use crate::sims::lbm::d2q9::space;
 /// # Returns
 /// - The updated `[H[1:-1], W[1:-1], VY=3, VX=3]` interior.
 pub fn stream_interior_windows(dist: Tensor<4>) -> Tensor<4> {
-    #[cfg(debug_assertions)]
-    let [h, w] = crate::contracts::unpack_shape_contract!(
+    let [h, w] = unpack_shape_contract!(
         ["H", "W", "VY", "VX"],
         dist.shape().as_slice(),
         &["H", "W"],
         &[("VY", 3), ("VX", 3)]
     );
+    #[cfg(not(any(debug_assertions, test)))]
+    let _ = (h, w);
 
     let windows = space::dist_windows(dist);
 
@@ -53,7 +57,7 @@ pub fn stream_interior_windows(dist: Tensor<4>) -> Tensor<4> {
         2,
     );
 
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, test))]
     crate::contracts::assert_shape_contract_periodically!(
         ["H" - 2, "W" - 2, "VY", "VX"],
         result.shape().as_slice(),

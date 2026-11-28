@@ -244,6 +244,9 @@ impl VoxtralRealtime {
             &ids.dims(),
             &["batch", "positions"]
         );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = batch;
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "positions", "d_text"],
             &audio.dims(),

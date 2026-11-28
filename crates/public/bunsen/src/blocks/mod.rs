@@ -57,14 +57,18 @@
 //! - **A forward that works on tensors checks its shapes with
 //!   [`crate::contracts`]:** an always-run unpack where the body reads dims,
 //!   and cfg-gated asserts, written by full path, on outputs and intermediates.
-//!   An output contract binds the dims it shares with the input's unpack; where
-//!   only the gated check reads a binding, a `#[cfg(not(any(debug_assertions,
-//!   test)))] let _ = d;` keeps it. The rustdoc writes each tensor argument and
-//!   result in the notation the contract checks. A forward that only delegates
-//!   inherits its callee's checks. A block folded into a shared one keeps its
-//!   checks in the shared body. The crate root's [contracts
-//!   rule](crate#design-rules) gives the reasons: faster R&D, malformed
-//!   assemblies caught, algorithms readable by people and agents.
+//!   The gate is `#[cfg(any(debug_assertions, test))]`, spelled so, on every
+//!   `assert_shape_contract_periodically!` and on whatever only it reads; a
+//!   one-shot `assert_shape_contract!` is a check of the caller's input, stated
+//!   under `# Panics`, and runs always. An output contract binds the dims it
+//!   shares with the input's unpack; where only the gated check reads a
+//!   binding, a `#[cfg(not(any(debug_assertions, test)))] let _ = d;` keeps it.
+//!   The rustdoc writes each tensor argument and result in the notation the
+//!   contract checks. A forward that only delegates inherits its callee's
+//!   checks. A block folded into a shared one keeps its checks in the shared
+//!   body. The crate root's [contracts rule](crate#design-rules) gives the
+//!   reasons: faster R&D, malformed assemblies caught, algorithms readable by
+//!   people and agents.
 //! - **A seam is an enum config plus an enum module, and each kind is a module
 //!   type of its own**, never a bare value: weight loading walks each variant's
 //!   module, as [`activation`]'s `Pow` kind is a

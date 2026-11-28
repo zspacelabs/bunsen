@@ -211,6 +211,8 @@ impl CausalConvNext1d {
     ) -> (Tensor<3>, Tensor<3>) {
         let [c, k] = [self.width(), self.kernel()];
         let [b, t] = unpack_shape_contract!(["B", "T", "C"], &x.dims(), &["B", "T"], &[("C", c)]);
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (b, t);
         let (h, state) =
             causal_depthwise_conv1d(x.clone(), self.dwconv.weight.val().reshape([c, k]), state);
         let h = match &self.dwconv.bias {
@@ -225,6 +227,7 @@ impl CausalConvNext1d {
             None => h,
         };
         let y = x + h;
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "C"],
             &y.dims(),

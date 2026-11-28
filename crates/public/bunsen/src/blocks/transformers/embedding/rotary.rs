@@ -22,6 +22,7 @@ use crate::{
         module::ModuleInit,
         tensor::Widening,
     },
+    contracts::unpack_shape_contract,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -226,7 +227,7 @@ impl RotaryPairLayout {
         self,
         span: Tensor<4>,
     ) -> (Tensor<4>, Tensor<4>) {
-        let [b, t, h, half] = crate::contracts::unpack_shape_contract!(
+        let [b, t, h, half] = unpack_shape_contract!(
             ["B", "T", "H", 2 * "half"],
             &span.dims(),
             &["B", "T", "H", "half"]
@@ -256,8 +257,7 @@ impl RotaryPairLayout {
         y1: Tensor<4>,
         y2: Tensor<4>,
     ) -> Tensor<4> {
-        let [b, t, h, half] =
-            crate::contracts::unpack_shape_contract!(["B", "T", "H", "half"], &y1.dims());
+        let [b, t, h, half] = unpack_shape_contract!(["B", "T", "H", "half"], &y1.dims());
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "H", "half"],
@@ -549,13 +549,14 @@ impl RotaryEmbedding {
         &self,
         input: Tensor<4>,
     ) -> Tensor<4> {
-        #[cfg(debug_assertions)]
-        let [b, h] = crate::contracts::unpack_shape_contract!(
+        let [b, h] = unpack_shape_contract!(
             ["B", "T", "H", "D"],
             &input.dims(),
             &["B", "H"],
             &[("T", self.seq_len()), ("D", self.head_dim())]
         );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = (b, h);
 
         let rotary_dim = self.rotary_dim();
         if rotary_dim == 0 {
@@ -580,7 +581,7 @@ impl RotaryEmbedding {
             None => rotated,
         };
 
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "H", "D"],
             &output.dims(),

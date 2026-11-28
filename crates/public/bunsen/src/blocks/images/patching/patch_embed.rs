@@ -16,7 +16,6 @@ use crate::{
         BunsenNormalizationConfig,
     },
     burner::module::ModuleInit,
-    contracts::assert_shape_contract_periodically,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -255,7 +254,8 @@ impl PatchEmbed {
         &self,
         x: Tensor<4>,
     ) -> Tensor<3> {
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "d_input", "height", "width"],
             &x.dims(),
             &[
@@ -265,10 +265,12 @@ impl PatchEmbed {
             ]
         );
 
+        #[cfg(any(debug_assertions, test))]
         let batch = x.dims()[0];
 
         let x = self.projection.forward(x);
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "d_output", "patches_height", "patches_width"],
             &x.dims(),
             &[
@@ -281,7 +283,8 @@ impl PatchEmbed {
 
         let x = x.flatten(2, 3);
         let x = x.swap_dims(1, 2);
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "num_patches", "d_output"],
             &x.dims(),
             &[
@@ -295,7 +298,8 @@ impl PatchEmbed {
             None => x,
             Some(ref norm) => norm.forward(x),
         };
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "num_patches", "d_output"],
             &x.dims(),
             &[

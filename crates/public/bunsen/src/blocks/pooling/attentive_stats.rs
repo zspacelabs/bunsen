@@ -261,6 +261,7 @@ impl AttentiveStatsPooling {
         let weights = softmax(scores, 2);
         let (mean, std) = self.deviation.weighted_mean_std(x, weights);
         let pooled = Tensor::cat(vec![mean, std], 1).reshape([batch, 2 * channels]);
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "pooled"],
             &pooled.dims(),

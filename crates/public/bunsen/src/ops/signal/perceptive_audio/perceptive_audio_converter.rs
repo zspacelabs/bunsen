@@ -730,13 +730,13 @@ impl PerceptiveAudioConverter {
         &self,
         x: Tensor<2>,
     ) -> Tensor<3> {
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         let [batch, samples] = crate::contracts::unpack_shape_contract!(
             ["batch", "samples"],
             &x,
             &["batch", "samples"],
         );
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         assert!(
             samples >= self.n_fft(),
             "PerceptiveAudioConverter samples ({samples}) must be >= n_fft ({})",
@@ -776,7 +776,7 @@ impl PerceptiveAudioConverter {
         // Broadcast the window across batch and frame.
         let framed = framed.mul(self.window.clone().reshape([1, 1, n_fft]));
 
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract!(
             ["batch", "frames", "n_fft"],
             &framed,
@@ -802,14 +802,14 @@ impl PerceptiveAudioConverter {
         &self,
         frames: Tensor<3>,
     ) -> Tensor<3> {
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         let [batch, n_frames] = crate::contracts::unpack_shape_contract!(
             ["batch", "frames", "n_fft"],
             &frames,
             &["batch", "frames"],
             &[("n_fft", self.n_fft())],
         );
-        #[cfg(not(any(test, debug_assertions)))]
+        #[cfg(not(any(debug_assertions, test)))]
         let [batch, n_frames] = [frames.dims()[0], frames.dims()[1]];
 
         let (n_fft, n_bins) = (self.n_fft(), self.n_bins());
@@ -839,7 +839,7 @@ impl PerceptiveAudioConverter {
 
         let out: Tensor<3> = out.reshape([batch, n_frames, n_bins]);
 
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract!(
             ["batch", "frames", "n_bins"],
             &out,
@@ -861,14 +861,14 @@ impl PerceptiveAudioConverter {
         &self,
         spectrum: Tensor<3>,
     ) -> Tensor<3> {
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         let [batch, n_frames] = crate::contracts::unpack_shape_contract!(
             ["batch", "frames", "n_bins"],
             &spectrum,
             &["batch", "frames"],
             &[("n_bins", self.n_bins())],
         );
-        #[cfg(not(any(test, debug_assertions)))]
+        #[cfg(not(any(debug_assertions, test)))]
         let [batch, n_frames] = [spectrum.dims()[0], spectrum.dims()[1]];
 
         let (n_bins, n_mels) = (self.n_bins(), self.n_mels());
@@ -880,7 +880,7 @@ impl PerceptiveAudioConverter {
         let out = flat.matmul(self.mel_t.clone());
         let out: Tensor<3> = out.reshape([batch, n_frames, n_mels]);
 
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract!(
             ["batch", "frames", "n_mels"],
             &out,
@@ -905,7 +905,7 @@ impl PerceptiveAudioConverter {
         &self,
         mels: Tensor<3>,
     ) -> Tensor<3> {
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract!(
             ["batch", "frames", "n_mels"],
             &mels,

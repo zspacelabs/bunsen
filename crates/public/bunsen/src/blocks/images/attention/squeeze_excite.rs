@@ -123,6 +123,7 @@ impl SqueezeExcite {
         &self,
         input: Tensor<4>,
     ) -> Tensor<4> {
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "channels", "height", "width"],
             &input.dims(),

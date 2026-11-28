@@ -20,10 +20,7 @@ use num_traits::Float;
 
 use crate::{
     burner::tensor::Widening,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
     ops::drop::dropout,
 };
 
@@ -105,7 +102,8 @@ pub fn scaled_dot_product_attention(
         &["H_kv"],
         &[("B", b), ("D", d)]
     );
-    assert_shape_contract_periodically!(
+    #[cfg(any(debug_assertions, test))]
+    crate::contracts::assert_shape_contract_periodically!(
         ["B", "H_kv", "T_v", "D"],
         &v.dims(),
         &[("B", b), ("H_kv", h_kv), ("D", d)]
@@ -204,6 +202,7 @@ pub fn sdpa_attn_weight(
     };
     let mut blind = None;
     if let Some(valid) = key_valid {
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T_k"],
             &valid.dims(),

@@ -624,10 +624,7 @@ impl SileroVad {
 
         cfg_select! {
             any(test, debug_assertions) => {
-                use crate::contracts::{
-                    assert_shape_contract_periodically,
-                    unpack_shape_contract,
-                };
+                use crate::contracts::unpack_shape_contract;
                 let [steps, batch] = unpack_shape_contract!(
                     ["steps", "batch", "samples"],
                     &chunk_seq,
@@ -640,7 +637,8 @@ impl SileroVad {
                     &["context_size"],
                     &[("batch", batch)],
                 );
-                assert_shape_contract_periodically!(
+                #[cfg(any(debug_assertions, test))]
+                crate::contracts::assert_shape_contract_periodically!(
                     [2, "batch", "d_hidden"],
                     &state,
                     &[("batch", batch), ("d_hidden", self.d_hidden())]
@@ -714,10 +712,7 @@ impl SileroVad {
 
         cfg_select! {
             any(test, debug_assertions) => {
-                use crate::contracts::{
-                    assert_shape_contract_periodically,
-                    unpack_shape_contract,
-                };
+                use crate::contracts::unpack_shape_contract;
                 let [batch] = unpack_shape_contract!(
                     ["batch", "samples"],
                     &chunk,
@@ -730,7 +725,8 @@ impl SileroVad {
                     &["context_size"],
                     &[("batch", batch)],
                 );
-                assert_shape_contract_periodically!(
+                #[cfg(any(debug_assertions, test))]
+                crate::contracts::assert_shape_contract_periodically!(
                     [2, "batch", "d_hidden"],
                     &state,
                     &[("batch", batch), ("d_hidden", self.d_hidden())]
@@ -783,6 +779,7 @@ impl SileroVad {
                     &chunk_seq,
                     &["steps", "batch"],
                 );
+                #[cfg(any(debug_assertions, test))]
                 crate::contracts::assert_shape_contract_periodically!(
                     [2, "batch", "d_hidden"],
                     &state,
@@ -867,7 +864,7 @@ impl SileroVad {
         chunk: Tensor<2>,
         state: Tensor<3>,
     ) -> (Tensor<1>, Tensor<3>) {
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         {
             let [batch] =
                 crate::contracts::unpack_shape_contract!(["batch", "samples"], &chunk, &["batch"]);
@@ -906,7 +903,7 @@ impl SileroVad {
         &self,
         input: Tensor<2>,
     ) -> Tensor<2> {
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         let [batch] =
             crate::contracts::unpack_shape_contract!(["batch", "samples"], &input, &["batch"]);
 
@@ -921,7 +918,7 @@ impl SileroVad {
 
         // [batch, 2 * n_freq, T]
         let x = self.stft.forward(x);
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", 2 * "n_freq", "T"],
             &x,
@@ -935,7 +932,7 @@ impl SileroVad {
         // Encode, then take the first (and, for a single chunk, only) frame.
         let x = self.encoder.forward(mag).select_dim::<2>(2, 0);
 
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "d_hidden"],
             &x,

@@ -252,6 +252,7 @@ impl InverseStft {
             &["B", "F"],
             &[("K", self.n_bins())]
         );
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "K", "F"],
             &imag.dims(),

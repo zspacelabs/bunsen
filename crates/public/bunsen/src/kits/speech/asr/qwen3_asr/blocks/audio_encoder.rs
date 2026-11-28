@@ -460,6 +460,7 @@ impl Qwen3AsrAudioEncoder {
             0,
             Tensor::<1, Int>::from_data(TensorData::new(keep, [n]), &device),
         );
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["n", "d_model"],
             &y.dims(),

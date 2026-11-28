@@ -38,10 +38,7 @@ use crate::{
         module::ModuleInit,
         tensor::Widening,
     },
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -702,7 +699,8 @@ impl CausalSelfAttention {
         let v = match (&self.value_gate, value_embed) {
             (None, None) => v,
             (Some(gate), Some(ve)) => {
-                assert_shape_contract_periodically!(
+                #[cfg(any(debug_assertions, test))]
+                crate::contracts::assert_shape_contract_periodically!(
                     ["B", "T", "V"],
                     &ve.dims(),
                     &[
@@ -785,6 +783,8 @@ impl CausalSelfAttention {
             &["B", "T"],
             &[("D", self.n_embed())]
         );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = b;
         let (q, k, _) = self.queries_keys(input, r_emb);
         let visible = self.uncached_visible(t, &q.device());
         let weights = sdpa_attn_weight(
@@ -796,7 +796,8 @@ impl CausalSelfAttention {
             self.sdpa_config()
                 .with_is_causal(visible.is_none() && self.mask == AttentionMask::Causal),
         );
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "H", "T", "T"],
             &weights.dims(),
             &[("B", b), ("H", self.n_head()), ("T", t)]
@@ -949,7 +950,8 @@ impl CausalSelfAttention {
 
         let y = self.c_proj.forward(y);
 
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "D"],
             &y.dims(),
             &[("B", b), ("T", t_q), ("D", self.n_embed())]

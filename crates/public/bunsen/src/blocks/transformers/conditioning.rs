@@ -171,6 +171,7 @@ impl AdaptiveScale {
         x: Tensor<3>,
         cond: Tensor<3>,
     ) -> Tensor<3> {
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "seq", "d_model"],
             &x.dims(),

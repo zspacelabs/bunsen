@@ -203,6 +203,7 @@ impl BunsenMlp {
         &self,
         x: Tensor<D>,
     ) -> Tensor<D> {
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             [..., "in"],
             &x.dims(),
@@ -216,6 +217,7 @@ impl BunsenMlp {
             None => x,
         };
         let x = self.linear2.forward(x);
+        #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             [..., "out"],
             &x.dims(),
