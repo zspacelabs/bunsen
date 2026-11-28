@@ -183,7 +183,7 @@ impl ModuleInit<NemoMelFrontEnd> for NemoMelFrontEndConfig {
     ) -> BunsenResult<NemoMelFrontEnd> {
         let mut converter: PerceptiveAudioConverter = self.converter_options().try_init(device)?;
         if self.bf16_tables {
-            converter.window = round_to_bf16(converter.window);
+            converter.stft.window = round_to_bf16(converter.stft.window);
             converter.mel_t = round_to_bf16(converter.mel_t);
         }
         Ok(NemoMelFrontEnd {
@@ -474,8 +474,8 @@ mod tests {
             .init(&device);
         for (a, b) in [
             (
-                plain.converter.window.clone().into_data(),
-                rounded.converter.window.clone().into_data(),
+                plain.converter.stft.window.clone().into_data(),
+                rounded.converter.stft.window.clone().into_data(),
             ),
             (
                 plain.converter.mel_t.clone().into_data(),
@@ -623,6 +623,7 @@ mod tests {
 
         let window: Vec<f32> = module
             .converter
+            .stft
             .window
             .clone()
             .into_data()

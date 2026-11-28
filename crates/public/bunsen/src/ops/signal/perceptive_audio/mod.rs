@@ -8,8 +8,10 @@
 //! - [`PerceptiveAudioConverterConfig`] configures the pipeline: framing,
 //!   window, spectrum, mel bank, log. [`ModuleInit`] validates it and builds
 //!   the converter.
-//! - [`PerceptiveAudioConverter`] holds the precomputed constants (window, DFT
-//!   tables, mel filterbank) as bare tensors. It is stateless:
+//! - [`PerceptiveAudioConverter`] holds the precomputed constants as bare
+//!   tensors: a [`SlidingStft`](crate::ops::signal::SlidingStft) (the window,
+//!   and the DFT tables of its spectrum) for the framing and the transform, and
+//!   the mel filterbank. It is stateless:
 //!   [`forward`](PerceptiveAudioConverter::forward) converts a whole signal in
 //!   one call, and one converter can serve any number of streams.
 //! - [`PerceptiveAudioConverter::new_stream_context`] opens a
