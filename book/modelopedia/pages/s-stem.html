@@ -1,0 +1,37 @@
+<div class="prose">
+<p>A 100 Hz feature sequence is too long for attention: 30 seconds is 3000 frames, 9 million attention scores per
+head. Every recognizer's encoder therefore starts with a <b>stem</b> of strided convolutions that trades time
+resolution for width, the speech counterpart of a vision model's patch embedding.</p>
+</div>
+
+<section>
+<h2 id="stems">Four stems</h2>
+<figure class="fig">{{fig:stems}}
+<figcaption><b>Strides and shapes.</b> 1-d stems convolve over time with the mel bands as channels; 2-d stems
+convolve over the time-frequency image and flatten frequency into the width at the end.</figcaption></figure>
+<ul>
+<li><b>Whisper</b>: two 1-d convolutions of 3 taps, the second with stride 2, GELU after each: 50 Hz, one frame per
+20 ms timestamp step{{cite:radford2022}}.</li>
+<li><b>Voxtral Realtime</b>: the same two convolutions, but padded on the left only, so no output frame sees the
+future. Its decoder then <a href="#stacking">stacks</a> four of them per step.</li>
+<li><b>Qwen3-ASR</b>: three 2-d convolutions, each stride 2 in time and frequency, over 480 channels, then a linear
+map of the flattened 480 × 16 features. It runs on 1-second chunks separately (100 → 50 → 25 → 13 frames), so its
+encoder runs at 13 frames a second.</li>
+<li><b>Parakeet</b>: FastConformer's "dw-striding" stem: a full 3×3 stride-2 conv to 256 channels, then two
+depthwise-separable stride-2 stages, then a linear map to the width: 8× in all, 80 ms
+frames{{cite:rekesh2023}}. Subsampling 8× instead of the Conformer's 4× is a large part of FastConformer's speed-up: it
+halves the sequence, so attention's cost falls by 4×.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="stacking">Frame stacking</h2>
+<figure class="fig">{{fig:stacking}}
+<figcaption><b>Concatenate and project.</b> Equivalent to a strided convolution whose kernel equals its stride.</figcaption></figure>
+<p>A projector can also subsample: Voxtral concatenates four consecutive 20 ms encoder frames and maps them through
+an MLP, so each 80 ms of audio becomes one decoder position. The encoder works at 50 Hz, where acoustic detail lives;
+the decoder at 12.5 Hz, roughly the rate of text tokens in speech.</p>
+<div class="callout defer"><span class="t">See also</span>
+<a href="sp-algebra.html#pipelines">frame rates across the kits</a> · the codec's way down to 12.5 or 15 Hz is a
+learned encoder bunsen doesn't load (<a href="s-codec.html">codecs</a>)</div>
+</section>

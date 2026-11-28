@@ -1,0 +1,46 @@
+<div class="prose">
+<p>Speech arrives as a stream and is often wanted as one. A model built for whole utterances can still be streamed
+by running it on windows and committing what is settled. A model that is causal throughout can stream natively. The
+kits do both, and the difference shows up socket by socket.</p>
+</div>
+
+<section>
+<h2 id="causal">What streaming needs</h2>
+<div class="tbl-wrap"><table>
+<thead><tr><th>socket</th><th>streams exactly when…</th><th>kits</th></tr></thead>
+<tbody>
+<tr><td>front end level</td><td>no statistic of future audio enters</td><td>Voxtral (fixed level); others approximate it</td></tr>
+<tr><td>stem</td><td>convolutions are left-padded</td><td>Voxtral</td></tr>
+<tr><td>encoder mask</td><td>causal, or windowed</td><td>Voxtral; Qwen3-ASR's blocks bound the wait to 8 s</td></tr>
+<tr><td>bridge</td><td>each step reads only audio up to now</td><td>Voxtral (add), Parakeet (joint, given its encoder)</td></tr>
+<tr><td>codec</td><td>every layer before the waveform is causal</td><td>both codecs; ZONOS3's tail adds a fixed lag</td></tr>
+</tbody></table></div>
+<p>Voxtral Realtime is the one recognizer whose every socket is causal, so one decoder step can run per 80 ms of
+audio, at a fixed delay. The others see a window at a time.</p>
+</section>
+
+<section>
+<h2 id="windows">Windows and commits</h2>
+<figure class="fig">{{fig:windows_commit}}
+<figcaption><b>Commit the settled part.</b> A window is decoded whole; the words before a late pause are final, and
+the rest is decoded again with more audio.</figcaption></figure>
+<p>bunsen's ASR driver runs any recognizer over a stream. It buffers features, decides when to decode, and places
+what it emits on the stream's clock. An engine that times its words (Parakeet by frames, Qwen3-ASR by alignment
+heads, Voxtral by position) commits the words before the widest pause in a full window's last third, and decodes the
+rest again with the next audio. One that can't time words cuts each window at its quietest stretch before decoding.
+Emission policies choose between offline (decode whole windows), conservative (decode at the end of speech) and
+drafting (emit provisional text and revise it); the real-time ones use a voice-activity model, Silero VAD, to find
+the ends of speech. Whisper's decoder also conditions on the previous window's text, which carries context across
+windows.</p>
+</section>
+
+<section>
+<h2 id="state">State</h2>
+<p>As in the language kits, the model never owns a stream's state. A recognizer's stream carries the front end's
+carry (window overlap, preemphasis), any encoder and decoder caches, and the prediction network's state; a
+synthesizer's carries the decoder caches and each codec layer's state. One loaded model can serve many streams at
+once, and a stream can be restarted by its owner.</p>
+<div class="callout defer"><span class="t">See also</span>
+<a href="c-cache.html">decoding state</a> · <a href="s-codec.html#streaming">streaming a codec</a> ·
+<a href="s-bridge.html#delay">the delay</a></div>
+</section>

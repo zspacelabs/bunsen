@@ -1,0 +1,33 @@
+<div class="prose">
+<p>A transformer block never changes the shape of its stream, so a staged transformer has to downsample <i>between</i>
+blocks. Swin's patch merge does it: each 2×2 neighbourhood of tokens becomes one token with four times the channels,
+which is then reduced to twice the width{{cite:liu2021swin}}. The side halves and the width doubles, as at the first
+unit of a ResNet stage.</p>
+</div>
+
+<section>
+<h2 id="merge">The merge</h2>
+<figure class="fig">{{fig:patch_merge}}
+<figcaption><b>Space to depth, then a projection.</b> The four tokens of each 2×2 block are concatenated (4C), normalized
+and projected to 2C by a bias-free linear map. V1 normalizes the 4C before the projection, V2 the 2C after it. An odd
+side is padded.</figcaption></figure>
+<p>Rearranging a 2×2 block into channels and then applying a 1×1 projection is the same function as a 2×2 conv with
+stride 2. It is the inverse of the sub-pixel "pixel shuffle"{{cite:shi2016pixelshuffle}} followed by a pointwise map.
+So the merge is, once again, a strided conv: the operation behind the <a href="c-sampling.html#stems">stem</a> and the
+<a href="t-patch.html">patch embedding</a>, now used between stages.</p>
+</section>
+
+<section>
+<h2 id="stages">Stages</h2>
+<p>A staged encoder opens stages 2 to 4 with a merge. Stage <span class="math">i</span> is
+<span class="math">C·2<sup>i</sup></span> wide, and its head count grows with it, so the head width stays 32. The stage
+grids at 224 pixels with 4-pixel patches are 56, 28, 14 and 7, the strides of a ResNet's stages. The windows stay
+<span class="math">M×M</span> tokens throughout, so each window covers four times the image area at each stage, much
+as a conv's receptive field grows with stride.</p>
+<p>Where a ResNet's reshaping unit needs a <a href="c-shortcut.html">projection shortcut</a>, the merge sits
+<i>outside</i> every residual. The merge itself has no skip connection, and every block's shortcut stays the
+identity. That is the same choice RegNetZ makes when it gives reshaping units <a href="c-residual.html#linear">no
+residual at all</a>, here applied to the whole stage boundary.</p>
+<div class="callout defer"><span class="t">Used by</span> <a href="f-swin.html">Swin V1, Swin-S3, Swin V2</a>; it
+sits inside the STACK chip of their circuits</div>
+</section>

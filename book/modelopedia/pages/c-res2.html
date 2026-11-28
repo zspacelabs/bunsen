@@ -1,0 +1,39 @@
+<div class="prose">
+<p>The Res2 scale split replaces a bottleneck's single 3×3 mixer with a small hierarchy of 3×3s over chunks of the
+channels{{cite:gao2019res2}}. Each branch sees the previous branch's output, so receptive fields grow inside one unit
+and a single block holds features at several scales.</p>
+</div>
+<figure class="fig">{{fig:res2}}
+<figcaption><b>The split.</b> The 1×1 reduce widens to <span class="math">s</span> chunks of width
+<span class="math">w</span>. One chunk passes through unchanged. Each of the others is convolved after adding the
+previous branch's output. The chunks concatenate back and the 1×1 expand mixes them. (The paper passes the first
+chunk through; timm and bunsen pass the last. The two differ only by a permutation of the chunks.)</figcaption></figure>
+
+<section>
+<h2 id="theory">The recurrence</h2>
+<p class="eq">y<sub>1</sub> = x<sub>1</sub>,&nbsp; y<sub>2</sub> = K<sub>2</sub>(x<sub>2</sub>),&nbsp; y<sub>i</sub> = K<sub>i</sub>(x<sub>i</sub> + y<sub>i−1</sub>)&nbsp; (2 &lt; i ≤ s)</p>
+<p>Inside the mixer this is a residual-style chain along the <i>channel</i> axis. Branch
+<span class="math">i</span> is a composition of <span class="math">i−1</span> 3×3 convs, so its reach is
+<span class="math">2i−1</span>. The output concatenates the identity (reach 1) and every reach up to
+<span class="math">2s−1</span>.</p>
+<figure class="fig">{{fig:res2_rf}}
+<figcaption><b>Nested receptive fields in one unit.</b> Res2 increases scale granularity <i>within</i> a block,
+where the stage pyramid does it <i>across</i> blocks. The parameter count is about that of a grouped conv with
+<span class="math">s</span> groups, and the reach is that of an <span class="math">s−1</span>-deep stack.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="first">Striding units</h2>
+<p>In a unit that strides or changes width the hierarchy is cut: every convolved chunk is processed separately at the
+stride, and the pass-through chunk goes through a 3×3 average pool of the same stride so that the shapes agree. The
+hierarchy exists only in units that keep their shape.</p>
+</section>
+
+<section>
+<h2 id="algebra">In the algebra</h2>
+<p>Res2 is a <a href="algebra.html#slots">mixer</a> kind for bottleneck units. Its knobs are the scale
+<span class="math">s</span> and the chunk width <span class="math">w</span>, which is the ResNet bottleneck's
+<span class="math">⌊planes · base_width/64⌋ · groups</span>, so <code>26w_4s</code> means 4 chunks of 26 per 64 planes. Its
+branches are ordinary <a href="c-conv.html">conv blocks</a>, grouped in Res2NeXt. DropBlock, if enabled, acts on the
+concatenated output.</p>
+</section>

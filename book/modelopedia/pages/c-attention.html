@@ -1,0 +1,53 @@
+<div class="prose">
+<p>Channel attention rescales the channels of a feature map by gains computed from the map itself:</p>
+<p class="eq">y = x ⊙ σ( f( mean<sub>h,w</sub> x ) )</p>
+<p>A spatial mean (the <i>squeeze</i>) summarizes each channel into one number. A small function
+<span class="math">f</span> maps that <span class="math">C</span>-vector to <span class="math">C</span> logits, and
+their sigmoids gate the channels (the <i>excite</i>). Every variant in the lineage has this form and differs only in
+<span class="math">f</span> and in where the gate is placed.</p>
+</div>
+
+<section>
+<h2 id="se">Squeeze-and-excitation</h2>
+<figure class="fig">{{fig:se}}
+<figcaption><b>SE.</b> <span class="math">f</span> is a two-layer bottleneck MLP: 1×1 convs
+<span class="math">C → C/r → C</span> with an activation between{{cite:hu2018}}. In timm and bunsen the reduction is
+<span class="math">r = 16</span> rounded to multiples of 8; ResNet-RS uses ¼{{cite:bello2021}}.</figcaption></figure>
+<p>The squeeze gives the gate global context: every channel's gain depends on the whole image, which a 3×3 conv stack
+only sees after many layers. The cost is tiny, about <span class="math">2C²/r</span> parameters and no spatial work.</p>
+</section>
+
+<section>
+<h2 id="geometry">Geometry: an input-conditioned diagonal</h2>
+<figure class="fig">{{fig:gate_geometry}}
+<figcaption><b>Left:</b> a gate is a diagonal matrix <span class="math">diag(g)</span> on channel space. It stretches
+or shrinks the axes and never rotates or mixes them; the convs before and after do the mixing. Because
+<span class="math">g</span> depends on the input, the composite is a different linear map for every image, a cheap
+form of dynamic weights. <b>Right:</b> the branch attention of <a href="c-sk.html">SK</a> and
+<a href="c-splitattn.html">split attention</a> generalizes this: per channel, a softmax picks a point on a simplex of
+branches instead of a gain in (0, 1).</figcaption></figure>
+</section>
+
+<section>
+<h2 id="eca">ECA: local channel interaction</h2>
+<figure class="fig">{{fig:se_vs_eca}}
+<figcaption><b>SE versus ECA.</b> SE's <span class="math">f</span> is dense and low-rank. ECA replaces it with one 1-d
+convolution across the channel axis, with no reduction{{cite:wang2020eca}}. Each gate then depends on
+<span class="math">k</span> neighbouring channels, with <span class="math">k</span> growing with
+<span class="math">log₂C</span> (3 at 64 channels, 5 at 256, 7 at 2048).</figcaption></figure>
+<p>ECA's argument is that SE's dimensionality reduction hurts: the bottleneck forces the gates through a rank
+<span class="math">C/r</span> subspace. A banded map keeps full rank at <span class="math">k</span> parameters per
+unit, but assumes that channel order carries meaning, which holds only to the extent that training makes it so.</p>
+</section>
+
+<section>
+<h2 id="place">Placement</h2>
+<figure class="fig">{{fig:attn_place}}
+<figcaption><b>Two attachment points.</b> ResNet-style nets gate the <i>full-width</i> residual branch after its last
+norm, before the add{{cite:hu2018}}. RegNet gates the <i>bottleneck</i> right after the mixer, so the last 1×1 mixes
+the gated channels{{cite:radosavovic2020}}, and it sizes the reduction from the unit's <i>input</i> width
+(<span class="math">round(C<sub>in</sub> · ¼)</span>) rather than from the gated channels.</figcaption></figure>
+<p>In the generic unit the attention is one slot with a placement flag; the kind and the sizing rule are the only
+other degrees of freedom. A family that "adds SE" (SE-ResNet, SE-ResNeXt, RegNetY, ResNet-RS) fills this slot and
+changes nothing else.</p>
+</section>

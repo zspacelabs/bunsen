@@ -1,0 +1,68 @@
+<div class="prose">
+<p>The residual unit is the combinator that gives the lineage its name. Instead of learning a map
+<span class="math">H(x)</span> directly, a unit learns the residual <span class="math">F(x) = H(x) − x</span> and adds
+its input back{{cite:he2016}}:</p>
+<p class="eq">y = act( shortcut(x) + F(x) )</p>
+<p>The full slot structure (pre-activation, attention, regularizers) is described in
+<a href="algebra.html#unit">the shared algebra</a>. This chapter covers why the form works and what it computes. The
+shapes of <span class="math">F</span> are <a href="c-units.html">unit kinds</a>; the shapes of the shortcut are
+<a href="c-shortcut.html">shortcuts</a>.</p>
+</div>
+
+<section>
+<h2 id="roots">Before residuals</h2>
+<p>VGG showed that depth built from 3×3 convs pays off up to about 19 layers{{cite:simonyan2014}}. Past that, plain
+nets got <i>worse on the training set</i>. That is an optimization failure, not overfitting. Highway networks had
+already added gated skip connections, <span class="math">y = T(x)·H(x) + (1−T(x))·x</span>{{cite:srivastava2015}}.
+ResNet's step was to remove the gate: the skip is always fully open.</p>
+</section>
+
+<section>
+<h2 id="geometry">Geometry: perturbations of the identity</h2>
+<figure class="fig">{{fig:resid_geometry}}
+<figcaption><b>Left:</b> each unit moves its input by a learned displacement <span class="math">F(x)</span>.
+If <span class="math">F</span> is small, the unit is close to the identity. <b>Right:</b> a stage of such units is a
+discretized flow: a chain of small steps through feature space, like Euler integration of an ODE
+{{cite:chen2018ode}}.</figcaption></figure>
+<p>This picture explains the optimization benefit. At initialization (and exactly so with the last norm's
+<span class="math">γ = 0</span>{{cite:goyal2017}}) a deep residual net is close to the identity, which is a good
+starting point. The Jacobian of a unit is <span class="math">I + ∂F/∂x</span>, so the gradient through a stack of
+units always contains a direct term that does not shrink with depth.</p>
+</section>
+
+<section>
+<h2 id="ensemble">An ensemble of paths</h2>
+<figure class="fig">{{fig:unrolled}}
+<figcaption><b>Unrolling.</b> Expanding the product <span class="math">(1+F₃)(1+F₂)(1+F₁)</span> gives
+<span class="math">2ⁿ</span> paths of lengths 0 to <span class="math">n</span>. Deleting one unit from a trained ResNet
+removes only half of the paths, and accuracy degrades smoothly. Most of the gradient flows through the short
+paths{{cite:veit2016}}. <a href="c-drop.html">Stochastic depth</a> trains on random sub-ensembles of this kind.</figcaption></figure>
+<p>(The product form is exact for pre-activation units with identity shortcuts. With post-activation units the ReLU
+after each add makes the expansion approximate.)</p>
+</section>
+
+<section>
+<h2 id="preact">Post- versus pre-activation</h2>
+<figure class="fig">{{fig:post_vs_pre}}
+<figcaption><b>Where the nonlinearity sits.</b> In v1 the sum passes through a ReLU, so the "identity" shortcut is
+rectified at every unit. In v2 each conv is preceded by its norm and activation, and nothing follows the add{{cite:he2016id}}.
+Signals then propagate exactly: <span class="math">x<sub>L</sub> = x<sub>l</sub> + Σ<sub>i=l</sub><sup>L−1</sup> F<sub>i</sub>(x<sub>i</sub>)</span>.</figcaption></figure>
+<p>In the generic unit, pre-activation fills the <i>pre</i> slot (one norm and activation over the unit's input, read
+by both the path and a projection shortcut), turns every later conv into a "norm → act → conv" form, and empties the
+output-activation slot. A pre-activated net has a bare stem conv and needs a <a href="c-head.html">final</a> norm and
+activation before the pool, because nothing else normalizes the residual stream.</p>
+<p>One choice remains: does an identity shortcut read the raw <span class="math">x</span> or the pre-activated one?
+ResNetV2 and BiT read the raw stream, which is what keeps the identity clean. timm's RegNetV reads the pre-activated
+input.</p>
+<figure class="fig">{{fig:preact_shortcut}}
+<figcaption><b>Two pre-activation conventions.</b> A projection shortcut reads <span class="math">pre(x)</span>
+in both.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="linear">Linear outputs and no residual</h2>
+<p>Two more degenerate cases complete the algebra. A <b>linear-output</b> unit has no activation after the add (RegNetZ,
+following MobileNetV2's linear bottlenecks{{cite:sandler2018}}), so the residual stream is never rectified, as in
+pre-activation, but with the norms still after the convs. A unit with <b>no residual</b> is its path alone. RegNetZ
+uses this where a unit changes shape, instead of spending a projection on a shortcut{{cite:dollar2021}}.</p>
+</section>

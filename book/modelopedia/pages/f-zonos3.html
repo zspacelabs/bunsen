@@ -1,0 +1,44 @@
+<div class="prose">
+<p>ZONOS3-Mini is Zyphra's compact synthesizer{{cite:zyphra2026zonos3}}: 800M parameters, about 100M active per
+step, speaking nine languages at 44.1 kHz. Against Qwen3-TTS it changes nearly every socket: how a frame's codebooks
+are laid out, the stack, the codec, and how a voice enters.</p>
+</div>
+
+<section>
+<h2 id="design">ZONOS3-Mini</h2>
+<p><b>Design change.</b></p>
+<ul>
+<li><b>Rows and layout.</b> Each row is 11 ids (ten codebooks and a text id), summed through their own tables, with
+the codebooks staggered by the <a href="s-codes.html#delay">delay pattern</a>: one step samples all ten heads at
+once.</li>
+<li><b>Prompt.</b> A speaker (reference codes from a clip, or a projected speaker embedding), one row per condition
+(loudness, bandwidth, speaking rate, each bucketed), the text, and a few frames of silence to start from.</li>
+<li><b>Stack.</b> 11 layers of width 1024: nine gated DeltaNets and two global attention layers, joined by
+<a href="s-routes.html#attnres">attention residuals</a> instead of a residual stream, with a dense SwiGLU in the first
+layer and a <a href="s-routes.html#moe">latent mixture of experts</a> (64 experts, top-2) in the other ten.</li>
+<li><b>Codec.</b> Ten codebooks of 4096 at 15 Hz; five windowed causal attention stages joined by patch-ups up to
+240 Hz; ConvNeXt blocks; two ISTFT heads, mixed and resampled to 44.1 kHz.</li>
+</ul>
+<p><b>Why.</b> Each change trades a little exactness for a lot of speed. The delay pattern needs one model step per
+frame, where a depth decoder adds fifteen small ones. DeltaNet layers keep the per-step cost constant over a long
+take. The latent MoE gives the model the capacity of 800M parameters at the cost of 100M. And an ISTFT head makes
+the last ×184 of upsampling an inverse FFT. Attention residuals let each sublayer read exactly the earlier outputs it
+needs; one reading is that a small model benefits most from not diluting them in a sum.</p>
+<p class="circuit-key">Circuit key: four rows, audio in to audio out, each read left to right. Solid chips are
+components (click one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes
+relative to its parent.</p>
+{{circuit:zonos3|Against Qwen3-TTS: a speaker path through the top rows, a delayed layout in place of the depth decoder, a routed MoE hybrid, and an ISTFT codec.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="s-codes.html">the delay pattern</a> · <a href="s-routes.html">routes &amp; experts</a> ·
+<a href="c-deltanet.html">the gated DeltaNet</a> · <a href="s-codec.html#vocoders">ISTFT heads</a></div>
+</section>
+
+<section>
+<h2 id="speaker">The speaker encoder</h2>
+<p>To clone a voice from a clip without its codes, ZONOS3 has a speaker encoder from the speaker-recognition
+literature: a Kaldi filterbank, AntSpeaker's MECT-B2 network (residual convolution stages, each followed by a small
+transformer layer over the flattened channels whose feed-forward is a soft mixture of four experts{{cite:puigcerver2024}}),
+a learned mix of the stages, attentive statistics pooling{{cite:okabe2018}} to one 192-dimensional vector, and a
+projection that replaces one prompt row. The stock voices use reference codes instead, which give the model the voice's actual
+sound to continue from.</p>
+</section>

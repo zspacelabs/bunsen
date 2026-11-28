@@ -1,0 +1,62 @@
+<div class="prose">
+<p>Window attention is Swin's token mixer{{cite:liu2021swin}}. It runs self-attention inside non-overlapping
+<span class="math">M×M</span> windows of the token grid, so the cost is linear in the image's area. It shifts the
+windows by half a window in every second block, so information still crosses window borders. Positions enter as a
+learnt bias on each window's scores.</p>
+</div>
+
+<section>
+<h2 id="partition">Windows, and shifting them</h2>
+<figure class="fig">{{fig:window_partition}}
+<figcaption><b>W-MSA, then SW-MSA.</b> In odd blocks the window grid moves by <span class="math">⌊M/2⌋</span>. Rather
+than pad the nine resulting pieces, Swin rolls the whole grid cyclically so they pack back into
+<span class="math">M×M</span> windows. A mask then blocks attention between pieces that weren't neighbours in the
+image, and the grid is rolled back afterwards.</figcaption></figure>
+<p>Two successive blocks thus have overlapping receptive fields, like two stacked 3×3 convs whose reach grows layer by
+layer. Window attention is a halfway point between a conv and global attention. It is local like a conv, but within a
+window the weights are content-dependent like attention's.</p>
+<p><b>The grid clamps the window.</b> When a stage's grid is no bigger than the window, the window shrinks to the grid
+and the shift is dropped. That stage's attention is then simply global. A Swin-T at 224 pixels has stage grids of 56,
+28, 14 and 7. With <span class="math">M = 7</span>, its last stage is one window: global attention with no shift.
+<a href="f-swin.html#s3">Swin-S3</a> uses this rule on purpose.</p>
+</section>
+
+<section>
+<h2 id="cost">Cost</h2>
+<figure class="fig">{{fig:attn_cost}}
+<figcaption><b>Global versus windowed.</b> Over <span class="math">N</span> tokens, global attention's score and mix
+cost <span class="math">2N²C</span>, and window attention's <span class="math">2M²NC</span>. At Swin's stage-1
+resolution, the gap is a factor of <span class="math">N/M²</span>: 64 at 224 pixels, and more than 1300 at
+1024.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="bias">Relative position bias</h2>
+<figure class="fig">{{fig:rel_pos_bias}}
+<figcaption><b>Table versus MLP.</b> V1 learns one bias per head for each of the <span class="math">(2M−1)²</span>
+offsets a window allows. V2 computes it with a small network over log-spaced offsets.</figcaption></figure>
+<p>Swin has no absolute position embedding. Each head adds <span class="math">B[Δ]</span> to the score of a query–key
+pair with offset <span class="math">Δ</span>, in the spirit of relative position
+representations{{cite:shaw2018}}. The bias depends only on the offset, so it is translation-invariant like a conv
+kernel. The paper found it worth more than an absolute embedding.</p>
+<p>A learnt table, though, only knows the offsets it was trained on. Change the window and you have to interpolate the
+table. Swin V2's <b>continuous position bias</b> (CPB) replaces the table with an MLP (2 → 512 → heads, ReLU)
+evaluated at the offsets <span class="math">Δ̂ = sign(Δ)·log(1 + |Δ|)</span>, squashed to
+<span class="math">16·σ(·)</span>{{cite:liu2022swinv2}}. The log spacing compresses large offsets, so a model fine-tuned
+at a larger window extrapolates over a shorter range. The offsets are normalized by the window the weights were
+<i>pretrained</i> at, so <code>window12to24</code> means pretrained at 12 and run at 24.</p>
+</section>
+
+<section>
+<h2 id="cosine">Cosine attention</h2>
+<figure class="fig">{{fig:cosine_attn}}
+<figcaption><b>Bounded scores.</b> V2 scores pairs by the cosine of the angle between query and key, times a learnt
+per-head scale capped at 100, instead of the scaled dot product.</figcaption></figure>
+<p>Dot-product scores grow with the size of the activations. In large Swins, a few heads came to be dominated by a few
+pairs of tokens. Cosine similarity is bounded whatever the activations' size, and together with res-post-norm it made
+V2's 3-billion-parameter models trainable{{cite:liu2022swinv2}}. V2's projections also bias the query and value but
+not the key.</p>
+<div class="callout defer"><span class="t">Used by</span>
+<a href="f-swin.html">Swin V1, Swin-S3, Swin V2</a> · sits in the TOKEN MIXER socket of
+<a href="t-sublayer.html">the residual sublayer</a></div>
+</section>

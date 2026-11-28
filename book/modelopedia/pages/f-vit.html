@@ -1,0 +1,75 @@
+<div class="prose">
+<p>The Vision Transformer{{cite:dosovitskiy2020}} took the text Transformer's encoder{{cite:vaswani2017}}, in its pre-norm
+form, almost unchanged and fed it image patches as words. Its result was about scale, not architecture. On ImageNet
+alone a ViT trails a ResNet of similar size, because it lacks the conv's locality bias. Pretrained on hundreds of
+millions of images it overtakes the ResNet, because data can teach what the conv's structure had built in. Every family
+in this half descends from it.</p>
+</div>
+
+<section>
+<h2 id="design">ViT</h2>
+<p><b>Design.</b> 16×16 (or 32, 14, 8) patches become width-<span class="math">D</span> tokens. A class token goes in
+front, and a learnt position embedding covers all of them. Then come <span class="math">L</span> identical pre-norm
+blocks of global multi-head attention and a GELU MLP (×4), a final LayerNorm, and the class token read by a linear
+classifier.</p>
+<p><b>Why.</b> The point was to use as little vision-specific structure as possible. Apart from cutting the image into
+patches (and resizing the position embedding to fine-tune at a higher resolution), the model knows nothing about 2-d
+images, and the paper shows that this is enough at scale. The shapes come from BERT: Base is 12 layers of 768 with 12
+heads, Large 24 of 1024 with 16, Huge 32 of 1280 with 16. timm adds Tiny and Small, and later towers add their own
+(so400m, giant). Those are scale, not design.</p>
+<p><b>Slot fill.</b> patch = <span class="math">p×p</span> conv with bias · tokens = class + learnt positions over all ·
+blocks = LN → MHSA, LN → MLP · final = LN · pool = token.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis; the board below is one encoder block, drawn as its two
+residual sublayers. Solid chips are injected components (click one for its combinator chapter); dashed sockets are
+empty, and the wire passes straight through. <b>Δ</b> marks the sockets a variant changes relative to its parent.</p>
+{{circuit:vit|The root of this half of the book: pre-norm sublayers, global attention, a class-token readout.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="t-patch.html">patch embedding &amp; tokens</a> · <a href="t-attention.html">self-attention</a> ·
+<a href="t-mlp.html">MLP</a> · <a href="t-sublayer.html">pre-norm sublayer</a> · <a href="t-pool.html">token pool</a></div>
+</section>
+
+<section>
+<h2 id="hybrid">Hybrid ViT: a ResNetV2 trunk</h2>
+<p><b>Design change.</b> The patch embedding cuts a conv net's feature map instead of the image. In R50+ViT-B/16 the
+trunk is ResNet-50's stem and first three stages, the third lengthened from 6 units to 9. Its stride-16 map is cut into
+1×1 patches, so the token grid is the same as a plain ViT-B/16's{{cite:dosovitskiy2020}}. The trunk is the
+<a href="f-resnetv2.html">ResNetV2</a> kit used <i>without</i> pre-activation: BiT's group norm and weight-standardized
+convs with SAME padding, and no head. The smaller hybrids from <i>How to train your ViT</i> cut other maps: R26+ViT-S/32
+has four stages of two units, and the Ti hybrid keeps the stem alone and cuts its map in 8×8
+patches{{cite:steiner2021}}.</p>
+<figure class="fig">{{fig:hybrid}}
+<figcaption><b>Conv early, attention late.</b> The trunk supplies the local, translation-equivariant features the ViT
+would otherwise have to learn. In the paper, hybrids help most at small compute budgets.</figcaption></figure>
+{{circuit:vit-hybrid|Two sockets: a BACKBONE, and a patch embedding that becomes a 1×1 conv on its map.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="f-resnetv2.html#boundary">ResNetV2 as a trunk</a> · <a href="algebra.html">the conv net</a> ·
+<a href="t-patch.html#embed">patch embedding</a></div>
+</section>
+
+<section>
+<h2 id="rpn">ResPost ViT</h2>
+<p>A timm experiment{{cite:timm}}: ViT blocks in Swin V2's <a href="t-sublayer.html#placement">res-post-norm</a> placement,
+with no class token, an average pool normalized after pooling, and no qkv bias. It tests on a plain ViT the
+stability fix that Swin V2 introduced for windows.</p>
+{{circuit:vit-rpn|The norms move from PRE to POST in both sublayers; the readout becomes a normalized mean.}}
+</section>
+
+<section>
+<h2 id="gap">GAP ViTs</h2>
+<p>timm's "searching for better baselines" ViTs{{cite:timm}} (<code>medium</code>, <code>betwixt</code>,
+<code>mediumd</code> and others) drop the class token and average the patch tokens. They add layer scale and remove the
+qkv bias. The plain <code>_gap_</code> nets keep the final norm before the pool. Their register siblings are covered in
+<a href="f-dino.html#sbb">DINOv2 &amp; Registers</a>.</p>
+{{circuit:vit-gap|No class token, a mean pool, layer scale on both residuals, and no qkv bias.}}
+</section>
+
+<section>
+<h2 id="flexi">FlexiViT</h2>
+<p>FlexiViT{{cite:beyer2023flexivit}} trains one ViT over randomly varying patch sizes, resizing the patch-embedding
+weights and position embedding to match, so a single model serves every compute budget. What it leaves in the weights'
+<i>structure</i> is a position embedding over the patches alone (<code>no_embed_class</code>). The kit builds each
+FlexiViT at its trained patch size, 16.</p>
+{{circuit:flexivit|One parameter: the position embedding stops covering the class token.}}
+<div class="callout defer"><span class="t">Next</span> <a href="f-deit.html">DeiT</a>, which keeps the ViT and changes
+how it is trained</div>
+</section>

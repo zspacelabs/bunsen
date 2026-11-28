@@ -1,0 +1,49 @@
+<div class="prose">
+<p>A codec frame is not one token but several: 16 codes for Qwen3-TTS, 10 for ZONOS3. A synthesizer's language model
+must predict that small, internally dependent object at every step. This chapter covers how a frame is fed in,
+and the two ways the kits factor its prediction.</p>
+</div>
+
+<section>
+<h2 id="rows">Rows</h2>
+<figure class="fig">{{fig:row_embed}}
+<figcaption><b>One table per column.</b> A row's embedding is the sum of each id's lookup.</figcaption></figure>
+<p>Both models feed each frame as one position whose embedding is the <b>sum</b> of an embedding per codebook,
+plus a text embedding. Summing is cheap, keeps one position per frame, and is a natural fit for residual codes, which
+are themselves summed on decoding. The text column is how the text reaches the model: ZONOS3 gives every row a text
+id (the text first, then a pad), and Qwen3-TTS adds the next text token to each generated frame (its "interleaved"
+mode) or puts all the text first and pads after (its default). Speaker and condition rows replace the sum with a
+projected embedding or a learnt row per bucket.</p>
+</section>
+
+<section>
+<h2 id="layouts">Three layouts</h2>
+<figure class="fig">{{fig:code_layouts}}
+<figcaption><b>Factoring a frame.</b> Flatten it, stagger it across rows, or give it a decoder of its own.</figcaption></figure>
+<p>Flattening every frame into <span class="math">K</span> sequential tokens is exact but makes the sequence
+<span class="math">K</span> times longer. The kits use the other two layouts:</p>
+<ul>
+<li id="delay"><b>The delay pattern</b> (ZONOS3), as in MusicGen{{cite:copet2023}}: codebook <i>k</i> of frame
+<i>f</i> is written in row <i>f + k</i>. One step samples all <span class="math">K</span> heads at once,
+independently, but by the time codebook <i>k</i> of a frame is sampled, codebooks 0…<i>k</i>−1 of that frame were
+sampled in earlier rows and are in context. The cost is <span class="math">K − 1</span> rows of lag, and a stop
+rule that runs <span class="math">K</span> rows past the end-of-audio symbol to complete the last frames.</li>
+<li id="depth"><b>A depth decoder</b> (Qwen3-TTS): the main model steps once per frame and predicts only codebook 0.
+A small second decoder then runs <i>within</i> the frame, over the codebook axis: its context is the main model's
+hidden state and codebook 0's embedding, and it writes codebooks 1 to 15 one after another, with a table and a head
+of its own for each. The idea is the RQ-Transformer's{{cite:lee2022rq}}, used for speech by Moshi{{cite:defossez2024}}.
+It is exact within the frame and costs one 5-layer decode per frame.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="sampling">Sampling</h2>
+<p>Both models sample rather than search. Speech has many valid realizations, and the argmax path is flat and
+repetitive. Qwen3-TTS samples at temperature 0.9 with top-k 50 and a mild repetition penalty (1.05) on codebook 0.
+ZONOS3 samples every codebook at 0.75 with top-k 80 and top-p 0.69, and a strong repetition penalty (2.4) over the
+last 96 rows on the first six codebooks only, the ones that carry content. A take ends when the model emits its
+end-of-audio code.</p>
+<div class="callout defer"><span class="t">Used by</span>
+<a href="f-qwen3tts.html">Qwen3-TTS</a> (summed rows, depth decoder) · <a href="f-zonos3.html">ZONOS3</a> (summed
+rows, delay pattern)</div>
+</section>

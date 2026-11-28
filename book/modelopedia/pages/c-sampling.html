@@ -1,0 +1,46 @@
+<div class="prose">
+<p>All of the stride in a residual net comes from three places: the stem, each stage's first unit, and (in the
+shortcut) a projection or pool. This chapter covers the first two and the low-pass filters that can be added to them.
+Output stride, where later strides become dilation, is covered in <a href="c-conv.html#os">conv blocks</a>.</p>
+</div>
+
+<section>
+<h2 id="stems">Stems</h2>
+<p>The stem takes the image from 3 channels to the first stage's width and reduces its side by 4, using one strided
+conv stack and one pool. It is where most of the network's spatial resolution is given up, and where conv cost per
+output channel is highest.</p>
+<figure class="fig">{{fig:stems}}
+<figcaption><b>Stem variants.</b> ResNet's single 7×7{{cite:he2016}}. The <i>deep</i> stem: three 3×3s with the same
+reach and more nonlinearity, from Inception{{cite:szegedy2016}} via the "ResNet-C" tweak{{cite:he2019tricks}}, at width
+32 (C, D) or 64 (S). The <i>tiered</i> stem (T), whose first conv is ¾ as wide. RegNet's single 3×3 with no pool
+{{cite:radosavovic2020}}. ResNet-RS's deep stem with the max pool replaced by a strided 3×3 conv{{cite:bello2021}}.
+</figcaption></figure>
+<p>The pool has a few numerical variants, each needed to match a set of trained weights. BiT zero-pads before an
+unpadded max pool{{cite:kolesnikov2020}}, so on a negative pre-activation map the zeros can win. A SAME-padded max pool
+pads with <span class="math">−∞</span> on the bottom-right, so the pad never wins. Pre-activation nets leave the last
+stem conv bare, because the first unit's pre-norm normalizes it.</p>
+</section>
+
+<section>
+<h2 id="aa">Anti-aliased downsampling</h2>
+<figure class="fig">{{fig:alias}}
+<figcaption><b>Striding is sampling.</b> A stride-2 layer keeps every other sample. Any content above the new Nyquist
+frequency folds back as a false low-frequency pattern, so shifting the input by one pixel can change the output a lot.
+Max pooling and strided convs both sample before they low-pass{{cite:zhang2019aa}}.</figcaption></figure>
+<p>The fix comes from signal processing: low-pass, then subsample. An anti-aliased net moves each stride off its conv
+(or max pool) onto a fixed blur that runs after the activation:</p>
+<p class="eq">conv<sub>s</sub> → norm → act &nbsp;⟶&nbsp; conv<sub>1</sub> → norm → act → BlurPool<sub>s</sub></p>
+<figure class="fig">{{fig:binomial}}
+<figcaption><b>The blur.</b> A binomial filter, the discrete approximation of a Gaussian, with taps
+<span class="math">C(n−1,k)/2ⁿ⁻¹</span> applied separably and without parameters. It preserves constants (the taps sum
+to 1) and strongly attenuates high frequencies.</figcaption></figure>
+<p>timm's variants are <b>blur</b> (a 3×3 binomial) and <b>avg</b> (a 2×2 average pool of the stride, a cruder box
+low-pass). In the stem, the max pool becomes a stride-1 max followed by a blur of stride 2, or a 2×2 average pool.
+The price is compute: a striding unit's mixer now runs at its input's resolution, about 4× the FLOPs of its strided
+form. The blur itself is cheap.</p>
+<figure class="fig">{{fig:aa_place}}
+<figcaption><b>Where the low-pass goes.</b> Anti-aliased ResNets put the pool after the mixer's activation.
+ResNeSt's <i>avd</i> is a 3×3 average pool of stride 2 with padding 1, after the mixer or, for some geometries, before
+it (<code>avd_first</code>), which makes the expensive split-attention mixer run at the reduced size{{cite:zhang2020resnest}}.
+</figcaption></figure>
+</section>

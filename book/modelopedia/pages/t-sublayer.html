@@ -1,0 +1,74 @@
+<div class="prose">
+<p>The residual sublayer is to the transformer what the <a href="c-residual.html">residual unit</a> is to the conv nets:
+the combinator that makes depth trainable. An encoder block is two of them in series, one around attention and one
+around the MLP. Most of the architectural changes between transformer families happen not in the branches but in the
+norms around them.</p>
+</div>
+
+<section>
+<h2 id="slots">The slots</h2>
+<figure class="fig">{{fig:sublayer_slots}}
+<figcaption><b>One sublayer, four norm slots.</b> <i>input</i> normalizes the stream before the fork, <i>pre</i> the
+branch's input, <i>post</i> the branch's output, and <i>out</i> the sum. A layer scale γ and (in training) drop path act
+on the residual before it is added. bunsen's <code>ResidualSublayer</code> owns exactly these slots.</figcaption></figure>
+<p class="eq">y = out( x + droppath( γ ⊙ post( f( pre(x) ) ) ) )</p>
+<p>An empty slot is the identity. Every image family on this side fills only <i>pre</i> or only <i>post</i>, plus,
+sometimes, γ.</p>
+</section>
+
+<section>
+<h2 id="kinds">Norm kinds</h2>
+<p>Transformers normalize each token over its channels. Statistics never cross tokens or images, so these norms
+behave the same in training and inference at any batch size. That is the property BiT had to buy for conv nets with
+<a href="c-norm.html#gn">group norm</a>.</p>
+<ul>
+<li><b>LayerNorm</b>{{cite:ba2016ln}}: subtract the token's mean, divide by its standard deviation, apply a per-channel
+affine. timm's ViTs use <span class="math">ε = 10⁻⁶</span>. CLIP, Swin and the BEiT3 and AIMv2 towers keep
+PyTorch's <span class="math">10⁻⁵</span>. The ε is part of the weights' contract, which is why bunsen's policy carries
+it.</li>
+<li><b>RMSNorm</b>{{cite:zhang2019rms}}: divide by the root mean square, with no centering and no shift. It is cheaper
+and was popularized by language models. AIMv2 uses it everywhere: in the blocks, on the patch tokens and at the
+end.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="placement">Norm placement</h2>
+<figure class="fig">{{fig:norm_placement}}
+<figcaption><b>Three placements.</b> The highlighted line is the identity path. Post-norm interrupts it at every block.
+Pre-norm and res-post-norm leave it clean.</figcaption></figure>
+<ul>
+<li><b>Post-norm</b>, <span class="math">LN(x + f(x))</span>: the 2017 Transformer's{{cite:vaswani2017}}. The stream is
+renormalized after every add, so gradients to early layers pass through every norm. Deep post-norm stacks need a
+learning-rate warm-up to train at all{{cite:xiong2020}}. This is ResNet v1's activation-after-add.</li>
+<li><b>Pre-norm</b>, <span class="math">x + f(LN x)</span>: ViT and almost every vision transformer. The identity path
+is clean and the stack telescopes, which is ResNetV2's pre-activation law{{cite:he2016id}}. The price is that the stream's
+size grows with depth, since nothing renormalizes it. That is why a final norm sits after the stack.</li>
+<li><b>Res-post-norm</b>, <span class="math">x + LN(f x)</span>: Swin V2's{{cite:liu2022swinv2}}. The identity stays clean,
+and each branch's contribution is normalized before it is added, so no single block can inject a runaway activation.
+V2 introduced it after finding that the activations of large pre-norm Swins grew by orders of magnitude in deep
+layers. timm's <code>rpn</code> ViT tries the same placement on a ViT.</li>
+</ul>
+<p>Filling <i>pre</i> and <i>post</i> together is the "sandwich" of some language models. No image family here uses
+it.</p>
+</section>
+
+<section>
+<h2 id="scale">Layer scale</h2>
+<figure class="fig">{{fig:layer_scale}}
+<figcaption><b>A learnt diagonal on each residual.</b> CaiT introduced it to train deeper ViTs{{cite:touvron2021cait}}.
+DeiT III, DINOv2, C-RADIO's base and large towers, and timm's GAP and register baselines all use it.</figcaption></figure>
+<p>The conv nets had the same idea: initializing the last BN's γ in each residual unit to zero makes every unit start
+as the identity{{cite:goyal2017}}. Layer scale makes that gain an explicit per-channel parameter, separate from any
+norm, so it also works under pre-norm, where the branch ends in a linear projection rather than a norm.</p>
+</section>
+
+<section>
+<h2 id="droppath">Drop path</h2>
+<p><a href="c-drop.html#droppath">Stochastic depth</a> carries over unchanged{{cite:huang2016}}. During training, each
+sublayer's residual is dropped for a whole sample with some probability, ramped linearly from 0 at the first block to
+the policy's rate at the last. Swin splits that ramp at its stage boundaries. It changes nothing at inference.</p>
+<div class="callout defer"><span class="t">Branches</span>
+<a href="t-attention.html">self-attention</a> · <a href="t-window.html">window attention</a> ·
+<a href="t-mlp.html">MLP</a></div>
+</section>

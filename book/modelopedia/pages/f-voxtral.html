@@ -1,0 +1,36 @@
+<div class="prose">
+<p>Voxtral Realtime is Mistral's streaming recognizer{{cite:mistral2026voxtral}}. Every part of it is causal, from
+the front end's level to the decoder, so it consumes audio as it arrives and writes text a fixed delay behind it,
+one decoder step per 80 ms.</p>
+</div>
+
+<section>
+<h2 id="design">Voxtral Realtime</h2>
+<p><b>Design change.</b> Against Qwen3-ASR:</p>
+<ul>
+<li>The front end measures against a <a href="s-frontend.html#levels">fixed level</a>, so chunking never changes a
+feature.</li>
+<li>The stem's convolutions are left-padded; the encoder is a 32-layer, 1280-wide stack built like a modern decoder
+(RMSNorm, SwiGLU, RoPE), <i>causal</i>, over a 15 s sliding window.</li>
+<li>The projector stacks four 20 ms frames into one 80 ms group and maps it through an MLP.</li>
+<li>The bridge <a href="s-bridge.html#add">adds</a> each group to one decoder position's token embedding.</li>
+<li>Each decoder layer's feed-forward input is scaled by a function of the delay
+(<a href="s-bridge.html#delay">delay conditioning</a>).</li>
+<li>The decoder is a 26-layer, 3072-wide Ministral-style model (GQA 32:8, an 8192-token window, a tied head), and its
+output vocabulary includes <code>[STREAMING_PAD]</code> ("nothing new yet") and <code>[STREAMING_WORD]</code>
+("a word starts here").</li>
+</ul>
+<p><b>Why.</b> Real-time transcription needs bounded latency, which a model that reads whole windows cannot give.
+Making every socket causal means the model never waits; the delay gives it a fixed amount of look-ahead instead, set
+per request. Because text and audio share positions, the context grows at a constant rate and each word's position
+is its timestamp, to within 80 ms.</p>
+<p class="circuit-key">Circuit key: four rows, audio in to audio out, each read left to right. Solid chips are
+components (click one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes
+relative to its parent.</p>
+{{circuit:voxtral|Every audio socket turns causal, the bridge becomes an addition, and the delay becomes a conditioning input.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="s-stem.html#stacking">frame stacking</a> · <a href="s-encoder.html#masks">a causal encoder</a> ·
+<a href="s-bridge.html#add">the additive bridge</a> · <a href="s-stream.html">streams</a></div>
+<p>bunsen's engine runs it over 30 s windows and commits words before late pauses, as for the other recognizers;
+the model itself would allow a natively incremental decode.</p>
+</section>

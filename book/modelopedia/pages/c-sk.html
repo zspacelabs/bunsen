@@ -1,0 +1,35 @@
+<div class="prose">
+<p>The selective kernel lets each unit choose its receptive field per channel and per input{{cite:li2019sk}}. Two
+paths with different reach run in parallel, and an attention over their sum decides, channel by channel, how much of
+each to keep.</p>
+</div>
+<figure class="fig">{{fig:sk}}
+<figcaption><b>Split, fuse, select.</b> Path 1 is a 3×3 conv. Path 2 is a 3×3 dilated by 2, which reaches as far as
+a 5×5 at the cost of a 3×3 (timm's <code>keep_3x3</code>). Their sum is pooled and reduced, and a 1×1 "select" produces
+two logits per channel, normalized by a softmax across the paths.</figcaption></figure>
+
+<section>
+<h2 id="theory">An input-dependent kernel size</h2>
+<figure class="fig">{{fig:sk_rf}}
+<figcaption><b>Interpolating receptive fields.</b> Since both paths are linear before their norms, a channel's output
+behaves like a conv with a mixed kernel <span class="math">a·K₁ + (1−a)·K₂</span>, whose effective reach slides
+between 3 and 5 according to the image. Neuroscience motivated it: visual neurons adapt their receptive field to the
+stimulus.</figcaption></figure>
+<p>The weights live on the segment <span class="math">Δ¹</span> (or a larger simplex with more paths). This is the same
+geometry as <a href="c-splitattn.html">split attention</a>, which keeps the operator and drops the different kernel
+sizes. With one path the operator would degenerate to <a href="c-attention.html">SE</a>.</p>
+</section>
+
+<section>
+<h2 id="split">Split input</h2>
+<p>With <code>split_input</code> each path reads its own half of the input channels instead of all of them, which
+halves the paths' cost. timm's basic SKNets (skresnet18/34) do this. The attention width is a fraction of the channels
+(⅛ for the basic nets, 1/16 for the bottleneck ones) rounded to a divisor.</p>
+</section>
+
+<section>
+<h2 id="algebra">In the algebra</h2>
+<p>SK is the one exotic mixer that also fits a <i>basic</i> unit: there it replaces the first 3×3, and in a bottleneck it
+replaces the 3×3. Each path is an ordinary <a href="c-conv.html">conv block</a>, grouped in SKResNeXt. DropBlock acts
+on the mixer's output.</p>
+</section>

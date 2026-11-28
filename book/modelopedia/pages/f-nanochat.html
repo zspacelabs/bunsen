@@ -1,0 +1,58 @@
+<div class="prose">
+<p>nanochat is karpathy's minimal, end-to-end ChatGPT clone: tokenizer, pretraining, mid-training, fine-tuning, RL and
+serving, in one small codebase meant to be read{{cite:karpathy2025}}. Its model is a GPT with each part replaced by
+its modern counterpart, and it is the one kit here that bunsen also trains from scratch
+(<code>examples/train-chat</code>). Upstream has published two versions of the model, and bunsen loads checkpoints of
+both.</p>
+</div>
+
+<section>
+<h2 id="gpt2">From GPT-2</h2>
+<p>GPT-2 fixed the decoder-only shape: learned absolute positions, LayerNorm moved before each sublayer, a final
+LayerNorm, a GELU MLP of <span class="math">4D</span>, biases everywhere, and a head tied to the
+embedding{{cite:radford2019}}. nanochat keeps the shape and replaces nearly every part: rotary positions instead of
+learned ones, parameter-free RMS norms instead of LayerNorms, no biases, ReLU² instead of GELU, QK-norm, and an untied,
+soft-capped head.</p>
+</section>
+
+<section>
+<h2 id="v2025">nanochat (2025)</h2>
+<p><b>Design.</b> A uniform stack whose geometry is one number, the depth <span class="math">d</span>: width
+<span class="math">64d</span>, heads 128 wide (so <span class="math">d/2</span> of them), as many key/value heads as
+query heads, a 2048-token context. The embedding is normalized by a parameter-free RMS norm, every norm is
+parameter-free, QK-norm follows RoPE (θ = 10⁴, tables rounded to bf16), the MLP is <span class="math">4D</span>
+ReLU², and the untied head's logits are soft-capped at 15.</p>
+<p><b>Why.</b> nanochat optimizes for a model that trains well on a small budget (the d20 run cost about $100), so
+each choice is the simplest one known to be stable. Parameter-free norms are fewer parameters to train and tune.
+QK-norm and the logit cap bound the two places where logits can blow up
+at high learning rates. ReLU² is Primer's cheap win{{cite:so2021}}. An untied head lets the input and output
+geometries differ, and lets the head train under its own optimizer settings.</p>
+<p><b>Slot fill.</b> embed = table + RMS (no gain) · norms = RMS, no gain · mixer = MHA, QK-norm after RoPE ·
+FFN = ReLU² 4D · head = own, cap 15.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis; the board below is one layer, drawn as its two
+residual sublayers, with the token mixer opened up in the middle panel. Solid chips are injected components (click
+one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes relative to its parent.</p>
+{{circuit:nanochat|Against the Llama template: parameter-free norms everywhere (on the embedding too), QK-norm after RoPE, ReLU², and a soft-capped head.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-embed.html#norm">the normalized embedding</a> · <a href="c-logits.html#qknorm">QK-norm</a> ·
+<a href="c-rope.html#conventions">RoPE conventions</a> · <a href="c-mlp.html#plain">ReLU²</a> ·
+<a href="c-logits.html#softcap">soft-cap</a></div>
+</section>
+
+<section>
+<h2 id="v2026">nanochat (2026)</h2>
+<p><b>Design change.</b> Four extra paths around the stack: the smear, per-layer λ and μ that rescale the stream
+and mix the embedding back in, value embeddings on alternate layers, and the mid-stack backout. Three changes to
+attention: a QK gain of 1.2, sliding windows from a pattern (<code>SSSL</code> by default: short windows of a quarter
+of the context, the last layer always long), and θ = 10⁵ with exact tables. The vocabulary is padded to a multiple of
+64, and the head slices it back.</p>
+<p><b>Why.</b> Each change bought a measurable drop in the loss reached on a fixed budget. Most are additions to the
+stream, which cost almost nothing per token. The value embeddings add parameters, but only as lookup tables. The
+windows cut attention's cost in three layers of four. In bunsen these are config options, all off by default and
+switched on together by <code>with_upstream_2026</code>. Loading a checkpoint identifies its version from its tensor
+names and meta file, and refuses a mixture of the two.</p>
+{{circuit:nanochat-2026|Four sockets of the stream and the mixer fill; the layers' own shape is unchanged.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-stream.html">stream extras</a> · <a href="c-mask.html#patterns">window patterns</a> ·
+<a href="c-logits.html#scale">the QK gain</a></div>
+</section>

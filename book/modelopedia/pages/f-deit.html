@@ -1,0 +1,41 @@
+<div class="prose">
+<p>DeiT{{cite:touvron2021deit}} answered ViT's data problem with training rather than architecture. A ViT-B trained on
+ImageNet-1k alone, with strong augmentation, regularization and a long schedule, matched the convnets of its day. The
+plain DeiTs are ViTs, slot for slot. The architectural contribution is the <b>distillation token</b>. DeiT
+III{{cite:touvron2022deit3}} later improved the recipe and added layer scale.</p>
+</div>
+
+<section>
+<h2 id="deit">DeiT, and distillation through attention</h2>
+<p><b>Design change.</b> A second prefix token, the distillation token, follows the class token. A second classifier
+reads it and is trained against a teacher's predictions, while the class token's classifier is trained against the
+true label. At inference the two classifiers' logits are averaged.</p>
+<figure class="fig">{{fig:distill}}
+<figcaption><b>Two readouts from one encoder.</b> The distillation token takes part in attention like any other token,
+so the teacher's signal reaches the patches through it. The best teacher was a convnet, RegNetY-16GF from the
+<a href="f-regnet.html">RegNet</a> chapter.</figcaption></figure>
+<p><b>Why.</b> Knowledge distillation{{cite:hinton2015}} usually adds a loss on the student's single output. Giving the
+teacher its own token lets the network keep two related but different summaries. In the paper, the class and
+distillation tokens start out nearly orthogonal and become similar but not identical by the last layer. A conv teacher
+worked better than a transformer teacher, which suggests the student inherits some of the conv's inductive bias through
+the labels. Hard-label distillation beat soft.</p>
+<p><b>Slot fill.</b> tokens = class + distillation + positions over both · pool = distilled · head = two classifiers,
+averaged. The non-distilled DeiTs need no circuit of their own: they are the <a href="f-vit.html#design">ViT</a>
+circuit.</p>
+{{circuit:deit-distilled|A new prefix token, a two-token pool and a second classifier; the blocks are untouched.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="t-patch.html#tokens">prefix tokens</a> · <a href="t-pool.html#kinds">distilled pool</a></div>
+</section>
+
+<section>
+<h2 id="deit3">DeiT III</h2>
+<p><b>Design change.</b> <a href="t-sublayer.html#scale">Layer scale</a> on every residual{{cite:touvron2021cait}}, and a
+position embedding over the patches alone. No distillation.</p>
+<p><b>Why.</b> DeiT III's subject is again training: a simpler three-augmentation recipe, a binary cross-entropy loss,
+simple random crops, and a fresh look at ImageNet-21k pretraining. With it a plain supervised ViT-H trains well and
+matches self-supervised pretraining{{cite:touvron2022deit3}}. Layer scale, from the same group's CaiT, is what keeps the
+larger and deeper models stable. A <code>medium</code> shape (width 512) fills the gap between S and B.</p>
+{{circuit:deit3|Layer scale in both sublayers, and positions that no longer cover the class token.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="t-sublayer.html#scale">layer scale</a> · <a href="t-patch.html#pos">positions over the patches</a></div>
+</section>

@@ -1,0 +1,43 @@
+<div class="prose">
+<p>Qwen3-TTS{{cite:qwen2025tts}} turns the <a href="f-qwen3.html">Qwen3</a> decoder into a speech synthesizer. A
+<b>talker</b>, a Qwen3 stack, writes one codec frame per step, but only its first codebook. A five-layer <b>depth
+decoder</b> fills in the other fifteen, and a 12.5 Hz codec decodes the codes to 24 kHz audio.</p>
+</div>
+
+<section>
+<h2 id="design">Qwen3-TTS</h2>
+<p><b>Design.</b></p>
+<ul>
+<li><b>Rows.</b> The prompt is chat-style text (an optional instruction, the assistant role) followed by codec
+control rows: a thinking tag, a language, a speaker. Each prompt row is a text embedding plus a codec embedding;
+the text table (Qwen3's) reaches the talker's width through a small MLP. Each generated frame's row is the sum of all
+sixteen codes' embeddings and the next text embedding.</li>
+<li><b>Talker.</b> A Qwen3 stack (28 × 1024 at 0.6B) with its own head over codebook 0 and the control rows. Its
+release config asks for multimodal RoPE, but with text-only positions every section rotates alike, so bunsen applies
+an ordinary 1-d RoPE.</li>
+<li><b>Depth decoder.</b> A 5-layer Qwen3 stack that, per frame, reads the talker's hidden state and codebook 0's
+embedding and writes codebooks 1 to 15, each with its own table and head.</li>
+<li><b>Codec.</b> A split RVQ (one semantic codebook, fifteen acoustic, 2048 codes each), a causal conv, an 8-layer
+windowed transformer with layer scale, two ×2 upsamplers, and a DAC vocoder with Snake activations: 1920 samples
+per frame.</li>
+</ul>
+<p><b>Why.</b> Predicting codebook 0 with the big model and the rest with a small one puts the capacity where the
+content is: the semantic codebook carries what is said and how, and the acoustic ones are largely determined by it.
+The talker runs at 12.5 steps a second, the depth decoder's cost is fixed per frame, and the codec is causal, so
+synthesis can stream.</p>
+<p class="circuit-key">Circuit key: four rows, audio in to audio out, each read left to right. Solid chips are
+components (click one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes
+relative to its parent.</p>
+{{circuit:qwen3tts|The mirror image of a recognizer: the TOKENS and AUDIO OUT rows filled, the audio-in rows empty.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="s-codes.html#rows">summed rows</a> · <a href="s-codes.html#depth">the depth decoder</a> ·
+<a href="s-codec.html">the codec</a> · <a href="f-qwen3.html">Qwen3</a></div>
+</section>
+
+<section>
+<h2 id="variants">Variants</h2>
+<p>The three releases share their codec and sampling settings. The 1.7B talker is 2048 wide, so its depth decoder
+gains an input projection to its own 1024. <b>CustomVoice</b> models speak in nine stock voices, each a speaker row;
+the 1.7B also takes an instruction about style. <b>VoiceDesign</b> has no speaker rows: the voice is described in
+words, as the instruction. Neither is architecture beyond the prompt.</p>
+</section>

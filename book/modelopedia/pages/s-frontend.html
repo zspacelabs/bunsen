@@ -1,0 +1,45 @@
+<div class="prose">
+<p>Every recognizer here starts with the same few steps: short overlapping windows of the waveform, a power spectrum
+of each, a bank of triangular filters spaced on the mel scale, and a logarithm. The kits differ in the log's base and
+in the last step, the <b>level</b> each frame is measured against, and that last step decides whether a front end
+can stream exactly.</p>
+</div>
+
+<section>
+<h2 id="logmel">The log-mel spectrogram</h2>
+<figure class="fig">{{fig:log_mel}}
+<figcaption><b>Five steps.</b> Window, transform, pool into mel bands, compress, and set the level.</figcaption></figure>
+<ul>
+<li><b>Windows.</b> 25 ms windows (400 samples at 16 kHz) every 10 ms: 100 frames a second, in every kit.</li>
+<li><b>Power spectrum.</b> A Hann-windowed FFT, squared magnitude. Whisper's window is periodic and its padding a
+reflection; NeMo's (Parakeet) is symmetric, zero-padded to 512, after a 0.97 preemphasis filter that tilts the
+spectrum toward high frequencies.</li>
+<li><b>Mel bands.</b> 80 or 128 triangular filters, spaced evenly in mels: finely at low frequencies, where pitch
+and formants live, coarsely above. Whisper large-v3 moved from 80 to 128 bands, and the later kits all use 128.</li>
+<li><b>Log.</b> Loudness is perceived roughly logarithmically, and a log turns a gain into an additive offset.
+Whisper and its descendants use log₁₀ over a 10⁻¹⁰ floor; NeMo uses the natural log over 2⁻²⁴.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="levels">Levels</h2>
+<figure class="fig">{{fig:level_policies}}
+<figcaption><b>Four level rules.</b> What a frame is measured against: the loudest frame, a constant, or each
+channel's statistics.</figcaption></figure>
+<p>The last step decides what "loud" means:</p>
+<ul>
+<li><b>Whisper</b> floors every value at 8 below the clip's maximum (an 80 dB range in log₁₀ units of power), then
+maps <span class="math">x → (x + 4)/4</span>{{cite:radford2022}}. The maximum is over the whole clip, which a stream
+doesn't have yet; bunsen's driver uses the loudest frame heard so far, or each window's own.</li>
+<li><b>Qwen3-ASR</b> uses Whisper's rule over each 30 s window.</li>
+<li><b>Voxtral Realtime</b> uses Whisper's large-v3 front end but against a <i>fixed</i> level (1.5). No statistic
+of the audio enters, so a stream's features are the same however it is chunked, which a causal model needs.</li>
+<li><b>Parakeet</b> standardizes each mel channel to zero mean and unit variance over the item. That is the most
+robust to recording conditions, and the least streamable: a stream normalizes each window by its own moments.</li>
+</ul>
+<p>ZONOS3's speaker encoder uses a third family's front end, Kaldi's 80-band filterbank with its mean subtracted,
+since it was trained in a speaker-recognition toolkit.</p>
+<div class="callout defer"><span class="t">Used by</span>
+every recognizer · the codec models never compute a spectrogram on the way in, though ZONOS3's codec predicts one on
+the way out (<a href="s-codec.html#vocoders">ISTFT heads</a>)</div>
+</section>

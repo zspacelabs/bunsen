@@ -1,0 +1,34 @@
+<div class="prose">
+<p>Selective Kernel Networks{{cite:li2019sk}} replace the spatial mixer with a <a href="c-sk.html">selective kernel</a>:
+two parallel paths with receptive fields 3 and 5, weighed per channel by an attention over their sum. Each unit chooses
+its kernel size for each input. Outside the mixer it is a ResNet or ResNeXt.</p>
+</div>
+
+<section>
+<h2 id="design">Design</h2>
+<p><b>Change.</b> Mixer = selective kernel. It is the only exotic mixer that also fits basic units, where it replaces the
+first 3×3.</p>
+<p><b>Why.</b> Fixed kernel sizes per layer were a hand-picked hyperparameter, and Inception had shown that mixing
+several sizes helps. SK makes the mix <i>dynamic</i> through a fuse/select attention, so the effective receptive field
+adapts to object scale, which the paper links to how visual cortex neurons adapt their receptive fields.</p>
+<p>Two shapes of the design exist in the kit:</p>
+<ul>
+<li><b>SKResNet</b> (basic units): the first 3×3 of each unit becomes the selective kernel, and the input is split
+across the two paths to keep the cost of a basic unit.</li>
+<li><b>SKResNeXt</b> (grouped bottlenecks): the grouped 3×3 becomes a selective kernel with grouped paths. This is the
+original paper's main model.</li>
+</ul>
+<p class="circuit-key">Circuit key: the top row is the chassis, the board below is one residual unit. Solid chips are injected components (click one for its combinator chapter); dashed sockets are empty, and the wire passes straight through. <b>Δ</b> marks the sockets this variant changes relative to its parent.</p>
+{{circuit:skresnet|A basic unit's first 3×3 becomes the selective kernel.}}
+{{circuit:skresnext|On a ResNeXt, the grouped 3×3 becomes the selective kernel with grouped paths.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-sk.html">selective kernel</a> · <a href="c-attention.html#geometry">branch attention geometry</a> ·
+<a href="f-resnext.html">ResNeXt</a></div>
+</section>
+
+<section>
+<h2 id="lineage">Lineage</h2>
+<p>SK's fuse/select operator is SE's squeeze-excite turned toward branches instead of channels{{cite:hu2018}}.
+<a href="f-resnest.html">ResNeSt</a> keeps the operator and replaces SK's two kernel sizes with
+<span class="math">r</span> identically shaped splits inside a cardinal group.</p>
+</section>

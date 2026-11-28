@@ -1,0 +1,48 @@
+<div class="prose">
+<p>Whisper{{cite:radford2022}} is the encoder–decoder transformer applied to speech, trained on 680 000 hours of
+weakly labelled web audio. Its architecture is deliberately the original Transformer's; its contribution was data
+and a multitask token format that lets one decoder transcribe, translate, identify the language and time its output.
+In bunsen it is the one recognizer whose decoder is not a language kit: its layers have a cross-attention sublayer.</p>
+</div>
+
+<section>
+<h2 id="design">Whisper</h2>
+<p><b>Design.</b> 80 log₁₀ mel bands, floored 8 below the clip's maximum. A stem of two convolutions to 50 Hz. A
+pre-norm LayerNorm encoder over a fixed 30 s window (1500 frames) with a learned position table, bidirectional,
+GELU feed-forwards, and biases on every projection except the keys. A decoder of the same width and depth, with
+learned positions over 448 tokens, self-attention, cross-attention over the encoder's output, and a head tied to its
+embedding.</p>
+<p><b>Why.</b> The design is conservative on purpose: Radford et al. wanted to show that scale and weak supervision,
+not architecture, were what made robust recognition{{cite:radford2022}}. The fixed 30 s window keeps training
+simple; the decoder's token format does the rest:</p>
+<ul>
+<li>a prompt of <code>&lt;|startoftranscript|&gt;</code>, a language token, a task token (transcribe or translate),
+and optionally <code>&lt;|notimestamps|&gt;</code>;</li>
+<li>1501 timestamp tokens, <code>&lt;|0.00|&gt;</code> to <code>&lt;|30.00|&gt;</code> in 20 ms steps, which the
+model writes around each segment, constrained by rules that keep them paired and increasing;</li>
+<li>the previous window's text after <code>&lt;|startofprev|&gt;</code>, as context;</li>
+<li>a fallback that re-decodes a window at higher temperatures when the output is too repetitive (compression
+ratio above 2.4) or too unlikely.</li>
+</ul>
+<p class="circuit-key">Circuit key: four rows, audio in to audio out, each read left to right. Solid chips are
+components (click one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes
+relative to its parent.</p>
+{{circuit:whisper|The original encoder–decoder: the only kit whose decoder has a cross-attention sublayer.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="s-frontend.html#levels">Whisper's level rule</a> · <a href="s-stem.html">the stem</a> ·
+<a href="s-encoder.html#positions">a learned table</a> · <a href="s-bridge.html#cross">cross-attention</a> ·
+<a href="c-cache.html#search">search</a></div>
+</section>
+
+<section>
+<h2 id="sizes">Sizes and versions</h2>
+<p>Sizes run from tiny (4 + 4 layers, width 384) to large (32 + 32, width 1280), with heads 64 wide. The
+<code>.en</code> models use GPT-2's English vocabulary and take no language or task token. Three versions change the
+circuit slightly:</p>
+<ul>
+<li><b>large-v3</b> moved to 128 mel bands and added Cantonese, a 51 866-token vocabulary.</li>
+<li><b>large-v3-turbo</b> keeps v3's 32-layer encoder and prunes the decoder to 4 layers, then fine-tunes. Decoding
+dominates Whisper's latency, so this makes it several times faster for a small loss. It doesn't translate.</li>
+<li><b>large-v1</b> and <b>v2</b> share one geometry; v2 was trained longer.</li>
+</ul>
+</section>

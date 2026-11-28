@@ -9,6 +9,7 @@
 - [Features, backends and the network](./organization/features.md)
 - [Installing and first use](./organization/install.md)
 - [Kits](./organization/kits.md)
+  - [The Modelopedia](./organization/modelopedia.md)
 - [Examples](./organization/examples.md)
 
 # Bunsen systems

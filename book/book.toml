@@ -17,6 +17,13 @@ create-missing = false
 [preprocessor.mermaid]
 command = "mdbook-mermaid"
 
+# The Modelopedia (book/modelopedia/): hand-built HTML, generated into src/modelopedia/
+# (gitignored), which mdBook copies into the built book as static files. It
+# passes the chapters through unchanged. Needs only Python 3.
+[preprocessor.modelopedia]
+command = "python3 modelopedia/preprocess.py"
+before = ["links"]
+
 [preprocessor.katex]
 after = ["links"]
 macros = "./katex-macros.txt"

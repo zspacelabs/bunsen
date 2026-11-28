@@ -1,0 +1,42 @@
+<div class="prose">
+<p>Split attention ("Splat") is ResNeSt's mixer{{cite:zhang2020resnest}}. One grouped conv produces
+<span class="math">r</span> candidate feature maps (the <i>radix</i> splits). An attention over their sum weighs them
+per channel, and the output is their weighted sum.</p>
+</div>
+<figure class="fig">{{fig:splat}}
+<figcaption><b>Split → fuse → select.</b> The grouped conv (with norm and activation) widens to
+<span class="math">r·C</span> channels. The splits are summed and pooled, passed through a two-layer bottleneck
+(<span class="math">fc₁</span> with norm and activation, then <span class="math">fc₂</span>), and turned into
+<span class="math">r</span> weights per channel by a softmax across splits.</figcaption></figure>
+
+<section>
+<h2 id="theory">The operator</h2>
+<p class="eq">U<sub>i</sub> = conv<sub>i</sub>(x),&nbsp; z = fc(GAP(Σ<sub>i</sub> U<sub>i</sub>)),&nbsp; a<sub>c,·</sub> = softmax<sub>i</sub>(z<sub>c,·</sub>),&nbsp; y<sub>c</sub> = Σ<sub>i</sub> a<sub>c,i</sub> U<sub>i,c</sub></p>
+<p>This is exactly <a href="c-sk.html">SK</a>'s fuse/select, with one change: SK's branches differ in receptive
+field, while ResNeSt's are identical in shape and differ only in their learned weights. The selection is therefore not
+"which scale" but "which of <span class="math">r</span> learned views", a soft mixture of experts at the level of
+channels.</p>
+<figure class="fig">{{fig:gate_geometry}}
+<figcaption><b>Per-channel simplex.</b> Each channel's weights <span class="math">a<sub>c</sub></span> lie on the
+<span class="math">(r−1)</span>-simplex. With equal logits the unit averages its splits. At the vertices it picks one.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="cardinal">Cardinality × radix</h2>
+<figure class="fig">{{fig:card_radix}}
+<figcaption><b>Two levels of grouping.</b> The conv has <span class="math">g·r</span> groups: <span class="math">g</span>
+cardinal groups (ResNeXt's cardinality), each split into <span class="math">r</span> radix groups. The attention
+convs are grouped by <span class="math">g</span>, so each cardinal group runs its own softmax over its own splits.
+</figcaption></figure>
+<p><b>Radix 1</b> is the degenerate case. There is nothing to choose between, the softmax becomes a sigmoid, and Splat
+reduces to a grouped conv followed by an <a href="c-attention.html">SE</a> gate. In that sense ResNeSt contains
+SE-ResNeXt. The attention width is <span class="math">r·C_in·¼</span> rounded to 8s, with a floor of 32.</p>
+</section>
+
+<section>
+<h2 id="algebra">In the algebra</h2>
+<p>Split attention is a <a href="algebra.html#slots">mixer</a> kind for bottleneck units. ResNeSt also always strides
+by an <a href="c-sampling.html#aa">average pool</a> (avd) placed before or after this mixer, which keeps the mixer at
+stride 1. DropBlock acts after the grouped conv's norm. A ResNeSt cannot also take a separate attention or
+anti-aliasing slot, since its mixer already fills both roles.</p>
+</section>

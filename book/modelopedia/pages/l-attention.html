@@ -1,0 +1,74 @@
+<div class="prose">
+<p>Attention is the token mixer of every kit but Qwen3.5's linear layers. It lets each position read a weighted mix
+of other positions, with weights computed from the content itself. bunsen builds every variant in this part from one
+module, <code>CausalSelfAttention</code>; what separates Qwen3's attention from Gemma 2's or ModernBERT's is config.</p>
+</div>
+
+<section>
+<h2 id="scores">Scores, softmax, mixture</h2>
+<p>Each position projects its normalized state to a query <span class="math">q</span>, a key
+<span class="math">k</span> and a value <span class="math">v</span>. The weights from query <i>i</i> to key <i>j</i>
+are a softmax over scaled dot products, and the output is the weighted sum of values{{cite:vaswani2017}}:</p>
+<p class="eq">A = softmax(Q Kᵀ · s + M),   y = A V,   s = 1/√d</p>
+<figure class="fig">{{fig:causal_mask}}
+<figcaption><b>The causal attention map.</b> Every query row is a probability distribution over the keys at and
+before it. The mask <i>M</i> is what makes one forward pass a set of <i>T</i> separate next-token
+problems.</figcaption></figure>
+<p>Two readings help. As a <b>soft lookup</b>, the query is a search key, the keys are an index, and the values are
+what is retrieved. As a <b>data-dependent mixer</b>, attention is a <span class="math">T×T</span> mixing matrix
+computed fresh for each input, which is what separates it from a convolution's fixed taps. Multi-head attention runs
+<span class="math">H</span> such maps in parallel, on <span class="math">H</span> slices of width
+<span class="math">d</span>, and an output projection <span class="math">W<sub>O</sub></span> writes their
+concatenation back to the stream.</p>
+<figure class="fig">{{fig:attn_internals}}
+<figcaption><b>The sockets inside attention.</b> The projections and the softmax are always present. QK-norm, the
+rotary embedding, the score scale and cap, the window, the value residual and the output gate are each a config
+field: the "inside the token mixer" panel of every circuit.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="gqa">Grouped-query attention</h2>
+<figure class="fig">{{fig:gqa}}
+<figcaption><b>Sharing keys and values.</b> Queries keep their heads; groups of query heads read one shared key and
+value head. A decode caches only keys and values, so the cache shrinks by the group size.</figcaption></figure>
+<p>A decoder generating one token at a time must re-read every past key and value at every step. That makes decoding
+bound by memory bandwidth, not arithmetic{{cite:pope2022}}. Shazeer's multi-query attention (MQA) shares a single key
+and value head across all query heads, which cuts the cache by <span class="math">H</span>×{{cite:shazeer2019}}.
+Grouped-query attention (GQA) interpolates: <span class="math">H<sub>kv</sub></span> groups, each shared by
+<span class="math">H / H<sub>kv</sub></span> query heads, recovering nearly all of full attention's quality at a
+fraction of its cache{{cite:ainslie2023}}.</p>
+<p>The kits cover the whole range: nanochat and ModernBERT use full MHA; Qwen3 groups 2:1 at 0.6B and 4:1 at 4B and
+8B; Gemma 2 groups 2:1; Gemma 1 2B and Gemma 3 1B are pure MQA (one key/value head); Qwen3.5 groups 4:1 to 6:1 in
+its attention layers.</p>
+</section>
+
+<section>
+<h2 id="headdim">Head width</h2>
+<p>By default a head is <span class="math">D / H</span> wide. Several kits break that link and set the head width
+directly: Qwen3's heads are 128 wide at every size (16 × 128 = 2048 over a 1024-wide model), and every Gemma and
+Qwen3.5 attention head is 256 wide. <span class="math">W<sub>Q</sub></span> and <span class="math">W<sub>O</sub></span>
+then map between <span class="math">D</span> and <span class="math">H·d</span>. Wide heads give each head a
+higher-rank score map and more rotary frequencies; fixing <span class="math">d</span> across sizes means a family's
+attention behaves alike from its smallest model to its largest.</p>
+</section>
+
+<section>
+<h2 id="gate">The output gate</h2>
+<figure class="fig">{{fig:output_gate}}
+<figcaption><b>Gated attention.</b> A sigmoid gate, read from the attention's input, scales each channel of the
+heads' output before <i>W<sub>O</sub></i>. It lets a head output nothing without parking its softmax mass on a
+sink token.</figcaption></figure>
+<p>Qwen3.5's full-attention layers multiply the heads' concatenated output by
+<span class="math">σ(W<sub>g</sub> x)</span> before the output projection. The gate's weights live in
+<span class="math">W<sub>Q</sub></span> itself, which is twice as wide: each head's queries followed by its gates.
+Qiu et al. tested gates at every point in the attention block and found this one, elementwise after the
+values, the most effective{{cite:qiu2025}}. They give two reasons. The gate adds a nonlinearity between the value and
+output projections, which are otherwise one low-rank linear map. And it is input-dependent and sparse, so a head can
+switch itself off. Softmax weights must sum to one, so a head with nothing to say otherwise learns to dump its mass
+on the first token, the <i>attention sink</i> of streaming models{{cite:xiao2024}}; with the gate, sinks largely
+disappear. bunsen also supports a headwise gate (one scalar per head), which no language kit uses.</p>
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-rope.html">rotary positions</a> · <a href="c-mask.html">masks &amp; windows</a> ·
+<a href="c-logits.html">QK-norm, score scale, soft-cap</a> · <a href="c-stream.html#values">the value residual</a> ·
+<a href="c-cache.html#kv">the KV cache</a></div>
+</section>

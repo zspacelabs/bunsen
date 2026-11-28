@@ -1,0 +1,57 @@
+<div class="prose">
+<p>A plain pre-norm stack has one path: the embedding enters the stream, and each sublayer adds to it. nanochat's
+2026 model adds four more paths around and inside the stack. Each is off by default in bunsen's nanochat config, and
+all are on in upstream's 2026 model{{cite:karpathy2025}}. The x₀ mixing and the value embeddings come from the
+community speedruns of training a small GPT as fast as possible{{cite:jordan2024}}; upstream adopted them alongside
+the smear and the backout. None of them changes the
+layer's shape. Each is one more addition, or a scale on one.</p>
+</div>
+
+<section>
+<h2 id="paths">Four paths</h2>
+<figure class="fig">{{fig:stream_extras}}
+<figcaption><b>Around the stack.</b> ① the smear mixes in the previous token's embedding; ② every block re-reads
+the embedding; ③ some layers add a token-indexed value table inside attention; ④ the backout subtracts part of the
+mid-stack stream before the head.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="smear">① The smear</h2>
+<p>Before the first layer, each position adds the previous position's embedding, scaled by a learned gate:
+<span class="math">x<sub>t</sub> += λ · σ(W x<sub>t</sub>[:24]) · x<sub>t−1</sub></span>. The gate reads the first
+24 channels of the position itself. This gives every position a cheap bigram feature before any attention runs,
+work an early attention head would otherwise have to do. It has one decoding consequence: a step past the first position
+needs the token before it, so a smeared model's forward takes the previous token as an argument. The model keeps no
+state of its own, so a decode that rewinds stays correct.</p>
+</section>
+
+<section>
+<h2 id="lambdas">② Re-reading the embedding</h2>
+<p>Before each block <i>i</i>, the stream is rescaled and the normalized embedding mixed back in:
+<span class="math">x ← λ<sub>i</sub> x + μ<sub>i</sub> x₀</span>, with learned scalars per layer. Pre-norm
+lets the stream's norm grow with depth, which shrinks the embedding's share of it. λ lets the model
+control that growth layer by layer, and μ gives every layer direct access to token identity, much like DenseNet's
+or a U-Net's skip connections.</p>
+</section>
+
+<section>
+<h2 id="values">③ Value embeddings</h2>
+<p>On alternate layers, including the last, attention's values get a second input: a table indexed by token id, of
+the values' width, added through a gate read from the attention's input,
+<span class="math">v += 3 · σ(W x[:12]) · VE[id]</span>. This follows ResFormer's value residual, which feeds the
+first layer's values to later layers to counter attention concentrating on a few tokens in deep
+stacks{{cite:zhou2024}}; the speedrun form uses a token table instead of the first layer's values. Each value table
+is another <span class="math">[V, H<sub>kv</sub>·d]</span> matrix, so the extras are mostly embedding parameters,
+which are cheap to train and free to look up.</p>
+</section>
+
+<section>
+<h2 id="backout">④ The backout</h2>
+<p>The stream at the middle of the stack, after block <span class="math">L/2</span>, is scaled by a learned
+<span class="math">β</span> and subtracted from the final stream before the final norm. One reading: early
+layers write features the head doesn't need (local syntax, token identity), and the backout lets the model cancel
+part of them in one step rather than spending later layers erasing them.</p>
+<div class="callout defer"><span class="t">Used by</span>
+<a href="f-nanochat.html#v2026">nanochat (2026)</a> only · in bunsen the stack takes them as side inputs, so the
+layers themselves are unchanged</div>
+</section>

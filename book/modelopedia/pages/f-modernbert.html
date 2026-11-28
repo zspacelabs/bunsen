@@ -1,0 +1,51 @@
+<div class="prose">
+<p>ModernBERT applies six years of decoder improvements to the BERT encoder{{cite:warner2024}}. In the algebra it is
+the plainest demonstration that an encoder is a decoder stack with a different mask: bunsen builds it from the same
+<code>DecoderStack</code> and <code>CausalDecoderBlock</code> as Qwen3, with the mask set to bidirectional.</p>
+</div>
+
+<section>
+<h2 id="bert">From BERT</h2>
+<p>BERT is a post-norm Transformer encoder with learned absolute positions, GELU MLPs, biases everywhere, and a
+512-token context, trained to fill in masked tokens{{cite:devlin2019}}. It and its descendants dominated retrieval
+and classification for years after decoders took over generation, because a bidirectional state is the better
+representation of a whole input.</p>
+</section>
+
+<section>
+<h2 id="design">ModernBERT</h2>
+<p><b>Design change.</b> Against the Llama template, which it largely adopts: a bidirectional mask; LayerNorm without
+a bias instead of RMSNorm; an exact-GELU GeGLU; a LayerNorm on the embedding, with the first layer's attention norm
+dropped; and a pattern of local and global layers, a global layer every third, the others attending ±64 tokens, each
+kind with its own rotary table (10⁴ local, 1.6·10⁵ global). No projection has a bias.</p>
+<p><b>Why.</b> The aim was an encoder with an 8K context that runs fast on common GPUs. Local attention makes two
+layers in three cheap at long lengths, and global layers every third keep whole-document context. RoPE, GeGLU and
+pre-norm are the decoder lessons it adopted. The bias-free LayerNorms follow the same bias-free choice as the
+projections. ModernBERT also unpads its batches during training, which is an execution detail, not part of the
+circuit.</p>
+<p><b>Slot fill.</b> embed = table + LN · mask = bidirectional, ±64 local / global every third · positions = two
+tables · norms = LN, no bias, pre-norm · FFN = GeGLU (exact) · head = none.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis; the board below is one layer, drawn as its two
+residual sublayers, with the token mixer opened up in the middle panel. Solid chips are injected components (click
+one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes relative to its parent.</p>
+{{circuit:modernbert|Against the Llama template: the mask turns bidirectional, the norms become bias-free LayerNorms, and local layers get their own table.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-mask.html#bidirectional">bidirectional masks</a> · <a href="c-mask.html#patterns">local/global patterns</a> ·
+<a href="c-rope.html#tables">two tables</a> · <a href="c-sublayer.html#kinds">LayerNorm</a> ·
+<a href="c-mlp.html#glu">GeGLU</a></div>
+</section>
+
+<section>
+<h2 id="mmbert">mmBERT</h2>
+<p>mmBERT is ModernBERT's architecture trained on over 1800 languages, with Gemma 2's 256K-token
+vocabulary{{cite:marone2025}}. Its base model has the same 22 × 768 geometry. On the board only the EMBED socket
+changes (its row count), so it gets no circuit of its own. bunsen meets it as the encoder of
+<code>laya-multilingual</code>.</p>
+</section>
+
+<section>
+<h2 id="head">No head</h2>
+<p>The kit's model ends at the final norm: token ids in, one normalized hidden state per token out, padding masked
+by each item's length. A model built on it (a classifier, a retriever, a decision head) holds the encoder and loads it
+from its own checkpoint's prefix. The next chapter's Laya is one.</p>
+</section>

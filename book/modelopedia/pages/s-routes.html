@@ -1,0 +1,50 @@
+<div class="prose">
+<p>ZONOS3's language model is a gated-DeltaNet hybrid like <a href="f-qwen35.html">Qwen3.5</a>, with two changes
+that make it the most unusual stack in bunsen: it has <b>no residual stream</b>, and most of its feed-forwards are a
+<b>mixture of experts</b> run in a narrow latent space.</p>
+</div>
+
+<section>
+<h2 id="attnres">Attention residuals</h2>
+<figure class="fig">{{fig:attnres}}
+<figcaption><b>Sum or route.</b> A residual stream gives every earlier output weight one; routes let each sublayer
+choose its mixture.</figcaption></figure>
+<p>In a residual stream, sublayer <i>l</i> reads the sum of the embedding and every earlier output, each with weight
+one (<a href="algebra.html#stream">the stream</a>). ZONOS3's "full attention residuals" keep those outputs apart in a
+<b>bank</b>, and each sublayer reads its own mixture of them. The sublayer has a learned query vector; each source in
+the bank is RMS-normalized into a key; a softmax over the sources' scores gives the weights; and the sublayer reads
+the weighted sum of the sources. Its output is appended to the bank, never added to anything. The model's output is
+one last route through the whole bank. With 11 layers there are 23 routes (one before each of 22 sublayers, and one
+for the output), and the queries start at zero, which gives an even mixture.</p>
+<p>The weights depend on each position's own sources, so every position chooses its own mixture, and the routing
+stays causal and needs no cache of its own. It generalizes the depth-weighted averages of
+DenseFormer{{cite:pagliardini2024}} from fixed learned weights to input-dependent ones. It gives the model a direct
+read of any earlier layer's output, without that output having been diluted in a growing sum.</p>
+</section>
+
+<section>
+<h2 id="stack">The stack</h2>
+<p>11 layers of width 1024. Layers 3 and 7 (every fourth, counting from one) are global attention: 16 query heads and
+4 key/value heads of width 32, a weightless QK-norm before RoPE, a learned per-head gain on the queries (its own
+temperature), and a <a href="c-attention.html#gate">headwise output gate</a>. The other nine are
+<a href="c-deltanet.html">gated DeltaNets</a> with 4 heads of 128. Every sublayer reads through an RMS norm. The head
+scores all ten codebooks' 4098 entries at once, soft-capped at 15.</p>
+</section>
+
+<section>
+<h2 id="moe">The latent mixture of experts</h2>
+<figure class="fig">{{fig:latent_moe}}
+<figcaption><b>Down, route, up.</b> Two of 64 small experts per token, run in a 256-wide latent.</figcaption></figure>
+<p>A mixture of experts replaces one feed-forward with many, and a router that sends each token to a
+few{{cite:shazeer2017}}. Parameters grow with the expert count, but compute only with the number chosen. ZONOS3's
+layer 0 has a dense SwiGLU; layers 1 to 10 each have 64 SwiGLU experts, of which a token uses 2. It runs them in a
+<b>latent</b>: the router reads the full 1024-wide input, but the token is first projected down to 256, the experts
+work at that width, and their weighted output is projected back up. That makes each expert small enough that 64
+of them fit in a small model: 800M parameters in all, about 100M used per token.</p>
+<p>The router balances its load without an auxiliary loss: a per-expert bias is added to the scores for
+<i>choosing</i> experts but not for <i>weighting</i> them, and is adjusted in training to even out the
+load{{cite:wang2024lossfree}}. There is no shared expert.</p>
+<div class="callout defer"><span class="t">Used by</span>
+<a href="f-zonos3.html">ZONOS3</a> · bunsen's <code>DecoderStack</code> takes routes in place of its residual
+stream when its config has them, and its feed-forward socket takes a sparse MoE</div>
+</section>

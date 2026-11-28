@@ -1,0 +1,28 @@
+<div class="prose">
+<p>The shortcut is the identity whenever the path keeps the shape. Only a stage's first unit, which strides or changes
+the channel count, needs something else. There are four kinds:</p>
+</div>
+<figure class="fig">{{fig:shortcut_kinds}}
+<figcaption><b>Shortcut kinds.</b> Identity. A strided 1×1 projection (ResNet's option B){{cite:he2016}}.
+Average-pool then 1×1 ("ResNet-D")
+{{cite:he2019tricks}}. None, where the unit is its path alone (RegNetZ){{cite:dollar2021}}.</figcaption></figure>
+
+<section>
+<h2 id="grid">Why average-down?</h2>
+<figure class="fig">{{fig:strided_grid}}
+<figcaption><b>A strided 1×1 conv decimates.</b> It reads one pixel of every 2×2 block and ignores the other three,
+so ¾ of the input never reaches the projected stream. Pooling first, a box low-pass, lets every position contribute
+before the decimation. It is the same argument as <a href="c-sampling.html#aa">anti-aliasing</a>, applied to the
+shortcut.</figcaption></figure>
+<p>The pool is 2×2 with the unit's stride, in ceil mode and not counting padding. In a dilated stage (stride 1 by
+<a href="c-conv.html#os">output stride</a>) it becomes a 2×2 stride-1 pool with one row and column of padding, so the
+shortcut still smooths the input the way it would have at stride 2.</p>
+</section>
+
+<section>
+<h2 id="projection">Projection as a change of basis</h2>
+<p>A 1×1 projection plus norm is a learned linear map between the two stages' feature spaces. Within a stage the
+residual stream keeps one basis, and identity shortcuts preserve it. At a stage boundary it is re-expressed in a wider
+space. In a <a href="c-residual.html#preact">pre-activated</a> unit the projection reads the pre-activated input, and
+in timm's pre-activation bottleneck it has no norm of its own: the next unit's pre-norm takes that role.</p>
+</section>

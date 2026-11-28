@@ -1,0 +1,50 @@
+<div class="prose">
+<p>A unit kind is the shape of the residual path <span class="math">F</span>: how many convs it has, at what widths,
+and which of them is the spatial mixer. All the kinds lower to the same generic unit (a chain of convs with one
+marked as the mixer), so this chapter is about widths and orderings. What the mixer itself computes is covered by the
+<a href="c-conv.html">conv</a> and <a href="c-res2.html">mixer</a> chapters.</p>
+</div>
+<figure class="fig">{{fig:hourglass}}
+<figcaption><b>Unit kinds by width profile</b> (box width ∝ channels). The residual stream runs at the unit's
+in/out width; the path may narrow or widen inside.</figcaption></figure>
+
+<section>
+<h2 id="basic">Basic</h2>
+<p>Two 3×3 convs at the stream width. The first one strides and is the mixer{{cite:he2016}}. It is cheap at small widths
+and expensive at large ones, since every conv is <span class="math">9C²</span>. ResNet-18/34, ResNetV2-18/34 and
+SKNet-18/34 use it.</p>
+</section>
+
+<section>
+<h2 id="bottleneck">Bottleneck</h2>
+<p>A 1×1 reduce, a 3×3 mixer at a quarter of the width, and a 1×1 expand back (expansion 4){{cite:he2016}}. The spatial
+mixing, which is the expensive part, happens in a narrow space, and the residual stream can be wide. A ResNet-50 stage
+carries 256 to 2048 channels but mixes in 64 to 512.</p>
+<p>Two refinements come with the lineage. <b>Stride on the 3×3</b> (torchvision's default, "ResNet-B"): striding the
+first 1×1 would discard ¾ of the input (see <a href="c-shortcut.html#grid">shortcuts</a>), so the stride moves to the
+mixer{{cite:he2019tricks}}. <b>Grouping the mixer</b> (<a href="f-resnext.html">ResNeXt</a>): the mixer width is
+<span class="math">⌊planes · base_width / 64⌋ · groups</span>. A ResNet-50 is 1×64, a ResNeXt-50 32×4d is 32 groups of
+4, and a Wide ResNet-50-2 is 1×128.</p>
+</section>
+
+<section>
+<h2 id="grouped">Grouped bottleneck as RegNet states it</h2>
+<p>RegNet sets the expansion with a <i>bottleneck ratio</i> <span class="math">b</span> (mixer width = unit width ×
+<span class="math">b</span>) and states groups by their size rather than their count{{cite:radosavovic2020}}. RegNetX/Y
+use <span class="math">b = 1</span>: no narrowing at all, so all of the saving comes from the grouped mixer.</p>
+</section>
+
+<section>
+<h2 id="inverted">Inverted</h2>
+<p>With <span class="math">b &gt; 1</span> the path widens instead of narrowing: expand → mix → project, as in MobileNetV2
+{{cite:sandler2018}}. RegNetZ uses <span class="math">b = 4</span> with a narrow residual stream. A narrow stream
+carries little information, so rectifying it would destroy some of it, which is why inverted units are paired with
+<a href="c-residual.html#linear">linear outputs</a>{{cite:dollar2021}}.</p>
+</section>
+
+<section>
+<h2 id="pre">Pre-activated</h2>
+<p>The basic and bottleneck paths again, with each conv's norm and activation moved before it and the unit's output
+activation removed (<a href="c-residual.html#preact">pre- versus post-activation</a>). The path's convs are unchanged.
+Only the boundary between units moves{{cite:he2016id}}.</p>
+</section>

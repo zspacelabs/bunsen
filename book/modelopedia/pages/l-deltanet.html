@@ -1,0 +1,80 @@
+<div class="prose">
+<p>Qwen3.5's linear layers replace attention with a <b>gated DeltaNet</b>{{cite:yang2025}}: a recurrent token mixer
+with a fixed-size state, whose cost per token doesn't grow with the context. This chapter builds it up in three
+steps: linear attention, the delta rule, and the gate. Then it shows the block around the rule.</p>
+</div>
+
+<section>
+<h2 id="linear">Attention without the softmax</h2>
+<figure class="fig">{{fig:kv_vs_state}}
+<figcaption><b>Two memories.</b> Softmax attention keeps every key and value and reads them all at each step. Linear
+attention folds them into one matrix.</figcaption></figure>
+<p>Remove the softmax from causal attention, and the output at step <i>t</i> is
+<span class="math">Σ<sub>s≤t</sub> v<sub>s</sub> (k<sub>s</sub>ᵀ q<sub>t</sub>) = (Σ<sub>s≤t</sub> v<sub>s</sub>
+k<sub>s</sub>ᵀ) q<sub>t</sub></span>. The bracket is a <span class="math">d<sub>v</sub> × d<sub>k</sub></span>
+matrix that can be updated one outer product per token. So a linear-attention layer is a recurrent network, with
+constant cost per step{{cite:katharopoulos2020}}. Schlag et al. read the state as <i>fast weights</i>: a matrix the
+network writes associations into (key → value) and reads with queries{{cite:schlag2021}}.</p>
+<p>Purely additive writes are the weakness. The state has room for about <span class="math">d<sub>k</sub></span>
+orthogonal keys. Past that, writes interfere, and writing a new value to an old key piles it on top of the old one
+rather than replacing it.</p>
+</section>
+
+<section>
+<h2 id="rule">The gated delta rule</h2>
+<figure class="fig">{{fig:delta_rule}}
+<figcaption><b>Four steps per token.</b> Forget, read what the key currently retrieves, write the error, query.
+</figcaption></figure>
+<p>The delta rule writes the <i>error</i> instead of the value: read what the state currently returns for
+<span class="math">k</span>, <span class="math">v̂ = Sᵀk</span>, and move it toward <span class="math">v</span>,</p>
+<p class="eq">S ← S + β k (v − Sᵀk)ᵀ.</p>
+<p>That is one step of online least-squares regression of values on keys: Widrow and Hoff's rule{{cite:widrow1960}},
+applied to the fast-weight matrix{{cite:schlag2021}}. With <span class="math">|k| = 1</span> and β = 1 it overwrites
+<span class="math">k</span>'s value exactly. Yang et al. showed how to train it in parallel over the sequence, which
+made it practical at scale{{cite:yang2024}}. The gated DeltaNet adds a decay
+<span class="math">S ← e<sup>g</sup> S</span> before each write. This is Mamba 2's forgetting{{cite:dao2024}}, and it
+lets the layer clear its memory quickly when the context changes{{cite:yang2025}}. Decay and delta are
+complementary: one erases everything a little, the other edits one association precisely.</p>
+<p>In bunsen, <code>GatedDeltaRule</code> runs the rule in two forms. A decode step runs the four lines once. A
+prefill runs them 64 positions at a time in a parallel, chunked form. Both give the same result, so the length of a
+prefill never changes the output. The queries and keys are L2-normalized and the query scaled by
+<span class="math">1/√d<sub>k</sub></span>, and the rule runs in f32 whatever the model's dtype.</p>
+</section>
+
+<section>
+<h2 id="block">The block around the rule</h2>
+<figure class="fig">{{fig:gdn_block}}
+<figcaption><b>Qwen3.5's gated DeltaNet.</b> Four input projections; a short causal conv on q, k, v; the rule; a
+gated norm; the output projection.</figcaption></figure>
+<ul>
+<li><b>A short causal convolution</b> (4 taps, depthwise) over the projected queries, keys and values, then SiLU.
+It mixes each token with its three predecessors before the rule sees it. That gives the layer cheap local order and
+n-gram features, and is why a DeltaNet layer needs no rotary table.</li>
+<li><b>Write strength and decay from the input.</b> <span class="math">β = σ(W<sub>b</sub>x)</span> per value head;
+<span class="math">g = −e<sup>A</sup> · softplus(W<sub>a</sub>x + dt)</span>, so the decay rate is learned per head
+and modulated per token.</li>
+<li><b>More value heads than key heads.</b> Qwen3.5 uses 16 key heads and 16 to 48 value heads, each 128 wide; the
+keys are repeated across value heads, the reverse of GQA. Each value head carries its own 128 × 128 state.</li>
+<li><b>A gated output norm.</b> <span class="math">w · RMSNorm(o) · SiLU(z)</span>, with <span class="math">z</span>
+a fifth projection of the input: the DeltaNet's counterpart of the attention output gate.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="hybrid">The hybrid stack</h2>
+<figure class="fig">{{fig:hybrid_stack}}
+<figcaption><b>Three to one.</b> The linear layers do most of the mixing; one attention layer in four keeps exact
+retrieval.</figcaption></figure>
+<p>A fixed-size state cannot recall an arbitrary token from far back, and attention can. So the hybrid keeps a few
+attention layers. With three DeltaNet layers to one attention layer, the KV cache is a quarter of a dense model's,
+and the per-token cost of three layers in four is constant. The design came to Qwen with Qwen3-Next{{cite:qwen2025next}},
+and Qwen3.5 uses it at every size{{cite:qwen2026qwen35}}.</p>
+</section>
+
+<section>
+<h2 id="state">The state</h2>
+<p>A DeltaNet layer's decode state is its conv's last three inputs and its matrix <span class="math">S</span>, kept
+in a <code>DeltaNetState</code>. Like a KV cache it is injected: the caller makes it and passes it in. Unlike a KV
+cache it cannot be rewound, since it summarizes its whole prefix. A decode that backtracks must snapshot it or
+start again (<a href="c-cache.html#state">decoding state</a>).</p>
+</section>

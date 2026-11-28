@@ -1,0 +1,70 @@
+<div class="prose">
+<p>The Swin Transformer{{cite:liu2021swin}} brought the conv net's two structural priors back into the transformer.
+<b>Locality</b> returns as attention inside windows, and the <b>pyramid</b> returns as patch merges between stages. The
+result has a ResNet's shape (strides 4 to 32, widths doubling) with transformer blocks inside, and it took over the
+backbone role in detection and segmentation. bunsen builds it as the staged vision encoder.</p>
+</div>
+
+<section>
+<h2 id="v1">Swin Transformer</h2>
+<p><b>Design.</b> 4×4 patches embedded to width <span class="math">C</span> (96, 128 or 192) and normalized. Four
+stages of depths [2, 2, 6, 2] (or [2, 2, 18, 2]) at widths <span class="math">C, 2C, 4C, 8C</span>, each after the first
+opened by a 2×2 patch merge. Pre-norm blocks of <a href="t-window.html">window attention</a> (<span class="math">M = 7</span>,
+or 12 at 384 pixels), every second block with its windows shifted, a learnt relative position bias table, and a GELU
+MLP. Then a final LayerNorm, a mean pool and the classifier. There are no prefix tokens and no absolute position
+embedding.</p>
+<p><b>Why.</b> Global attention costs <span class="math">N²</span>, which rules out the high-resolution, multi-scale
+features dense prediction needs. Windows make the cost linear. Shifting them lets information propagate between
+windows, as stacked convs propagate it between neighbourhoods. Merges build the feature pyramid that FPN-style heads
+expect. Swin's case is that the transformer's gains came from attention as a mixer, not from giving up locality and
+hierarchy.</p>
+<p><b>Slot fill.</b> patch = 4×4 + LN · tokens = none · stack = 4 stages with merges (LN → 4C→2C) · mixer = shifted
+window attention with a relative bias table · pre-norm · final = LN · pool = avg.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis; the board below is one Swin block, drawn as its two
+residual sublayers. Solid chips are injected components (click one for its combinator chapter); dashed sockets are
+empty, and the wire passes straight through. <b>Δ</b> marks the sockets a variant changes relative to its parent, which
+for Swin is the ViT.</p>
+{{circuit:swin|Against the ViT: a normed 4×4 patch embedding, no tokens, staged merges, window attention, and a mean pool.}}
+<figure class="fig">{{fig:pyramid}}
+<figcaption><b>The pyramid.</b> At 224 pixels the stage grids are 56, 28, 14 and 7. The last equals the window, so the
+last stage attends globally and doesn't shift.</figcaption></figure>
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="t-window.html">window attention</a> · <a href="t-window.html#bias">relative position bias</a> ·
+<a href="t-merge.html">patch merging</a> · <a href="t-sublayer.html">pre-norm sublayer</a> · <a href="t-pool.html">mean pool</a></div>
+</section>
+
+<section>
+<h2 id="s3">Swin-S3: a window per stage</h2>
+<p><b>Design change.</b> Each stage gets its own window size, found by architecture search: [7, 7, 14, 7] for Tiny and Base,
+[14, 14, 14, 7] for Small{{cite:chen2021s3}}.</p>
+<p><b>Why.</b> S3 searched the search space itself (depth, width, heads, MLP ratio, window) for vision transformers,
+rather than searching one fixed space. The windows it found are telling. Stage 3's window of 14 equals that stage's
+grid at 224 pixels, so the grid-clamp rule turns stage 3 into <i>global</i> attention: the search chose global mixing
+where most of the depth is. The early stages keep local windows, where the grid is large.</p>
+{{circuit:swin-s3|One parameter of the token mixer becomes per stage; at 224 pixels stages 3 and 4 then attend globally.}}
+</section>
+
+<section>
+<h2 id="v2">Swin Transformer V2</h2>
+<p><b>Design change.</b> Three changes to the block and one to the merge:</p>
+<ul>
+<li><a href="t-sublayer.html#placement">Res-post-norm</a>: <span class="math">x + LN(f(x))</span> in place of
+pre-norm.</li>
+<li><a href="t-window.html#cosine">Scaled cosine attention</a>, with a learnt per-head scale capped at 100, and biases on
+the query and value only.</li>
+<li>A <a href="t-window.html#bias">continuous position bias</a>: an MLP over log-spaced offsets, normalized by the
+window size the weights were pretrained at.</li>
+<li>Merges reduce first and normalize after (4C → 2C → LN).</li>
+</ul>
+<p><b>Why.</b> V2 scaled Swin to 3B parameters and 1536-pixel images{{cite:liu2022swinv2}}. Two problems appeared. In
+large pre-norm models, activations in deep layers grew by orders of magnitude, and training diverged. Res-post-norm and
+cosine attention bound them. And models pretrained at small windows transferred poorly to the larger windows that
+high-resolution fine-tuning needs. The log-spaced CPB extrapolates where a table cannot. The names record that
+transfer: <code>swinv2_base_window12to24_192to384</code> was pretrained at window 12 and 192 pixels, and runs at window
+24 and 384. Its per-stage pretraining windows are [12, 12, 12, 6], because at 192 pixels the last stage's grid was only
+6.</p>
+{{circuit:swinv2|Both sublayers move their norm from PRE to POST; the mixer becomes cosine attention with a CPB-MLP; the merge's norm moves after the reduction.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="t-sublayer.html#placement">res-post-norm</a> · <a href="t-window.html#cosine">cosine attention</a> ·
+<a href="t-window.html#bias">continuous position bias</a> · <a href="t-merge.html">merges</a></div>
+</section>

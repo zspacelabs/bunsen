@@ -1,0 +1,38 @@
+<div class="prose">
+<p>The head turns the last stage's map into class logits. It has three parts: an optional final layer, a global pool,
+and a linear classifier with dropout before it.</p>
+</div>
+<figure class="fig">{{fig:head}}
+<figcaption><b>The head.</b> With zero classes the model is <i>headless</i> and returns the pooled features, which is
+how a residual trunk is reused as a backbone.</figcaption></figure>
+
+<section>
+<h2 id="final">The final layer</h2>
+<p>Which final layer a net needs depends on what its units leave unnormalized:</p>
+<ul>
+<li><b>none</b>: post-activation nets (ResNet, ResNeXt, RegNetX/Y). The last unit already ended with norm, add and act.</li>
+<li><b>norm + act</b>: <a href="c-residual.html#preact">pre-activation</a> nets (ResNetV2, BiT). The residual stream
+has never been normalized, so it is normalized once before the pool{{cite:he2016id}}.</li>
+<li><b>act</b>: pre-activated or linear-output RegNets (V, Z). Their stream is unrectified.</li>
+<li><b>1×1 conv block</b>: RegNetZ-h widens to 1536 features before pooling{{cite:dollar2021}}, the "head conv" of mobile
+designs.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="pool">Global pooling</h2>
+<figure class="fig">{{fig:pools}}
+<figcaption><b>Pool kinds.</b> Global average pooling{{cite:lin2013nin}} is the default. It makes the classifier blind
+to position and lets the same weights run at any input size. Max pooling keeps the strongest response; avg-max averages
+the two; cat-avg-max concatenates them and doubles the classifier's input.</figcaption></figure>
+<p>Geometrically, the pool is the projection of a translation-equivariant feature field onto its translation-invariant
+part. Everything before it commutes with shifts (up to the aliasing discussed in
+<a href="c-sampling.html#aa">downsampling</a>), and everything after it ignores them.</p>
+</section>
+
+<section>
+<h2 id="fc">The classifier</h2>
+<p>A single linear layer from pooled features to classes, with dropout before it during training. Re-heading a model
+for a new task replaces only this layer, which is why the pooled feature width (2048 for a ResNet-50) is the usual
+"feature dimension" of a backbone.</p>
+</section>

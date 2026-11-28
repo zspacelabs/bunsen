@@ -1,0 +1,27 @@
+<div class="prose">
+<p>Parakeet TDT is NVIDIA's transducer recognizer{{cite:parakeet2025}}: a FastConformer encoder read by a
+token-and-duration transducer. It has no attention between audio and text, and no large language model; its decoder
+is a two-layer LSTM, the smallest and simplest decoder among bunsen's recognizers.</p>
+</div>
+
+<section>
+<h2 id="design">Parakeet TDT</h2>
+<p><b>Design.</b> 128 natural-log mel bands after preemphasis, standardized per band. An 8× dw-striding stem to
+80 ms frames. 24 FastConformer blocks of width 1024 (8 heads, kernel-9 convolutions, no biases) with relative
+positions. A projection to 640, a prediction network of two 640-wide LSTMs over an 8192-piece SentencePiece
+vocabulary plus blank, and a joint that scores tokens and durations of 0 to 4 frames.</p>
+<p><b>Why.</b> The Conformer's convolution gives the encoder the local acoustic modelling attention lacks, and
+FastConformer's 8× subsampling cuts attention's cost by 4× against the original{{cite:rekesh2023}}. A transducer
+decodes in step with the audio, so it is far less prone than an attention decoder to writing text the audio doesn't
+contain, and TDT's durations let it skip the frames where nothing new is said{{cite:xu2023tdt}}. Every token comes out
+with its frame, so word timestamps cost nothing. v3 covers 25 European languages.</p>
+<p class="circuit-key">Circuit key: four rows, audio in to audio out, each read left to right. Solid chips are
+components (click one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes
+relative to its parent.</p>
+{{circuit:parakeet|A Conformer encoder, a joint in place of attention, and an LSTM in place of the language model.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="s-frontend.html">NeMo's front end</a> · <a href="s-stem.html">dw-striding</a> ·
+<a href="s-conformer.html">the Conformer</a> · <a href="s-transducer.html">the transducer</a></div>
+<p>FermionResearch's Phonon-2 is parakeet-tdt-0.6b-v3 with its encoder re-quantized to five values per row and tuned
+for English: the same circuit, at 164 MB.</p>
+</section>

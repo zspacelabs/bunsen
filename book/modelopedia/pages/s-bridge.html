@@ -1,0 +1,50 @@
+<div class="prose">
+<p>The bridge is where a recognizer's audio frames meet its text tokens. The four recognizers use four different
+bridges, and each one fixes how much audio each output step can see, what the decoder needs that a language model
+doesn't have, and whether the model can stream.</p>
+</div>
+
+<section>
+<h2 id="four">Four bridges</h2>
+<figure class="fig">{{fig:bridges}}
+<figcaption><b>Cross-attention, splice, addition, joint.</b> From the most audio per step to the least.</figcaption></figure>
+<h3 id="cross">① Cross-attention (Whisper)</h3>
+<p>The Transformer's encoder–decoder bridge{{cite:vaswani2017}}: each decoder layer has a third sublayer whose
+queries come from the text and whose keys and values come from the encoder's output. Every text step can look at
+every frame of the window. The decoder is therefore not a plain language model: its layer has a sublayer the
+language kits lack, and its cache has two parts, self-attention keys that grow and cross-attention keys computed once
+per window.</p>
+<h3 id="splice">② Splice (Qwen3-ASR)</h3>
+<p>The audio frames become ordinary positions in the decoder's input. A chat prompt holds a run of
+<code>&lt;|audio_pad|&gt;</code> placeholders, one per encoder frame, and the projected frames replace their
+embeddings. After that the decoder is an unmodified Qwen3: its self-attention reads audio and text alike, and the
+bridge has no parameters beyond the projector. The cost is that the audio occupies the context (13 positions a
+second).</p>
+<h3 id="add">③ Add (Voxtral Realtime)</h3>
+<p>The decoder takes one position per 80 ms of audio, and each position's input is the sum of a token's embedding
+and that 80 ms group's projected frames. Audio and text share positions rather than taking turns, so the context
+grows at 12.5 positions a second whatever is said, and each step sees only the audio up to now. That is what makes
+it stream.</p>
+<h3 id="joint">④ Joint (Parakeet TDT)</h3>
+<p>A transducer has no attention between audio and text at all. A small prediction network summarizes the text so
+far, and the joint network adds its state to <i>one</i> encoder frame's and scores the next token
+(<a href="s-transducer.html">transducers</a>). The decoder is cheap and frame-synchronous, at the cost of seeing one
+frame at a time (its encoder has already mixed context into every frame).</p>
+</section>
+
+<section>
+<h2 id="delay">Delay and its conditioning</h2>
+<figure class="fig">{{fig:delay_stream}}
+<figcaption><b>Writing behind the audio.</b> The text stream lags the audio by a fixed number of positions.</figcaption></figure>
+<p>An additive bridge pairs each audio group with one output token, but a word can only be written once it has been
+heard. So Voxtral writes its transcript a fixed delay behind the audio: 480 ms by default, any multiple of 80 ms up to
+1.2 s, or 2.4 s. A longer delay is more accurate and later. Because one checkpoint supports every delay, each layer
+is told which one it is running at: a sinusoidal embedding of the delay goes through a small MLP to a per-channel
+scale, <span class="math">1 + f(delay)</span>, that multiplies the feed-forward's normalized input. That is the
+adaptive normalization of diffusion transformers{{cite:peebles2023}}, a FiLM-style conditioning{{cite:perez2018}}
+on a scalar.</p>
+<div class="callout defer"><span class="t">Used by</span>
+<a href="f-whisper.html">Whisper</a> ① · <a href="f-qwen3asr.html">Qwen3-ASR</a> ② ·
+<a href="f-voxtral.html">Voxtral Realtime</a> ③ · <a href="f-parakeet.html">Parakeet</a> ④ · and in synthesis,
+<a href="f-zonos3.html">ZONOS3</a> bridges a speaker embedding by replacing one prompt row, a splice of one</div>
+</section>
