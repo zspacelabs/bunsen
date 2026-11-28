@@ -15,10 +15,18 @@
 //! |---|---|
 //! | [`language::decision::laya`] | Laya, an open decision model: a `ModernBERT` encoder and a head that answers typed questions with calibrated probabilities over their options. |
 //! | [`images::classification::resnet`] | `ResNet` image classifiers, with 140 torchvision and `timm` checkpoints by name. |
+//! | [`images::classification::vit`] | The Vision Transformer, as the generic vision encoder: 142 prefabs (the CLIP towers, `SigLIP`, `DINOv2`, C-RADIO, `AIMv2`, `BEiT3`, the hybrids on a `ResNetV2`) and 305 `timm` checkpoints by name. |
+//! | [`images::classification::deit`] | `DeiT` and `DeiT` III, `ViT`s with an optional distillation token and second classifier, with 16 `timm` checkpoints by name. |
+//! | [`images::classification::regnet`] | `RegNetX`, `RegNetY`, `RegNetV` and `RegNetZ`, as the generic conv net, their widths generated from `timm`'s configs, with `timm`'s checkpoints by name. |
+//! | [`images::classification::resnetv2`] | The pre-activation `ResNetV2` and `BiT`, as the generic conv net, with `timm`'s checkpoints by name. |
+//! | [`images::classification::res2net`] | `Res2Net` and `Res2NeXt`, `ResNet`s whose bottlenecks mix by a scale split, with `timm`'s checkpoints by name. |
+//! | [`images::classification::resnest`] | `ResNeSt`, `ResNet`s whose bottlenecks mix by a split attention, with `timm`'s checkpoints by name. |
+//! | [`images::classification::sknet`] | Selective Kernel Networks, `ResNet`s whose mixer selects its kernel, with `timm`'s checkpoints by name. |
 //! | [`images::classification::swin::v1`] | Swin Transformer (V1) and Swin-S3 image classifiers, the generic staged vision encoder, with 19 `timm` checkpoints by name. |
 //! | [`images::classification::swin::v2`] | Swin Transformer V2 image classifiers, the generic staged vision encoder, with 12 `timm` checkpoints by name. |
 //! | [`language::generation::nanochat`] | karpathy's nanochat GPT, upstream's 2025 and 2026 models: a pretrained index of community checkpoints (`nanochat-students/rl-d20` by default), upstream's own checkpoint files loaded as they are, cached decoding, and the corpus it trains on. |
 //! | [`language::generation::qwen3_5`] | The dense Qwen3.5 decoder, a hybrid of gated `DeltaNet` and gated full-attention layers: a pretrained index of its 0.8B to 27B checkpoints' text models (`qwen/qwen3.5-0.8b` by default), and cached decoding through a KV cache and the linear layers' states. |
+//! | [`language::generation::gemma`] | Google's Gemma decoder, generations 1, 2 and 3 (their text models): a pretrained index of the Gemma checkpoints up to 9B. |
 //! | [`language::generation::qwen3`] | The Qwen3 decoder: a pretrained index of the dense Qwen3 checkpoints up to 8B (`qwen/qwen3-0.6b` by default), and the text model of [`speech::asr::qwen3_asr`]. |
 //! | [`speech::asr::whisper`] | `OpenAI`'s Whisper: the model, a pretrained index, decoders, and a stream driver. |
 //! | [`speech::asr::parakeet`] | NVIDIA's Parakeet TDT: the model, a pretrained index (`FermionResearch`'s Phonon-2 by default), and greedy decoding. |
@@ -73,8 +81,9 @@
 //!   ([`catalog_contracts`](support::pretrained::catalog_contracts)).
 //! - **A construct config.** `{Kit}ConstructConfig` is the kit's hook, its
 //!   [`ConstructInit`](crate::data::builds::ConstructInit): the kit's name
-//!   (`{KIT}_KIT`), and how the loaded files become its construct,
-//!   `{Kit}Construct`.
+//!   (`{KIT}_KIT`, the kit module's snake name: `qwen3_asr`, `silero_vad`; its
+//!   catalog contract, file and CLI family keep their dashes), and how the
+//!   loaded files become its construct, `{Kit}Construct`.
 //! - **`default_{kit}_factory()`.** A
 //!   [`BuildFactory`](crate::data::builds::BuildFactory) over the default
 //!   providers, behind the construct config. A name to a model is one call:
@@ -119,12 +128,13 @@
 //! | Validation crate | none | `whisper-model-validation` | `silero-model-validation` | `parakeet-model-validation` | `qwen3-asr-model-validation` | `sortformer-model-validation` | `qwen3-model-validation` | `gemma-model-validation` | `qwen3-5-model-validation` | `voxtral-model-validation` | `nanochat-model-validation` | `zonos3-model-validation` | `qwen3-tts-model-validation` |
 //! | Example | `examples/resnet_finetune`, `examples/resnet_tiny` | `bunsen-tool asr` | `bunsen-tool asr`, as the VAD gate | `bunsen-tool asr` | `bunsen-tool asr` | none | `bunsen-tool chat` | `bunsen-tool chat` | `bunsen-tool chat` | `bunsen-tool asr` | `examples/train-chat` | none | none |
 //!
-//! The other kits have a model, its configs, and an example, and no prefabs
-//! or weights. Swin V2 is Stacked, and trains in `examples/swin_tiny`; it
-//! has timm's weights too, but no table of its own here, as `ViT` and `DeiT`
-//! have none. `NanoChat` is Stacked too, and adds a table of
-//! the corpus it trains on, a [`data::datasets`](crate::data::datasets) shard
-//! set (`examples/train-chat`).
+//! The ten image kits share every row but the config with `ResNet`'s column:
+//! each is a `timm` image kit, its hook the generic
+//! [`TimmConstructConfig`](images::support::pretrained::TimmConstructConfig), its
+//! construct an `ImageModelConstruct`. `ModernBERT` has a model, its configs
+//! and an interop, and no table of its own: Laya's checkpoints carry it.
+//! `NanoChat` is Stacked, and adds a table of the corpus it trains on, a
+//! [`data::datasets`](crate::data::datasets) shard set (`examples/train-chat`).
 //!
 //! Three seams are shared across kits:
 //! [`data::pretrained`](crate::data::pretrained) for loading,
