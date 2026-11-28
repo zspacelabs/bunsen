@@ -33,8 +33,8 @@ use crate::{
         BunsenError,
         BunsenResult,
         ConstraintError,
+        ResultContext,
         Rule,
-        WithOkOrPanic,
     },
 };
 
@@ -314,16 +314,6 @@ impl ResNetContractConfig {
                     .with_aa(self.anti_alias),
             ))
     }
-
-    /// [`try_to_conv_net`](Self::try_to_conv_net), for a policy known to be
-    /// sound.
-    ///
-    /// # Panics
-    ///
-    /// When it is not.
-    pub fn to_conv_net(&self) -> ConvNetContractConfig {
-        self.try_to_conv_net().ok_or_panic()
-    }
 }
 
 impl ToStructureConfig for ResNetContractConfig {
@@ -336,7 +326,9 @@ impl ToStructureConfig for ResNetContractConfig {
     /// As [`try_to_conv_net`](Self::try_to_conv_net), and as
     /// [`ConvNetContractConfig`]'s lowering.
     fn try_to_structure(&self) -> BunsenResult<ConvNetStructureConfig> {
-        self.try_to_conv_net()?.try_to_structure()
+        self.try_to_conv_net()
+            .and_then(|net| net.try_to_structure())
+            .context("ResNetContractConfig")
     }
 }
 
@@ -362,7 +354,8 @@ mod tests {
     fn test_prefabs_lower_to_torchvisions_widths() {
         let widths = |name: &str| -> Vec<(usize, usize, usize)> {
             ResNetContractConfig::expect_prefab(name)
-                .to_conv_net()
+                .try_to_conv_net()
+                .unwrap()
                 .stages
                 .iter()
                 .map(|s| (s.depth, s.mid_width, s.width))
@@ -391,7 +384,8 @@ mod tests {
     fn test_grouped_prefabs_lower_to_timms_widths() {
         let stages = |name: &str| -> Vec<(usize, usize, usize)> {
             ResNetContractConfig::expect_prefab(name)
-                .to_conv_net()
+                .try_to_conv_net()
+                .unwrap()
                 .stages
                 .iter()
                 .map(|s| (s.mid_width, s.width, s.groups))

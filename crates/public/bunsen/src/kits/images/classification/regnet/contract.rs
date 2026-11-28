@@ -66,7 +66,7 @@ pub struct RegNetStage {
 
 /// A `RegNet` unit's shortcut where it changes shape, timm's `downsample`.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
-pub enum RegNetDownsample {
+pub enum RegNetDownsampleKind {
     /// A `1x1` conv of the unit's stride and a norm (timm's `'conv1x1'`).
     Conv1x1,
 
@@ -134,8 +134,8 @@ pub struct RegNetContractConfig {
     pub stem_width: usize,
 
     /// The shortcut of a unit that changes shape (timm's `downsample`).
-    #[config(default = "RegNetDownsample::Conv1x1")]
-    pub downsample: RegNetDownsample,
+    #[config(default = "RegNetDownsampleKind::Conv1x1")]
+    pub downsample: RegNetDownsampleKind,
 
     /// No activation after each unit's add, and one after the last stage
     /// instead (timm's `linear_out`, `RegNetZ`'s).
@@ -299,7 +299,7 @@ impl RegNetContractConfig {
     /// # Errors
     ///
     /// As [`try_stages`](Self::try_stages).
-    pub fn try_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
+    pub fn try_to_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         let stages = self
             .try_stages()?
             .into_iter()
@@ -320,9 +320,9 @@ impl RegNetContractConfig {
         let layers = ConvLayersConfig::new()
             .with_act(self.act_layer.clone())
             .with_shortcut(match self.downsample {
-                RegNetDownsample::Conv1x1 => ConvShortcutKind::Conv,
-                RegNetDownsample::Avg => ConvShortcutKind::AvgConv,
-                RegNetDownsample::None => ConvShortcutKind::None,
+                RegNetDownsampleKind::Conv1x1 => ConvShortcutKind::Conv,
+                RegNetDownsampleKind::Avg => ConvShortcutKind::AvgConv,
+                RegNetDownsampleKind::None => ConvShortcutKind::None,
             })
             .with_out_act(!self.linear_out)
             .with_attn(
@@ -357,15 +357,15 @@ impl RegNetContractConfig {
 impl ToStructureConfig for RegNetContractConfig {
     type Structure = ConvNetStructureConfig;
 
-    /// The conv net of this `RegNet` ([`try_conv_net`](Self::try_conv_net)),
+    /// The conv net of this `RegNet` ([`try_to_conv_net`](Self::try_to_conv_net)),
     /// resolved.
     ///
     /// # Errors
     ///
-    /// As [`try_conv_net`](Self::try_conv_net) and the conv net's lowering,
+    /// As [`try_to_conv_net`](Self::try_to_conv_net) and the conv net's lowering,
     /// under a frame naming the `RegNet`.
     fn try_to_structure(&self) -> BunsenResult<ConvNetStructureConfig> {
-        self.try_conv_net()
+        self.try_to_conv_net()
             .and_then(|net| net.try_to_structure())
             .context("RegNetContractConfig")
     }

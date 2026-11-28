@@ -18,7 +18,7 @@ use crate::{
     },
     kits::images::classification::vit::{
         ViTContractConfig,
-        ViTMlpLayer,
+        ViTMlpKind,
         ViTNormLayer,
     },
 };
@@ -281,7 +281,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -301,7 +301,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -321,7 +321,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -341,7 +341,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -361,7 +361,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -381,7 +381,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -401,7 +401,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -421,7 +421,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -441,7 +441,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -461,7 +461,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -481,7 +481,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -501,7 +501,7 @@ impl ViTContractConfig {
             .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
-            .with_mlp_layer(ViTMlpLayer::SwiGlu)
+            .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
             .with_activation(BunsenActivationConfig::Silu)
             .with_class_token(false)
@@ -650,7 +650,7 @@ impl ViTContractConfig {
     /// 5.33334, `SiLU`, layer scale.
     pub fn vit_giant_patch14_dinov2() -> Self {
         Self::vit(518, 14, 1536, 40, 24)
-            .with_mlp_layer(ViTMlpLayer::SwiGluPacked)
+            .with_mlp_layer(ViTMlpKind::SwiGluPacked)
             .with_mlp_ratio(5.33334)
             .with_activation(BunsenActivationConfig::Silu)
             .with_layer_scale(true)
@@ -941,7 +941,7 @@ impl ViTContractConfig {
     /// patches alone, layer scale.
     pub fn vit_giant_patch14_reg1_tipsv2() -> Self {
         Self::vit(448, 14, 1536, 40, 24)
-            .with_mlp_layer(ViTMlpLayer::SwiGluPacked)
+            .with_mlp_layer(ViTMlpKind::SwiGluPacked)
             .with_mlp_ratio(5.33334)
             .with_activation(BunsenActivationConfig::Silu)
             .with_reg_tokens(1)
@@ -985,7 +985,7 @@ impl ViTContractConfig {
     /// patches alone, layer scale.
     pub fn vit_giant_patch14_reg4_dinov2() -> Self {
         Self::vit(518, 14, 1536, 40, 24)
-            .with_mlp_layer(ViTMlpLayer::SwiGluPacked)
+            .with_mlp_layer(ViTMlpKind::SwiGluPacked)
             .with_mlp_ratio(5.33334)
             .with_activation(BunsenActivationConfig::Silu)
             .with_reg_tokens(4)

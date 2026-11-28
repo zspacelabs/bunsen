@@ -68,7 +68,7 @@ impl SKNetContractConfig {
     /// As the `ResNet`'s; [`Illegal`](crate::errors::BunsenErrorKind::Illegal)
     /// for a `ResNet` that anti-aliases (timm's blocks pass `aa_layer` to
     /// the paths, which the kit doesn't build).
-    pub fn try_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
+    pub fn try_to_conv_net(&self) -> BunsenResult<ConvNetContractConfig> {
         if self.resnet.anti_alias.is_some() {
             return Err(ConstraintError::custom(
                 "SKNetContractConfig",
@@ -92,15 +92,15 @@ impl SKNetContractConfig {
 impl ToStructureConfig for SKNetContractConfig {
     type Structure = ConvNetStructureConfig;
 
-    /// The conv net of this `SKNet` ([`try_conv_net`](Self::try_conv_net)),
+    /// The conv net of this `SKNet` ([`try_to_conv_net`](Self::try_to_conv_net)),
     /// resolved.
     ///
     /// # Errors
     ///
-    /// As [`try_conv_net`](Self::try_conv_net) and the conv net's lowering,
+    /// As [`try_to_conv_net`](Self::try_to_conv_net) and the conv net's lowering,
     /// under a frame naming the `SKNet`.
     fn try_to_structure(&self) -> BunsenResult<ConvNetStructureConfig> {
-        self.try_conv_net()
+        self.try_to_conv_net()
             .and_then(|net| net.try_to_structure())
             .context("SKNetContractConfig")
     }

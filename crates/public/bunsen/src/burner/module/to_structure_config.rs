@@ -30,7 +30,7 @@ use crate::{
 ///
 /// - [`ResNetContractConfig`] is a family's policy over a generic model: it
 ///   lowers to [`ConvNetStructureConfig`], through the generic policy its
-///   inherent `to_conv_net` refines it into.
+///   inherent `try_to_conv_net` refines it into.
 /// - [`SileroVadSignalConfig`] and [`SileroVadStftConfig`] are two chained
 ///   policies. The inherent [`to_stft`] refines the first into the second, and
 ///   both name [`SileroVadStructureConfig`] as their `Structure`.

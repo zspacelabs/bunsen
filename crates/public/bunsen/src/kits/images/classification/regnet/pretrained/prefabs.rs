@@ -12,7 +12,7 @@ use crate::{
     },
     kits::images::classification::regnet::{
         RegNetContractConfig,
-        RegNetDownsample,
+        RegNetDownsampleKind,
     },
 };
 
@@ -201,7 +201,7 @@ impl RegNetContractConfig {
     pub fn regnetv_064() -> Self {
         Self::regnet(25, 112, 33.22, 2.27, 72)
             .with_se_ratio(0.25)
-            .with_downsample(RegNetDownsample::Avg)
+            .with_downsample(RegNetDownsampleKind::Avg)
             .with_preact(true)
             .with_act_layer(BunsenActivationConfig::Silu)
     }
@@ -213,7 +213,7 @@ impl RegNetContractConfig {
         Self::regnet(28, 48, 14.5, 2.226, 8)
             .with_bottle_ratio(4.0)
             .with_se_ratio(0.25)
-            .with_downsample(RegNetDownsample::None)
+            .with_downsample(RegNetDownsampleKind::None)
             .with_linear_out(true)
             .with_act_layer(BunsenActivationConfig::Silu)
     }
@@ -225,7 +225,7 @@ impl RegNetContractConfig {
         Self::regnet(28, 48, 14.5, 2.226, 8)
             .with_bottle_ratio(4.0)
             .with_se_ratio(0.25)
-            .with_downsample(RegNetDownsample::None)
+            .with_downsample(RegNetDownsampleKind::None)
             .with_linear_out(true)
             .with_num_features(1536)
             .with_act_layer(BunsenActivationConfig::Silu)
