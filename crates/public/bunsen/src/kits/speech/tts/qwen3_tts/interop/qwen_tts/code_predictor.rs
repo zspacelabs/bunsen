@@ -11,7 +11,7 @@ use crate::{
             interop::transformers::text_layer_rekey,
         },
         speech::tts::qwen3_tts::blocks::Qwen3TtsCodePredictorConfig,
-        support::interop::transformers::{
+        support::transformers::interop::{
             TransformersConfigJson,
             TransformersDecoderSection,
         },

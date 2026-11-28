@@ -29,7 +29,7 @@ use crate::{
         },
         support::{
             StreamingFeatures,
-            nemo::{
+            nemo::front_end::{
                 NemoMelFeatures,
                 NemoMelFrontEnd,
                 NemoMelFrontEndMeta,

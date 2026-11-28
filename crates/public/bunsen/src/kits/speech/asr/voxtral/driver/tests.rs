@@ -29,7 +29,7 @@ use crate::{
             },
             support::testing::ToneConfig,
         },
-        support::interop::mistral_common::TekkenMirror,
+        support::mistral_common::interop::TekkenMirror,
     },
     support::testing::{
         expect_variant,

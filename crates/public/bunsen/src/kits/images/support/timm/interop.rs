@@ -1,4 +1,4 @@
-//! # timm's `config.json`
+//! # `timm` interop: a timm repo's `config.json`
 //!
 //! What a timm hub repo (`timm/<architecture>.<tag>`) says of its model, in
 //! its `config.json`: the architecture's registered name, the class count,

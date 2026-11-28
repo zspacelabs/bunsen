@@ -1,28 +1,21 @@
-//! # Interop: what an external ecosystem's files and names mean, for any kit
+//! # Interop: the ecosystem-neutral helpers of the kits' interop
 //!
-//! The shared tier of the kits' interop: what more than one kit reads the
-//! same way from an ecosystem's files. One module per ecosystem, named for
-//! the schema's owner, never the organization. A kit's own mapping of its
-//! model onto an ecosystem is the kit's `interop::{ecosystem}`, which builds
-//! on this one.
+//! What bunsen knows of an external ecosystem lives in that ecosystem's
+//! module, by use: the shared tiers are ecosystem first
+//! ([`kits::support::transformers::interop`](crate::kits::support::transformers::interop),
+//! [`kits::support::torch::interop`](crate::kits::support::torch::interop),
+//! [`kits::support::mistral_common::interop`](crate::kits::support::mistral_common::interop)
+//! for any kit; `kits::images::support::timm::interop` and
+//! `kits::speech::support::nemo::interop` for one area's), and a kit's own
+//! mapping of its model onto an ecosystem is the kit's `interop::{ecosystem}`,
+//! which builds on them. This module holds what no ecosystem owns:
 //!
-//! - [`transformers`]: a `transformers` `config.json`, read field by field
-//!   ([`TransformersConfigJson`](transformers::TransformersConfigJson)), its
-//!   decoder fields
-//!   ([`TransformersDecoderSection`](transformers::TransformersDecoderSection)),
-//!   and the helpers a kit's `_from_str` / `_from_path` entry points wrap.
-//! - [`torch`]: `PyTorch`'s own modules' names (`nn.TransformerEncoderLayer`,
-//!   `nn.LSTM`) onto bunsen's blocks.
 //! - [`json_mirror_from_path`]: a JSON file a kit reads whole, as its typed
 //!   mirror.
 //! - `load_lm_rekeyed` (feature `store`): a checkpoint's tensors into a
 //!   language model holder's
 //!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
 //!   under the kit's rekey.
-//! - [`nemo`] (feature `speech`): `NeMo`'s YAML config sections, the bunsen
-//!   configs they give, and its state-dict names.
-//! - [`mistral_common`]: Mistral's `tekken.json`, its vocabulary and an audio
-//!   model's stream geometry.
 //!
 //! ## The ladder
 //!
@@ -36,19 +29,14 @@
 //! A conversion lives on the upstream side, in an interop module. When it
 //! reads one mirror (a typed record of an upstream file's fields, named
 //! `*Mirror`), it is a method on that mirror, named for its target
-//! ([`NemoPreprocessorMirror::mel_front_end_config`](nemo::NemoPreprocessorMirror::mel_front_end_config));
+//! ([`NemoPreprocessorMirror::mel_front_end_config`](crate::kits::speech::support::nemo::interop::NemoPreprocessorMirror::mel_front_end_config));
 //! otherwise (several sources, or a parsed document such as
-//! [`TransformersConfigJson`](transformers::TransformersConfigJson)) a free
+//! [`TransformersConfigJson`](crate::kits::support::transformers::interop::TransformersConfigJson)) a free
 //! function, named the same way. It is never a method on the bunsen config,
 //! nor a `From` / `TryFrom` impl.
 
 #[cfg(feature = "store")]
 mod checkpoint;
-pub mod mistral_common;
-#[cfg(feature = "speech")]
-pub mod nemo;
-pub mod torch;
-pub mod transformers;
 #[cfg(feature = "store")]
 mod weights;
 

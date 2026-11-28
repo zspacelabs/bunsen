@@ -7,7 +7,7 @@ use bunsen::kits::{
         VoxtralTranscript,
         interop::mistral_common::voxtral_token_layout_config,
     },
-    support::interop::mistral_common::TekkenMirror,
+    support::mistral_common::interop::TekkenMirror,
 };
 
 use super::*;

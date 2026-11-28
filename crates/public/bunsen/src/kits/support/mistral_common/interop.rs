@@ -1,4 +1,4 @@
-//! # `mistral_common`: Mistral's tokenizer files, as its package reads them
+//! # `mistral_common` interop: Mistral's tokenizer files, as its package reads them
 //!
 //! `mistral_common` defines `tekken.json`, the vocabulary of Mistral's
 //! byte-level BPE (tekken) and, for an audio model, its `audio` section.

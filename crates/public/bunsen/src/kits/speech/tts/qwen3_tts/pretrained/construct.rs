@@ -52,11 +52,9 @@ use crate::{
             },
         },
         support::{
-            interop::{
-                json_mirror_from_path,
-                transformers::config_from_path,
-            },
+            interop::json_mirror_from_path,
             text::BunsenLanguageTag,
+            transformers::interop::config_from_path,
         },
     },
 };

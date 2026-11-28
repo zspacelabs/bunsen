@@ -13,7 +13,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::interop::transformers::{
+    kits::support::transformers::interop::{
         TransformersGenerationConfigMirror,
         TransformersTokenizerConfigMirror,
     },

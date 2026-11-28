@@ -4,7 +4,7 @@ use crate::{
     errors::BunsenResult,
     kits::images::{
         classification::sknet::SKNetContractConfig,
-        support::interop::timm::TimmModelConfigMirror,
+        support::timm::interop::TimmModelConfigMirror,
     },
 };
 
@@ -17,7 +17,7 @@ use crate::{
 /// architecture the kit has no prefab of, a headless model (0 classes), or a
 /// pool the head doesn't build (`''`).
 pub fn sknet_contract_config(config: &TimmModelConfigMirror) -> BunsenResult<SKNetContractConfig> {
-    use crate::kits::images::support::interop::timm::{
+    use crate::kits::images::support::timm::interop::{
         timm_conv_global_pool,
         timm_prefab,
     };

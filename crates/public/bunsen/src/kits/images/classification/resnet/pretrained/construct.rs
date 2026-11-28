@@ -12,11 +12,11 @@ use crate::{
             pretrained::RESNET_KIT,
         },
         support::{
-            interop::timm::TimmModelConfigMirror,
             pretrained::{
                 TimmConstructConfig,
                 TimmImageContract,
             },
+            timm::interop::TimmModelConfigMirror,
         },
     },
 };

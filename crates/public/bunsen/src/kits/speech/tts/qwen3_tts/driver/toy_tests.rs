@@ -47,12 +47,12 @@ use crate::{
             },
         },
         support::{
-            interop::transformers::TransformersConfigJson,
             text::BunsenLanguageTag,
             tokens::{
                 Detokenizer,
                 Tokenizer,
             },
+            transformers::interop::TransformersConfigJson,
         },
     },
     support::testing::{

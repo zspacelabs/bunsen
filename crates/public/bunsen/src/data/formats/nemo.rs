@@ -2,7 +2,7 @@
 //!
 //! [`NemoArchive`] opens one; [`read_nemo_weights`] reads its state dict,
 //! and its config, into any type ([`NemoArchive::config`]); the typed
-//! sections are `kits::support::interop::nemo`'s.
+//! sections are `kits::speech::support::nemo::interop`'s.
 use std::{
     fs::File,
     io::{

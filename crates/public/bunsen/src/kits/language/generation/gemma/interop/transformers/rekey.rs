@@ -7,7 +7,7 @@ use crate::{
         Select,
         TensorLoadTransform,
     },
-    kits::support::interop::transformers::llama_layer_keys,
+    kits::support::transformers::interop::llama_layer_keys,
 };
 
 /// The prefixes a Gemma's text model sits under: `transformers` 5's

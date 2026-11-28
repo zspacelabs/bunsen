@@ -10,7 +10,7 @@ use crate::{
     },
     kits::images::{
         classification::vit::ViTContractConfig,
-        support::interop::timm::TimmModelConfigMirror,
+        support::timm::interop::TimmModelConfigMirror,
     },
 };
 
@@ -23,7 +23,7 @@ use crate::{
 /// architecture the kit has no prefab of; as [`with_timm_config`].
 pub fn vit_contract_config(config: &TimmModelConfigMirror) -> BunsenResult<ViTContractConfig> {
     let contract: ViTContractConfig =
-        crate::kits::images::support::interop::timm::timm_prefab(config, "vit")?;
+        crate::kits::images::support::timm::interop::timm_prefab(config, "vit")?;
     with_timm_config(contract, config)
 }
 

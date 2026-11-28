@@ -59,7 +59,7 @@ impl ImageModelCard {
     /// An [`EVAL_TRANSFORM`] that does not deserialize or validate; a
     /// `config.json` that is not timm's, or states a transform bunsen does
     /// not build
-    /// ([`eval_transform_config`](super::interop::timm::TimmPretrainedCfgMirror::eval_transform_config));
+    /// ([`eval_transform_config`](super::timm::interop::TimmPretrainedCfgMirror::eval_transform_config));
     /// a label
     /// file that does not read or parse
     /// ([`ImageLabelSet::try_from_files`]); [`LABEL_NAMES`] without
@@ -74,7 +74,7 @@ impl ImageModelCard {
         let transform = match model.stated::<ImageEvalTransformConfig>(EVAL_TRANSFORM)? {
             Some(transform) => transform,
             None => match loaded.get(crate::data::builds::CONFIG) {
-                Some(config) => super::interop::timm::timm_model_config_from_path(&config.path)?
+                Some(config) => super::timm::interop::timm_model_config_from_path(&config.path)?
                     .pretrained_cfg
                     .eval_transform_config()?,
                 None => ImageEvalTransformConfig::new(),

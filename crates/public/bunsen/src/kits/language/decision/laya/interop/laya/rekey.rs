@@ -11,7 +11,7 @@ use crate::{
 /// `ModernBERT` encoder under `encoder.`; the head's `PyTorch` encoder
 /// layers, `head.layers.N.` (a
 /// [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)'s)
-/// ([`transformer_encoder_layer_rekey`](crate::kits::support::interop::torch::transformer_encoder_layer_rekey)); the type embedding;
+/// ([`transformer_encoder_layer_rekey`](crate::kits::support::torch::interop::transformer_encoder_layer_rekey)); the type embedding;
 /// the scorer's and the act head's `nn.Sequential` slots by name. Anything
 /// else is dropped: the `temperature` buffer, which calibration reads from
 /// `rl_agent_config.json` instead.
@@ -25,7 +25,7 @@ pub fn laya_rekey() -> Rekey {
         .mount_indexed(
             "head.layers.",
             "head.layers.",
-            crate::kits::support::interop::torch::transformer_encoder_layer_rekey(),
+            crate::kits::support::torch::interop::transformer_encoder_layer_rekey(),
         )
         .rename("type_emb.", "type_emb.")
         .rename("scorer.0.", "scorer.norm.")

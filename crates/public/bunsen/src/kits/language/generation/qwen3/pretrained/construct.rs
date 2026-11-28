@@ -24,12 +24,12 @@ use crate::{
             },
         },
         support::{
-            interop::transformers::TransformersConfigJson,
             pretrained::{
                 ProbeSpec,
                 TransformersLmKit,
                 probe_loaded,
             },
+            transformers::interop::TransformersConfigJson,
         },
     },
 };

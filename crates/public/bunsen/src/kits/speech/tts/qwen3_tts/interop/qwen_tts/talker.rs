@@ -17,7 +17,7 @@ use crate::{
             Qwen3TtsTalkerConfig,
             release_text_projection,
         },
-        support::interop::transformers::{
+        support::transformers::interop::{
             TransformersConfigJson,
             TransformersDecoderSection,
         },

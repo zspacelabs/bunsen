@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let vocab = crate::kits::support::interop::mistral_common::TekkenMirror::from_json(
+        let vocab = crate::kits::support::mistral_common::interop::TekkenMirror::from_json(
             r#"{
                 "config": {"default_vocab_size": 37, "default_num_special_tokens": 34},
                 "vocab": [

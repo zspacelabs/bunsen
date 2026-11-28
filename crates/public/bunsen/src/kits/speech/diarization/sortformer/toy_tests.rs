@@ -172,13 +172,13 @@ fn test_streaming_matches_transformers() {
 fn test_sample_stream_is_the_mel_stream() {
     use crate::kits::speech::{
         diarization::SpeakerActivityStream,
-        support::nemo::NemoMelFrontEndConfig,
+        support::nemo::front_end::NemoMelFrontEndConfig,
     };
 
     let toy = Toy::load();
     let model = alloc::sync::Arc::new(toy.model.clone());
     let config = SortformerStreamingConfig::new(3, 1, 6, 12, 4);
-    let front_end: crate::kits::speech::support::nemo::NemoMelFrontEnd =
+    let front_end: crate::kits::speech::support::nemo::front_end::NemoMelFrontEnd =
         NemoMelFrontEndConfig::nemotron_diarization()
             .with_n_mels(24)
             .init(&toy.device);

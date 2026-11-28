@@ -8,7 +8,7 @@ use crate::{
     errors::testing::ErrorMatcher,
     kits::images::{
         classification::vit::ViTContractConfig,
-        support::interop::timm::{
+        support::timm::interop::{
             TimmModelConfigMirror,
             timm_model_config_from_str,
         },

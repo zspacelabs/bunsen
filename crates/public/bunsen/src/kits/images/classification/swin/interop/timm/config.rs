@@ -8,7 +8,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::images::support::interop::timm::TimmModelConfigMirror,
+    kits::images::support::timm::interop::TimmModelConfigMirror,
 };
 
 /// What a Swin kit takes from a timm `config.json` beside the architecture:

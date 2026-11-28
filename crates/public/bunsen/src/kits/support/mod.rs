@@ -19,9 +19,12 @@
 //!   ([`catalog_contracts`](pretrained::catalog_contracts)), and the construct
 //!   hook the `transformers` language models share
 //!   ([`TransformersLmKit`](pretrained::TransformersLmKit)).
-//! - [`interop`]: what an external ecosystem's files and names mean, for any
-//!   kit: a `transformers` `config.json`
-//!   ([`TransformersConfigJson`](interop::transformers::TransformersConfigJson)).
+//! - [`interop`]: the interop helpers no ecosystem owns (a JSON mirror read
+//!   whole, a language model's rekeyed load).
+//! - [`mistral_common`], [`torch`], [`transformers`]: what any kit shares about
+//!   those ecosystems, each by use: a `transformers` `config.json`
+//!   ([`TransformersConfigJson`](transformers::interop::TransformersConfigJson))
+//!   is [`transformers::interop`]'s.
 //! - [`model_config`]: the config side, apart from building and from an
 //!   upstream's files: presets, generation policy, the catalog's probes.
 //! - [`timing`]: one surface for every architecture's decode,
@@ -33,9 +36,12 @@
 pub mod construct;
 pub mod decoding;
 pub mod interop;
+pub mod mistral_common;
 pub mod model_config;
 #[cfg(feature = "store")]
 pub mod pretrained;
 pub mod text;
 pub mod timing;
 pub mod tokens;
+pub mod torch;
+pub mod transformers;

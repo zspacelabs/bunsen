@@ -13,7 +13,7 @@ use crate::{
             Qwen3_5Config,
             Qwen3_5LayerKind,
         },
-        support::interop::transformers::{
+        support::transformers::interop::{
             TransformersConfigJson,
             TransformersDecoderSection,
             config_from_path,

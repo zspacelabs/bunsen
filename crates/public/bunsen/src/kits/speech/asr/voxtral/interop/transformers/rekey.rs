@@ -8,7 +8,7 @@ use crate::{
     burner::module::Rekey,
     kits::{
         language::generation::qwen3::interop::transformers::text_layer_rekey,
-        support::interop::transformers::llama_layer_keys,
+        support::transformers::interop::llama_layer_keys,
     },
 };
 

@@ -7,7 +7,7 @@ use crate::{
             deit::DeiTContractConfig,
             vit::interop::timm::with_timm_config,
         },
-        support::interop::timm::TimmModelConfigMirror,
+        support::timm::interop::TimmModelConfigMirror,
     },
 };
 
@@ -21,7 +21,7 @@ use crate::{
 /// architecture the kit has no prefab of; as [`with_timm_config`].
 pub fn deit_contract_config(config: &TimmModelConfigMirror) -> BunsenResult<DeiTContractConfig> {
     let contract: DeiTContractConfig =
-        crate::kits::images::support::interop::timm::timm_prefab(config, "deit")?;
+        crate::kits::images::support::timm::interop::timm_prefab(config, "deit")?;
     Ok(DeiTContractConfig {
         vit: with_timm_config(contract.vit, config)?,
         ..contract

@@ -8,7 +8,7 @@ use crate::{
             resnest::ResNeStContractConfig,
             resnet::interop::torchvision::ResNetStateLayout,
         },
-        support::interop::timm::{
+        support::timm::interop::{
             TimmModelConfigMirror,
             timm_model_config_from_str,
         },

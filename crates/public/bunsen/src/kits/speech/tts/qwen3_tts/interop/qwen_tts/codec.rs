@@ -21,7 +21,7 @@ use crate::{
             Qwen3TtsCodecDecoderContractConfig,
             Qwen3TtsCodecDecoderMeta,
         },
-        support::interop::transformers::llama_layer_keys,
+        support::transformers::interop::llama_layer_keys,
     },
 };
 

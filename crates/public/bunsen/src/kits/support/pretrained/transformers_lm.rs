@@ -41,12 +41,12 @@ use crate::{
             LmConstruct,
             LmPolicy,
         },
-        interop::transformers::{
+        model_config::resolve_ref_presets,
+        transformers::interop::{
             TransformersConfigJson,
             config_from_path,
             lm_max_positions,
         },
-        model_config::resolve_ref_presets,
     },
 };
 
@@ -64,7 +64,7 @@ use crate::{
 /// built model as a burnpack, loaded into the model `config.json` builds. Each
 /// kit's construct config implements it, and is its [`ConstructInit`] hook by a
 /// blanket impl. The hook reads `config.json` once, through
-/// [`config_from_path`](crate::kits::support::interop::transformers::config_from_path).
+/// [`config_from_path`](crate::kits::support::transformers::interop::config_from_path).
 pub trait TransformersLmKit: Default {
     /// The kit's name ([`ConstructInit::KIT`]).
     const KIT: &'static str;

@@ -6,20 +6,20 @@ use crate::{
     blocks::layout::BoundaryPermutes,
     burner::module::ToStructureConfig,
     errors::BunsenResult,
-    kits::{
-        speech::{
-            diarization::sortformer::blocks::{
-                SortformerHeadConfig,
-                SortformerStructureConfig,
-            },
-            support::nemo::NemoMelFrontEndConfig,
+    kits::speech::{
+        diarization::sortformer::blocks::{
+            SortformerHeadConfig,
+            SortformerStructureConfig,
         },
-        support::interop::nemo::{
-            NemoConformerEncoderMirror,
-            NemoPreprocessorMirror,
-            NemoTransformerEncoderMirror,
-            parse_nemo_yaml,
-            unsupported_field,
+        support::nemo::{
+            front_end::NemoMelFrontEndConfig,
+            interop::{
+                NemoConformerEncoderMirror,
+                NemoPreprocessorMirror,
+                NemoTransformerEncoderMirror,
+                parse_nemo_yaml,
+                unsupported_field,
+            },
         },
     },
 };

@@ -33,7 +33,7 @@ pub fn load_laya_tensors(
 ) -> BunsenResult<NamedTensorsApplied> {
     let splits: Vec<_> = modernbert_row_splits()
         .into_iter()
-        .chain(crate::kits::support::interop::torch::transformer_encoder_layer_row_splits())
+        .chain(crate::kits::support::torch::interop::transformer_encoder_layer_row_splits())
         .collect();
     let tensors = split_rows(tensors, &splits)?;
     let rekey = laya_rekey().then(model.canonical_rekey());

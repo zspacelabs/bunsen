@@ -5,7 +5,7 @@ use crate::{
     errors::testing::ErrorMatcher,
     kits::images::{
         classification::resnetv2::ResNetV2ContractConfig,
-        support::interop::timm::{
+        support::timm::interop::{
             TimmModelConfigMirror,
             timm_model_config_from_str,
         },

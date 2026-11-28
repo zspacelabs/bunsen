@@ -169,9 +169,15 @@
 //!   so one loaded model serves several streams at once.
 //! - **Everything a kit knows about an external ecosystem lives in an interop
 //!   module**: the upstream mirrors, their conversions to the kit's configs,
-//!   the rekeys and the loaders. What any kit would share about an ecosystem is
-//!   [`support::interop`]`::{ecosystem}`; a kit's own mapping of its model onto
-//!   one is `{kit}::interop::{ecosystem}`
+//!   the rekeys and the loaders. What several kits share about an ecosystem
+//!   sits at the lowest level that covers them, ecosystem first and then its
+//!   use: `support::{ecosystem}::interop` for any kit
+//!   ([`support::transformers::interop`]),
+//!   `{area}::support::{ecosystem}::interop` for one area's
+//!   ([`speech::support::nemo::interop`], beside the front end its models
+//!   share, [`speech::support::nemo::front_end`]); what no ecosystem owns is
+//!   [`support::interop`]. A kit's own mapping of its model onto one is
+//!   `{kit}::interop::{ecosystem}`
 //!   ([`speech::tts::qwen3_tts::interop::qwen_tts`]). An ecosystem is named for
 //!   the schema's owner (`transformers`, `nemo`, `torch`, `qwen_tts`,
 //!   `phonon`), never the organization, and a module's path names the source,
@@ -185,9 +191,9 @@
 //!   upstream schema does**, renaming only what Rust cannot spell (`_target_`);
 //!   bunsen's vocabulary starts in the config the mirror converts to. Each
 //!   field then greps straight to the upstream source
-//!   ([`NemoTransformerEncoderMirror`](support::interop::nemo::NemoTransformerEncoderMirror)'
+//!   ([`NemoTransformerEncoderMirror`](speech::support::nemo::interop::NemoTransformerEncoderMirror)'
 //!   s `pre_ln`). A generic parsed document
-//!   ([`TransformersConfigJson`](support::interop::transformers::TransformersConfigJson))
+//!   ([`TransformersConfigJson`](support::transformers::interop::TransformersConfigJson))
 //!   is not a mirror.
 //! - **A conversion lives on the upstream side.** When it reads one mirror,
 //!   it is a method on that mirror, named for its target

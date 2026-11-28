@@ -13,7 +13,7 @@ use crate::{
     },
     kits::{
         speech::asr::voxtral::VoxtralTokenLayoutConfig,
-        support::interop::mistral_common::TekkenMirror,
+        support::mistral_common::interop::TekkenMirror,
     },
 };
 
