@@ -30,7 +30,7 @@ use crate::{
 /// Common meta for [`BunsenGatedMlp`] and [`BunsenGatedMlpConfig`].
 pub trait BunsenGatedMlpMeta {
     /// The input and output width.
-    fn n_embed(&self) -> usize;
+    fn d_model(&self) -> usize;
 
     /// The hidden width.
     fn d_ff(&self) -> usize;
@@ -42,7 +42,7 @@ pub trait BunsenGatedMlpMeta {
 #[derive(Config, Debug)]
 pub struct BunsenGatedMlpConfig {
     /// The input and output width.
-    pub n_embed: usize,
+    pub d_model: usize,
 
     /// The hidden width.
     pub d_ff: usize,
@@ -72,8 +72,8 @@ impl BunsenGatedMlpConfig {
 }
 
 impl BunsenGatedMlpMeta for BunsenGatedMlpConfig {
-    fn n_embed(&self) -> usize {
-        self.n_embed
+    fn d_model(&self) -> usize {
+        self.d_model
     }
 
     fn d_ff(&self) -> usize {
@@ -88,9 +88,9 @@ impl ModuleInit<BunsenGatedMlp> for BunsenGatedMlpConfig {
     ) -> BunsenResult<BunsenGatedMlp> {
         let linear = |i, o, bias| LinearConfig::new(i, o).with_bias(bias).init(device);
         Ok(BunsenGatedMlp {
-            gate_proj: linear(self.n_embed, self.d_ff, self.bias),
-            up_proj: linear(self.n_embed, self.d_ff, self.bias),
-            down_proj: linear(self.d_ff, self.n_embed, self.down_bias()),
+            gate_proj: linear(self.d_model, self.d_ff, self.bias),
+            up_proj: linear(self.d_model, self.d_ff, self.bias),
+            down_proj: linear(self.d_ff, self.d_model, self.down_bias()),
             act: self.activation.try_init(device)?,
         })
     }
@@ -107,13 +107,13 @@ impl ModuleInit<BunsenGatedMlp> for BunsenGatedMlpConfig {
 /// Implements [`BunsenGatedMlpMeta`].
 #[derive(Module, Debug)]
 pub struct BunsenGatedMlp {
-    /// `n_embed -> d_ff`, the gate.
+    /// `d_model -> d_ff`, the gate.
     pub gate_proj: Linear,
 
-    /// `n_embed -> d_ff`.
+    /// `d_model -> d_ff`.
     pub up_proj: Linear,
 
-    /// `d_ff -> n_embed`.
+    /// `d_ff -> d_model`.
     pub down_proj: Linear,
 
     /// The gate's activation.
@@ -121,7 +121,7 @@ pub struct BunsenGatedMlp {
 }
 
 impl BunsenGatedMlpMeta for BunsenGatedMlp {
-    fn n_embed(&self) -> usize {
+    fn d_model(&self) -> usize {
         self.gate_proj.weight.dims()[0]
     }
 
@@ -134,27 +134,27 @@ impl BunsenGatedMlp {
     /// The block over `x`'s last axis.
     ///
     /// # Arguments
-    /// - `x`: a `[..., n_embed]` input.
+    /// - `x`: a `[..., d_model]` input.
     ///
     /// # Returns
-    /// A `[..., n_embed]` result, its leading axes `x`'s.
+    /// A `[..., d_model]` result, its leading axes `x`'s.
     pub fn forward<const D: usize>(
         &self,
         x: Tensor<D>,
     ) -> Tensor<D> {
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
-            [..., "n_embed"],
+            [..., "d_model"],
             &x.dims(),
-            &[("n_embed", self.n_embed())]
+            &[("d_model", self.d_model())]
         );
         let gate = self.act.forward(self.gate_proj.forward(x.clone()));
         let y = self.down_proj.forward(gate * self.up_proj.forward(x));
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
-            [..., "n_embed"],
+            [..., "d_model"],
             &y.dims(),
-            &[("n_embed", self.n_embed())]
+            &[("d_model", self.d_model())]
         );
         y
     }
@@ -188,7 +188,7 @@ mod tests {
         use crate::support::testing::cpu_device;
         let config = BunsenGatedMlpConfig::new(6, 10).with_bias(true);
         let mlp: BunsenGatedMlp = config.init(&cpu_device());
-        assert_eq!(mlp.n_embed(), config.n_embed());
+        assert_eq!(mlp.d_model(), config.d_model());
         assert_eq!(mlp.d_ff(), config.d_ff());
         assert!(mlp.up_proj.bias.is_some());
         // silu(0) = 0, so a zero input gives the down projection's bias.

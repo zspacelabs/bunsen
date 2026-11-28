@@ -124,7 +124,7 @@ fn test_bunsen_configs() {
         .unwrap();
     let block = &stack.layers[0];
     let attn = block.attn.attention();
-    assert_eq!((stack.d_model(), attn.n_head()), (8, 2));
+    assert_eq!((stack.d_model(), attn.n_heads()), (8, 2));
     expect_variant!(
         let crate::blocks::transformers::mlp::TransformerFeedForwardConfig::Mlp(mlp) = &block.mlp,
         "a plain feed-forward",

@@ -68,7 +68,7 @@ use crate::{
 /// Common meta for [`GatedDeltaNet`] and [`GatedDeltaNetConfig`].
 pub trait GatedDeltaNetMeta {
     /// The size of the input and output.
-    fn n_embed(&self) -> usize;
+    fn d_model(&self) -> usize;
 
     /// The query and key heads.
     fn n_key_heads(&self) -> usize;
@@ -111,7 +111,7 @@ pub trait GatedDeltaNetMeta {
 #[derive(Config, Debug)]
 pub struct GatedDeltaNetConfig {
     /// The size of the input and output.
-    pub n_embed: usize,
+    pub d_model: usize,
 
     /// The query and key heads.
     pub n_key_heads: usize,
@@ -140,8 +140,8 @@ pub struct GatedDeltaNetConfig {
 }
 
 impl GatedDeltaNetMeta for GatedDeltaNetConfig {
-    fn n_embed(&self) -> usize {
-        self.n_embed
+    fn d_model(&self) -> usize {
+        self.d_model
     }
 
     fn n_key_heads(&self) -> usize {
@@ -201,7 +201,7 @@ impl GatedDeltaNetConfig {
             .into());
         }
         let linear = |d_out| {
-            LinearConfig::new(self.n_embed, d_out)
+            LinearConfig::new(self.d_model, d_out)
                 .with_bias(false)
                 .init(device)
         };
@@ -234,7 +234,7 @@ impl GatedDeltaNetConfig {
                 .clone()
                 .with_num_features(self.value_dim)
                 .try_init(device)?,
-            out_proj: LinearConfig::new(heads * self.value_dim, self.n_embed)
+            out_proj: LinearConfig::new(heads * self.value_dim, self.d_model)
                 .with_bias(false)
                 .init(device),
         })
@@ -321,7 +321,7 @@ pub struct GatedDeltaNet {
 }
 
 impl GatedDeltaNetMeta for GatedDeltaNet {
-    fn n_embed(&self) -> usize {
+    fn d_model(&self) -> usize {
         self.in_proj_qkv.weight.dims()[0]
     }
 
@@ -385,7 +385,7 @@ impl GatedDeltaNet {
             ["B", "T", "D"],
             &x.dims(),
             &["B", "T"],
-            &[("D", self.n_embed())]
+            &[("D", self.d_model())]
         );
         if let Some(state) = state.as_deref() {
             assert_eq!(state.rows(), b, "a linear-attention state of {b} rows");
@@ -468,7 +468,7 @@ mod tests {
         let net = cfg.init(2, &device);
         assert_eq!(net.layer_index, 2);
         for (a, b) in [
-            (net.n_embed(), cfg.n_embed()),
+            (net.d_model(), cfg.d_model()),
             (net.n_key_heads(), cfg.n_key_heads()),
             (net.n_value_heads(), cfg.n_value_heads()),
             (net.key_dim(), cfg.key_dim()),

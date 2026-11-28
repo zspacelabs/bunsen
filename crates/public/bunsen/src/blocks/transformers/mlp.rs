@@ -39,7 +39,7 @@ use crate::{
 /// [`TransformerFeedForwardConfig`].
 pub trait TransformerFeedForwardMeta {
     /// The input and output width.
-    fn n_embed(&self) -> usize;
+    fn d_model(&self) -> usize;
 }
 
 /// Config for [`TransformerFeedForward`]: which position-wise feed-forward, and
@@ -78,11 +78,11 @@ impl From<SparseMoeConfig> for TransformerFeedForwardConfig {
 }
 
 impl TransformerFeedForwardMeta for TransformerFeedForwardConfig {
-    fn n_embed(&self) -> usize {
+    fn d_model(&self) -> usize {
         match self {
             Self::Mlp(c) => c.d_input(),
-            Self::Gated(c) => BunsenGatedMlpMeta::n_embed(c),
-            Self::Moe(c) => c.n_embed(),
+            Self::Gated(c) => BunsenGatedMlpMeta::d_model(c),
+            Self::Moe(c) => c.d_model(),
         }
     }
 }
@@ -137,11 +137,11 @@ pub enum TransformerFeedForward {
 }
 
 impl TransformerFeedForwardMeta for TransformerFeedForward {
-    fn n_embed(&self) -> usize {
+    fn d_model(&self) -> usize {
         match self {
             Self::Mlp(m) => m.d_input(),
-            Self::Gated(m) => BunsenGatedMlpMeta::n_embed(m),
-            Self::Moe(m) => m.n_embed(),
+            Self::Gated(m) => BunsenGatedMlpMeta::d_model(m),
+            Self::Moe(m) => m.d_model(),
         }
     }
 }
@@ -150,10 +150,10 @@ impl TransformerFeedForward {
     /// The feed-forward, position by position.
     ///
     /// # Arguments
-    /// * `x` - `[batch, seq_len, n_embed]`.
+    /// * `x` - `[batch, seq_len, d_model]`.
     ///
     /// # Returns
-    /// `[batch, seq_len, n_embed]`.
+    /// `[batch, seq_len, d_model]`.
     pub fn forward(
         &self,
         x: Tensor<3>,
@@ -197,9 +197,9 @@ mod tests {
         )
         .with_latent(Some(4))
         .into();
-        assert_eq!(config.n_embed(), 8);
+        assert_eq!(config.d_model(), 8);
         let ff: TransformerFeedForward = config.init(&device);
-        assert_eq!(ff.n_embed(), 8);
+        assert_eq!(ff.d_model(), 8);
         expect_variant!(let TransformerFeedForward::Moe(moe) = &ff, "a mixture of experts");
         let x = crate::support::testing::seeded_tensor::<3>(
             4,
@@ -213,7 +213,7 @@ mod tests {
         );
     }
 
-    /// A transformer's plain feed-forward: `n_embed * factor` hidden, as wide
+    /// A transformer's plain feed-forward: `d_model * factor` hidden, as wide
     /// out as in, no bias.
     #[test]
     fn test_mlp_config() {
@@ -234,7 +234,7 @@ mod tests {
         );
         assert_eq!(structure.d_hidden(), 16);
         let ff: TransformerFeedForward = config.init(&device);
-        assert_eq!(ff.n_embed(), 4);
+        assert_eq!(ff.d_model(), 4);
         let resize: TransformerFeedForwardConfig = BunsenMlpConfig::new(4, 8, 2).into();
         crate::errors::testing::ErrorMatcher::illegal()
             .message_contains("d_output (2) must be == d_input (4)")
@@ -253,9 +253,9 @@ mod tests {
             for ef in [4, 3] {
                 let b = 2;
                 let t = 3;
-                let n_embed = 10;
+                let d_model = 10;
 
-                let cfg = BunsenMlpConfig::expansion(n_embed, ef).with_activation(
+                let cfg = BunsenMlpConfig::expansion(d_model, ef).with_activation(
                     BunsenActivationConfig::Chain(vec![
                         activation.clone(),
                         BunsenActivationConfig::Pow(2.0),
@@ -264,31 +264,31 @@ mod tests {
 
                 let mlp: BunsenMlp = cfg.init(&device);
 
-                assert_eq!(mlp.d_input(), n_embed);
+                assert_eq!(mlp.d_input(), d_model);
 
                 let input: Tensor<3> =
-                    Tensor::random([b, t, n_embed], Distribution::Default, &device);
+                    Tensor::random([b, t, d_model], Distribution::Default, &device);
                 let output = mlp.forward(input.clone());
 
                 let x = input;
                 assert_shape_contract!(
                     ["batch", "time", "embed"],
                     &x.dims(),
-                    &[("batch", b), ("time", t), ("embed", n_embed)]
+                    &[("batch", b), ("time", t), ("embed", d_model)]
                 );
 
                 let x = mlp.linear1.forward(x);
                 assert_shape_contract!(
                     ["batch", "time", "hidden"],
                     &x.dims(),
-                    &[("batch", b), ("time", t), ("hidden", ef * n_embed)]
+                    &[("batch", b), ("time", t), ("hidden", ef * d_model)]
                 );
 
                 let x = activation.init(&device).forward(x);
                 assert_shape_contract!(
                     ["batch", "time", "hidden"],
                     &x.dims(),
-                    &[("batch", b), ("time", t), ("hidden", ef * n_embed)]
+                    &[("batch", b), ("time", t), ("hidden", ef * d_model)]
                 );
 
                 let x = x.clone() * x;
@@ -296,7 +296,7 @@ mod tests {
                 assert_shape_contract!(
                     ["batch", "time", "embed"],
                     &x.dims(),
-                    &[("batch", b), ("time", t), ("embed", n_embed)]
+                    &[("batch", b), ("time", t), ("embed", d_model)]
                 );
 
                 output.to_data().assert_eq(&x.to_data(), true);

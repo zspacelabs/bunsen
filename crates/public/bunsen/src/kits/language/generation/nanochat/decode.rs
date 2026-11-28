@@ -225,10 +225,10 @@ mod tests {
     fn model(device: &Device) -> NanoChatGpt {
         let mut gpt: NanoChatGpt = NanoChatGptContractConfig::new()
             .with_vocab_size(40)
-            .with_n_layer(2)
-            .with_n_head(2)
-            .with_n_kv_head(1)
-            .with_n_embed(32)
+            .with_n_layers(2)
+            .with_n_heads(2)
+            .with_n_kv_heads(1)
+            .with_d_model(32)
             .with_init_seq_len(4)
             .with_upstream_2026("SL")
             .init(device);

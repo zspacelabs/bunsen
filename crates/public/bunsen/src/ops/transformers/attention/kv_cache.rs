@@ -34,7 +34,7 @@ pub trait KVCacheMeta {
     fn batch_size(&self) -> usize;
 
     /// Number of attention heads.
-    fn num_heads(&self) -> usize;
+    fn n_heads(&self) -> usize;
 
     /// Initial target sequence length.
     fn seq_len(&self) -> usize;
@@ -43,7 +43,7 @@ pub trait KVCacheMeta {
     fn head_dim(&self) -> usize;
 
     /// Number of layers.
-    fn num_layers(&self) -> usize;
+    fn n_layers(&self) -> usize;
 
     /// The positions the storage grows by when a step runs past its end.
     fn chunk_size(&self) -> usize;
@@ -221,7 +221,7 @@ pub struct KVCacheConfig {
     pub batch_size: usize,
 
     /// Number of attention heads.
-    pub num_heads: usize,
+    pub n_heads: usize,
 
     /// Initial target sequence length.
     pub seq_len: usize,
@@ -230,7 +230,7 @@ pub struct KVCacheConfig {
     pub head_dim: usize,
 
     /// Number of layers.
-    pub num_layers: usize,
+    pub n_layers: usize,
 
     /// The positions the storage grows by when a step runs past its end.
     #[config(default = 1024)]
@@ -258,16 +258,16 @@ pub struct KVCacheConfig {
 }
 
 impl KVCacheConfig {
-    /// The config of one decode's cache: batch 1, `num_heads` key/value
-    /// heads of `head_dim`, `seq_len` positions up front, over `num_layers`
+    /// The config of one decode's cache: batch 1, `n_heads` key/value
+    /// heads of `head_dim`, `seq_len` positions up front, over `n_layers`
     /// layers. What a model's [`KVCacheModel::kv_cache_config`] starts from.
     pub fn for_decode(
-        num_heads: usize,
+        n_heads: usize,
         seq_len: usize,
         head_dim: usize,
-        num_layers: usize,
+        n_layers: usize,
     ) -> Self {
-        Self::new(1, num_heads, seq_len, head_dim, num_layers)
+        Self::new(1, n_heads, seq_len, head_dim, n_layers)
     }
 
     /// Sets the `batch_size`.
@@ -292,8 +292,8 @@ impl KVCacheMeta for KVCacheConfig {
         self.batch_size
     }
 
-    fn num_heads(&self) -> usize {
-        self.num_heads
+    fn n_heads(&self) -> usize {
+        self.n_heads
     }
 
     fn seq_len(&self) -> usize {
@@ -304,8 +304,8 @@ impl KVCacheMeta for KVCacheConfig {
         self.head_dim
     }
 
-    fn num_layers(&self) -> usize {
-        self.num_layers
+    fn n_layers(&self) -> usize {
+        self.n_layers
     }
 
     fn chunk_size(&self) -> usize {
@@ -347,7 +347,7 @@ impl ModuleInit<KVCache> for KVCacheConfig {
             )
             .into());
         }
-        if !self.layer_windows.is_empty() && self.layer_windows.len() != self.num_layers {
+        if !self.layer_windows.is_empty() && self.layer_windows.len() != self.n_layers {
             return Err(ConstraintError::new(
                 "KVCacheConfig",
                 "layer_windows",
@@ -357,7 +357,7 @@ impl ModuleInit<KVCache> for KVCacheConfig {
                         self.layer_windows.len().to_string(),
                     ),
                     op: "==",
-                    rhs: ("num_layers".into(), self.num_layers.to_string()),
+                    rhs: ("n_layers".into(), self.n_layers.to_string()),
                 },
             )
             .into());
@@ -366,16 +366,16 @@ impl ModuleInit<KVCache> for KVCacheConfig {
             return Err(ConstraintError::zero_or_empty("KVCacheConfig", "layer_windows").into());
         }
         let layer_windows = if self.layer_windows.is_empty() {
-            vec![None; self.num_layers]
+            vec![None; self.n_layers]
         } else {
             self.layer_windows.clone()
         };
         Ok(KVCache {
             batch_size: self.batch_size,
-            num_heads: self.num_heads,
+            n_heads: self.n_heads,
             seq_len: self.seq_len,
             head_dim: self.head_dim,
-            num_layers: self.num_layers,
+            n_layers: self.n_layers,
             pos: 0,
             cache: None,
             chunk_size: self.chunk_size,
@@ -383,12 +383,12 @@ impl ModuleInit<KVCache> for KVCacheConfig {
             max_seq_len: self.max_seq_len,
             storage: self.storage.resolve(device),
             init_device: device.clone(),
-            keys: vec![None; self.num_layers],
-            values: vec![None; self.num_layers],
-            cross_keys: vec![None; self.num_layers],
-            cross_values: vec![None; self.num_layers],
+            keys: vec![None; self.n_layers],
+            values: vec![None; self.n_layers],
+            cross_keys: vec![None; self.n_layers],
+            cross_values: vec![None; self.n_layers],
             group: 1,
-            window_start: vec![0; self.num_layers],
+            window_start: vec![0; self.n_layers],
             layer_windows,
         })
     }
@@ -437,10 +437,10 @@ impl ModuleInit<KVCache> for KVCacheConfig {
 #[derive(Module, Debug)]
 pub struct KVCache {
     batch_size: usize,
-    num_heads: usize,
+    n_heads: usize,
     seq_len: usize,
     head_dim: usize,
-    num_layers: usize,
+    n_layers: usize,
 
     chunk_size: usize,
     extra_chunks: usize,
@@ -483,8 +483,8 @@ impl KVCacheMeta for KVCache {
         self.batch_size
     }
 
-    fn num_heads(&self) -> usize {
-        self.num_heads
+    fn n_heads(&self) -> usize {
+        self.n_heads
     }
 
     fn seq_len(&self) -> usize {
@@ -495,8 +495,8 @@ impl KVCacheMeta for KVCache {
         self.head_dim
     }
 
-    fn num_layers(&self) -> usize {
-        self.num_layers
+    fn n_layers(&self) -> usize {
+        self.n_layers
     }
 
     fn chunk_size(&self) -> usize {
@@ -643,7 +643,7 @@ impl KVCache {
         k: Tensor<4>,
         v: Tensor<4>,
     ) {
-        let heads = [("heads", self.num_heads), ("head_dim", self.head_dim)];
+        let heads = [("heads", self.n_heads), ("head_dim", self.head_dim)];
         let [rows, cross_len] = unpack_shape_contract!(
             ["rows", "heads", "cross_len", "head_dim"],
             &k.dims(),
@@ -655,7 +655,7 @@ impl KVCache {
             &v.dims(),
             &[
                 ("rows", rows),
-                ("heads", self.num_heads),
+                ("heads", self.n_heads),
                 ("cross_len", cross_len),
                 ("head_dim", self.head_dim)
             ]
@@ -797,7 +797,7 @@ impl KVCache {
     ///
     /// - This cache must be empty.
     /// - The other cache must not be.
-    /// - The `num_layers`, `num_heads`, and `head_dim` must match.
+    /// - The `n_layers`, `n_heads`, and `head_dim` must match.
     /// - The `batch_size` must match, or `other.batch_size` must be 1.
     pub fn prefill(
         &mut self,
@@ -806,8 +806,8 @@ impl KVCache {
         assert!(!self.is_allocated(), "Cannot prefill a non-empty KV cache.");
         assert!(other.is_allocated(), "Cannot prefill from a None KV cache.");
 
-        assert_eq!(self.num_layers, other.num_layers);
-        assert_eq!(self.num_heads, other.num_heads);
+        assert_eq!(self.n_layers, other.n_layers);
+        assert_eq!(self.n_heads, other.n_heads);
         assert_eq!(self.head_dim, other.head_dim);
 
         if self.batch_size != other.batch_size && other.batch_size != 1 {
@@ -828,12 +828,12 @@ impl KVCache {
             "a KV cache prefills from one on its own device: {from:?}, not {to:?}"
         );
         if other.pos > 0 {
-            for layer in 0..self.num_layers {
+            for layer in 0..self.n_layers {
                 let (k, v) = other.history(layer);
                 let start = other.window_start[layer];
                 let shape = [
                     self.batch_size,
-                    self.num_heads,
+                    self.n_heads,
                     other.pos - start,
                     self.head_dim,
                 ];
@@ -875,7 +875,7 @@ impl KVCache {
                 &x.dims(),
                 &[
                     ("B", self.batch_size),
-                    ("H_kv", self.num_heads),
+                    ("H_kv", self.n_heads),
                     ("T", len),
                     ("D", self.head_dim)
                 ]
@@ -939,7 +939,7 @@ impl KVCache {
             &["T_add"],
             &[
                 ("B", self.batch_size),
-                ("H_kv", self.num_heads),
+                ("H_kv", self.n_heads),
                 ("D", self.head_dim)
             ]
         );
@@ -949,7 +949,7 @@ impl KVCache {
             &v.dims(),
             &[
                 ("B", self.batch_size),
-                ("H_kv", self.num_heads),
+                ("H_kv", self.n_heads),
                 ("T_add", t_add),
                 ("D", self.head_dim)
             ]
@@ -969,7 +969,7 @@ impl KVCache {
         let history = self.write(layer_idx, t0, k, v);
 
         // Increment pos after the last layer.
-        if layer_idx == self.num_layers - 1 {
+        if layer_idx == self.n_layers - 1 {
             // TODO: consider reifying this as a public API, rather than layer
             // magic.
             self.pos = t1;
@@ -1147,9 +1147,9 @@ impl KVCache {
             &cache.dims(),
             &["T"],
             &[
-                ("layers", self.num_layers),
+                ("layers", self.n_layers),
                 ("B", self.batch_size),
-                ("H_kv", self.num_heads),
+                ("H_kv", self.n_heads),
                 ("D", self.head_dim)
             ]
         );
@@ -1189,10 +1189,10 @@ impl KVCache {
     ) -> Tensor<6> {
         Tensor::<6>::empty(
             [
-                self.num_layers,
+                self.n_layers,
                 2,
                 self.batch_size,
-                self.num_heads,
+                self.n_heads,
                 seq_len,
                 self.head_dim,
             ],
@@ -1258,13 +1258,8 @@ mod tests {
         t_add: usize,
         device: &Device,
     ) -> Vec<(Tensor<4>, Tensor<4>)> {
-        let shape = [
-            cache.batch_size(),
-            cache.num_heads(),
-            t_add,
-            cache.head_dim(),
-        ];
-        (0..cache.num_layers())
+        let shape = [cache.batch_size(), cache.n_heads(), t_add, cache.head_dim()];
+        (0..cache.n_layers())
             .map(|layer| {
                 let seed = 2 * layer as u64;
                 let k = seeded_tensor::<4>(seed, shape, Distribution::Default, device);
@@ -1298,9 +1293,9 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let [num_heads, head_dim, num_layers] = [2, 4, 2];
+        let [n_heads, head_dim, n_layers] = [2, 4, 2];
         let mut source: KVCache =
-            KVCacheConfig::new(1, num_heads, source_seq_len, head_dim, num_layers)
+            KVCacheConfig::new(1, n_heads, source_seq_len, head_dim, n_layers)
                 .with_storage(from)
                 .init(&device);
         let steps = fill(&mut source, filled, &device);
@@ -1308,7 +1303,7 @@ mod tests {
 
         let batch = 3;
         let mut cache: KVCache =
-            KVCacheConfig::new(batch, num_heads, source_seq_len, head_dim, num_layers)
+            KVCacheConfig::new(batch, n_heads, source_seq_len, head_dim, n_layers)
                 .with_storage(to)
                 .init(&device);
         cache.prefill(&source);
@@ -1316,15 +1311,15 @@ mod tests {
         assert_eq!(cache.pos(), filled);
 
         // One more position on every layer returns the prefilled history.
-        let step = [batch, num_heads, 1, head_dim];
-        let history = [batch, num_heads, filled, head_dim];
+        let step = [batch, n_heads, 1, head_dim];
+        let history = [batch, n_heads, filled, head_dim];
         for (layer, (k, v)) in steps.into_iter().enumerate() {
             let (k_all, v_all) = cache.insert_kv(
                 layer,
                 Tensor::zeros(step, &device),
                 Tensor::zeros(step, &device),
             );
-            assert_eq!(k_all.dims(), [batch, num_heads, filled + 1, head_dim]);
+            assert_eq!(k_all.dims(), [batch, n_heads, filled + 1, head_dim]);
             k_all
                 .slice(s![.., .., ..filled])
                 .into_data()
@@ -1344,9 +1339,9 @@ mod tests {
     fn test_truncate() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let [batch, num_heads, head_dim, num_layers] = [2, 2, 4, 2];
+        let [batch, n_heads, head_dim, n_layers] = [2, 2, 4, 2];
         for storage in STORAGES {
-            let mut cache = KVCacheConfig::new(batch, num_heads, 4, head_dim, num_layers)
+            let mut cache = KVCacheConfig::new(batch, n_heads, 4, head_dim, n_layers)
                 .with_chunk_size(2)
                 .with_storage(storage)
                 .init(&device);
@@ -1354,7 +1349,7 @@ mod tests {
             cache.truncate(2);
             assert_eq!(cache.pos(), 2, "{storage:?}");
 
-            let step = [batch, num_heads, 3, head_dim];
+            let step = [batch, n_heads, 3, head_dim];
             for (layer, (k, v)) in first.into_iter().enumerate() {
                 let k_new = Tensor::<4>::ones(step, &device) * (layer as f32 + 7.0);
                 let v_new = Tensor::<4>::ones(step, &device) * (layer as f32 + 9.0);
@@ -1499,17 +1494,17 @@ mod tests {
         assert_eq!(
             (
                 config.batch_size,
-                config.num_heads,
+                config.n_heads,
                 config.seq_len,
                 config.head_dim,
-                config.num_layers
+                config.n_layers
             ),
             (
                 full.batch_size,
-                full.num_heads,
+                full.n_heads,
                 full.seq_len,
                 full.head_dim,
-                full.num_layers
+                full.n_layers
             )
         );
     }
@@ -1559,7 +1554,7 @@ mod tests {
         );
         illegal(
             KVCacheConfig::new(1, 2, 16, 4, 3).with_layer_windows(vec![None]),
-            "KVCacheConfig.layer_windows: layer_windows.len() (1) must be == num_layers (3)",
+            "KVCacheConfig.layer_windows: layer_windows.len() (1) must be == n_layers (3)",
         );
         illegal(
             KVCacheConfig::new(1, 2, 16, 4, 1).with_layer_windows(vec![Some(0)]),
@@ -1645,7 +1640,7 @@ mod tests {
         }
         let cache = Model.new_kv_cache(7, &cpu_device());
         assert_eq!(cache.batch_size(), 7);
-        assert_eq!(cache.num_layers(), 3);
+        assert_eq!(cache.n_layers(), 3);
         assert_eq!(cache.seq_len(), 16);
         assert_eq!(cache.max_seq_len(), Some(64));
         assert_eq!(cache.storage(), KVCacheStorage::auto_for(&cpu_device()));

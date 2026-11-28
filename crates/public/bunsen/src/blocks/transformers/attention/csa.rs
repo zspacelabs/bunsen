@@ -59,22 +59,22 @@ use crate::{
 /// Common meta for [`CausalSelfAttention`] and [`CausalSelfAttentionConfig`].
 pub trait CausalSelfAttentionMeta {
     /// Returns the size of the input and output.
-    fn n_embed(&self) -> usize;
+    fn d_model(&self) -> usize;
 
     /// Returns the number of heads.
-    fn n_head(&self) -> usize;
+    fn n_heads(&self) -> usize;
 
     /// Returns the number of KV heads.
-    fn n_kv_head(&self) -> usize;
+    fn n_kv_heads(&self) -> usize;
 
     /// Returns the size of each head.
     fn head_dim(&self) -> usize {
-        self.n_embed() / self.n_head()
+        self.d_model() / self.n_heads()
     }
 
     /// Group Query Attention.
     fn gqa_enabled(&self) -> bool {
-        self.n_head() != self.n_kv_head()
+        self.n_heads() != self.n_kv_heads()
     }
 }
 
@@ -124,24 +124,24 @@ pub struct AttentionSides {
 #[derive(Config, Debug)]
 pub struct CausalSelfAttentionConfig {
     /// Number of Heads.
-    pub n_head: usize,
+    pub n_heads: usize,
 
     /// Number of KV Heads.
-    pub n_kv_head: usize,
+    pub n_kv_heads: usize,
 
     /// Embedding Size.
-    pub n_embed: usize,
+    pub d_model: usize,
 
     /// The query/key normalization (QK-norm), sized to `head_dim` whatever
     /// feature count it names; `None` normalizes nothing, and builds no norm.
     #[config(default = "Some(BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)))")]
     pub norm: Option<BunsenNormalizationConfig>,
 
-    /// The width of each head; `None` is `n_embed / n_head`.
+    /// The width of each head; `None` is `d_model / n_heads`.
     ///
     /// A model whose heads are wider or narrower than that (Qwen3's are 128
     /// over 16 heads of a 1024-wide model) names it here; the query and
-    /// output projections then map `n_embed` to and from `n_head * head_dim`.
+    /// output projections then map `d_model` to and from `n_heads * head_dim`.
     #[config(default = "None")]
     pub head_dim: Option<usize>,
 
@@ -211,7 +211,7 @@ pub struct CausalSelfAttentionConfig {
     pub output_gate: Option<AttentionOutputGate>,
 
     /// A norm on the attention's output, after the gate and before the output
-    /// projection, sized to `n_head * head_dim` whatever feature count it
+    /// projection, sized to `n_heads * head_dim` whatever feature count it
     /// names (`BEiT3`'s sub-LN, timm's `scale_norm`); `None` builds none.
     #[config(default = "None")]
     pub output_norm: Option<BunsenNormalizationConfig>,
@@ -234,7 +234,7 @@ pub struct CausalSelfAttentionConfig {
 /// ```
 ///
 /// The gate is one scalar per KV head, read from the attention input's first
-/// `gate_channels` channels; `ve` is a `[B, T, n_kv_head * head_dim]` value
+/// `gate_channels` channels; `ve` is a `[B, T, n_kv_heads * head_dim]` value
 /// embedding the caller supplies.
 #[derive(Config, Debug)]
 pub struct ValueResidualConfig {
@@ -294,20 +294,20 @@ impl QkNormPlacement {
 }
 
 impl CausalSelfAttentionMeta for CausalSelfAttentionConfig {
-    fn n_embed(&self) -> usize {
-        self.n_embed
+    fn d_model(&self) -> usize {
+        self.d_model
     }
 
-    fn n_head(&self) -> usize {
-        self.n_head
+    fn n_heads(&self) -> usize {
+        self.n_heads
     }
 
-    fn n_kv_head(&self) -> usize {
-        self.n_kv_head
+    fn n_kv_heads(&self) -> usize {
+        self.n_kv_heads
     }
 
     fn head_dim(&self) -> usize {
-        self.head_dim.unwrap_or(self.n_embed / self.n_head.max(1))
+        self.head_dim.unwrap_or(self.d_model / self.n_heads.max(1))
     }
 }
 
@@ -330,20 +330,20 @@ impl CausalSelfAttentionConfig {
     /// [`ConstraintError`] cause naming the field.
     pub fn try_validate(&self) -> BunsenResult<()> {
         const OWNER: &str = "CausalSelfAttentionConfig";
-        if self.n_head == 0 {
-            return Err(ConstraintError::zero_or_empty(OWNER, "n_head").into());
+        if self.n_heads == 0 {
+            return Err(ConstraintError::zero_or_empty(OWNER, "n_heads").into());
         }
-        if self.n_kv_head == 0 {
-            return Err(ConstraintError::zero_or_empty(OWNER, "n_kv_head").into());
+        if self.n_kv_heads == 0 {
+            return Err(ConstraintError::zero_or_empty(OWNER, "n_kv_heads").into());
         }
         if self.head_dim.is_none() {
-            for (field, heads) in [("n_head", self.n_head), ("n_kv_head", self.n_kv_head)] {
-                if !self.n_embed.is_multiple_of(heads) {
+            for (field, heads) in [("n_heads", self.n_heads), ("n_kv_heads", self.n_kv_heads)] {
+                if !self.d_model.is_multiple_of(heads) {
                     return Err(ConstraintError::new(
                         OWNER,
-                        "n_embed",
+                        "d_model",
                         Rule::NotMultiple {
-                            value: self.n_embed,
+                            value: self.d_model,
                             of: format!("{field} ({heads})"),
                         },
                     )
@@ -354,25 +354,25 @@ impl CausalSelfAttentionConfig {
         if self.head_dim() == 0 {
             return Err(ConstraintError::zero_or_empty(OWNER, "head_dim").into());
         }
-        if self.n_kv_head > self.n_head {
+        if self.n_kv_heads > self.n_heads {
             return Err(ConstraintError::new(
                 OWNER,
-                "n_kv_head",
+                "n_kv_heads",
                 Rule::Relation {
-                    lhs: ("n_kv_head".into(), format!("{}", self.n_kv_head)),
+                    lhs: ("n_kv_heads".into(), format!("{}", self.n_kv_heads)),
                     op: "<=",
-                    rhs: ("n_head".into(), format!("{}", self.n_head)),
+                    rhs: ("n_heads".into(), format!("{}", self.n_heads)),
                 },
             )
             .into());
         }
-        if !self.n_head.is_multiple_of(self.n_kv_head) {
+        if !self.n_heads.is_multiple_of(self.n_kv_heads) {
             return Err(ConstraintError::new(
                 OWNER,
-                "n_head",
+                "n_heads",
                 Rule::NotMultiple {
-                    value: self.n_head,
-                    of: format!("n_kv_head ({})", self.n_kv_head),
+                    value: self.n_heads,
+                    of: format!("n_kv_heads ({})", self.n_kv_heads),
                 },
             )
             .into());
@@ -394,13 +394,13 @@ impl CausalSelfAttentionConfig {
             }
         }
         if let Some(vr) = &self.value_residual
-            && !(1..=self.n_embed).contains(&vr.gate_channels)
+            && !(1..=self.d_model).contains(&vr.gate_channels)
         {
             return Err(ConstraintError::out_of_range(
                 OWNER,
                 "value_residual.gate_channels",
                 vr.gate_channels,
-                format!("1..={}", self.n_embed),
+                format!("1..={}", self.d_model),
             )
             .into());
         }
@@ -444,8 +444,8 @@ impl CausalSelfAttentionConfig {
             softmax_widening: self.softmax_widening,
             output_gate: self.output_gate,
             c_q: linear(
-                self.n_embed,
-                self.n_head
+                self.d_model,
+                self.n_heads
                     * head_dim
                     * match self.output_gate {
                         Some(AttentionOutputGate::Elementwise) => 2,
@@ -454,22 +454,25 @@ impl CausalSelfAttentionConfig {
                 self.qkv_bias,
             ),
             c_gate: (self.output_gate == Some(AttentionOutputGate::Headwise))
-                .then(|| linear(self.n_embed, self.n_head, false)),
+                .then(|| linear(self.d_model, self.n_heads, false)),
             q_norm: norm()?,
-            c_k: linear(self.n_embed, self.n_kv_head * head_dim, self.key_bias()),
+            c_k: linear(self.d_model, self.n_kv_heads * head_dim, self.key_bias()),
             k_norm: norm()?,
-            c_v: linear(self.n_embed, self.n_kv_head * head_dim, self.qkv_bias),
+            c_v: linear(self.d_model, self.n_kv_heads * head_dim, self.qkv_bias),
             output_norm: self
                 .output_norm
                 .clone()
-                .map(|n| n.with_num_features(self.n_head * head_dim).try_init(device))
+                .map(|n| {
+                    n.with_num_features(self.n_heads * head_dim)
+                        .try_init(device)
+                })
                 .transpose()?,
-            c_proj: linear(self.n_head * head_dim, self.n_embed, self.output_bias),
+            c_proj: linear(self.n_heads * head_dim, self.d_model, self.output_bias),
             score_scale: self.score_scale,
             attn_softcap: self.attn_softcap,
             value_gate: self.value_residual.as_ref().map(|vr| {
                 // As upstream's init: a small positive gate, near half open.
-                LinearConfig::new(vr.gate_channels, self.n_kv_head)
+                LinearConfig::new(vr.gate_channels, self.n_kv_heads)
                     .with_bias(false)
                     .with_initializer(Initializer::Uniform {
                         min: 0.0,
@@ -480,7 +483,7 @@ impl CausalSelfAttentionConfig {
             value_gate_scale: self.value_residual.as_ref().map(|vr| vr.gate_scale),
             query_gain: self
                 .query_gain
-                .then(|| Param::from_tensor(Tensor::ones([self.n_head], device))),
+                .then(|| Param::from_tensor(Tensor::ones([self.n_heads], device))),
         })
     }
 
@@ -587,15 +590,15 @@ pub struct CausalSelfAttention {
 }
 
 impl CausalSelfAttentionMeta for CausalSelfAttention {
-    fn n_embed(&self) -> usize {
+    fn d_model(&self) -> usize {
         self.c_q.weight.dims()[0]
     }
 
-    fn n_head(&self) -> usize {
+    fn n_heads(&self) -> usize {
         self.c_proj.weight.dims()[0] / self.head_dim()
     }
 
-    fn n_kv_head(&self) -> usize {
+    fn n_kv_heads(&self) -> usize {
         self.c_k.weight.dims()[1] / self.head_dim()
     }
 
@@ -641,7 +644,7 @@ impl CausalSelfAttention {
         r_emb: &RotaryEmbedding,
     ) -> (Tensor<4>, Tensor<4>, Option<Tensor<3>>) {
         let [b, t] = unpack_shape_contract!(["B", "T", "D"], &input.dims(), &["B", "T"]);
-        let (h, d) = (self.n_head(), self.head_dim());
+        let (h, d) = (self.n_heads(), self.head_dim());
         let q = self.c_q.forward(input.clone());
         let (q, gate) = match self.output_gate {
             Some(AttentionOutputGate::Elementwise) => {
@@ -664,7 +667,7 @@ impl CausalSelfAttention {
         let k = self
             .c_k
             .forward(input)
-            .reshape([b, t, self.n_kv_head(), self.head_dim()]);
+            .reshape([b, t, self.n_kv_heads(), self.head_dim()]);
         let k = self
             .qk_norm
             .apply(k, self.k_norm.as_ref(), r_emb)
@@ -694,7 +697,7 @@ impl CausalSelfAttention {
         value_embed: Option<Tensor<3>>,
     ) -> Tensor<4> {
         let [b, t] = unpack_shape_contract!(["B", "T", "D"], &input.dims(), &["B", "T"]);
-        let shape = [b, t, self.n_kv_head(), self.head_dim()];
+        let shape = [b, t, self.n_kv_heads(), self.head_dim()];
         let v = self.c_v.forward(input.clone()).reshape(shape);
         let v = match (&self.value_gate, value_embed) {
             (None, None) => v,
@@ -706,7 +709,7 @@ impl CausalSelfAttention {
                     &[
                         ("B", b),
                         ("T", t),
-                        ("V", self.n_kv_head() * self.head_dim())
+                        ("V", self.n_kv_heads() * self.head_dim())
                     ]
                 );
                 let channels = gate.weight.dims()[0];
@@ -781,7 +784,7 @@ impl CausalSelfAttention {
             ["B", "T", "D"],
             &input.dims(),
             &["B", "T"],
-            &[("D", self.n_embed())]
+            &[("D", self.d_model())]
         );
         #[cfg(not(any(debug_assertions, test)))]
         let _ = b;
@@ -800,7 +803,7 @@ impl CausalSelfAttention {
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "H", "T", "T"],
             &weights.dims(),
-            &[("B", b), ("H", self.n_head()), ("T", t)]
+            &[("B", b), ("H", self.n_heads()), ("T", t)]
         );
         weights
     }
@@ -858,7 +861,7 @@ impl CausalSelfAttention {
             ["B", "T", "D"],
             &input.dims(),
             &["B", "T"],
-            &[("D", self.n_embed())]
+            &[("D", self.d_model())]
         );
 
         #[cfg(any(debug_assertions, test))]
@@ -929,14 +932,14 @@ impl CausalSelfAttention {
             .reshape([
                 b as i32,
                 t_q as i32,
-                (self.n_head() * self.head_dim()) as i32,
+                (self.n_heads() * self.head_dim()) as i32,
             ]);
         let y = match (self.output_gate, gate) {
             (Some(AttentionOutputGate::Elementwise), Some(gate)) => {
                 y * burn::tensor::activation::sigmoid(gate)
             }
             (Some(AttentionOutputGate::Headwise), Some(gate)) => {
-                let (h, d) = (self.n_head(), self.head_dim());
+                let (h, d) = (self.n_heads(), self.head_dim());
                 (y.reshape([b, t_q, h, d])
                     * burn::tensor::activation::sigmoid(gate).unsqueeze_dim::<4>(3))
                 .reshape([b, t_q, h * d])
@@ -954,7 +957,7 @@ impl CausalSelfAttention {
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "D"],
             &y.dims(),
-            &[("B", b), ("T", t_q), ("D", self.n_embed())]
+            &[("B", b), ("T", t_q), ("D", self.d_model())]
         );
 
         y
@@ -994,12 +997,12 @@ mod tests {
     #[test]
     fn test_csa_config() {
         let cfg = CausalSelfAttentionConfig::new(3, 2, 4);
-        assert_eq!(cfg.n_embed, 4);
-        assert_eq!(cfg.n_head, 3);
-        assert_eq!(cfg.n_kv_head, 2);
-        assert_eq!(cfg.n_embed(), 4);
-        assert_eq!(cfg.n_head(), 3);
-        assert_eq!(cfg.n_kv_head(), 2);
+        assert_eq!(cfg.d_model, 4);
+        assert_eq!(cfg.n_heads, 3);
+        assert_eq!(cfg.n_kv_heads, 2);
+        assert_eq!(cfg.d_model(), 4);
+        assert_eq!(cfg.n_heads(), 3);
+        assert_eq!(cfg.n_kv_heads(), 2);
         assert_eq!(cfg.head_dim(), 1);
     }
 
@@ -1011,12 +1014,12 @@ mod tests {
         let batch = 1;
         let seq_len = 10;
 
-        let n_embed = 1024;
-        let n_head = 128;
-        let n_kv_head = 64;
+        let d_model = 1024;
+        let n_heads = 128;
+        let n_kv_heads = 64;
         let layer_index = 12;
 
-        let cfg = CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed);
+        let cfg = CausalSelfAttentionConfig::new(n_heads, n_kv_heads, d_model);
         let csa: CausalSelfAttention = cfg.init(layer_index, &device);
 
         let head_dim = csa.head_dim();
@@ -1025,7 +1028,7 @@ mod tests {
         let r_emb: RotaryEmbedding = re_cfg.init(&device);
 
         let input: Tensor<3> =
-            Tensor::random([batch, seq_len, n_embed], Distribution::Default, &device);
+            Tensor::random([batch, seq_len, d_model], Distribution::Default, &device);
 
         let mut kv_cache: Option<&mut KVCache> = None;
 
@@ -1033,7 +1036,7 @@ mod tests {
         assert_shape_contract!(
             ["B", "T", "D"],
             &output.dims(),
-            &[("B", batch), ("T", seq_len), ("D", n_embed)]
+            &[("B", batch), ("T", seq_len), ("D", d_model)]
         );
     }
 
@@ -1042,16 +1045,16 @@ mod tests {
     #[test]
     fn test_attention_weights_are_the_forwards() {
         let device = cpu_device();
-        let (batch, seq_len, n_embed, n_head, n_kv_head) = (2, 6, 32, 4, 2);
+        let (batch, seq_len, d_model, n_heads, n_kv_heads) = (2, 6, 32, 4, 2);
         let csa: CausalSelfAttention =
-            CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed).init(0, &device);
+            CausalSelfAttentionConfig::new(n_heads, n_kv_heads, d_model).init(0, &device);
         let head_dim = csa.head_dim();
         let r_emb: RotaryEmbedding = RotaryEmbeddingConfig::new(seq_len, head_dim).init(&device);
         let input: Tensor<3> =
-            Tensor::random([batch, seq_len, n_embed], Distribution::Default, &device);
+            Tensor::random([batch, seq_len, d_model], Distribution::Default, &device);
 
         let weights = csa.attention_weights(input.clone(), &r_emb);
-        assert_eq!(weights.dims(), [batch, n_head, seq_len, seq_len]);
+        assert_eq!(weights.dims(), [batch, n_heads, seq_len, seq_len]);
         let sums = weights.clone().sum_dim(3);
         assert_tensors_close(&sums, &Tensor::ones_like(&sums), Tolerance::default());
         let upper = weights.clone().triu(1).abs().max().into_scalar::<f32>();
@@ -1060,15 +1063,15 @@ mod tests {
         let v = csa
             .c_v
             .forward(input.clone())
-            .reshape([batch, seq_len, n_kv_head, head_dim])
+            .reshape([batch, seq_len, n_kv_heads, head_dim])
             .swap_dims(1, 2);
-        let v = crate::ops::repeat::repeat_interleave::<4, 5, _>(v, n_head / n_kv_head, 1);
+        let v = crate::ops::repeat::repeat_interleave::<4, 5, _>(v, n_heads / n_kv_heads, 1);
         let applied = csa
             .c_proj
             .forward(weights.matmul(v).swap_dims(1, 2).reshape([
                 batch,
                 seq_len,
-                n_head * head_dim,
+                n_heads * head_dim,
             ]));
         let forward = csa.forward(input, &r_emb, &mut None);
         assert_tensors_close(&applied, &forward, Tolerance::default());
@@ -1081,14 +1084,14 @@ mod tests {
     #[test]
     fn test_bidirectional_with_padding() {
         let device = cpu_device();
-        let (seq_len, n_embed, n_head) = (5, 16, 2);
-        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(n_head, n_head, n_embed)
+        let (seq_len, d_model, n_heads) = (5, 16, 2);
+        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(n_heads, n_heads, d_model)
             .with_norm(None)
             .with_mask(AttentionMask::Bidirectional)
             .init(0, &device);
         let r_emb: RotaryEmbedding =
             RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
-        let input = seeded_tensor::<3>(4, [2, seq_len, n_embed], Distribution::Default, &device);
+        let input = seeded_tensor::<3>(4, [2, seq_len, d_model], Distribution::Default, &device);
 
         let weights = csa.attention_weights(input.clone(), &r_emb);
         let upper = weights.triu(1).abs().max().into_scalar::<f32>();
@@ -1109,20 +1112,20 @@ mod tests {
                 },
             )
         };
-        let noise = seeded_tensor::<3>(5, [1, 2, n_embed], Distribution::Default, &device);
-        let changed = input.clone().slice_assign([1..2, 3..5, 0..n_embed], noise);
+        let noise = seeded_tensor::<3>(5, [1, 2, d_model], Distribution::Default, &device);
+        let changed = input.clone().slice_assign([1..2, 3..5, 0..d_model], noise);
         assert_tensors_close(
-            &forward(input.clone()).slice([1..2, 0..3, 0..n_embed]),
-            &forward(changed.clone()).slice([1..2, 0..3, 0..n_embed]),
+            &forward(input.clone()).slice([1..2, 0..3, 0..d_model]),
+            &forward(changed.clone()).slice([1..2, 0..3, 0..d_model]),
             Tolerance::default(),
         );
         // Item 0, all valid, does depend on its last positions.
         let changed0 = input.clone().slice_assign(
-            [0..1, 3..5, 0..n_embed],
-            seeded_tensor::<3>(6, [1, 2, n_embed], Distribution::Default, &device),
+            [0..1, 3..5, 0..d_model],
+            seeded_tensor::<3>(6, [1, 2, d_model], Distribution::Default, &device),
         );
-        assert!(!forward(input).slice([0..1, 0..3, 0..n_embed]).all_close(
-            forward(changed0).slice([0..1, 0..3, 0..n_embed]),
+        assert!(!forward(input).slice([0..1, 0..3, 0..d_model]).all_close(
+            forward(changed0).slice([0..1, 0..3, 0..d_model]),
             None,
             None
         ));
@@ -1240,10 +1243,10 @@ mod tests {
                 }))
                 .assert_err(&config.try_validate());
         };
-        refused(CausalSelfAttentionConfig::new(0, 1, 16), "n_head");
-        refused(CausalSelfAttentionConfig::new(3, 3, 16), "n_embed");
-        refused(CausalSelfAttentionConfig::new(2, 4, 16), "n_kv_head");
-        refused(CausalSelfAttentionConfig::new(4, 3, 24), "n_head");
+        refused(CausalSelfAttentionConfig::new(0, 1, 16), "n_heads");
+        refused(CausalSelfAttentionConfig::new(3, 3, 16), "d_model");
+        refused(CausalSelfAttentionConfig::new(2, 4, 16), "n_kv_heads");
+        refused(CausalSelfAttentionConfig::new(4, 3, 24), "n_heads");
         refused(
             CausalSelfAttentionConfig::new(4, 2, 16).with_sliding_window(Some(0)),
             "sliding_window",
@@ -1336,19 +1339,19 @@ mod tests {
     #[test]
     fn test_score_scale_and_softcap() {
         let device = cpu_device();
-        let (batch, seq_len, n_embed, n_head, n_kv_head) = (1, 5, 16, 2, 1);
+        let (batch, seq_len, d_model, n_heads, n_kv_heads) = (1, 5, 16, 2, 1);
         let (scale, cap) = (0.9, 0.7);
-        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed)
+        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(n_heads, n_kv_heads, d_model)
             .with_score_scale(Some(scale))
             .with_attn_softcap(Some(cap))
             .init(0, &device);
         let r_emb: RotaryEmbedding =
             RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
         let input =
-            seeded_tensor::<3>(3, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(3, [batch, seq_len, d_model], Distribution::Default, &device);
 
         let (q, k, _) = csa.queries_keys(input.clone(), &r_emb);
-        let k = crate::ops::repeat::repeat_interleave::<4, 5, _>(k, n_head / n_kv_head, 1);
+        let k = crate::ops::repeat::repeat_interleave::<4, 5, _>(k, n_heads / n_kv_heads, 1);
         let scores = q.matmul(k.swap_dims(2, 3)).mul_scalar(scale);
         assert!(
             scores.clone().abs().max().into_scalar::<f32>() > cap as f32,
@@ -1369,7 +1372,7 @@ mod tests {
         );
 
         let plain: CausalSelfAttention =
-            CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed).init(0, &device);
+            CausalSelfAttentionConfig::new(n_heads, n_kv_heads, d_model).init(0, &device);
         assert!(plain.score_scale.is_none() && plain.attn_softcap.is_none());
     }
 
@@ -1382,7 +1385,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let [batch, seq_len, n_embed] = [2, 6, 16];
+        let [batch, seq_len, d_model] = [2, 6, 16];
         let prefix = 3;
 
         for output_gate in [
@@ -1390,18 +1393,18 @@ mod tests {
             Some(AttentionOutputGate::Elementwise),
             Some(AttentionOutputGate::Headwise),
         ] {
-            let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(4, 2, n_embed)
+            let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(4, 2, d_model)
                 .with_output_gate(output_gate)
                 .init(0, &device);
             let r_emb: RotaryEmbedding =
                 RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
             let input =
-                seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
+                seeded_tensor::<3>(1, [batch, seq_len, d_model], Distribution::Default, &device);
 
             let full = csa.forward(input.clone(), &r_emb, &mut None);
 
             let mut cache: KVCache =
-                KVCacheConfig::new(batch, csa.n_kv_head(), seq_len, csa.head_dim(), 1)
+                KVCacheConfig::new(batch, csa.n_kv_heads(), seq_len, csa.head_dim(), 1)
                     .init(&device);
             let head = csa.forward(
                 input.clone().slice(s![.., ..prefix]),
@@ -1423,8 +1426,8 @@ mod tests {
         }
     }
 
-    /// Heads wider than `n_embed / n_head` project to and from
-    /// `n_head * head_dim`; either norm placement keeps the shape.
+    /// Heads wider than `d_model / n_heads` project to and from
+    /// `n_heads * head_dim`; either norm placement keeps the shape.
     #[test]
     fn test_explicit_head_dim() {
         use crate::{
@@ -1439,8 +1442,8 @@ mod tests {
                 .with_qk_norm(placement);
             assert_eq!(cfg.head_dim(), 8);
             let attn = cfg.init(0, &device);
-            assert_eq!(attn.n_head(), 2);
-            assert_eq!(attn.n_kv_head(), 1);
+            assert_eq!(attn.n_heads(), 2);
+            assert_eq!(attn.n_kv_heads(), 1);
             assert_eq!(attn.c_proj.weight.dims(), [16, 12]);
             let r_emb = RotaryEmbeddingConfig::new(5, 8).init(&device);
             let y = attn.forward(Tensor::zeros([2, 5, 12], &device), &r_emb, &mut None);
@@ -1462,9 +1465,9 @@ mod tests {
             .with_output_bias(true)
             .with_sliding_window(Some(3));
         let csa: CausalSelfAttention = cfg.init(1, &device);
-        assert_eq!(csa.n_embed(), cfg.n_embed());
-        assert_eq!(csa.n_head(), cfg.n_head());
-        assert_eq!(csa.n_kv_head(), cfg.n_kv_head());
+        assert_eq!(csa.d_model(), cfg.d_model());
+        assert_eq!(csa.n_heads(), cfg.n_heads());
+        assert_eq!(csa.n_kv_heads(), cfg.n_kv_heads());
         assert_eq!(csa.head_dim(), cfg.head_dim());
         assert_eq!(csa.qk_norm, cfg.qk_norm);
         assert_eq!(csa.sliding_window, cfg.sliding_window);
@@ -1496,26 +1499,26 @@ mod tests {
     #[test]
     fn test_output_gate() {
         let device = cpu_device();
-        let (batch, seq_len, n_embed, n_head, n_kv_head) = (2, 5, 16, 4, 2);
-        let cfg = CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed);
+        let (batch, seq_len, d_model, n_heads, n_kv_heads) = (2, 5, 16, 4, 2);
+        let cfg = CausalSelfAttentionConfig::new(n_heads, n_kv_heads, d_model);
         let mut gated: CausalSelfAttention = cfg
             .clone()
             .with_output_gate(Some(AttentionOutputGate::Elementwise))
             .init(0, &device);
         assert!(gated.c_gate.is_none());
         let d = gated.head_dim();
-        assert_eq!(gated.c_q.weight.dims(), [n_embed, 2 * n_head * d]);
-        assert_eq!(gated.n_head(), n_head);
-        assert_eq!(gated.n_kv_head(), n_kv_head);
+        assert_eq!(gated.c_q.weight.dims(), [d_model, 2 * n_heads * d]);
+        assert_eq!(gated.n_heads(), n_heads);
+        assert_eq!(gated.n_kv_heads(), n_kv_heads);
 
-        let identity = Param::from_tensor(Tensor::<2>::eye(n_embed, &device));
+        let identity = Param::from_tensor(Tensor::<2>::eye(d_model, &device));
         gated.c_proj.weight = identity.clone();
-        let w = gated.c_q.weight.val().reshape([n_embed, n_head, 2 * d]);
+        let w = gated.c_q.weight.val().reshape([d_model, n_heads, 2 * d]);
         let query_cols = w
             .clone()
             .slice(s![.., .., ..d])
-            .reshape([n_embed, n_head * d]);
-        let gate_cols = w.slice(s![.., .., d..]).reshape([n_embed, n_head * d]);
+            .reshape([d_model, n_heads * d]);
+        let gate_cols = w.slice(s![.., .., d..]).reshape([d_model, n_heads * d]);
 
         let mut plain: CausalSelfAttention = cfg.init(0, &device);
         plain.c_q.weight = Param::from_tensor(query_cols);
@@ -1527,7 +1530,7 @@ mod tests {
 
         let r_emb = RotaryEmbeddingConfig::new(seq_len, d).init(&device);
         let input =
-            seeded_tensor::<3>(8, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(8, [batch, seq_len, d_model], Distribution::Default, &device);
         let gate = burn::tensor::activation::sigmoid(input.clone().matmul(gate_cols.unsqueeze()));
         let expected = plain.forward(input.clone(), &r_emb, &mut None) * gate;
         let actual = gated.forward(input.clone(), &r_emb, &mut None);
@@ -1547,19 +1550,19 @@ mod tests {
     #[test]
     fn test_headwise_output_gate() {
         let device = cpu_device();
-        let (batch, seq_len, n_embed, n_head, n_kv_head) = (2, 5, 16, 4, 2);
-        let cfg = CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed);
+        let (batch, seq_len, d_model, n_heads, n_kv_heads) = (2, 5, 16, 4, 2);
+        let cfg = CausalSelfAttentionConfig::new(n_heads, n_kv_heads, d_model);
         let mut gated: CausalSelfAttention = cfg
             .clone()
             .with_output_gate(Some(AttentionOutputGate::Headwise))
             .init(0, &device);
         let d = gated.head_dim();
-        assert_eq!(gated.c_q.weight.dims(), [n_embed, n_head * d]);
+        assert_eq!(gated.c_q.weight.dims(), [d_model, n_heads * d]);
         let c_gate = gated.c_gate.clone().expect("a headwise gate's projection");
-        assert_eq!(c_gate.weight.dims(), [n_embed, n_head]);
+        assert_eq!(c_gate.weight.dims(), [d_model, n_heads]);
         assert!(c_gate.bias.is_none());
 
-        let identity = Param::from_tensor(Tensor::<2>::eye(n_embed, &device));
+        let identity = Param::from_tensor(Tensor::<2>::eye(d_model, &device));
         gated.c_proj.weight = identity.clone();
         let mut plain: CausalSelfAttention = cfg.init(0, &device);
         plain.c_q = gated.c_q.clone();
@@ -1571,7 +1574,7 @@ mod tests {
 
         let r_emb = RotaryEmbeddingConfig::new(seq_len, d).init(&device);
         let input =
-            seeded_tensor::<3>(5, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(5, [batch, seq_len, d_model], Distribution::Default, &device);
         // [B, T, H, 1]: one gate per head.
         let gate = burn::tensor::activation::sigmoid(
             input.clone().matmul(c_gate.weight.val().unsqueeze()),
@@ -1579,9 +1582,9 @@ mod tests {
         .unsqueeze_dim::<4>(3);
         let expected = (plain
             .forward(input.clone(), &r_emb, &mut None)
-            .reshape([batch, seq_len, n_head, d])
+            .reshape([batch, seq_len, n_heads, d])
             * gate)
-            .reshape([batch, seq_len, n_head * d]);
+            .reshape([batch, seq_len, n_heads * d]);
         let actual = gated.forward(input.clone(), &r_emb, &mut None);
         assert_tensors_close(&actual, &expected, Tolerance::default());
         assert_tensors_close(
@@ -1598,13 +1601,13 @@ mod tests {
     #[test]
     fn test_query_gain() {
         let device = cpu_device();
-        let (batch, seq_len, n_embed, n_head, n_kv_head) = (2, 5, 16, 4, 2);
-        let cfg = CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed)
+        let (batch, seq_len, d_model, n_heads, n_kv_heads) = (2, 5, 16, 4, 2);
+        let cfg = CausalSelfAttentionConfig::new(n_heads, n_kv_heads, d_model)
             .with_qk_norm(QkNormPlacement::BeforeRope);
         let unit: CausalSelfAttention = cfg.clone().with_query_gain(true).init(0, &device);
         assert_eq!(
             unit.query_gain.as_ref().unwrap().val().into_data(),
-            Tensor::<1>::ones([n_head], &device).into_data(),
+            Tensor::<1>::ones([n_heads], &device).into_data(),
             "initialized to ones"
         );
         assert!(cfg.init(0, &device).query_gain.is_none());
@@ -1615,7 +1618,7 @@ mod tests {
         let d = gained.head_dim();
         let r_emb = RotaryEmbeddingConfig::new(seq_len, d).init(&device);
         let input =
-            seeded_tensor::<3>(9, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(9, [batch, seq_len, d_model], Distribution::Default, &device);
         let weights = gained.attention_weights(input.clone(), &r_emb);
         for (h, g) in gains.iter().enumerate() {
             let mut plain: CausalSelfAttention = cfg

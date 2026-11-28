@@ -106,10 +106,10 @@
 //!
 //! let gpt: NanoChatGpt = NanoChatGptContractConfig::new()
 //!     .with_vocab_size(64)
-//!     .with_n_layer(2)
-//!     .with_n_head(2)
-//!     .with_n_kv_head(2)
-//!     .with_n_embed(32)
+//!     .with_n_layers(2)
+//!     .with_n_heads(2)
+//!     .with_n_kv_heads(2)
+//!     .with_d_model(32)
 //!     .with_init_seq_len(16)
 //!     .init(&device);
 //!

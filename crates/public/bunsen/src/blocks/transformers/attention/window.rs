@@ -393,7 +393,7 @@ impl InputDTypes for WindowAttention {
 
 impl WindowAttention {
     /// The token width.
-    pub fn n_embed(&self) -> usize {
+    pub fn d_model(&self) -> usize {
         self.c_q.weight.dims()[0]
     }
 
@@ -411,7 +411,7 @@ impl WindowAttention {
         x: Tensor<3>,
     ) -> Tensor<3> {
         let heads = self.n_heads;
-        let d = self.n_embed();
+        let d = self.d_model();
         let [bw, n, hd] = unpack_shape_contract!(
             ["batch_windows", "area", "d_model" = "heads" * "head_dim"],
             &x.dims(),
@@ -493,7 +493,7 @@ impl WindowAttention {
         x: Tensor<3>,
     ) -> Tensor<3> {
         let [h, w] = self.grid;
-        let d = self.n_embed();
+        let d = self.d_model();
         let [b] = unpack_shape_contract!(
             ["batch", "height" * "width", "d_model"],
             &x.dims(),

@@ -327,7 +327,7 @@ impl VoxtralAudioEncoderMeta for VoxtralAudioEncoder {
 
     fn n_heads(&self) -> usize {
         use crate::blocks::transformers::attention::csa::CausalSelfAttentionMeta;
-        self.stack.layers[0].attn.branch.attention().n_head()
+        self.stack.layers[0].attn.branch.attention().n_heads()
     }
 
     fn head_dim(&self) -> usize {
@@ -489,7 +489,7 @@ mod tests {
         assert_eq!(encoder.stack.rotary.base, config.rope_theta);
         assert_eq!(encoder.stack.norm.epsilon(), Some(1e-6));
         assert_eq!(config.output_len(7), 4);
-        assert_eq!(encoder.kv_cache_config().num_layers, 2);
+        assert_eq!(encoder.kv_cache_config().n_layers, 2);
         assert_eq!(encoder.kv_cache_pre_size(), config.kv_cache_pre_size());
         assert_eq!(encoder.kv_cache_config().seq_len, 1536, "30 s of frames");
         assert_eq!(config.kv_cache_config().seq_len, 1536);

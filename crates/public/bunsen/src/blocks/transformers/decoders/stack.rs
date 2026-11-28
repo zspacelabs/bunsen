@@ -222,7 +222,7 @@ impl DecoderStackStructureConfig {
 
 impl DecoderStackMeta for DecoderStackStructureConfig {
     fn d_model(&self) -> usize {
-        self.first_layer().n_embed()
+        self.first_layer().d_model()
     }
 
     fn n_layers(&self) -> usize {
@@ -231,7 +231,7 @@ impl DecoderStackMeta for DecoderStackStructureConfig {
 
     fn n_kv_heads(&self) -> usize {
         use crate::blocks::transformers::attention::csa::CausalSelfAttentionMeta;
-        self.first_attention().n_kv_head()
+        self.first_attention().n_kv_heads()
     }
 
     fn head_dim(&self) -> usize {
@@ -284,15 +284,15 @@ impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
             .layers
             .iter()
             .enumerate()
-            .find(|(_, l)| l.n_embed() != width)
+            .find(|(_, l)| l.d_model() != width)
         {
             return Err(ConstraintError::new(
                 "DecoderStackStructureConfig",
                 "layers",
                 Rule::Relation {
-                    lhs: (format!("layers[{i}].n_embed"), layer.n_embed().to_string()),
+                    lhs: (format!("layers[{i}].d_model"), layer.d_model().to_string()),
                     op: "==",
-                    rhs: ("layers[0].n_embed".into(), width.to_string()),
+                    rhs: ("layers[0].d_model".into(), width.to_string()),
                 },
             )
             .into());
@@ -582,7 +582,7 @@ pub struct DecoderStack {
 
 impl DecoderStackMeta for DecoderStack {
     fn d_model(&self) -> usize {
-        self.layers[0].n_embed()
+        self.layers[0].d_model()
     }
 
     fn n_layers(&self) -> usize {
@@ -591,7 +591,7 @@ impl DecoderStackMeta for DecoderStack {
 
     fn n_kv_heads(&self) -> usize {
         use crate::blocks::transformers::attention::csa::CausalSelfAttentionMeta;
-        self.first_attention().n_kv_head()
+        self.first_attention().n_kv_heads()
     }
 
     fn head_dim(&self) -> usize {
@@ -1620,7 +1620,7 @@ mod tests {
             BunsenGatedMlpConfig::new(24, 32).into(),
         );
         ErrorMatcher::illegal()
-            .message_contains("layers[1].n_embed")
+            .message_contains("layers[1].d_model")
             .assert_err(&ModuleInit::<DecoderStack>::try_init(&mixed, &device));
     }
 
@@ -1779,7 +1779,7 @@ mod tests {
             [(false, 0), (false, 1), (true, 0), (false, 2), (true, 1)]
         );
         use crate::ops::transformers::attention::KVCacheMeta;
-        assert_eq!(stack.kv_cache_config(4).init(&device).num_layers(), 2);
+        assert_eq!(stack.kv_cache_config(4).init(&device).n_layers(), 2);
         let cache = stack.decode_cache(3, 8, KVCacheStorage::Auto, &device);
         assert_eq!(cache.linear.layers.len(), 3);
         assert_eq!(cache.linear.layers[0].rows(), 3);

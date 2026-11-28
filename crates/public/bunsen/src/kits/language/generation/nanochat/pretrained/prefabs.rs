@@ -14,15 +14,15 @@ fn upstream_geometry(
     depth: usize,
     vocab_size: usize,
 ) -> NanoChatGptContractConfig {
-    let n_embed = depth * 64;
+    let d_model = depth * 64;
     NanoChatGptContractConfig::new()
         .with_init_seq_len(2048)
         .with_max_seq_len_factor(10)
         .with_vocab_size(vocab_size)
-        .with_n_layer(depth)
-        .with_n_head(n_embed / 128)
-        .with_n_kv_head(n_embed / 128)
-        .with_n_embed(n_embed)
+        .with_n_layers(depth)
+        .with_n_heads(d_model / 128)
+        .with_n_kv_heads(d_model / 128)
+        .with_d_model(d_model)
 }
 
 impl NanoChatGptContractConfig {
@@ -65,14 +65,14 @@ mod tests {
     fn test_prefabs() {
         let config = NanoChatGptContractConfig::expect_prefab("nanochat-d20");
         assert_eq!(
-            (config.n_embed(), config.n_layer(), config.n_head()),
+            (config.d_model(), config.n_layers(), config.n_heads()),
             (1280, 20, 10)
         );
         assert!(!config.residual_lambdas);
 
         let config = NanoChatGptContractConfig::expect_prefab("nanochat-d18-2026");
         assert_eq!(
-            (config.n_embed(), config.n_layer(), config.n_head()),
+            (config.d_model(), config.n_layers(), config.n_heads()),
             (1152, 18, 9)
         );
         assert_eq!(config.window_pattern.as_deref(), Some("L"));

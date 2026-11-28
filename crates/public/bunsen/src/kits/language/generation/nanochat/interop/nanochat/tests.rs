@@ -79,8 +79,8 @@ fn test_config() {
             c.init_seq_len,
             c.max_seq_len_factor,
             c.vocab_size,
-            c.n_layer,
-            c.n_embed
+            c.n_layers,
+            c.d_model
         ),
         (2048, 10, 65536, 20, 1280)
     );

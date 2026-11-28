@@ -49,7 +49,7 @@ impl ProjectedDecoderStackMeta for Qwen3TtsCodecTransformerConfig {
     }
 
     fn d_model(&self) -> usize {
-        self.stack.layer.n_embed()
+        self.stack.layer.d_model()
     }
 
     fn n_layers(&self) -> usize {

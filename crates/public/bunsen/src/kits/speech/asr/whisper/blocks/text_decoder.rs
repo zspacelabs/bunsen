@@ -413,7 +413,7 @@ impl TextDecoder {
     ) -> Tensor<3> {
         use crate::ops::transformers::attention::KVCacheMeta;
         assert_eq!(
-            cache.num_layers(),
+            cache.n_layers(),
             self.blocks.len(),
             "cache was built for a different decoder",
         );

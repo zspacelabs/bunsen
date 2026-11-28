@@ -89,7 +89,7 @@ impl DepthDecoderMeta for DepthDecoderConfig {
     }
 
     fn width(&self) -> usize {
-        self.stack.layer.n_embed()
+        self.stack.layer.d_model()
     }
 
     fn codebooks(&self) -> usize {
