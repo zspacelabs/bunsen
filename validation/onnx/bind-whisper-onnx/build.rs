@@ -116,7 +116,7 @@ const ENCODER_SHA256: &str = "a9f3b752833b49e880dec91ee5b6d936112be7c3ea07c22102
 const ENCODER_FILE: &str = "whisper_base_encoder.onnx";
 
 /// The decoder graph, without the KV-cache inputs — it takes a whole token
-/// sequence at once, which is the shape `TextDecoder::forward` has.
+/// sequence at once, which is the shape `WhisperTextDecoder::forward` has.
 const DECODER_URL: &str =
     "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/decoder_model.onnx";
 

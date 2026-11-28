@@ -1,7 +1,7 @@
 //! # Whisper geometry
 
 use super::{
-    AUDIO_ENCODER_STRIDE,
+    WHISPER_ENCODER_STRIDE,
     WhisperApiConfig,
 };
 
@@ -40,7 +40,7 @@ pub struct WhisperGeometry {
 
 /// Upstream's audio context: 1500 encoder positions over the encoder's
 /// stride, which is what the scanner reads from the positional embedding.
-pub const OPENAI_MAX_AUDIO_CTX: usize = 1500 * AUDIO_ENCODER_STRIDE;
+pub const OPENAI_MAX_AUDIO_CTX: usize = 1500 * WHISPER_ENCODER_STRIDE;
 
 /// Upstream's text context.
 pub const OPENAI_MAX_TEXT_CTX: usize = 448;

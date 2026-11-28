@@ -22,13 +22,13 @@ use crate::{
                 window_frames_in,
             },
             parakeet::{
+                PARAKEET_WORD_MARK,
                 ParakeetConstruct,
                 ParakeetFeatures,
                 ParakeetFrontEnd,
                 ParakeetFrontEndMeta,
                 ParakeetTdtMeta,
                 TdtHypothesis,
-                WORD_MARK,
             },
         },
         support::MomentsLevel,
@@ -177,7 +177,7 @@ impl ParakeetEngine {
                 k == 0
                     || vocab
                         .piece(h.tokens[k])
-                        .is_some_and(|p| p.starts_with(WORD_MARK))
+                        .is_some_and(|p| p.starts_with(PARAKEET_WORD_MARK))
             })
             .collect();
         opens

@@ -597,7 +597,7 @@ mod tests {
             predicate,
         },
         kits::speech::asr::whisper::{
-            blocks::CONTROL_TOKENS,
+            blocks::WHISPER_CONTROL_TOKENS,
             driver::WhisperSpecialIds,
         },
     };
@@ -841,7 +841,7 @@ mod tests {
         let layout = WhisperTokenLayoutConfig::new()
             .with_languages(vec!["xx".to_string(), "yy".to_string()])
             .with_control_tokens(
-                CONTROL_TOKENS
+                WHISPER_CONTROL_TOKENS
                     .iter()
                     .map(|name| name.replace("<|", "<").replace("|>", ">"))
                     .collect(),

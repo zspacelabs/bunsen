@@ -34,7 +34,7 @@ use crate::{
                     WhisperFallbackConfig,
                     WhisperMeta,
                     WhisperPolicy,
-                    blocks::AUDIO_ENCODER_STRIDE,
+                    blocks::WHISPER_ENCODER_STRIDE,
                     decode::DecodedTokens,
                     driver::{
                         WhisperTask,
@@ -80,7 +80,7 @@ use crate::{
 #[derive(Config, Debug)]
 pub struct WhisperEngineConfig {
     /// The language of the speech, as a
-    /// [`LANGUAGES`](crate::kits::speech::asr::whisper::blocks::LANGUAGES)
+    /// [`WHISPER_LANGUAGES`](crate::kits::speech::asr::whisper::blocks::WHISPER_LANGUAGES)
     /// code.
     ///
     /// `None` on a multilingual checkpoint detects the language per stream
@@ -363,7 +363,7 @@ impl WhisperEngine {
 
     /// Audio frames per timestamp index: two.
     pub fn frames_per_timestamp(&self) -> usize {
-        AUDIO_ENCODER_STRIDE
+        WHISPER_ENCODER_STRIDE
     }
 
     /// The decode of one window under this driver, given its prompt.

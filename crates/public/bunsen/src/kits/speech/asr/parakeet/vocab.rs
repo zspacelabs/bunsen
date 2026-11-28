@@ -9,7 +9,7 @@ use crate::{
 
 /// The word-boundary mark of a `SentencePiece` vocabulary: a piece that begins
 /// with it begins a word.
-pub const WORD_MARK: char = '\u{2581}';
+pub const PARAKEET_WORD_MARK: char = '\u{2581}';
 
 /// A Parakeet model's `SentencePiece` vocabulary: one piece per token id,
 /// the blank not included.
@@ -135,7 +135,11 @@ impl ParakeetVocabulary {
                     self.len()
                 ))
             })?;
-            text.extend(piece.chars().map(|c| if c == WORD_MARK { ' ' } else { c }));
+            text.extend(
+                piece
+                    .chars()
+                    .map(|c| if c == PARAKEET_WORD_MARK { ' ' } else { c }),
+            );
         }
         Ok(text)
     }

@@ -19,7 +19,7 @@ impl Prefabs for Qwen3AsrConfig {
         ("qwen3-asr-0.6b", Self::qwen3_asr_0_6b),
         ("qwen3-asr-1.7b", Self::qwen3_asr_1_7b),
     ];
-    const PREFAB_TABLE: &'static str = "qwen3-asr";
+    const PREFAB_TABLE: &'static str = "qwen3_asr";
 }
 
 #[cfg(test)]

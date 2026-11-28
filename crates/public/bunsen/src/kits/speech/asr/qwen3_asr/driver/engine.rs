@@ -479,7 +479,7 @@ mod tests {
         assert_eq!(engine.window_frames(), 3000);
         let samples = ToneConfig::Duration {
             seconds: 2.0,
-            hz: 16_000.0,
+            sample_rate: 16_000.0,
         }
         .build();
 
@@ -579,7 +579,7 @@ mod tests {
 
         let samples = ToneConfig::Duration {
             seconds: 2.5,
-            hz: 16_000.0,
+            sample_rate: 16_000.0,
         }
         .build();
         let mut events = Vec::new();
@@ -605,7 +605,7 @@ mod tests {
         // A tone, silent from 0.8 s to 0.9 s, then sounding again to 1.6 s.
         let mut samples = ToneConfig::Duration {
             seconds: 1.6,
-            hz: 16_000.0,
+            sample_rate: 16_000.0,
         }
         .build();
         samples[12_800..14_400].fill(0.0);
@@ -656,7 +656,7 @@ mod tests {
         let device = performance_device();
         let samples = ToneConfig::Duration {
             seconds: 4.0,
-            hz: 16_000.0,
+            sample_rate: 16_000.0,
         }
         .build();
         let diarizer = Arc::new(ScriptedDiarizer {
@@ -750,7 +750,7 @@ mod tests {
         // quiet there.
         let mut samples = ToneConfig::Duration {
             seconds: 1.6,
-            hz: 16_000.0,
+            sample_rate: 16_000.0,
         }
         .build();
         samples[12_800..14_400].fill(0.0);
@@ -763,7 +763,7 @@ mod tests {
         // 4 s, a turn at 1.5 s: the commit is cut at the turn.
         let samples = ToneConfig::Duration {
             seconds: 4.0,
-            hz: 16_000.0,
+            sample_rate: 16_000.0,
         }
         .build();
         let window = features(&samples, 400);

@@ -188,7 +188,7 @@ pub mod onnx_gen {
     /// The reference text decoder.
     ///
     /// This is the KV-cache-free export: it consumes a whole token sequence at
-    /// once, matching `TextDecoder::forward`. Its `forward` returns the logits
+    /// once, matching `WhisperTextDecoder::forward`. Its `forward` returns the logits
     /// followed by 24 present-key/value tensors, which callers usually ignore.
     /// (`decoder_with_past_model.onnx` is the incremental variant.)
     #[allow(warnings, clippy::all)]

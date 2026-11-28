@@ -52,8 +52,8 @@ use crate::{
     },
 };
 
-/// Common meta for [`TextDecoder`] and [`TextDecoderConfig`].
-pub trait TextDecoderMeta {
+/// Common meta for [`WhisperTextDecoder`] and [`WhisperTextDecoderConfig`].
+pub trait WhisperTextDecoderMeta {
     /// Returns the size of the vocabulary.
     fn vocab_size(&self) -> usize;
 
@@ -73,7 +73,7 @@ pub trait TextDecoderMeta {
 /// The [`KVCacheConfig`] a Whisper text decoder of `meta`'s geometry decodes
 /// with: its heads, head width and layer count, pre-sized to the whole text
 /// context and capped there, since no decode may run past it.
-fn kv_cache_config(meta: &impl TextDecoderMeta) -> KVCacheConfig {
+fn kv_cache_config(meta: &impl WhisperTextDecoderMeta) -> KVCacheConfig {
     KVCacheConfig::for_decode(
         meta.n_heads(),
         meta.max_context(),
@@ -83,24 +83,24 @@ fn kv_cache_config(meta: &impl TextDecoderMeta) -> KVCacheConfig {
     .with_max_seq_len(Some(meta.max_context()))
 }
 
-impl KVCacheModel for TextDecoderConfig {
+impl KVCacheModel for WhisperTextDecoderConfig {
     fn kv_cache_config(&self) -> KVCacheConfig {
         kv_cache_config(self)
     }
 }
 
-/// [`new_cache`](TextDecoder::new_cache) builds the decode's cache with the
+/// [`new_cache`](WhisperTextDecoder::new_cache) builds the decode's cache with the
 /// encoder's cross-attention keys and values set; this gives its geometry and
 /// sizing.
-impl KVCacheModel for TextDecoder {
+impl KVCacheModel for WhisperTextDecoder {
     fn kv_cache_config(&self) -> KVCacheConfig {
         kv_cache_config(self)
     }
 }
 
-/// Config for [`TextDecoder`].
+/// Config for [`WhisperTextDecoder`].
 #[derive(Config, Debug)]
-pub struct TextDecoderConfig {
+pub struct WhisperTextDecoderConfig {
     /// The size of the vocabulary.
     pub vocab_size: usize,
 
@@ -122,7 +122,7 @@ pub struct TextDecoderConfig {
     pub block_dropout: f64,
 }
 
-impl TextDecoderMeta for TextDecoderConfig {
+impl WhisperTextDecoderMeta for WhisperTextDecoderConfig {
     fn vocab_size(&self) -> usize {
         self.vocab_size
     }
@@ -144,12 +144,12 @@ impl TextDecoderMeta for TextDecoderConfig {
     }
 }
 
-impl ModuleInit<TextDecoder> for TextDecoderConfig {
+impl ModuleInit<WhisperTextDecoder> for WhisperTextDecoderConfig {
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<TextDecoder> {
-        Ok(TextDecoder {
+    ) -> BunsenResult<WhisperTextDecoder> {
+        Ok(WhisperTextDecoder {
             token_embedding: EmbeddingConfig::new(self.vocab_size, self.d_model).init(device),
 
             positional_embedding: Param::from_tensor(Tensor::<2>::random(
@@ -180,9 +180,9 @@ impl ModuleInit<TextDecoder> for TextDecoderConfig {
 /// cross-attention over the audio encoder output), a final layer norm, and an
 /// unembedding into vocabulary logits.
 ///
-/// Built by [`TextDecoderConfig`].
+/// Built by [`WhisperTextDecoderConfig`].
 #[derive(Module, Debug)]
-pub struct TextDecoder {
+pub struct WhisperTextDecoder {
     /// The token embedding.
     pub token_embedding: Embedding,
 
@@ -197,7 +197,7 @@ pub struct TextDecoder {
     // mask: Param<Tensor<2>>,
 }
 
-impl TextDecoderMeta for TextDecoder {
+impl WhisperTextDecoderMeta for WhisperTextDecoder {
     fn vocab_size(&self) -> usize {
         self.token_embedding.weight.val().dims()[0]
     }
@@ -219,7 +219,7 @@ impl TextDecoderMeta for TextDecoder {
     }
 }
 
-impl InputDTypes for TextDecoder {
+impl InputDTypes for WhisperTextDecoder {
     /// The dtype its parameters were loaded in, and so the one it computes
     /// in, its caches included.
     fn preferred_dtype(&self) -> FloatDType {
@@ -227,14 +227,14 @@ impl InputDTypes for TextDecoder {
     }
 }
 
-/// [`forward`](TextDecoder::forward) and the cache builder cast the encoder
+/// [`forward`](WhisperTextDecoder::forward) and the cache builder cast the encoder
 /// features they are given.
-impl CoercesInput for TextDecoder {}
+impl CoercesInput for WhisperTextDecoder {}
 
-impl ResultDType for TextDecoder {
+impl ResultDType for WhisperTextDecoder {
     /// The backend's default float ([`device_float_dtype`]), whatever the
     /// input's: the logits are the model's outward edge
-    /// ([`forward`](TextDecoder::forward)).
+    /// ([`forward`](WhisperTextDecoder::forward)).
     fn result_dtype(
         &self,
         _input: FloatDType,
@@ -243,7 +243,7 @@ impl ResultDType for TextDecoder {
     }
 }
 
-impl TextDecoder {
+impl WhisperTextDecoder {
     /// Runs the decoder.
     ///
     /// # Arguments
@@ -486,7 +486,7 @@ impl TextDecoder {
     }
 }
 
-impl CanonicalKeys for TextDecoder {
+impl CanonicalKeys for WhisperTextDecoder {
     fn canonical_rekey(&self) -> Rekey {
         Rekey::keep_rest().mount_canonical("blocks.", &self.blocks)
     }
@@ -521,13 +521,13 @@ mod tests {
         let max_context = 128;
         let n_layers = 2;
 
-        let config = TextDecoderConfig::new(vocab_size, d_model, max_context, n_layers);
+        let config = WhisperTextDecoderConfig::new(vocab_size, d_model, max_context, n_layers);
 
         assert_eq!(config.vocab_size(), vocab_size);
         assert_eq!(config.d_model(), d_model);
         assert_eq!(config.max_context(), max_context);
 
-        let decoder: TextDecoder = config.init(&device);
+        let decoder: WhisperTextDecoder = config.init(&device);
 
         assert_eq!(decoder.vocab_size(), vocab_size);
         assert_eq!(decoder.d_model(), d_model);
@@ -574,8 +574,8 @@ mod tests {
         let (vocab, d_model, max_ctx, layers) = (64, 128, 16, 2);
         let (batch, cross_len, seq) = (2, 5, 6);
 
-        let decoder: TextDecoder =
-            TextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
+        let decoder: WhisperTextDecoder =
+            WhisperTextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
 
         let tokens: Tensor<2, Int> = Tensor::from_data(
             TensorData::new(
@@ -628,8 +628,8 @@ mod tests {
         let (vocab, d_model, max_ctx, layers) = (64, 128, 16, 1);
         let (cross_len, seq, prompt) = (4, 5, 3);
 
-        let decoder: TextDecoder =
-            TextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
+        let decoder: WhisperTextDecoder =
+            WhisperTextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
 
         let tokens: Tensor<2, Int> = Tensor::from_data(
             TensorData::new((0..seq).map(|k| k as i64).collect::<Vec<_>>(), [1, seq]),
@@ -677,7 +677,8 @@ mod tests {
         let device = cpu_device();
 
         let float = device_float_dtype(&device);
-        let decoder: TextDecoder = TextDecoderConfig::new(32, 128, 8, 1).init(&device);
+        let decoder: WhisperTextDecoder =
+            WhisperTextDecoderConfig::new(32, 128, 8, 1).init(&device);
         let decoder = decoder.map(&mut DTypeMapper::new(DType::F16));
         assert_eq!(decoder.preferred_dtype(), FloatDType::F16);
 
@@ -721,8 +722,8 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
         let (vocab, d_model, max_ctx, layers) = (32, 128, 8, 1);
 
-        let decoder: TextDecoder =
-            TextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
+        let decoder: WhisperTextDecoder =
+            WhisperTextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
 
         let tokens: Tensor<2, Int> =
             Tensor::from_data(TensorData::new(vec![3i64, 5], [1, 2]), &device);
@@ -760,7 +761,8 @@ mod tests {
         };
 
         let device = cpu_device();
-        let decoder: TextDecoder = TextDecoderConfig::new(32, 128, 8, 1).init(&device);
+        let decoder: WhisperTextDecoder =
+            WhisperTextDecoderConfig::new(32, 128, 8, 1).init(&device);
         let decoder = decoder.map(&mut DTypeMapper::new(DType::F16));
         let tokens = Tensor::<2, Int>::from_data([[1i64, 2, 3]], &device);
         let xa: Tensor<3> = Tensor::random([1, 4, 128], Distribution::Default, &device);
@@ -772,7 +774,7 @@ mod tests {
     #[test]
     fn test_d_head_defaults() {
         assert_eq!(
-            TextDecoderConfig::new(51865, 384, 448, 4).d_head,
+            WhisperTextDecoderConfig::new(51865, 384, 448, 4).d_head,
             WHISPER_DEFAULT_D_HEAD
         );
     }
