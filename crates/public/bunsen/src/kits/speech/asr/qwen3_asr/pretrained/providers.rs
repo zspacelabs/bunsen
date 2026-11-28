@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// The Qwen3-ASR kit's name: its rows' `kit` tag.
-pub const QWEN3_ASR_KIT: &str = "qwen3-asr";
+pub const QWEN3_ASR_KIT: &str = "qwen3_asr";
 
 /// The key of the checkpoint in a Qwen3-ASR resource set.
 pub use crate::data::builds::CHECKPOINT;

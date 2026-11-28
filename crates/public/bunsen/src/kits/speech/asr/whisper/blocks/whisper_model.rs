@@ -30,12 +30,12 @@ use crate::{
     },
     kits::speech::{
         asr::whisper::blocks::{
-            AudioEncoder,
-            AudioEncoderConfig,
-            AudioEncoderMeta,
-            TextDecoder,
-            TextDecoderConfig,
-            TextDecoderMeta,
+            WhisperAudioEncoder,
+            WhisperAudioEncoderConfig,
+            WhisperAudioEncoderMeta,
+            WhisperTextDecoder,
+            WhisperTextDecoderConfig,
+            WhisperTextDecoderMeta,
         },
         support::log_mel::LogMelFrontEndConfig,
     },
@@ -99,14 +99,14 @@ impl ToStructureConfig for WhisperApiConfig {
         Ok(WhisperStructureConfig {
             front_end: self.front_end.clone(),
             token_layout: self.token_layout.clone(),
-            encoder: AudioEncoderConfig::new(
+            encoder: WhisperAudioEncoderConfig::new(
                 self.n_mels,
                 self.d_model,
                 self.max_audio_ctx,
                 self.n_encoder_layers,
             )
             .with_d_head(self.d_head),
-            decoder: TextDecoderConfig::new(
+            decoder: WhisperTextDecoderConfig::new(
                 self.vocab_size,
                 self.d_model,
                 self.max_text_ctx,
@@ -161,19 +161,19 @@ pub trait WhisperMeta {
         self.decoder().max_context()
     }
 
-    /// Returns the [`AudioEncoder`] meta.
-    fn encoder(&self) -> &impl AudioEncoderMeta;
+    /// Returns the [`WhisperAudioEncoder`] meta.
+    fn encoder(&self) -> &impl WhisperAudioEncoderMeta;
 
-    /// Returns the [`TextDecoder`] meta.
-    fn decoder(&self) -> &impl TextDecoderMeta;
+    /// Returns the [`WhisperTextDecoder`] meta.
+    fn decoder(&self) -> &impl WhisperTextDecoderMeta;
 }
 
 /// [`Whisper`] structure config.
 ///
 /// The fully-expanded structural configuration for the [`Whisper`] model,
-/// pairing an [`AudioEncoderConfig`] with a [`TextDecoderConfig`].
-/// [`WhisperApiConfig`] lowers to it. Builds the [`Whisper`] module via
-/// [`ModuleInit`].
+/// pairing an [`WhisperAudioEncoderConfig`] with a
+/// [`WhisperTextDecoderConfig`]. [`WhisperApiConfig`] lowers to it. Builds the
+/// [`Whisper`] module via [`ModuleInit`].
 ///
 /// Implements [`WhisperMeta`].
 #[derive(Config, Debug)]
@@ -185,10 +185,10 @@ pub struct WhisperStructureConfig {
     pub token_layout: WhisperTokenLayoutConfig,
 
     /// Encoder config.
-    pub encoder: AudioEncoderConfig,
+    pub encoder: WhisperAudioEncoderConfig,
 
     /// Decoder config.
-    pub decoder: TextDecoderConfig,
+    pub decoder: WhisperTextDecoderConfig,
 }
 
 impl WhisperMeta for WhisperStructureConfig {
@@ -200,11 +200,11 @@ impl WhisperMeta for WhisperStructureConfig {
         &self.token_layout
     }
 
-    fn encoder(&self) -> &impl AudioEncoderMeta {
+    fn encoder(&self) -> &impl WhisperAudioEncoderMeta {
         &self.encoder
     }
 
-    fn decoder(&self) -> &impl TextDecoderMeta {
+    fn decoder(&self) -> &impl WhisperTextDecoderMeta {
         &self.decoder
     }
 }
@@ -250,9 +250,10 @@ impl ModuleInit<Whisper> for WhisperStructureConfig {
 
 /// Whisper model
 ///
-/// End-to-end Whisper speech recognition model, composing an [`AudioEncoder`]
-/// over the input log-Mel spectrogram with a [`TextDecoder`] that
-/// cross-attends to the encoder output to produce vocabulary logits.
+/// End-to-end Whisper speech recognition model, composing an
+/// [`WhisperAudioEncoder`] over the input log-Mel spectrogram with a
+/// [`WhisperTextDecoder`] that cross-attends to the encoder output to produce
+/// vocabulary logits.
 ///
 /// Implements [`WhisperMeta`].
 ///
@@ -271,11 +272,11 @@ pub struct Whisper {
     #[module(skip)]
     token_layout: WhisperTokenLayoutConfig,
 
-    /// The [`AudioEncoder`].
-    pub encoder: AudioEncoder,
+    /// The [`WhisperAudioEncoder`].
+    pub encoder: WhisperAudioEncoder,
 
-    /// The [`TextDecoder`].
-    pub decoder: TextDecoder,
+    /// The [`WhisperTextDecoder`].
+    pub decoder: WhisperTextDecoder,
 }
 
 impl WhisperMeta for Whisper {
@@ -287,11 +288,11 @@ impl WhisperMeta for Whisper {
         &self.token_layout
     }
 
-    fn encoder(&self) -> &impl AudioEncoderMeta {
+    fn encoder(&self) -> &impl WhisperAudioEncoderMeta {
         &self.encoder
     }
 
-    fn decoder(&self) -> &impl TextDecoderMeta {
+    fn decoder(&self) -> &impl WhisperTextDecoderMeta {
         &self.decoder
     }
 }
@@ -330,7 +331,7 @@ impl CoercesInput for Whisper {}
 
 impl ResultDType for Whisper {
     /// The backend's default float, whatever the input's: the logits are the
-    /// decoder's ([`TextDecoder`]'s [`ResultDType`]).
+    /// decoder's ([`WhisperTextDecoder`]'s [`ResultDType`]).
     fn result_dtype(
         &self,
         input: FloatDType,
@@ -367,7 +368,7 @@ impl Whisper {
     /// `[batch, seq, n_audio_states]`, in the model's
     /// [`preferred_dtype`](InputDTypes::preferred_dtype) — these features feed
     /// the decoder and its cross-attention cache, and are not an interface
-    /// value. See [`AudioEncoder::forward`].
+    /// value. See [`WhisperAudioEncoder::forward`].
     pub fn forward_encoder(
         &self,
         mel: Tensor<3>,
@@ -383,7 +384,7 @@ impl Whisper {
     ///
     /// # Returns
     /// `[batch, seq, vocab_size]` logits, in the backend's default float.
-    /// See [`TextDecoder::forward`].
+    /// See [`WhisperTextDecoder::forward`].
     pub fn forward_decoder(
         &self,
         tokens: Tensor<2, Int>,
@@ -510,7 +511,7 @@ mod tests {
         let mut structure = WhisperApiConfig::new(8, 16, 64, 16, 1, 12, 1)
             .with_d_head(16)
             .to_structure();
-        structure.decoder = TextDecoderConfig::new(16, 32, 12, 1).with_d_head(16);
+        structure.decoder = WhisperTextDecoderConfig::new(16, 32, 12, 1).with_d_head(16);
 
         let bad: BunsenResult<Whisper> = structure.try_init(&device);
         ErrorMatcher::illegal()

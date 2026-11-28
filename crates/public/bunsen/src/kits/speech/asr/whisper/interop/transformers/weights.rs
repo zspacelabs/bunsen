@@ -19,7 +19,7 @@ use crate::{
     },
     kits::speech::asr::whisper::{
         blocks::{
-            AUDIO_ENCODER_STRIDE,
+            WHISPER_ENCODER_STRIDE,
             Whisper,
             WhisperApiConfig,
         },
@@ -89,7 +89,8 @@ pub fn whisper_config_from_headers(
     let conv1 = shape("model.encoder.conv1.weight", 3)?;
     let (d_model, n_mels) = (conv1[0], conv1[1]);
     let vocab_size = shape("model.decoder.embed_tokens.weight", 2)?[0];
-    let max_audio_ctx = shape("model.encoder.embed_positions.weight", 2)?[0] * AUDIO_ENCODER_STRIDE;
+    let max_audio_ctx =
+        shape("model.encoder.embed_positions.weight", 2)?[0] * WHISPER_ENCODER_STRIDE;
     let max_text_ctx = shape("model.decoder.embed_positions.weight", 2)?[0];
     let layers = |side: &str| {
         let prefix = format!("model.{side}.layers.");

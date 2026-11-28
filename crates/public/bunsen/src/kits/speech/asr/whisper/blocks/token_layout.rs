@@ -14,7 +14,7 @@ use crate::errors::{
 /// original set; `yue` (Cantonese) was added for `large-v3`, which is why
 /// that checkpoint's vocabulary is one token larger and every special after
 /// the language block sits one id higher.
-pub const LANGUAGES: &[&str] = &[
+pub const WHISPER_LANGUAGES: &[&str] = &[
     "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar", "sv", "it",
     "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu", "ta", "no", "th", "ur",
     "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa", "lv", "bn", "sr", "az", "sl", "kn",
@@ -26,11 +26,11 @@ pub const LANGUAGES: &[&str] = &[
 
 /// The specials before the language block, in id order: upstream's
 /// spellings.
-pub const LEADING_SPECIALS: [&str; 2] = ["<|endoftext|>", "<|startoftranscript|>"];
+pub const WHISPER_LEADING_SPECIALS: [&str; 2] = ["<|endoftext|>", "<|startoftranscript|>"];
 
 /// The control tokens between the language block and the timestamps, in id
 /// order: upstream's spellings.
-pub const CONTROL_TOKENS: [&str; 6] = [
+pub const WHISPER_CONTROL_TOKENS: [&str; 6] = [
     "<|translate|>",
     "<|transcribe|>",
     "<|startoflm|>",
@@ -62,7 +62,7 @@ pub const CONTROL_TOKENS: [&str; 6] = [
 pub struct WhisperTokenLayoutConfig {
     /// Language codes in token order. A layout takes a prefix of them: the
     /// first 99 for the original checkpoints, all 100 for `large-v3`.
-    #[config(default = "LANGUAGES.iter().map(|&code| code.to_string()).collect()")]
+    #[config(default = "WHISPER_LANGUAGES.iter().map(|&code| code.to_string()).collect()")]
     pub languages: Vec<String>,
 
     /// Base ranks in the English-only vocabulary, `gpt2.tiktoken`.
@@ -77,13 +77,13 @@ pub struct WhisperTokenLayoutConfig {
 
     /// The two specials before the language block, in id order:
     /// `<|endoftext|>`, then `<|startoftranscript|>`.
-    #[config(default = "LEADING_SPECIALS.iter().map(|&name| name.to_string()).collect()")]
+    #[config(default = "WHISPER_LEADING_SPECIALS.iter().map(|&name| name.to_string()).collect()")]
     pub leading_specials: Vec<String>,
 
     /// The six control tokens between the language block and the
     /// timestamps, in id order: translate, transcribe, start of LM, start of
     /// previous, no speech, no timestamps.
-    #[config(default = "CONTROL_TOKENS.iter().map(|&name| name.to_string()).collect()")]
+    #[config(default = "WHISPER_CONTROL_TOKENS.iter().map(|&name| name.to_string()).collect()")]
     pub control_tokens: Vec<String>,
 
     /// The timestamp tokens: `<|0.00|>` through `<|30.00|>`.
@@ -109,14 +109,14 @@ impl WhisperTokenLayoutConfig {
             (
                 "leading_specials.len()",
                 self.leading_specials.len(),
-                "LEADING_SPECIALS.len()",
-                LEADING_SPECIALS.len(),
+                "WHISPER_LEADING_SPECIALS.len()",
+                WHISPER_LEADING_SPECIALS.len(),
             ),
             (
                 "control_tokens.len()",
                 self.control_tokens.len(),
-                "CONTROL_TOKENS.len()",
-                CONTROL_TOKENS.len(),
+                "WHISPER_CONTROL_TOKENS.len()",
+                WHISPER_CONTROL_TOKENS.len(),
             ),
         ] {
             if found != expected {
@@ -185,10 +185,10 @@ mod tests {
 
     #[test]
     fn test_languages_table() {
-        assert_eq!(LANGUAGES.len(), 100);
-        assert_eq!(LANGUAGES[0], "en");
-        assert_eq!(LANGUAGES[98], "su");
-        assert_eq!(LANGUAGES[99], "yue");
+        assert_eq!(WHISPER_LANGUAGES.len(), 100);
+        assert_eq!(WHISPER_LANGUAGES[0], "en");
+        assert_eq!(WHISPER_LANGUAGES[98], "su");
+        assert_eq!(WHISPER_LANGUAGES[99], "yue");
     }
 
     #[test]
@@ -215,7 +215,7 @@ mod tests {
         ErrorMatcher::illegal()
             .has_cause::<ConstraintError>()
             .message_eq(
-                "WhisperTokenLayoutConfig: leading_specials.len() (1) must be == LEADING_SPECIALS.len() (2)",
+                "WhisperTokenLayoutConfig: leading_specials.len() (1) must be == WHISPER_LEADING_SPECIALS.len() (2)",
             )
             .assert_err(
                 &layout
@@ -243,7 +243,7 @@ mod tests {
             as f64
             / 1000.0;
         let step_seconds = WhisperTokenLayoutConfig::new().timestamp_step_seconds
-            / super::super::AUDIO_ENCODER_STRIDE as f64;
+            / super::super::WHISPER_ENCODER_STRIDE as f64;
         crate::support::testing::assert_scalar_close(hop_seconds, step_seconds, 1e-12);
     }
 }

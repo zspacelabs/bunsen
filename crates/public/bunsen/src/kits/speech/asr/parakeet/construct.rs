@@ -118,7 +118,7 @@ impl ParakeetTranscript {
             let end = (h.frames[k] + h.durations[k].max(1)) as f64 * frame_seconds;
             let begins = vocab
                 .piece(token)
-                .is_some_and(|p| p.starts_with(super::WORD_MARK));
+                .is_some_and(|p| p.starts_with(super::PARAKEET_WORD_MARK));
             match words.last_mut() {
                 Some(word) if !begins => {
                     word.text.push_str(&piece);

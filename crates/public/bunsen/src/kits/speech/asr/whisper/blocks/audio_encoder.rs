@@ -63,10 +63,10 @@ use crate::{
 /// The conv head's stride: it halves the mel sequence, so one encoder
 /// position covers this many mel frames. It is also what makes one
 /// timestamp token one encoder position: the token step is this many hops.
-pub const AUDIO_ENCODER_STRIDE: usize = 2;
+pub const WHISPER_ENCODER_STRIDE: usize = 2;
 
-/// Common meta for [`AudioEncoder`] and [`AudioEncoderConfig`].
-pub trait AudioEncoderMeta {
+/// Common meta for [`WhisperAudioEncoder`] and [`WhisperAudioEncoderConfig`].
+pub trait WhisperAudioEncoderMeta {
     /// Returns the Mel-scale frequency resolution.
     fn n_mels(&self) -> usize;
 
@@ -86,9 +86,9 @@ pub trait AudioEncoderMeta {
     fn n_layers(&self) -> usize;
 }
 
-/// Config for [`AudioEncoder`].
+/// Config for [`WhisperAudioEncoder`].
 #[derive(Config, Debug)]
-pub struct AudioEncoderConfig {
+pub struct WhisperAudioEncoderConfig {
     /// The Mel-scale frequency resolution.
     pub n_mels: usize,
 
@@ -113,7 +113,7 @@ pub struct AudioEncoderConfig {
     pub head_activation: BunsenActivationConfig,
 }
 
-impl AudioEncoderMeta for AudioEncoderConfig {
+impl WhisperAudioEncoderMeta for WhisperAudioEncoderConfig {
     fn n_mels(&self) -> usize {
         self.n_mels
     }
@@ -135,14 +135,14 @@ impl AudioEncoderMeta for AudioEncoderConfig {
     }
 }
 
-impl ModuleInit<AudioEncoder> for AudioEncoderConfig {
+impl ModuleInit<WhisperAudioEncoder> for WhisperAudioEncoderConfig {
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<AudioEncoder> {
-        let pos_ctx = self.max_context / AUDIO_ENCODER_STRIDE;
+    ) -> BunsenResult<WhisperAudioEncoder> {
+        let pos_ctx = self.max_context / WHISPER_ENCODER_STRIDE;
 
-        Ok(AudioEncoder {
+        Ok(WhisperAudioEncoder {
             head: ConvSeq1dConfig::new(vec![
                 ConvBlock1dConfig::new(
                     Conv1dConfig::new(self.n_mels, self.d_model, 3)
@@ -151,7 +151,7 @@ impl ModuleInit<AudioEncoder> for AudioEncoderConfig {
                 ConvBlock1dConfig::new(
                     Conv1dConfig::new(self.d_model, self.d_model, 3)
                         .with_padding(PaddingConfig1d::Explicit(1, 1))
-                        .with_stride(AUDIO_ENCODER_STRIDE),
+                        .with_stride(WHISPER_ENCODER_STRIDE),
                 ),
             ])
             .with_act(self.head_activation.clone())
@@ -168,7 +168,7 @@ impl ModuleInit<AudioEncoder> for AudioEncoderConfig {
     }
 }
 
-impl AudioEncoderConfig {
+impl WhisperAudioEncoderConfig {
     /// The encoder layers and the final norm: pre-norm layers whose
     /// attention sees every position and carries no rotary positions (the
     /// input carries absolute ones), its projections biased but the key
@@ -204,9 +204,9 @@ impl AudioEncoderConfig {
 ///
 /// Encodes a log-Mel spectrogram into audio feature states.
 ///
-/// Built by [`AudioEncoderConfig`].
+/// Built by [`WhisperAudioEncoderConfig`].
 #[derive(Module, Debug)]
-pub struct AudioEncoder {
+pub struct WhisperAudioEncoder {
     /// The head conv stack; a stride-2 down-sampling sequence of
     /// [`ConvBlock1d`](crate::blocks::conv::ConvBlock1d) modules.
     pub head: ConvSeq1d,
@@ -219,7 +219,7 @@ pub struct AudioEncoder {
     pub stack: DecoderStack,
 }
 
-impl AudioEncoderMeta for AudioEncoder {
+impl WhisperAudioEncoderMeta for WhisperAudioEncoder {
     fn n_mels(&self) -> usize {
         self.head.in_channels()
     }
@@ -232,7 +232,7 @@ impl AudioEncoderMeta for AudioEncoder {
         let pos_ctx = self.positional_embedding.val().dims()[0];
         // Due to the stride reduction of the conv layers, the max context is
         // twice the internal positional embedding.
-        pos_ctx * AUDIO_ENCODER_STRIDE
+        pos_ctx * WHISPER_ENCODER_STRIDE
     }
 
     fn n_heads(&self) -> usize {
@@ -244,7 +244,7 @@ impl AudioEncoderMeta for AudioEncoder {
     }
 }
 
-impl InputDTypes for AudioEncoder {
+impl InputDTypes for WhisperAudioEncoder {
     /// The dtype its parameters were loaded in, and so the one it computes
     /// in.
     fn preferred_dtype(&self) -> FloatDType {
@@ -252,13 +252,13 @@ impl InputDTypes for AudioEncoder {
     }
 }
 
-/// [`forward`](AudioEncoder::forward) casts its mel input
-/// ([`forward_head`](AudioEncoder::forward_head)).
-impl CoercesInput for AudioEncoder {}
+/// [`forward`](WhisperAudioEncoder::forward) casts its mel input
+/// ([`forward_head`](WhisperAudioEncoder::forward_head)).
+impl CoercesInput for WhisperAudioEncoder {}
 
-impl ResultDType for AudioEncoder {
+impl ResultDType for WhisperAudioEncoder {
     /// Its own, whatever the input's: the features stay in the model's dtype
-    /// ([`forward`](AudioEncoder::forward)).
+    /// ([`forward`](WhisperAudioEncoder::forward)).
     fn result_dtype(
         &self,
         _input: FloatDType,
@@ -267,7 +267,7 @@ impl ResultDType for AudioEncoder {
     }
 }
 
-impl AudioEncoder {
+impl WhisperAudioEncoder {
     /// Forward pass through the audio encoder.
     ///
     /// # Arguments
@@ -367,7 +367,7 @@ impl AudioEncoder {
     }
 }
 
-impl CanonicalKeys for AudioEncoder {
+impl CanonicalKeys for WhisperAudioEncoder {
     fn canonical_rekey(&self) -> Rekey {
         // Whisper's names for the layers and the final norm, onto the
         // stack's, each layer's by its canonical names.
@@ -406,7 +406,7 @@ mod tests {
 
         let n_audio_layers = 2;
 
-        let config = AudioEncoderConfig::new(n_mels, d_model, max_audio_ctx, n_audio_layers);
+        let config = WhisperAudioEncoderConfig::new(n_mels, d_model, max_audio_ctx, n_audio_layers);
         let n_audio_heads = config.n_heads();
 
         assert_eq!(config.n_mels(), n_mels);
@@ -415,7 +415,7 @@ mod tests {
         assert_eq!(config.n_heads(), n_audio_heads);
         assert_eq!(config.n_layers(), n_audio_layers);
 
-        let encoder: AudioEncoder = config.init(&device);
+        let encoder: WhisperAudioEncoder = config.init(&device);
 
         assert_eq!(encoder.n_mels(), n_mels);
         assert_eq!(encoder.d_model(), d_model);
@@ -457,7 +457,8 @@ mod tests {
         };
 
         let device = cpu_device();
-        let encoder: AudioEncoder = AudioEncoderConfig::new(8, 64, 16, 1).init(&device);
+        let encoder: WhisperAudioEncoder =
+            WhisperAudioEncoderConfig::new(8, 64, 16, 1).init(&device);
         let encoder = encoder.map(&mut DTypeMapper::new(DType::F16));
         let mel: Tensor<3> = Tensor::random([1, 8, 16], Distribution::Default, &device);
         assert_coerces_input(&encoder, mel, |e, x| e.forward(x), 0.0);
@@ -468,7 +469,7 @@ mod tests {
     #[test]
     fn test_d_head_defaults() {
         assert_eq!(
-            AudioEncoderConfig::new(80, 384, 1500, 4).d_head,
+            WhisperAudioEncoderConfig::new(80, 384, 1500, 4).d_head,
             WHISPER_DEFAULT_D_HEAD
         );
     }

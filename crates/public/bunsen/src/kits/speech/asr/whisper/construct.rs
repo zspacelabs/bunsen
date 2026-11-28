@@ -22,8 +22,8 @@ use crate::{
             Whisper,
             WhisperMeta,
             blocks::{
-                AudioEncoderMeta,
-                TextDecoderMeta,
+                WhisperAudioEncoderMeta,
+                WhisperTextDecoderMeta,
             },
             driver::{
                 WhisperTask,

@@ -70,7 +70,7 @@ script, not this crate's:
 | `WHISPER_BASE_PT` | use a local checkpoint (skips the digest pin) |
 
 The decoder export is the KV-cache-free `decoder_model.onnx`, which consumes a
-whole token sequence at once — the shape `TextDecoder::forward` has. Its
+whole token sequence at once — the shape `WhisperTextDecoder::forward` has. Its
 `forward` returns logits followed by 24 present-key/value tensors, which this
 crate ignores. (`decoder_with_past_model.onnx` is the incremental variant.)
 

@@ -84,7 +84,7 @@
 //! | Shared, immutable | Per stream or per decode |
 //! |---|---|
 //! | [`SileroVad`](vad::silero_vad::SileroVad) | [`SileroVadContext`](vad::silero_vad::SileroVadContext): the last chunk's tail and the recurrent state |
-//! | [`TextDecoder`](asr::whisper::blocks::TextDecoder) | [`KVCache`](crate::ops::transformers::attention::KVCache): one decode's keys and values, self- and cross-attention |
+//! | [`WhisperTextDecoder`](asr::whisper::blocks::WhisperTextDecoder) | [`KVCache`](crate::ops::transformers::attention::KVCache): one decode's keys and values, self- and cross-attention |
 //! | [`PerceptiveAudioConverter`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverter) | [`PerceptiveAudioConversionContext`](crate::ops::signal::perceptive_audio::PerceptiveAudioConversionContext): the mel front end's carry |
 //! | [`WhisperStreamDriver`](asr::whisper::driver::WhisperStreamDriver) | [`WhisperStreamContext`](asr::whisper::driver::WhisperStreamContext): everything above, for one transcription |
 //! | [`Qwen3TtsCodecDecoder`](tts::qwen3_tts::blocks::Qwen3TtsCodecDecoder) | [`Qwen3TtsCodecStreamContext`](tts::qwen3_tts::blocks::Qwen3TtsCodecStreamContext) or [`Qwen3TtsChunkedStreamContext`](tts::qwen3_tts::blocks::Qwen3TtsChunkedStreamContext): every causal layer's state, for one take |

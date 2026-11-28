@@ -4,8 +4,8 @@
 //! [`WhisperApiConfig`] describes a model as upstream's `ModelDimensions`
 //! does, and lowers through
 //! [`ToStructureConfig`](crate::burner::module::ToStructureConfig)
-//! to a [`WhisperStructureConfig`] (an [`AudioEncoderConfig`] and a
-//! [`TextDecoderConfig`]), which
+//! to a [`WhisperStructureConfig`] (an [`WhisperAudioEncoderConfig`] and a
+//! [`WhisperTextDecoderConfig`]), which
 //! [`ModuleInit`](crate::burner::module::ModuleInit) builds into a [`Whisper`].
 //! Both answer [`WhisperMeta`]. [`WhisperGeometry`] is the comparable core of
 //! an API config: what a checkpoint fixes, and what a prefab promises.
@@ -21,7 +21,7 @@
 //!
 //! The text decoder's incremental decode keeps its state in a
 //! [`KVCache`](crate::ops::transformers::attention::KVCache) the caller opens
-//! per decode ([`TextDecoder::new_cache`]), never on the model.
+//! per decode ([`WhisperTextDecoder::new_cache`]), never on the model.
 
 mod audio_encoder;
 mod geometry;

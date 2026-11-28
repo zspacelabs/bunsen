@@ -51,7 +51,7 @@ pub struct LogMelFrontEndConfig {
 
     /// The hop between mel frames, in milliseconds. For Whisper, one
     /// timestamp step over the encoder's stride
-    /// ([`AUDIO_ENCODER_STRIDE`](crate::kits::speech::asr::whisper::blocks::AUDIO_ENCODER_STRIDE)),
+    /// ([`WHISPER_ENCODER_STRIDE`](crate::kits::speech::asr::whisper::blocks::WHISPER_ENCODER_STRIDE)),
     /// so that one encoder position is one timestamp token.
     #[config(default = 10)]
     pub hop_ms: usize,

@@ -29,7 +29,7 @@ use crate::{
     },
     kits::speech::asr::whisper::{
         blocks::{
-            AUDIO_ENCODER_STRIDE,
+            WHISPER_ENCODER_STRIDE,
             Whisper,
             WhisperApiConfig,
         },
@@ -151,7 +151,7 @@ pub fn whisper_config_from_path(
     let conv1 = shape("encoder.head.blocks.0.conv.weight", 3)?;
     let (d_model, n_mels) = (conv1[0], conv1[1]);
     let vocab_size = shape("decoder.token_embedding.weight", 2)?[0];
-    let max_audio_ctx = shape("encoder.positional_embedding", 2)?[0] * AUDIO_ENCODER_STRIDE;
+    let max_audio_ctx = shape("encoder.positional_embedding", 2)?[0] * WHISPER_ENCODER_STRIDE;
     let max_text_ctx = shape("decoder.positional_embedding", 2)?[0];
 
     let encoder_layers = block_layers_from_keys("encoder", &keys);

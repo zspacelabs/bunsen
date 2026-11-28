@@ -1081,7 +1081,7 @@ mod tests {
             .with_logit_filters(decisive());
         assert!(detecting.engine().detects_language());
         assert!(detecting.engine().prompt().is_empty());
-        let only = crate::kits::speech::asr::whisper::blocks::LANGUAGES[0];
+        let only = crate::kits::speech::asr::whisper::blocks::WHISPER_LANGUAGES[0];
         assert_eq!(only, "en");
 
         let audio = clip();

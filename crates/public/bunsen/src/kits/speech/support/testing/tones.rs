@@ -4,13 +4,14 @@ pub enum ToneConfig {
     /// Tone configured by number of samples.
     Samples(usize),
 
-    /// Tone configured by duration and hz.
+    /// Tone configured by its duration at a sample rate.
     Duration {
         /// The duration of the tone in seconds.
         seconds: f32,
 
-        /// The frequency of the tone in Hz.
-        hz: f32,
+        /// The sample rate the duration is counted at, in Hz; the tone
+        /// itself is built at 16 kHz.
+        sample_rate: f32,
     },
 }
 
@@ -20,7 +21,10 @@ impl ToneConfig {
     pub fn len(&self) -> usize {
         match self {
             ToneConfig::Samples(samples) => *samples,
-            ToneConfig::Duration { seconds, hz } => (*seconds * *hz) as usize,
+            ToneConfig::Duration {
+                seconds,
+                sample_rate,
+            } => (*seconds * *sample_rate) as usize,
         }
     }
 
@@ -49,7 +53,7 @@ mod tests {
         let a = ToneConfig::Samples(32_000).build();
         let b = ToneConfig::Duration {
             seconds: 2.0,
-            hz: 16_000.0,
+            sample_rate: 16_000.0,
         }
         .build();
 
