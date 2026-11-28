@@ -122,7 +122,7 @@ fn test_odd_toy_is_timms() {
 fn regnet_v() -> RegNetContractConfig {
     toy_policy()
         .with_preact(true)
-        .with_act_layer(BunsenActivationConfig::Silu)
+        .with_act(BunsenActivationConfig::Silu)
         .with_se_ratio(0.25)
 }
 
@@ -133,7 +133,7 @@ fn regnet_z() -> RegNetContractConfig {
         .with_bottle_ratio(4.0)
         .with_downsample(RegNetDownsampleKind::None)
         .with_linear_out(true)
-        .with_act_layer(BunsenActivationConfig::Silu)
+        .with_act(BunsenActivationConfig::Silu)
         .with_se_ratio(0.25)
 }
 

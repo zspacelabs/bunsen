@@ -194,7 +194,7 @@ impl ModernBertContractConfig {
                 .with_sliding_window(window)
                 .into(),
             BunsenGatedMlpConfig::new(self.d_model, self.d_ff)
-                .with_activation(BunsenActivationConfig::Gelu)
+                .with_act(BunsenActivationConfig::Gelu)
                 .into(),
         )
         .with_norm(self.norm())

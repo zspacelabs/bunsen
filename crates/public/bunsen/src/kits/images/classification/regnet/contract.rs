@@ -157,7 +157,7 @@ pub struct RegNetContractConfig {
     /// The activation after each conv's norm and each unit's add (timm's
     /// `act_layer`).
     #[config(default = "BunsenActivationConfig::Relu")]
-    pub act_layer: BunsenActivationConfig,
+    pub act: BunsenActivationConfig,
 
     /// The image channels (timm's `in_chans`).
     #[config(default = 3)]
@@ -318,7 +318,7 @@ impl RegNetContractConfig {
             })
             .collect();
         let layers = ConvLayersConfig::new()
-            .with_act(self.act_layer.clone())
+            .with_act(self.act.clone())
             .with_shortcut(match self.downsample {
                 RegNetDownsampleKind::Conv1x1 => ConvShortcutKind::Conv,
                 RegNetDownsampleKind::Avg => ConvShortcutKind::AvgConv,

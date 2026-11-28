@@ -109,7 +109,7 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
         // Whisper's MLP projections carry a bias, and it runs
         // `Linear -> GELU -> Linear`; the default activation is ReLU.
         let mlp: BunsenMlp = BunsenMlpConfig::expansion(self.d_model, 4)
-            .with_activation(BunsenActivationConfig::Gelu)
+            .with_act(BunsenActivationConfig::Gelu)
             .with_bias(true)
             .try_init(device)?;
 

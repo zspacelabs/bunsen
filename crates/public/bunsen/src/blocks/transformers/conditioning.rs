@@ -52,7 +52,7 @@ pub struct AdaptiveScaleConfig {
 
     /// The activation between the two projections.
     #[config(default = "BunsenActivationConfig::Gelu")]
-    pub activation: BunsenActivationConfig,
+    pub act: BunsenActivationConfig,
 
     /// Whether the two projections carry a bias.
     #[config(default = false)]
@@ -76,7 +76,7 @@ impl ModuleInit<AdaptiveScale> for AdaptiveScaleConfig {
     ) -> BunsenResult<AdaptiveScale> {
         Ok(AdaptiveScale {
             mlp: BunsenMlpConfig::new(self.d_model, self.d_hidden, self.d_model)
-                .with_activation(self.activation.clone())
+                .with_act(self.act.clone())
                 .with_bias(self.bias)
                 .try_init(device)?,
         })
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn test_meta() {
         let config = AdaptiveScaleConfig::new(12, 4)
-            .with_activation(BunsenActivationConfig::Relu)
+            .with_act(BunsenActivationConfig::Relu)
             .with_bias(true);
         let block: AdaptiveScale = config.init(&cpu_device());
         assert_eq!(block.d_model(), config.d_model());

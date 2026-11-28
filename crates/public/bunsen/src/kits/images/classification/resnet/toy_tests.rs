@@ -113,7 +113,7 @@ fn test_bottleneck_toy_is_timms() {
 fn test_group_norm_toy_is_timms() {
     check_toy(
         "toy_gn",
-        toy_policy(true, [32; 4]).with_normalization(GroupNormConfig::new(32, 0).into()),
+        toy_policy(true, [32; 4]).with_norm(GroupNormConfig::new(32, 0).into()),
     );
 }
 

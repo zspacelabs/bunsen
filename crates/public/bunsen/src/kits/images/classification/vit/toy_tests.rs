@@ -21,17 +21,20 @@
 //! layer's map, the output tokens, the pooled features and the logits are
 //! checked against timm's.
 
-use burn::prelude::*;
+use burn::{
+    nn::RmsNormConfig,
+    prelude::*,
+};
 
 use super::{
     ViTContractConfig,
     ViTMlpKind,
-    ViTNormLayer,
     interop::timm::load_vit_tensors,
 };
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
+        norm::BunsenLayerNormConfig,
         transformers::{
             models::vision_encoder::{
                 TokenPoolConfig,
@@ -132,7 +135,7 @@ fn test_quickgelu_toy_is_timms() {
         "toy_quickgelu",
         toy_policy()
             .with_clip()
-            .with_activation(BunsenActivationConfig::QuickGelu),
+            .with_act(BunsenActivationConfig::QuickGelu),
     );
 }
 
@@ -238,7 +241,7 @@ fn test_map_toy_is_timms() {
         toy_policy()
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Map)
-            .with_activation(BunsenActivationConfig::GeluApproximate),
+            .with_act(BunsenActivationConfig::GeluApproximate),
     );
 }
 
@@ -262,12 +265,11 @@ fn test_aimv2_toy_is_timms() {
         toy_policy()
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
-            .with_norm_epsilon(1e-5)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-5).into())
             .with_embed_norm(true)
             .with_proj_bias(false)
             .with_qkv_bias(false)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false)),
@@ -282,7 +284,7 @@ fn test_glu_toy_is_timms() {
         "toy_glu",
         toy_policy()
             .with_mlp_layer(ViTMlpKind::SwiGluPacked)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_layer_scale(true),
     );
 }
@@ -296,7 +298,7 @@ fn test_beit3_toy_is_timms() {
         toy_policy()
             .with_scale_attn_norm(true)
             .with_scale_mlp_norm(true)
-            .with_norm_epsilon(1e-5)
+            .with_norm(BunsenLayerNormConfig::new(0).with_epsilon(1e-5).into())
             .with_global_pool(TokenPoolConfig::Avg),
     );
 }

@@ -61,7 +61,7 @@ pub struct BunsenGatedMlpConfig {
     /// The gate's activation: `Silu` for a `SwiGLU`, `GeluApproximate` for
     /// Gemma's `GeGLU`.
     #[config(default = "BunsenActivationConfig::Silu")]
-    pub activation: BunsenActivationConfig,
+    pub act: BunsenActivationConfig,
 }
 
 impl BunsenGatedMlpConfig {
@@ -91,7 +91,7 @@ impl ModuleInit<BunsenGatedMlp> for BunsenGatedMlpConfig {
             gate_proj: linear(self.d_model, self.d_ff, self.bias),
             up_proj: linear(self.d_model, self.d_ff, self.bias),
             down_proj: linear(self.d_ff, self.d_model, self.down_bias()),
-            act: self.activation.try_init(device)?,
+            act: self.act.try_init(device)?,
         })
     }
 }
@@ -213,8 +213,7 @@ mod tests {
                 burn::tensor::activation::silu::<3> as fn(Tensor<3>) -> Tensor<3>,
             ),
             (
-                BunsenGatedMlpConfig::new(6, 10)
-                    .with_activation(BunsenActivationConfig::GeluApproximate),
+                BunsenGatedMlpConfig::new(6, 10).with_act(BunsenActivationConfig::GeluApproximate),
                 burn::tensor::activation::gelu_approximate::<3>,
             ),
         ] {

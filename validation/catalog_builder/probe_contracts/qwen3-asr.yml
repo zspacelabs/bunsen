@@ -41,7 +41,7 @@ fermion:
           n_window_infer: 800
           sinusoid_base: 10000.0
           stem:
-            activation: Gelu
+            act: Gelu
             convs: 3
             kernel: 3
             padding: 1
@@ -102,7 +102,7 @@ fermion:
           n_window_infer: 800
           sinusoid_base: 10000.0
           stem:
-            activation: Gelu
+            act: Gelu
             convs: 3
             kernel: 3
             padding: 1
@@ -163,7 +163,7 @@ fermion:
           n_window_infer: 800
           sinusoid_base: 10000.0
           stem:
-            activation: Gelu
+            act: Gelu
             convs: 3
             kernel: 3
             padding: 1

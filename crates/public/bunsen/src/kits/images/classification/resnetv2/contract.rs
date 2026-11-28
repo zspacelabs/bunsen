@@ -8,10 +8,7 @@ use alloc::{
 
 use burn::{
     config::Config,
-    nn::{
-        BatchNormConfig,
-        GroupNormConfig,
-    },
+    nn::GroupNormConfig,
 };
 
 use crate::{
@@ -29,10 +26,7 @@ use crate::{
             ConvUnitKind,
             GlobalPool2dConfig,
         },
-        norm::{
-            BunsenNormalizationConfig,
-            EvoNormS0Config,
-        },
+        norm::BunsenNormalizationConfig,
     },
     burner::module::ToStructureConfig,
     errors::{
@@ -66,21 +60,6 @@ pub enum ResNetV2StemKind {
     /// Three `3x3` convs, `stem_chs / 2`, `stem_chs / 2`, `stem_chs` wide,
     /// the first of stride 2, then the max pool (timm's `'deep'`).
     Deep,
-}
-
-/// A `ResNetV2`'s norm, timm's `norm_layer`: each with its activation.
-#[derive(Config, Debug, Copy, PartialEq, Eq)]
-pub enum ResNetV2Norm {
-    /// A 32-group norm and the activation (timm's `GroupNormAct`, the
-    /// default, `BiT`'s).
-    GroupNorm,
-
-    /// A batch norm and the activation (timm's `BatchNormAct2d`).
-    BatchNorm,
-
-    /// `EvoNorm-S0` of 32 groups, its activation its own (timm's
-    /// `EvoNorm2dS0`).
-    EvoNormS0,
 }
 
 /// A `ResNetV2`'s policy: timm's `ResNetV2` knobs, by their names, lowering
@@ -140,14 +119,17 @@ pub struct ResNetV2ContractConfig {
     #[config(default = true)]
     pub preact: bool,
 
-    /// The norm, with its activation (timm's `norm_layer`).
-    #[config(default = "ResNetV2Norm::GroupNorm")]
-    pub norm_layer: ResNetV2Norm,
+    /// The norm (timm's `norm_layer`), its width filled in where it sits: a
+    /// 32-group norm by default (`GroupNormAct`, `BiT`'s), a batch norm
+    /// (`BatchNormAct2d`), or `EvoNorm-S0` (`EvoNorm2dS0`), which brings its
+    /// own activation.
+    #[config(default = "BunsenNormalizationConfig::Group(GroupNormConfig::new(32, 0))")]
+    pub norm: BunsenNormalizationConfig,
 
-    /// The activation after each norm (timm's `act_layer`); `EvoNorm-S0`
-    /// brings its own.
+    /// The activation after each norm (timm's `act_layer`); none after an
+    /// `EvoNorm-S0`, which brings its own.
     #[config(default = "BunsenActivationConfig::Relu")]
-    pub act_layer: BunsenActivationConfig,
+    pub act: BunsenActivationConfig,
 
     /// Two-conv units (timm's `basic`, `PreActBasic`) rather than
     /// bottlenecks.
@@ -257,19 +239,10 @@ impl ResNetV2ContractConfig {
                 })
             })
             .collect();
-        let (norm, act) = match self.norm_layer {
-            ResNetV2Norm::GroupNorm => (
-                BunsenNormalizationConfig::Group(GroupNormConfig::new(32, 0)),
-                self.act_layer.clone(),
-            ),
-            ResNetV2Norm::BatchNorm => (
-                BunsenNormalizationConfig::Batch(BatchNormConfig::new(0)),
-                self.act_layer.clone(),
-            ),
-            ResNetV2Norm::EvoNormS0 => (
-                BunsenNormalizationConfig::EvoS0(EvoNormS0Config::new(0)),
-                BunsenActivationConfig::Identity,
-            ),
+        let norm = self.norm.clone();
+        let act = match norm {
+            BunsenNormalizationConfig::EvoS0(_) => BunsenActivationConfig::Identity,
+            _ => self.act.clone(),
         };
         let layers = ConvLayersConfig::new()
             .with_norm(norm)
@@ -326,6 +299,8 @@ impl ToStructureConfig for ResNetV2ContractConfig {
 
 #[cfg(test)]
 mod tests {
+    use burn::nn::BatchNormConfig;
+
     use super::*;
     use crate::{
         blocks::{
@@ -374,7 +349,7 @@ mod tests {
         let model: ConvNetModel = ResNetV2ContractConfig::new(vec![1, 1, 1, 1], 7)
             .with_channels(vec![16, 32, 64, 128])
             .with_stem_chs(16)
-            .with_norm_layer(ResNetV2Norm::BatchNorm)
+            .with_norm(BatchNormConfig::new(0).into())
             .init(&device);
         assert_eq!(model.num_classes(), 7);
     }

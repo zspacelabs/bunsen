@@ -84,7 +84,7 @@
 //! let cache = ResourceCache::new(ResourceCacheOptions::default())?;
 //!
 //! let config = ResNetContractConfig::expect_prefab("resnet18")
-//!     .with_activation(BunsenActivationConfig::Gelu);
+//!     .with_act(BunsenActivationConfig::Gelu);
 //!
 //! let mut model =
 //!     default_resnet_factory()?.resolve("timm/resnet18_a1", &cache)?;

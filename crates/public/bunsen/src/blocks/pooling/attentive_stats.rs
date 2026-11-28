@@ -140,7 +140,7 @@ pub struct AttentiveStatsPoolingConfig {
 
     /// The activation between the attention's layers.
     #[config(default = "BunsenActivationConfig::Tanh")]
-    pub activation: BunsenActivationConfig,
+    pub act: BunsenActivationConfig,
 
     /// Whether each frame's attention also sees the sequence's mean and
     /// deviation, by the same [`deviation`](Self::deviation) under uniform
@@ -174,7 +174,7 @@ impl ModuleInit<AttentiveStatsPooling> for AttentiveStatsPoolingConfig {
     ) -> BunsenResult<AttentiveStatsPooling> {
         Ok(AttentiveStatsPooling {
             attention: BunsenMlpConfig::new(self.attention_input(), self.bottleneck, self.channels)
-                .with_activation(self.activation.clone())
+                .with_act(self.act.clone())
                 .try_init(device)?,
             global_context: self.global_context,
             deviation: self.deviation,
@@ -426,7 +426,7 @@ mod tests {
     fn test_ecapa() {
         check(
             AttentiveStatsPoolingConfig::new(4, 3)
-                .with_activation(BunsenActivationConfig::Chain(vec![
+                .with_act(BunsenActivationConfig::Chain(vec![
                     BunsenActivationConfig::Relu,
                     BunsenActivationConfig::Tanh,
                 ]))

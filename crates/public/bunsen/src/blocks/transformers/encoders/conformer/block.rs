@@ -107,7 +107,7 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
         };
         let ff = || {
             BunsenMlpConfig::new(self.d_model, self.d_ff, self.d_model)
-                .with_activation(BunsenActivationConfig::Silu)
+                .with_act(BunsenActivationConfig::Silu)
                 .with_bias(self.bias)
                 .try_init(device)
         };

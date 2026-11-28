@@ -519,7 +519,7 @@ impl NemoTransformerEncoderMirror {
                 .with_mask(AttentionMask::Bidirectional)
                 .into(),
             BunsenMlpConfig::new(d, self.inner_size, d)
-                .with_activation(activation)
+                .with_act(activation)
                 .with_bias(true)
                 .into(),
         )

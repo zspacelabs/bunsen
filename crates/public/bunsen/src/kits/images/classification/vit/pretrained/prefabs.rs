@@ -4,9 +4,12 @@
 // `tools/gen_vit_prefabs.py` from timm's own `vision_transformer.py` and
 // `vision_transformer_hybrid.py` entrypoints; edit the script, not them.
 
+use burn::nn::RmsNormConfig;
+
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
+        norm::BunsenLayerNormConfig,
         transformers::{
             models::vision_encoder::TokenPoolConfig,
             sublayer::NormPlacement,
@@ -19,7 +22,6 @@ use crate::{
     kits::images::classification::vit::{
         ViTContractConfig,
         ViTMlpKind,
-        ViTNormLayer,
     },
 };
 
@@ -276,14 +278,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_large_patch14_224() -> Self {
         Self::vit(224, 14, 1024, 24, 8)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -296,14 +297,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_large_patch14_336() -> Self {
         Self::vit(336, 14, 1024, 24, 8)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -316,14 +316,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_large_patch14_448() -> Self {
         Self::vit(448, 14, 1024, 24, 8)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -336,14 +335,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_huge_patch14_224() -> Self {
         Self::vit(224, 14, 1536, 24, 12)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -356,14 +354,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_huge_patch14_336() -> Self {
         Self::vit(336, 14, 1536, 24, 12)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -376,14 +373,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_huge_patch14_448() -> Self {
         Self::vit(448, 14, 1536, 24, 12)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -396,14 +392,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_1b_patch14_224() -> Self {
         Self::vit(224, 14, 2048, 24, 16)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -416,14 +411,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_1b_patch14_336() -> Self {
         Self::vit(336, 14, 2048, 24, 16)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -436,14 +430,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_1b_patch14_448() -> Self {
         Self::vit(448, 14, 2048, 24, 16)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.75)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -456,14 +449,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_3b_patch14_224() -> Self {
         Self::vit(224, 14, 3072, 24, 24)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -476,14 +468,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_3b_patch14_336() -> Self {
         Self::vit(336, 14, 3072, 24, 24)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -496,14 +487,13 @@ impl ViTContractConfig {
     /// before the pool.
     pub fn aimv2_3b_patch14_448() -> Self {
         Self::vit(448, 14, 3072, 24, 24)
-            .with_norm_layer(ViTNormLayer::RmsNorm)
+            .with_norm(RmsNormConfig::new(0).with_epsilon(1e-05).into())
             .with_embed_norm(true)
-            .with_norm_epsilon(1e-05)
             .with_qkv_bias(false)
             .with_proj_bias(false)
             .with_mlp_layer(ViTMlpKind::SwiGlu)
             .with_mlp_ratio(2.6667)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -515,7 +505,7 @@ impl ViTContractConfig {
     /// average-pooled.
     pub fn beit3_base_patch16_224() -> Self {
         Self::vit(224, 16, 768, 12, 12)
-            .with_norm_epsilon(1e-05)
+            .with_norm(BunsenLayerNormConfig::new(0).with_epsilon(1e-05).into())
             .with_scale_attn_norm(true)
             .with_scale_mlp_norm(true)
             .with_global_pool(TokenPoolConfig::Avg)
@@ -527,7 +517,7 @@ impl ViTContractConfig {
     /// average-pooled.
     pub fn beit3_large_patch16_224() -> Self {
         Self::vit(224, 16, 1024, 24, 16)
-            .with_norm_epsilon(1e-05)
+            .with_norm(BunsenLayerNormConfig::new(0).with_epsilon(1e-05).into())
             .with_scale_attn_norm(true)
             .with_scale_mlp_norm(true)
             .with_global_pool(TokenPoolConfig::Avg)
@@ -569,7 +559,7 @@ impl ViTContractConfig {
     pub fn vit_base_patch32_clip_quickgelu_224() -> Self {
         Self::vit(224, 32, 768, 12, 12)
             .with_clip()
-            .with_activation(BunsenActivationConfig::QuickGelu)
+            .with_act(BunsenActivationConfig::QuickGelu)
     }
 
     /// The `vit_base_patch16_clip_quickgelu_224` prefab: `ViT-B/16` at 224
@@ -578,7 +568,7 @@ impl ViTContractConfig {
     pub fn vit_base_patch16_clip_quickgelu_224() -> Self {
         Self::vit(224, 16, 768, 12, 12)
             .with_clip()
-            .with_activation(BunsenActivationConfig::QuickGelu)
+            .with_act(BunsenActivationConfig::QuickGelu)
     }
 
     /// The `vit_large_patch14_clip_quickgelu_224` prefab: `ViT-L/14` at 224
@@ -587,7 +577,7 @@ impl ViTContractConfig {
     pub fn vit_large_patch14_clip_quickgelu_224() -> Self {
         Self::vit(224, 14, 1024, 24, 16)
             .with_clip()
-            .with_activation(BunsenActivationConfig::QuickGelu)
+            .with_act(BunsenActivationConfig::QuickGelu)
     }
 
     /// The `vit_large_patch14_clip_quickgelu_336` prefab: `ViT-L/14` at 336
@@ -596,7 +586,7 @@ impl ViTContractConfig {
     pub fn vit_large_patch14_clip_quickgelu_336() -> Self {
         Self::vit(336, 14, 1024, 24, 16)
             .with_clip()
-            .with_activation(BunsenActivationConfig::QuickGelu)
+            .with_act(BunsenActivationConfig::QuickGelu)
     }
 
     /// The `vit_huge_patch14_clip_quickgelu_224` prefab: `ViT-H/14` at 224
@@ -605,7 +595,7 @@ impl ViTContractConfig {
     pub fn vit_huge_patch14_clip_quickgelu_224() -> Self {
         Self::vit(224, 14, 1280, 32, 16)
             .with_clip()
-            .with_activation(BunsenActivationConfig::QuickGelu)
+            .with_act(BunsenActivationConfig::QuickGelu)
     }
 
     /// The `vit_huge_patch14_clip_quickgelu_378` prefab: `ViT-H/14` at 378
@@ -614,7 +604,7 @@ impl ViTContractConfig {
     pub fn vit_huge_patch14_clip_quickgelu_378() -> Self {
         Self::vit(378, 14, 1280, 32, 16)
             .with_clip()
-            .with_activation(BunsenActivationConfig::QuickGelu)
+            .with_act(BunsenActivationConfig::QuickGelu)
     }
 
     /// The `vit_gigantic_patch14_clip_quickgelu_224` prefab: `ViT-G/14` at 224
@@ -624,7 +614,7 @@ impl ViTContractConfig {
         Self::vit(224, 14, 1664, 48, 16)
             .with_clip()
             .with_mlp_ratio(4.923076923076923)
-            .with_activation(BunsenActivationConfig::QuickGelu)
+            .with_act(BunsenActivationConfig::QuickGelu)
     }
 
     /// The `vit_small_patch14_dinov2` prefab: `ViT-S/14` at 518 pixels: 12
@@ -652,7 +642,7 @@ impl ViTContractConfig {
         Self::vit(518, 14, 1536, 40, 24)
             .with_mlp_layer(ViTMlpKind::SwiGluPacked)
             .with_mlp_ratio(5.33334)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_layer_scale(true)
     }
 
@@ -943,7 +933,7 @@ impl ViTContractConfig {
         Self::vit(448, 14, 1536, 40, 24)
             .with_mlp_layer(ViTMlpKind::SwiGluPacked)
             .with_mlp_ratio(5.33334)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_reg_tokens(1)
             .with_no_embed_class(true)
             .with_layer_scale(true)
@@ -987,7 +977,7 @@ impl ViTContractConfig {
         Self::vit(518, 14, 1536, 40, 24)
             .with_mlp_layer(ViTMlpKind::SwiGluPacked)
             .with_mlp_ratio(5.33334)
-            .with_activation(BunsenActivationConfig::Silu)
+            .with_act(BunsenActivationConfig::Silu)
             .with_reg_tokens(4)
             .with_no_embed_class(true)
             .with_layer_scale(true)
@@ -1110,7 +1100,7 @@ impl ViTContractConfig {
     /// layers, 768 wide, 12 heads; tanh GELU, no class token, attention-pooled.
     pub fn vit_base_patch32_siglip_256() -> Self {
         Self::vit(256, 32, 768, 12, 12)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Map)
     }
@@ -1168,7 +1158,7 @@ impl ViTContractConfig {
     /// attention-pooled.
     pub fn vit_large_patch16_siglip_512() -> Self {
         Self::vit(512, 16, 1024, 24, 16)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Map)
     }
@@ -1179,7 +1169,7 @@ impl ViTContractConfig {
     pub fn vit_so400m_patch16_siglip_256() -> Self {
         Self::vit(256, 16, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Map)
     }
@@ -1190,7 +1180,7 @@ impl ViTContractConfig {
     pub fn vit_so400m_patch16_siglip_384() -> Self {
         Self::vit(384, 16, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Map)
     }
@@ -1201,7 +1191,7 @@ impl ViTContractConfig {
     pub fn vit_so400m_patch16_siglip_512() -> Self {
         Self::vit(512, 16, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Map)
     }
@@ -1241,7 +1231,7 @@ impl ViTContractConfig {
     /// attention-pooled.
     pub fn vit_giantopt_patch16_siglip_256() -> Self {
         Self::vit(256, 16, 1536, 40, 16)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Map)
     }
@@ -1251,7 +1241,7 @@ impl ViTContractConfig {
     /// attention-pooled.
     pub fn vit_giantopt_patch16_siglip_384() -> Self {
         Self::vit(384, 16, 1536, 40, 16)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Map)
     }
@@ -1261,7 +1251,7 @@ impl ViTContractConfig {
     /// average-pooled, its norm before the pool.
     pub fn vit_base_patch32_siglip_gap_256() -> Self {
         Self::vit(256, 32, 768, 12, 12)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -1332,7 +1322,7 @@ impl ViTContractConfig {
     /// average-pooled, its norm before the pool.
     pub fn vit_large_patch16_siglip_gap_512() -> Self {
         Self::vit(512, 16, 1024, 24, 16)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -1344,7 +1334,7 @@ impl ViTContractConfig {
     pub fn vit_so400m_patch16_siglip_gap_256() -> Self {
         Self::vit(256, 16, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -1356,7 +1346,7 @@ impl ViTContractConfig {
     pub fn vit_so400m_patch16_siglip_gap_384() -> Self {
         Self::vit(384, 16, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -1368,7 +1358,7 @@ impl ViTContractConfig {
     pub fn vit_so400m_patch16_siglip_gap_512() -> Self {
         Self::vit(512, 16, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -1435,7 +1425,7 @@ impl ViTContractConfig {
     /// average-pooled, its norm before the pool.
     pub fn vit_giantopt_patch16_siglip_gap_256() -> Self {
         Self::vit(256, 16, 1536, 40, 16)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))
@@ -1446,7 +1436,7 @@ impl ViTContractConfig {
     /// average-pooled, its norm before the pool.
     pub fn vit_giantopt_patch16_siglip_gap_384() -> Self {
         Self::vit(384, 16, 1536, 40, 16)
-            .with_activation(BunsenActivationConfig::GeluApproximate)
+            .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
             .with_global_pool(TokenPoolConfig::Avg)
             .with_fc_norm(Some(false))

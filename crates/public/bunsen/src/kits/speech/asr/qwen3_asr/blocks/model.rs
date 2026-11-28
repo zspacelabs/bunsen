@@ -126,7 +126,7 @@ impl ModuleInit<Qwen3Asr> for Qwen3AsrConfig {
                 self.audio.d_model(),
                 self.text.d_model(),
             )
-            .with_activation(self.projector_activation.clone())
+            .with_act(self.projector_activation.clone())
             .try_init(device)?,
             language_model: self.text.try_init(device)?,
             audio_token: self.audio_token,

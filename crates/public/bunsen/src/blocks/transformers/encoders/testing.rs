@@ -43,7 +43,7 @@ pub fn rope_stack(
                     .with_mask(AttentionMask::Bidirectional)
                     .into(),
                 crate::blocks::mlp::BunsenMlpConfig::expansion(d_model, 4)
-                    .with_activation(BunsenActivationConfig::Gelu)
+                    .with_act(BunsenActivationConfig::Gelu)
                     .with_bias(true)
                     .into(),
             )

@@ -189,7 +189,7 @@ impl AudioEncoderConfig {
                     .with_mask(AttentionMask::Bidirectional)
                     .into(),
                 BunsenMlpConfig::expansion(d, 4)
-                    .with_activation(BunsenActivationConfig::Gelu)
+                    .with_act(BunsenActivationConfig::Gelu)
                     .with_bias(true)
                     .into(),
             )

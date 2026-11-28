@@ -48,7 +48,7 @@ pub struct GatedNormConfig {
 
     /// The gate's activation.
     #[config(default = "BunsenActivationConfig::Silu")]
-    pub activation: BunsenActivationConfig,
+    pub act: BunsenActivationConfig,
 
     /// The widening the gate's product is taken in.
     #[config(default = "Widening::F32")]
@@ -92,7 +92,7 @@ impl ModuleInit<GatedNorm> for GatedNormConfig {
     ) -> BunsenResult<GatedNorm> {
         Ok(GatedNorm {
             norm: self.norm.try_init(device)?,
-            activation: self.activation.try_init(device)?,
+            act: self.act.try_init(device)?,
             widening: self.widening,
         })
     }
@@ -117,7 +117,7 @@ pub struct GatedNorm {
     pub norm: BunsenNormalization,
 
     /// The gate's activation.
-    pub activation: BunsenActivation,
+    pub act: BunsenActivation,
 
     /// The widening the gate's product is taken in.
     #[module(skip)]
@@ -133,7 +133,7 @@ impl GatedNormMeta for GatedNorm {
 impl GatedNorm {
     /// The block as a [`Gate`] view of its norm and activation.
     pub fn gate(&self) -> Gate<'_, BunsenNormalization, BunsenActivation> {
-        Gate::new(&self.norm, &self.activation).with_widening(self.widening)
+        Gate::new(&self.norm, &self.act).with_widening(self.widening)
     }
 
     /// `norm(x) ⊙ act(gate)`, over the last axis; in `x`'s dtype.
@@ -307,7 +307,7 @@ mod tests {
         let cfg = GatedNormConfig::new(BunsenNormalizationConfig::Layer(
             crate::blocks::norm::BunsenLayerNormConfig::new(0),
         ))
-        .with_activation(BunsenActivationConfig::Sigmoid)
+        .with_act(BunsenActivationConfig::Sigmoid)
         .with_widening(Widening::NONE)
         .with_num_features(5);
         assert_eq!(cfg.d_model(), 5);

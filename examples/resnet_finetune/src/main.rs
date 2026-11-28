@@ -301,18 +301,18 @@ pub fn train(args: &Args) -> BunsenResult<()> {
     if let Some(option) = &args.replace_activation {
         match option {
             ReplaceActivationOption::Relu => {
-                resnet_config = resnet_config.with_activation(BunsenActivationConfig::Relu);
+                resnet_config = resnet_config.with_act(BunsenActivationConfig::Relu);
             }
             ReplaceActivationOption::Gelu => {
-                resnet_config = resnet_config.with_activation(BunsenActivationConfig::Gelu);
+                resnet_config = resnet_config.with_act(BunsenActivationConfig::Gelu);
             }
             ReplaceActivationOption::PRelu => {
-                resnet_config = resnet_config
-                    .with_activation(BunsenActivationConfig::PRelu(PReluConfig::new()));
+                resnet_config =
+                    resnet_config.with_act(BunsenActivationConfig::PRelu(PReluConfig::new()));
             }
             ReplaceActivationOption::LeakyRelu => {
                 resnet_config = resnet_config
-                    .with_activation(BunsenActivationConfig::LeakyRelu(LeakyReluConfig::new()));
+                    .with_act(BunsenActivationConfig::LeakyRelu(LeakyReluConfig::new()));
             }
         }
     }
