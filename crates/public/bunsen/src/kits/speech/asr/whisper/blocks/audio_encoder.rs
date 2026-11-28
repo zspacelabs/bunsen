@@ -236,7 +236,7 @@ impl AudioEncoderMeta for AudioEncoder {
     }
 
     fn n_heads(&self) -> usize {
-        self.stack.layers[0].attn.branch.attention().n_head()
+        self.stack.layers[0].attn.branch.attention().n_heads()
     }
 
     fn n_layers(&self) -> usize {

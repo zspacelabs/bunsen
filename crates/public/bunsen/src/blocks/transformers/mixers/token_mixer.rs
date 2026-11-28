@@ -71,10 +71,10 @@ impl From<GatedDeltaNetConfig> for TokenMixerConfig {
 
 impl TokenMixerConfig {
     /// The size of the input and output.
-    pub fn n_embed(&self) -> usize {
+    pub fn d_model(&self) -> usize {
         match self {
-            Self::Attention(c) => c.n_embed(),
-            Self::GatedDeltaNet(c) => c.n_embed(),
+            Self::Attention(c) => c.d_model(),
+            Self::GatedDeltaNet(c) => c.d_model(),
             Self::Window(c) => c.d_model,
         }
     }
@@ -177,11 +177,11 @@ impl From<GatedDeltaNet> for TokenMixer {
 
 impl TokenMixer {
     /// The size of the input and output.
-    pub fn n_embed(&self) -> usize {
+    pub fn d_model(&self) -> usize {
         match self {
-            Self::Attention(m) => m.n_embed(),
-            Self::GatedDeltaNet(m) => m.n_embed(),
-            Self::Window(m) => m.n_embed(),
+            Self::Attention(m) => m.d_model(),
+            Self::GatedDeltaNet(m) => m.d_model(),
+            Self::Window(m) => m.d_model(),
         }
     }
 

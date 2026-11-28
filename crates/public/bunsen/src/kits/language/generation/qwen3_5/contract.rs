@@ -405,7 +405,7 @@ mod tests {
                     attn.output_gate == Some(AttentionOutputGate::Elementwise)
                         && attn.q_norm.is_some()
                 );
-                assert_eq!(attn.n_head(), 4);
+                assert_eq!(attn.n_heads(), 4);
             }
             other => panic!("a full layer attends: {other:?}"),
         }

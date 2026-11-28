@@ -85,10 +85,10 @@ use crate::{
 /// front, capped at `max_seq_len` (the rotary table's length).
 fn kv_cache_config(meta: &impl NanoChatGptMeta) -> KVCacheConfig {
     KVCacheConfig::for_decode(
-        meta.n_kv_head(),
+        meta.n_kv_heads(),
         meta.init_seq_len(),
         meta.head_dim(),
-        meta.n_layer(),
+        meta.n_layers(),
     )
     .with_max_seq_len(Some(meta.max_seq_len()))
 }
@@ -118,17 +118,17 @@ impl KVCacheModel for NanoChatGpt {
 /// [`NanoChatGptContractConfig`].
 pub trait NanoChatGptMeta {
     /// Returns the size of the input and output.
-    fn n_embed(&self) -> usize;
+    fn d_model(&self) -> usize;
 
     /// Returns the number of heads.
-    fn n_head(&self) -> usize;
+    fn n_heads(&self) -> usize;
 
     /// Returns the number of KV heads.
-    fn n_kv_head(&self) -> usize;
+    fn n_kv_heads(&self) -> usize;
 
     /// Returns the size of each head.
     fn head_dim(&self) -> usize {
-        self.n_embed() / self.n_head()
+        self.d_model() / self.n_heads()
     }
 
     /// Returns the initial sequence length.
@@ -138,20 +138,20 @@ pub trait NanoChatGptMeta {
     fn max_seq_len(&self) -> usize;
 
     /// Returns the number of layers.
-    fn n_layer(&self) -> usize;
+    fn n_layers(&self) -> usize;
 
     /// Returns the vocabulary size: the logits' width, whatever the
     /// embedding is padded to.
     fn vocab_size(&self) -> usize;
 }
 
-/// Whether nanochat's layer `layer` of `n_layer` has a value embedding:
+/// Whether nanochat's layer `layer` of `n_layers` has a value embedding:
 /// every other layer, the last always (upstream's `has_ve`).
 pub fn has_value_embed(
     layer: usize,
-    n_layer: usize,
+    n_layers: usize,
 ) -> bool {
-    layer % 2 == (n_layer - 1) % 2
+    layer % 2 == (n_layers - 1) % 2
 }
 
 /// Each layer's sliding window, in keys (a query and the positions before it
@@ -166,7 +166,7 @@ pub fn has_value_embed(
 pub fn window_pattern_windows(
     pattern: &str,
     seq_len: usize,
-    n_layer: usize,
+    n_layers: usize,
 ) -> BunsenResult<Vec<usize>> {
     let pattern = pattern.to_ascii_uppercase();
     if pattern.is_empty() || !pattern.chars().all(|c| c == 'S' || c == 'L') {
@@ -180,7 +180,7 @@ pub fn window_pattern_windows(
     let long = seq_len;
     let short = seq_len.div_ceil(4).div_ceil(128) * 128;
     let letters: Vec<char> = pattern.chars().collect();
-    let mut windows: Vec<usize> = (0..n_layer)
+    let mut windows: Vec<usize> = (0..n_layers)
         .map(|i| match letters[i % letters.len()] {
             'S' => short + 1,
             _ => long + 1,
@@ -221,19 +221,19 @@ pub struct NanoChatGptContractConfig {
 
     /// Number of Blocks.
     #[config(default = 12)]
-    pub n_layer: usize,
+    pub n_layers: usize,
 
     /// Number of Query Heads.
     #[config(default = 6)]
-    pub n_head: usize,
+    pub n_heads: usize,
 
     /// Number of KV Heads.
     #[config(default = 6)]
-    pub n_kv_head: usize,
+    pub n_kv_heads: usize,
 
     /// Embedding Size.
     #[config(default = 768)]
-    pub n_embed: usize,
+    pub d_model: usize,
 
     /// Softcap for the logits.
     #[config(default = 15.0)]
@@ -298,7 +298,7 @@ pub struct NanoChatGptContractConfig {
     #[config(default = "None")]
     pub smear_channels: Option<usize>,
 
-    /// 2026: the residual stream after block `n_layer / 2`, times
+    /// 2026: the residual stream after block `n_layers / 2`, times
     /// `backout_lambda`, is subtracted before the final norm.
     #[config(default = false)]
     pub backout: bool,
@@ -316,16 +316,16 @@ pub struct NanoChatGptContractConfig {
 }
 
 impl NanoChatGptMeta for NanoChatGptContractConfig {
-    fn n_embed(&self) -> usize {
-        self.n_embed
+    fn d_model(&self) -> usize {
+        self.d_model
     }
 
-    fn n_head(&self) -> usize {
-        self.n_head
+    fn n_heads(&self) -> usize {
+        self.n_heads
     }
 
-    fn n_kv_head(&self) -> usize {
-        self.n_kv_head
+    fn n_kv_heads(&self) -> usize {
+        self.n_kv_heads
     }
 
     fn init_seq_len(&self) -> usize {
@@ -336,8 +336,8 @@ impl NanoChatGptMeta for NanoChatGptContractConfig {
         self.init_seq_len() * self.max_seq_len_factor
     }
 
-    fn n_layer(&self) -> usize {
-        self.n_layer
+    fn n_layers(&self) -> usize {
+        self.n_layers
     }
 
     fn vocab_size(&self) -> usize {
@@ -380,14 +380,14 @@ impl NanoChatGptContractConfig {
     /// sliding window and no value residual: the layer-independent part.
     pub fn block_config(&self) -> CausalDecoderBlockConfig {
         CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(self.n_head, self.n_kv_head, self.n_embed)
+            CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.d_model)
                 .with_norm(Some(self.norm.clone()))
                 .with_score_scale(
                     self.qk_gain
                         .map(|g| g * g / (self.head_dim() as f64).sqrt()),
                 )
                 .into(),
-            BunsenMlpConfig::expansion(self.n_embed, self.expansion_factor)
+            BunsenMlpConfig::expansion(self.d_model, self.expansion_factor)
                 .with_activation(BunsenActivationConfig::Chain(vec![
                     self.activation.clone(),
                     BunsenActivationConfig::Pow(2.0),
@@ -405,25 +405,25 @@ impl ToStructureConfig for NanoChatGptContractConfig {
         let windows = self
             .window_pattern
             .as_deref()
-            .map(|p| window_pattern_windows(p, self.init_seq_len, self.n_layer))
+            .map(|p| window_pattern_windows(p, self.init_seq_len, self.n_layers))
             .transpose()?;
-        let h = (0..self.n_layer)
+        let h = (0..self.n_layers)
             .map(|i| {
                 let mut block = self.block_config();
                 block.attn.attention_mut().sliding_window = windows.as_ref().map(|w| w[i]);
-                if self.value_embeds && has_value_embed(i, self.n_layer) {
+                if self.value_embeds && has_value_embed(i, self.n_layers) {
                     block.attn.attention_mut().value_residual = Some(ValueResidualConfig::new());
                 }
                 block
             })
             .collect();
         let vocab = self.padded_vocab_size();
-        let kv_width = self.n_kv_head * self.head_dim();
+        let kv_width = self.n_kv_heads * self.head_dim();
         Ok(NanoChatGptStructureConfig {
             lm: LmDecoderStructureConfig::new(
-                TokenEmbeddingConfig::new(vocab, self.n_embed).with_norm_eps(Some(self.norm_eps)),
+                TokenEmbeddingConfig::new(vocab, self.d_model).with_norm_eps(Some(self.norm_eps)),
                 LmStackDecoderConfig::new(
-                    LmHeadConfig::new(self.n_embed, vocab)
+                    LmHeadConfig::new(self.d_model, vocab)
                         .with_tied(false)
                         .with_bias(self.head_bias)
                         .with_softcap(Some(self.softcap))
@@ -439,9 +439,9 @@ impl ToStructureConfig for NanoChatGptContractConfig {
                 .with_kv_cache_pre_size(self.init_seq_len),
             ),
             residual_lambdas: self.residual_lambdas,
-            value_embeds: (0..self.n_layer)
+            value_embeds: (0..self.n_layers)
                 .map(|i| {
-                    (self.value_embeds && has_value_embed(i, self.n_layer))
+                    (self.value_embeds && has_value_embed(i, self.n_layers))
                         .then(|| EmbeddingConfig::new(vocab, kv_width))
                 })
                 .collect(),
@@ -489,15 +489,15 @@ pub struct NanoChatGptStructureConfig {
 }
 
 impl NanoChatGptMeta for NanoChatGptStructureConfig {
-    fn n_embed(&self) -> usize {
+    fn d_model(&self) -> usize {
         self.lm.embedding.d_model
     }
 
-    fn n_head(&self) -> usize {
-        self.lm.decoder.stack.layers[0].attn.attention().n_head()
+    fn n_heads(&self) -> usize {
+        self.lm.decoder.stack.layers[0].attn.attention().n_heads()
     }
 
-    fn n_kv_head(&self) -> usize {
+    fn n_kv_heads(&self) -> usize {
         self.lm.decoder.stack.n_kv_heads()
     }
 
@@ -513,7 +513,7 @@ impl NanoChatGptMeta for NanoChatGptStructureConfig {
         self.lm.decoder.stack.rotary.seq_len()
     }
 
-    fn n_layer(&self) -> usize {
+    fn n_layers(&self) -> usize {
         self.lm.decoder.stack.n_layers()
     }
 
@@ -527,8 +527,8 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<NanoChatGpt> {
-        let n_layer = self.lm.decoder.stack.layers.len();
-        if !self.value_embeds.is_empty() && self.value_embeds.len() != n_layer {
+        let n_layers = self.lm.decoder.stack.layers.len();
+        if !self.value_embeds.is_empty() && self.value_embeds.len() != n_layers {
             return Err(crate::errors::ConstraintError::new(
                 "NanoChatGptStructureConfig",
                 "value_embeds",
@@ -538,7 +538,7 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
                         self.value_embeds.len().to_string(),
                     ),
                     op: "==",
-                    rhs: ("the stack's layers".into(), n_layer.to_string()),
+                    rhs: ("the stack's layers".into(), n_layers.to_string()),
                 },
             )
             .into());
@@ -546,8 +546,8 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
         // Upstream's initial values: a stronger residual and more of the
         // embedding at early layers.
         let ramp = |start: f64, drop: f64| {
-            let values: Vec<f32> = (0..n_layer)
-                .map(|i| (start - drop * i as f64 / (n_layer.max(2) - 1) as f64) as f32)
+            let values: Vec<f32> = (0..n_layers)
+                .map(|i| (start - drop * i as f64 / (n_layers.max(2) - 1) as f64) as f32)
                 .collect();
             Param::from_tensor(Tensor::<1>::from_floats(values.as_slice(), device))
         };
@@ -612,11 +612,11 @@ pub struct NanoChatGpt {
     /// The rotary table, covering the longest sequence.
     r_emb: RotaryEmbedding,
 
-    /// `[n_layer]`: the residual stream's scale before each block.
+    /// `[n_layers]`: the residual stream's scale before each block.
     resid_lambdas: Option<Param<Tensor<1>>>,
-    /// `[n_layer]`: the embedding's weight mixed in before each block.
+    /// `[n_layers]`: the embedding's weight mixed in before each block.
     x0_lambdas: Option<Param<Tensor<1>>>,
-    /// Each layer's value embedding, `[vocab, n_kv_head * head_dim]`, if it
+    /// Each layer's value embedding, `[vocab, n_kv_heads * head_dim]`, if it
     /// has one.
     value_embeds: Vec<Option<Embedding>>,
     /// The smear's gate, from the embedding's first channels to one scalar.
@@ -628,19 +628,19 @@ pub struct NanoChatGpt {
 }
 
 impl NanoChatGptMeta for NanoChatGpt {
-    fn n_embed(&self) -> usize {
+    fn d_model(&self) -> usize {
         self.lm.embedding.d_model()
     }
 
-    fn n_head(&self) -> usize {
+    fn n_heads(&self) -> usize {
         self.lm.decoder.stack.layers[0]
             .attn
             .branch
             .attention()
-            .n_head()
+            .n_heads()
     }
 
-    fn n_kv_head(&self) -> usize {
+    fn n_kv_heads(&self) -> usize {
         self.lm.decoder.stack.n_kv_heads()
     }
 
@@ -656,7 +656,7 @@ impl NanoChatGptMeta for NanoChatGpt {
         self.r_emb.seq_len()
     }
 
-    fn n_layer(&self) -> usize {
+    fn n_layers(&self) -> usize {
         self.lm.decoder.stack.n_layers()
     }
 
@@ -808,7 +808,7 @@ impl NanoChatGpt {
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "D"],
             &hidden.dims(),
-            &[("B", b), ("T", t), ("D", self.n_embed())]
+            &[("B", b), ("T", t), ("D", self.d_model())]
         );
         hidden
     }
@@ -830,7 +830,7 @@ impl NanoChatGpt {
             ["B", "T", "D"],
             &hidden.dims(),
             &["B", "T"],
-            &[("D", self.n_embed())]
+            &[("D", self.d_model())]
         );
         #[cfg(not(any(debug_assertions, test)))]
         let _ = (b, t);
@@ -902,8 +902,8 @@ impl NanoChatGpt {
                 .sum::<usize>();
         let nparams = nparams - nparams_embedding;
 
-        let l = self.n_layer();
-        let h = self.n_head();
+        let l = self.n_layers();
+        let h = self.n_heads();
         let q = self.head_dim();
         let t = self.init_seq_len();
 
@@ -1006,13 +1006,13 @@ mod tests {
         let cfg = NanoChatGptContractConfig::new();
         assert_eq!(cfg.init_seq_len, 1024);
         assert_eq!(cfg.vocab_size, 50304);
-        assert_eq!(cfg.n_layer, 12);
-        assert_eq!(cfg.n_head, 6);
-        assert_eq!(cfg.n_kv_head, 6);
-        assert_eq!(cfg.n_embed, 768);
+        assert_eq!(cfg.n_layers, 12);
+        assert_eq!(cfg.n_heads, 6);
+        assert_eq!(cfg.n_kv_heads, 6);
+        assert_eq!(cfg.d_model, 768);
         assert_eq!(cfg.expansion_factor, 4);
 
-        assert_eq!(cfg.n_embed(), 768);
+        assert_eq!(cfg.d_model(), 768);
     }
 
     /// The defaults are upstream's 2025 model: an unbiased head, rotary base
@@ -1022,10 +1022,10 @@ mod tests {
         let device = cpu_device();
         let gpt: NanoChatGpt = NanoChatGptContractConfig::new()
             .with_vocab_size(64)
-            .with_n_layer(2)
-            .with_n_head(2)
-            .with_n_kv_head(2)
-            .with_n_embed(16)
+            .with_n_layers(2)
+            .with_n_heads(2)
+            .with_n_kv_heads(2)
+            .with_d_model(16)
             .with_init_seq_len(8)
             .init(&device);
         assert!(
@@ -1089,10 +1089,10 @@ mod tests {
     fn test_upstream_2026_structure() {
         let policy = NanoChatGptContractConfig::new()
             .with_vocab_size(60)
-            .with_n_layer(3)
-            .with_n_head(2)
-            .with_n_kv_head(1)
-            .with_n_embed(32)
+            .with_n_layers(3)
+            .with_n_heads(2)
+            .with_n_kv_heads(1)
+            .with_d_model(32)
             .with_init_seq_len(4)
             .with_upstream_2026("SL");
         assert_eq!(policy.padded_vocab_size(), 64);
@@ -1140,10 +1140,10 @@ mod tests {
     fn tiny_2026(device: &Device) -> NanoChatGpt {
         let mut gpt: NanoChatGpt = NanoChatGptContractConfig::new()
             .with_vocab_size(30)
-            .with_n_layer(3)
-            .with_n_head(4)
-            .with_n_kv_head(2)
-            .with_n_embed(32)
+            .with_n_layers(3)
+            .with_n_heads(4)
+            .with_n_kv_heads(2)
+            .with_d_model(32)
             .with_init_seq_len(4)
             .with_max_seq_len_factor(4)
             .with_upstream_2026("SL")
@@ -1330,15 +1330,15 @@ mod tests {
 
         let batch_size = 1;
         let seq_len = 100;
-        let n_layer = 4;
-        let n_embed = 36;
+        let n_layers = 4;
+        let d_model = 36;
 
         let vocab_size = 1000;
 
         let cfg = NanoChatGptContractConfig::new()
             .with_vocab_size(vocab_size)
-            .with_n_embed(n_embed)
-            .with_n_layer(n_layer);
+            .with_d_model(d_model)
+            .with_n_layers(n_layers);
         let gpt: NanoChatGpt = cfg.init(&device);
 
         let mut kv_cache = gpt.new_kv_cache(batch_size, &device);
@@ -1356,7 +1356,7 @@ mod tests {
             &logits.dims(),
             &[("B", batch_size), ("T", seq_len), ("V", vocab_size)]
         );
-        assert_eq!(gpt.n_embed(), n_embed);
+        assert_eq!(gpt.d_model(), d_model);
     }
 
     /// Asserts that `a` and `b` answer every [`NanoChatGptMeta`] method alike.
@@ -1364,13 +1364,13 @@ mod tests {
         a: &impl NanoChatGptMeta,
         b: &impl NanoChatGptMeta,
     ) {
-        assert_eq!(a.n_embed(), b.n_embed());
-        assert_eq!(a.n_head(), b.n_head());
-        assert_eq!(a.n_kv_head(), b.n_kv_head());
+        assert_eq!(a.d_model(), b.d_model());
+        assert_eq!(a.n_heads(), b.n_heads());
+        assert_eq!(a.n_kv_heads(), b.n_kv_heads());
         assert_eq!(a.head_dim(), b.head_dim());
         assert_eq!(a.init_seq_len(), b.init_seq_len());
         assert_eq!(a.max_seq_len(), b.max_seq_len());
-        assert_eq!(a.n_layer(), b.n_layer());
+        assert_eq!(a.n_layers(), b.n_layers());
     }
 
     /// The policy builds the same `NanoChatGpt` through its structure as
@@ -1386,10 +1386,10 @@ mod tests {
             .with_init_seq_len(16)
             .with_max_seq_len_factor(2)
             .with_vocab_size(64)
-            .with_n_layer(2)
-            .with_n_head(4)
-            .with_n_kv_head(2)
-            .with_n_embed(32);
+            .with_n_layers(2)
+            .with_n_heads(4)
+            .with_n_kv_heads(2)
+            .with_d_model(32);
 
         let structure = policy.to_structure();
         assert_meta_agrees(&policy, &structure);
@@ -1401,7 +1401,7 @@ mod tests {
 
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&structure, &lowered);
-        assert_eq!(lowered.n_embed(), 32);
+        assert_eq!(lowered.d_model(), 32);
     }
 
     /// A tiny model whose rotary table, `max_seq_len`, is 8 positions.
@@ -1410,10 +1410,10 @@ mod tests {
             .with_init_seq_len(4)
             .with_max_seq_len_factor(2)
             .with_vocab_size(16)
-            .with_n_layer(2)
-            .with_n_head(2)
-            .with_n_kv_head(2)
-            .with_n_embed(16)
+            .with_n_layers(2)
+            .with_n_heads(2)
+            .with_n_kv_heads(2)
+            .with_d_model(16)
             .init(device);
         assert_eq!(gpt.max_seq_len(), 8);
         gpt

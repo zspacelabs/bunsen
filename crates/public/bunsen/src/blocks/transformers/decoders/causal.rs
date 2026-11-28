@@ -75,7 +75,7 @@ pub struct DecoderSideInputs {
 /// Common meta for [`CausalDecoderBlock`] and [`CausalDecoderBlockConfig`].
 pub trait CausalDecoderBlockMeta {
     /// Returns the size of the input and output.
-    fn n_embed(&self) -> usize;
+    fn d_model(&self) -> usize;
 }
 
 /// A decoder layer's names for its parts, as a checkpoint spells them: what
@@ -177,8 +177,8 @@ pub struct CausalDecoderBlockConfig {
 }
 
 impl CausalDecoderBlockMeta for CausalDecoderBlockConfig {
-    fn n_embed(&self) -> usize {
-        self.attn.n_embed()
+    fn d_model(&self) -> usize {
+        self.attn.d_model()
     }
 }
 
@@ -203,22 +203,22 @@ impl CausalDecoderBlockConfig {
         layer_index: usize,
         device: &Device,
     ) -> BunsenResult<CausalDecoderBlock> {
-        if self.attn.n_embed() != self.mlp.n_embed() {
+        if self.attn.d_model() != self.mlp.d_model() {
             return Err(ConstraintError::new(
                 "CausalDecoderBlockConfig",
                 "",
                 Rule::Relation {
-                    lhs: ("attn.n_embed".into(), self.attn.n_embed().to_string()),
+                    lhs: ("attn.d_model".into(), self.attn.d_model().to_string()),
                     op: "==",
-                    rhs: ("mlp.n_embed".into(), self.mlp.n_embed().to_string()),
+                    rhs: ("mlp.d_model".into(), self.mlp.d_model().to_string()),
                 },
             )
             .into());
         }
 
-        let n_embed = self.n_embed();
+        let d_model = self.d_model();
         if let Some(scale) = &self.mlp_scale
-            && scale.d_model() != n_embed
+            && scale.d_model() != d_model
         {
             return Err(ConstraintError::new(
                 "CausalDecoderBlockConfig",
@@ -226,7 +226,7 @@ impl CausalDecoderBlockConfig {
                 Rule::Relation {
                     lhs: ("mlp_scale.d_model".into(), scale.d_model().to_string()),
                     op: "==",
-                    rhs: ("n_embed".into(), n_embed.to_string()),
+                    rhs: ("d_model".into(), d_model.to_string()),
                 },
             )
             .into());
@@ -244,14 +244,14 @@ impl CausalDecoderBlockConfig {
             ))
             .with_layer_scale(self.layer_scale)
             .with_drop_path(self.drop_path)
-            .try_init(self.attn.try_init(layer_index, device)?, n_embed, device)?,
+            .try_init(self.attn.try_init(layer_index, device)?, d_model, device)?,
             mlp: sandwich(ResidualSublayerConfig::placed(
                 self.norm_placement,
                 Some(self.norm.clone()),
             ))
             .with_layer_scale(self.layer_scale)
             .with_drop_path(self.drop_path)
-            .try_init(self.mlp.try_init(device)?, n_embed, device)?,
+            .try_init(self.mlp.try_init(device)?, d_model, device)?,
             mlp_scale: self
                 .mlp_scale
                 .as_ref()
@@ -313,8 +313,8 @@ pub struct CausalDecoderBlock {
 }
 
 impl CausalDecoderBlockMeta for CausalDecoderBlock {
-    fn n_embed(&self) -> usize {
-        self.attn.branch.n_embed()
+    fn d_model(&self) -> usize {
+        self.attn.branch.d_model()
     }
 }
 
@@ -433,7 +433,7 @@ impl CausalDecoderBlock {
             ["B", "T", "D"],
             &input.dims(),
             &["B", "T"],
-            &[("D", self.n_embed())]
+            &[("D", self.d_model())]
         );
         let DecoderSideInputs { cond, attn } = sides;
         let x = self.attn.residual_update_with(input, |mixer, z| {
@@ -446,7 +446,7 @@ impl CausalDecoderBlock {
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "D"],
             &y.dims(),
-            &[("B", b), ("T", t), ("D", self.n_embed())]
+            &[("B", b), ("T", t), ("D", self.d_model())]
         );
         y
     }
@@ -482,7 +482,7 @@ impl CausalDecoderBlock {
             ["B", "T", "D"],
             &x.dims(),
             &["B", "T"],
-            &[("D", self.n_embed())]
+            &[("D", self.d_model())]
         );
         let r = self.attn.residual(x, |mixer, z| {
             Self::run_mixer(mixer, z, r_emb, kv_cache, linear, sides)
@@ -491,7 +491,7 @@ impl CausalDecoderBlock {
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "D"],
             &r.dims(),
-            &[("B", b), ("T", t), ("D", self.n_embed())]
+            &[("B", b), ("T", t), ("D", self.d_model())]
         );
         r
     }
@@ -520,14 +520,14 @@ impl CausalDecoderBlock {
             ["B", "T", "D"],
             &x.dims(),
             &["B", "T"],
-            &[("D", self.n_embed())]
+            &[("D", self.d_model())]
         );
         let r = self.mlp.residual(x, |mlp, h| self.run_mlp(mlp, h, cond));
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "D"],
             &r.dims(),
-            &[("B", b), ("T", t), ("D", self.n_embed())]
+            &[("B", b), ("T", t), ("D", self.d_model())]
         );
         r
     }
@@ -661,25 +661,25 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let n_embed = 1024;
-        let n_head = 128;
-        let n_kv_head = 64;
+        let d_model = 1024;
+        let n_heads = 128;
+        let n_kv_heads = 64;
 
         let config = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed).into(),
-            BunsenMlpConfig::expansion(n_embed, 4).into(),
+            CausalSelfAttentionConfig::new(n_heads, n_kv_heads, d_model).into(),
+            BunsenMlpConfig::expansion(d_model, 4).into(),
         );
-        assert_eq!(config.n_embed(), n_embed);
-        assert_eq!(config.attn.n_embed(), n_embed);
-        assert_eq!(config.attn.attention().n_head(), n_head);
-        assert_eq!(config.attn.attention().n_kv_head(), n_kv_head);
+        assert_eq!(config.d_model(), d_model);
+        assert_eq!(config.attn.d_model(), d_model);
+        assert_eq!(config.attn.attention().n_heads(), n_heads);
+        assert_eq!(config.attn.attention().n_kv_heads(), n_kv_heads);
 
-        assert_eq!(TransformerFeedForwardMeta::n_embed(&config.mlp), n_embed);
+        assert_eq!(TransformerFeedForwardMeta::d_model(&config.mlp), d_model);
 
         let layer_index = 12;
         let block: CausalDecoderBlock = config.init(layer_index, &device);
 
-        assert_eq!(block.n_embed(), n_embed);
+        assert_eq!(block.d_model(), d_model);
     }
 
     #[test]
@@ -691,19 +691,19 @@ mod tests {
         let batch = 2;
         let seq_len = 10;
 
-        let n_embed = 1024;
-        let n_head = 128;
-        let n_kv_head = 64;
+        let d_model = 1024;
+        let n_heads = 128;
+        let n_kv_heads = 64;
         let layer_index = 12;
 
         let config = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed).into(),
-            BunsenMlpConfig::expansion(n_embed, 4).into(),
+            CausalSelfAttentionConfig::new(n_heads, n_kv_heads, d_model).into(),
+            BunsenMlpConfig::expansion(d_model, 4).into(),
         );
 
         let block: CausalDecoderBlock = config.init(layer_index, &device);
 
-        let input = Tensor::random([batch, seq_len, n_embed], Distribution::Default, &device);
+        let input = Tensor::random([batch, seq_len, d_model], Distribution::Default, &device);
 
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
             .init(&device);
@@ -713,7 +713,7 @@ mod tests {
         assert_shape_contract!(
             ["B", "T", "D"],
             &output.dims(),
-            &[("B", batch), ("T", seq_len), ("D", n_embed)]
+            &[("B", batch), ("T", seq_len), ("D", d_model)]
         );
     }
 
@@ -723,10 +723,10 @@ mod tests {
     #[test]
     fn test_block_without_an_attn_norm() {
         let device = crate::support::testing::cpu_device();
-        let [batch, seq_len, n_embed] = [2, 5, 16];
+        let [batch, seq_len, d_model] = [2, 5, 16];
         let config = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(4, 2, n_embed).into(),
-            BunsenMlpConfig::expansion(n_embed, 4).into(),
+            CausalSelfAttentionConfig::new(4, 2, d_model).into(),
+            BunsenMlpConfig::expansion(d_model, 4).into(),
         );
         assert!(config.init(0, &device).attn.pre.is_some());
         let block: CausalDecoderBlock = config.with_attn_norm(false).init(0, &device);
@@ -750,7 +750,7 @@ mod tests {
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
             .init(&device);
         let input =
-            seeded_tensor::<3>(2, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(2, [batch, seq_len, d_model], Distribution::Default, &device);
         let x = input.clone()
             + block
                 .attn
@@ -774,16 +774,16 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let [batch, seq_len, n_embed] = [2, 5, 32];
+        let [batch, seq_len, d_model] = [2, 5, 32];
         let config = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(4, 2, n_embed).into(),
-            BunsenMlpConfig::expansion(n_embed, 4).into(),
+            CausalSelfAttentionConfig::new(4, 2, d_model).into(),
+            BunsenMlpConfig::expansion(d_model, 4).into(),
         );
         let mut block: CausalDecoderBlock = config.init(0, &device);
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
             .init(&device);
         let input =
-            seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(1, [batch, seq_len, d_model], Distribution::Default, &device);
 
         // With the MLP's output projection zeroed, the block is
         // `x + attn(norm(x))`.
@@ -822,10 +822,10 @@ mod tests {
     #[test]
     fn test_post_norms_sandwich_each_sublayer() {
         let device = crate::support::testing::cpu_device();
-        let [batch, seq_len, n_embed] = [2, 5, 16];
+        let [batch, seq_len, d_model] = [2, 5, 16];
         let config = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(4, 2, n_embed).into(),
-            crate::blocks::mlp::BunsenGatedMlpConfig::new(n_embed, 24).into(),
+            CausalSelfAttentionConfig::new(4, 2, d_model).into(),
+            crate::blocks::mlp::BunsenGatedMlpConfig::new(d_model, 24).into(),
         );
         assert!(config.init(0, &device).attn.post.is_none());
         assert!(config.init(0, &device).mlp.post.is_none());
@@ -841,7 +841,7 @@ mod tests {
             expect_variant!(let BunsenNormalization::Rms(rms) = norm, "an RMS norm");
             rms.gamma = Param::from_tensor(seeded_tensor::<1>(
                 seed,
-                [n_embed],
+                [d_model],
                 Distribution::Uniform(0.5, 1.5),
                 &device,
             ));
@@ -849,7 +849,7 @@ mod tests {
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
             .init(&device);
         let input =
-            seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(1, [batch, seq_len, d_model], Distribution::Default, &device);
 
         let post =
             |norm: &Option<BunsenNormalization>, x| norm.as_ref().expect("a post-norm").forward(x);
@@ -934,12 +934,12 @@ mod tests {
     #[test]
     fn test_post_norm_block_normalizes_each_sum() {
         let device = crate::support::testing::cpu_device();
-        let [batch, seq_len, n_embed] = [2, 5, 16];
+        let [batch, seq_len, d_model] = [2, 5, 16];
         let mut block: CausalDecoderBlock = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(4, 2, n_embed)
+            CausalSelfAttentionConfig::new(4, 2, d_model)
                 .with_mask(AttentionMask::Bidirectional)
                 .into(),
-            crate::blocks::mlp::BunsenGatedMlpConfig::new(n_embed, 24).into(),
+            crate::blocks::mlp::BunsenGatedMlpConfig::new(d_model, 24).into(),
         )
         .with_norm_placement(NormPlacement::Post)
         .init(0, &device);
@@ -951,7 +951,7 @@ mod tests {
             expect_variant!(let BunsenNormalization::Rms(rms) = norm, "an RMS norm");
             rms.gamma = Param::from_tensor(seeded_tensor::<1>(
                 seed,
-                [n_embed],
+                [d_model],
                 Distribution::Uniform(0.5, 1.5),
                 &device,
             ));
@@ -959,7 +959,7 @@ mod tests {
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
             .init(&device);
         let input =
-            seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(1, [batch, seq_len, d_model], Distribution::Default, &device);
 
         let out = |norm: &Option<BunsenNormalization>, x| norm.as_ref().unwrap().forward(x);
         let x = out(
@@ -989,14 +989,14 @@ mod tests {
         );
     }
 
-    fn conditioned(n_embed: usize) -> CausalDecoderBlockConfig {
+    fn conditioned(d_model: usize) -> CausalDecoderBlockConfig {
         CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(4, 2, n_embed)
+            CausalSelfAttentionConfig::new(4, 2, d_model)
                 .with_norm(None)
                 .into(),
-            crate::blocks::mlp::BunsenGatedMlpConfig::new(n_embed, 24).into(),
+            crate::blocks::mlp::BunsenGatedMlpConfig::new(d_model, 24).into(),
         )
-        .with_mlp_scale(Some(AdaptiveScaleConfig::new(n_embed, 4)))
+        .with_mlp_scale(Some(AdaptiveScaleConfig::new(d_model, 4)))
     }
 
     /// A conditioned block scales its feed-forward's normalized input:
@@ -1004,14 +1004,14 @@ mod tests {
     #[test]
     fn test_conditioned_block_scales_the_mlp_input() {
         let device = crate::support::testing::cpu_device();
-        let [batch, seq_len, n_embed] = [2, 5, 16];
-        let block: CausalDecoderBlock = conditioned(n_embed).init(0, &device);
+        let [batch, seq_len, d_model] = [2, 5, 16];
+        let block: CausalDecoderBlock = conditioned(d_model).init(0, &device);
         let scale = block.mlp_scale.as_ref().expect("a conditioned block");
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
             .init(&device);
         let input =
-            seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
-        let cond = seeded_tensor::<3>(2, [1, 1, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(1, [batch, seq_len, d_model], Distribution::Default, &device);
+        let cond = seeded_tensor::<3>(2, [1, 1, d_model], Distribution::Default, &device);
 
         let x = input.clone()
             + block.attn.branch.attention().forward(

@@ -259,8 +259,8 @@ fn run(args: &Args) -> BunsenResult<()> {
         .build(vocab);
 
     let gpt_config = NanoChatGptContractConfig::new()
-        .with_n_embed(args.n_embed)
-        .with_n_layer(args.n_layer)
+        .with_d_model(args.n_embed)
+        .with_n_layers(args.n_layer)
         .with_vocab_size(vocab_size);
 
     let gpt: NanoChatGpt = gpt_config.init(&device);
@@ -303,7 +303,7 @@ fn run(args: &Args) -> BunsenResult<()> {
         remnant: remnant_params,
     } = ParamGroups::select(&host)?;
 
-    let model_dim = gpt_config.n_embed();
+    let model_dim = gpt_config.d_model();
     let dmodel_lr_scale: f64 = (model_dim as f64 / 768.0_f64).pow(-0.5);
 
     let lm_head_lr = args.unembedding_lr * dmodel_lr_scale;
@@ -516,10 +516,10 @@ mod tests {
     fn tiny_host() -> GptHost {
         let gpt: NanoChatGpt = NanoChatGptContractConfig::new()
             .with_vocab_size(32)
-            .with_n_layer(2)
-            .with_n_head(2)
-            .with_n_kv_head(2)
-            .with_n_embed(8)
+            .with_n_layers(2)
+            .with_n_heads(2)
+            .with_n_kv_heads(2)
+            .with_d_model(8)
             .with_init_seq_len(16)
             .init(&bunsen::support::testing::cpu_device());
         GptHost { gpt }

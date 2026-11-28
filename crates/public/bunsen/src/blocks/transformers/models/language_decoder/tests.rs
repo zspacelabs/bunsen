@@ -138,8 +138,8 @@ fn test_pathways_and_meta() {
     let config = a.kv_cache_config();
     assert_eq!(
         (
-            config.num_layers(),
-            config.num_heads(),
+            config.n_layers(),
+            config.n_heads(),
             config.head_dim(),
             config.seq_len(),
             config.max_seq_len()
@@ -263,8 +263,8 @@ fn test_wrapper_passthrough() {
     };
     let geometry = |c: KVCacheConfig| {
         (
-            c.num_layers(),
-            c.num_heads(),
+            c.n_layers(),
+            c.n_heads(),
             c.head_dim(),
             c.seq_len(),
             c.max_seq_len(),

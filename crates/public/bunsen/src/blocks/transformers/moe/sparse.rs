@@ -75,7 +75,7 @@ pub struct SparseMoeConfig {
 
 impl SparseMoeConfig {
     /// The layer's width: the router's.
-    pub fn n_embed(&self) -> usize {
+    pub fn d_model(&self) -> usize {
         self.router.width
     }
 }
@@ -94,7 +94,7 @@ impl ModuleInit<SparseMoe> for SparseMoeConfig {
         if self.shared.is_some() {
             return Err(BunsenError::unsupported("a shared expert"));
         }
-        let width = self.n_embed();
+        let width = self.d_model();
         let expert_width = self.latent.unwrap_or(width);
         if self.experts.width() != expert_width {
             return Err(ConstraintError::new(
@@ -172,7 +172,7 @@ pub struct SparseMoe {
 
 impl SparseMoe {
     /// The layer's width.
-    pub fn n_embed(&self) -> usize {
+    pub fn d_model(&self) -> usize {
         self.router.width()
     }
 
@@ -200,7 +200,7 @@ impl SparseMoe {
             ["B", "T", "D"],
             &x.dims(),
             &["B", "T", "D"],
-            &[("D", self.n_embed())]
+            &[("D", self.d_model())]
         );
         let rows = x.reshape([b * t, d]);
         let choice = self.router.forward(rows.clone());
@@ -254,7 +254,7 @@ mod tests {
             )
             .with_latent(latent)
             .init(&device);
-            assert_eq!(moe.n_embed(), 8);
+            assert_eq!(moe.d_model(), 8);
             assert_eq!(moe.latent_down.is_some(), latent.is_some());
 
             let x: Tensor<3> = seeded_tensor(2, [2, 3, 8], Distribution::Default, &device);

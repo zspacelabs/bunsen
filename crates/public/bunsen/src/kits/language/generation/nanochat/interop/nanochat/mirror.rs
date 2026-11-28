@@ -137,10 +137,10 @@ impl NanoChatMetaMirror {
             .with_init_seq_len(m.sequence_len)
             .with_max_seq_len_factor(10)
             .with_vocab_size(m.vocab_size)
-            .with_n_layer(m.n_layer)
-            .with_n_head(m.n_head)
-            .with_n_kv_head(m.n_kv_head)
-            .with_n_embed(m.n_embd);
+            .with_n_layers(m.n_layer)
+            .with_n_heads(m.n_head)
+            .with_n_kv_heads(m.n_kv_head)
+            .with_d_model(m.n_embd);
         match generation {
             NanoChatGeneration::Upstream2025 => config,
             NanoChatGeneration::Upstream2026 => {

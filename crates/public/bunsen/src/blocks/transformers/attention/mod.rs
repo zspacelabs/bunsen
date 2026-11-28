@@ -18,8 +18,8 @@
 //! `CausalSelfAttention` is projections + QK-norm + `RoPE` + [`KVCache`] +
 //! SDPA. For a `[B, T, D]` input:
 //!
-//! 1. bias-free `Linear` projections to `n_head` query heads and `n_kv_head`
-//!    key/value heads, each `head_dim = n_embed / n_head` wide;
+//! 1. bias-free `Linear` projections to `n_heads` query heads and `n_kv_heads`
+//!    key/value heads, each `head_dim = d_model / n_heads` wide;
 //! 2. rotary position embedding on the queries and keys, from the
 //!    [`RotaryEmbedding`] passed to `forward`;
 //! 3. QK-norm: per-head normalization of the queries and keys, sized
@@ -29,9 +29,9 @@
 //!    and reading back the full history;
 //! 5. [`scaled_dot_product_attention`], then the output projection.
 //!
-//! **Grouped-query attention.** With `n_kv_head < n_head` (it must divide
-//! `n_head`), the keys and values have fewer heads, and SDPA repeats each one
-//! `n_head / n_kv_head` times. `n_kv_head == n_head` is plain multi-head
+//! **Grouped-query attention.** With `n_kv_heads < n_heads` (it must divide
+//! `n_heads`), the keys and values have fewer heads, and SDPA repeats each one
+//! `n_heads / n_kv_heads` times. `n_kv_heads == n_heads` is plain multi-head
 //! attention.
 //!
 //! ## KV-cache decode modes

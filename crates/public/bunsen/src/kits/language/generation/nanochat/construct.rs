@@ -73,10 +73,10 @@ mod tests {
     fn test_files_by_key() {
         let model: NanoChatGpt = NanoChatGptContractConfig::new()
             .with_vocab_size(16)
-            .with_n_layer(1)
-            .with_n_head(2)
-            .with_n_kv_head(2)
-            .with_n_embed(8)
+            .with_n_layers(1)
+            .with_n_heads(2)
+            .with_n_kv_heads(2)
+            .with_d_model(8)
             .with_init_seq_len(4)
             .init(&cpu_device());
         let bundle = NanoChatConstruct::new(model)
