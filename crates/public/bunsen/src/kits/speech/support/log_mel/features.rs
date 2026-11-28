@@ -13,9 +13,9 @@ use crate::{
     },
     kits::speech::support::StreamingFeatures,
     ops::signal::perceptive_audio::{
-        PerceptiveAudioConversionContext,
         PerceptiveAudioConverter,
         PerceptiveAudioConverterMeta,
+        PerceptiveAudioConverterStreamContext,
     },
 };
 
@@ -36,7 +36,7 @@ pub struct LogMelFeatures {
     converter: PerceptiveAudioConverter,
 
     /// The converter's streaming state; `None` once finished.
-    context: Option<PerceptiveAudioConversionContext>,
+    context: Option<PerceptiveAudioConverterStreamContext>,
 
     /// Samples not yet a whole hop.
     staging: Vec<f32>,
@@ -51,7 +51,7 @@ impl LogMelFeatures {
         device: Device,
     ) -> Self {
         Self {
-            context: Some(converter.new_context(1)),
+            context: Some(converter.new_stream_context(1)),
             converter,
             staging: Vec::new(),
             device,
@@ -96,12 +96,11 @@ impl LogMelFeatures {
 
         let ctx = self
             .context
-            .take()
+            .as_mut()
             .expect("the front end is open until the input ends");
-        // The context built the chunk to the front end's grid, so a refusal
-        // is the context's own fault.
-        let (frames, ctx) = ctx.transform(waves).as_internal()?;
-        self.context = Some(ctx);
+        // The stream built the chunk to the front end's grid, so a refusal
+        // is the stream's own fault.
+        let frames = self.converter.transform_stream(waves, ctx).as_internal()?;
         Ok(Some(frames))
     }
 }
@@ -120,7 +119,10 @@ impl StreamingFeatures for LogMelFeatures {
             return Ok(None);
         }
         let drained = self.drain(true)?;
-        let tail = self.context.take().and_then(|mel| mel.finish());
+        let tail = self
+            .context
+            .take()
+            .and_then(|mut mel| self.converter.finish_stream(&mut mel));
         Ok(match (drained, tail) {
             (Some(a), Some(b)) => Some(Tensor::cat(vec![a, b], 1)),
             (a, b) => a.or(b),

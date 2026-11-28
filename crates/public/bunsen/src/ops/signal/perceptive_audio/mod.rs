@@ -12,11 +12,13 @@
 //!   tables, mel filterbank) as bare tensors. It is stateless:
 //!   [`forward`](PerceptiveAudioConverter::forward) converts a whole signal in
 //!   one call, and one converter can serve any number of streams.
-//! - [`PerceptiveAudioConverter::new_context`] opens a
-//!   [`PerceptiveAudioConversionContext`] per stream (each batch row is one
-//!   stream). It carries the samples a stream has not finished with, so
-//!   hop-aligned chunks produce exactly the frames one call would;
-//!   [`finish`](PerceptiveAudioConversionContext::finish) flushes the end
+//! - [`PerceptiveAudioConverter::new_stream_context`] opens a
+//!   [`PerceptiveAudioConverterStreamContext`] per stream (each batch row is
+//!   one stream). It carries the samples a stream has not finished with, so
+//!   hop-aligned chunks through
+//!   [`transform_stream`](PerceptiveAudioConverter::transform_stream) produce
+//!   exactly the frames one call would;
+//!   [`finish_stream`](PerceptiveAudioConverter::finish_stream) flushes the end
 //!   padding.
 //!
 //! [`PerceptiveAudioConverterMeta`] reads the framing geometry the same way

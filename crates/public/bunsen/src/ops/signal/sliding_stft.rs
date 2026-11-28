@@ -26,8 +26,7 @@ use crate::{
     },
 };
 
-/// Common meta for [`SlidingStftConfig`], [`SlidingStft`], and
-/// [`SlidingStftContext`].
+/// Common meta for [`SlidingStftConfig`] and [`SlidingStft`].
 pub trait SlidingStftMeta {
     /// The analysis window length, in samples.
     fn win_len(&self) -> usize;
@@ -174,9 +173,11 @@ impl ModuleInit<SlidingStft> for SlidingStftConfig {
 /// shared by (or cheaply cloned into) any number of streams.
 ///
 /// Built by [`SlidingStftConfig`]. Implements [`SlidingStftMeta`].
-/// Streaming states are built by [`init_state`](Self::init_state); each
-/// [`SlidingStftContext`] carries one stream's sample queue over a clone of
-/// these coefficients. [`analyze`](Self::analyze) is the one-shot form.
+/// A stream is a [`SlidingStftStreamContext`], from
+/// [`new_stream_context`](Self::new_stream_context), carrying its sample
+/// queue; [`analyze_stream`](Self::analyze_stream) and
+/// [`analyze_hops_stream`](Self::analyze_hops_stream) advance it.
+/// [`analyze`](Self::analyze) is the one-shot form.
 ///
 /// # Spectrum convention
 ///
@@ -242,22 +243,113 @@ impl SlidingStftMeta for SlidingStft {
 }
 
 impl SlidingStft {
-    /// Builds a [`SlidingStftContext`] streaming state over these coefficients.
+    /// A stream of `batch_size` independent rows through these coefficients:
+    /// its queue zeroed, on their device.
     ///
-    /// The queue is zeroed, on the same device as the coefficients.
-    ///
-    /// # Arguments
-    /// * `batch_size`: the number of independent streams; must be non-zero.
-    pub fn init_state(
+    /// # Panics
+    /// If `batch_size` is zero.
+    pub fn new_stream_context(
         &self,
         batch_size: usize,
-    ) -> SlidingStftContext {
+    ) -> SlidingStftStreamContext {
         assert_ne!(batch_size, 0, "SlidingStft batch_size must be non-zero");
-        let queue = self.zero_window(batch_size);
-        SlidingStftContext {
-            coef: self.clone(),
-            queue,
+        SlidingStftStreamContext {
+            queue: self.zero_window(batch_size),
         }
+    }
+
+    /// Pushes one hop into the stream and returns the spectrum of its
+    /// updated window.
+    ///
+    /// # Arguments
+    /// * `hop`: `[batch, hop_size]` new samples.
+    /// * `ctx`: the stream, advanced past `hop`.
+    ///
+    /// # Returns
+    /// `[batch, n_bins, 2]` spectrum; the trailing axis is `(re, im)`.
+    pub fn analyze_stream(
+        &self,
+        hop: Tensor<2>,
+        ctx: &mut SlidingStftStreamContext,
+    ) -> Tensor<3> {
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract!(
+            ["batch", "hop_size"],
+            &hop,
+            &[("batch", ctx.batch_size()), ("hop_size", self.hop_size())],
+        );
+
+        let hop_size = self.hop_size();
+        if self.win_len() == hop_size {
+            ctx.queue = hop;
+        } else {
+            // Inplace, so we can drop the reference before the update.
+            ctx.queue.inplace(|q| {
+                let keep = q.slice_dim(1, hop_size as isize..);
+                Tensor::cat(vec![keep, hop], 1)
+            });
+        }
+
+        // One full window -> one frame.
+        // [batch, 1, n_bins, 2]
+        let x = self.analyze(ctx.queue.clone());
+        // [batch, n_bins, 2]
+        x.squeeze_dim(1)
+    }
+
+    /// Pushes `steps` consecutive hops into the stream at once.
+    ///
+    /// Equivalent to `steps` calls of [`analyze_stream`](Self::analyze_stream),
+    /// but the whole extended stream is analyzed with a single [`stft`] call.
+    ///
+    /// # Arguments
+    /// * `hops`: `[steps, batch, hop_size]` consecutive hops.
+    /// * `ctx`: the stream, advanced past `hops`.
+    ///
+    /// # Returns
+    /// `[steps, batch, n_bins, 2]` per-hop spectra; the trailing axis is
+    /// `(re, im)`.
+    pub fn analyze_hops_stream(
+        &self,
+        hops: Tensor<3>,
+        ctx: &mut SlidingStftStreamContext,
+    ) -> Tensor<4> {
+        #[cfg(any(debug_assertions, test))]
+        let [steps] = crate::contracts::unpack_shape_contract!(
+            ["steps", "batch", "hop_size"],
+            &hops,
+            &["steps"],
+            &[("batch", ctx.batch_size()), ("hop_size", self.hop_size())],
+        );
+
+        // [batch, steps * hop_size]
+        let stream = hops.swap_dims(0, 1).flatten::<2>(1, 2);
+        let win_len = self.win_len();
+
+        let queue = ctx.queue.extract();
+        let ext = Tensor::cat(vec![queue, stream], 1);
+        ctx.queue = ext.clone().slice_dim(1, -(win_len as isize)..);
+
+        // `analyze` yields `steps + 1` frames at `hop_size` offsets; frame
+        // `s + 1` is the queue state after hop `s`, and frame 0 (the
+        // pre-push queue) is dropped.
+        //
+        // [batch, steps + 1, n_bins, 2]
+        let x = self.analyze(ext);
+        // [steps, batch, n_bins, 2]
+        let x = x.slice_dim(1, 1..).swap_dims(0, 1);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract!(
+            ["steps", "batch", "n_bins", 2],
+            &x,
+            &[
+                ("steps", steps),
+                ("batch", ctx.batch_size()),
+                ("n_bins", self.n_bins())
+            ],
+        );
+        x
     }
 
     /// Build the matching [`StftOptions`].
@@ -363,26 +455,18 @@ impl SlidingStft {
     }
 }
 
-/// Streaming sliding-window STFT analyzer state.
+/// One stream through a [`SlidingStft`]: its sliding sample queue.
 ///
-/// Binds a sliding sample queue to a [`SlidingStft`].
+/// Each push ([`analyze_stream`](SlidingStft::analyze_stream)) shifts the
+/// queue left by `hop_size` and appends the new hop. At stream start the queue
+/// is zero, so the first `win_len / hop_size - 1` spectra cover partially
+/// zero-padded windows.
 ///
-/// Each [`forward`](Self::forward) shifts the queue left by `hop_size`,
-/// appends the new hop, and returns the real-DFT spectrum of the windowed,
-/// zero-padded queue (see [`SlidingStft`]'s *Spectrum convention*). At stream
-/// start the queue is zero, so the first `win_len / hop_size - 1` spectra
-/// cover partially zero-padded windows.
-///
-/// Built by [`SlidingStft::init_state`]. Implements [`SlidingStftMeta`].
-///
-/// Like [`SlidingStft`], this is a `Module` over bare tensors — see that type's
-/// *Module semantics*. The queue moves with `to_device`, and is neither
-/// recorded nor visited.
+/// Built by [`SlidingStft::new_stream_context`]. Like [`SlidingStft`], this is
+/// a `Module` over bare tensors (see that type's *Module semantics*): the
+/// queue moves with `to_device`, and is neither recorded nor visited.
 #[derive(Module, Debug)]
-pub struct SlidingStftContext {
-    /// The fixed analysis coefficients.
-    pub coef: SlidingStft,
-
+pub struct SlidingStftStreamContext {
     /// The sliding sample queue: `[batch, win_len]`.
     ///
     /// Each row holds the `win_len` most recent samples of that stream
@@ -390,124 +474,15 @@ pub struct SlidingStftContext {
     pub queue: Tensor<2>,
 }
 
-impl SlidingStftMeta for SlidingStftContext {
-    fn win_len(&self) -> usize {
-        self.coef.win_len()
-    }
-
-    fn hop_size(&self) -> usize {
-        self.coef.hop_size()
-    }
-
-    fn fft_size(&self) -> usize {
-        self.coef.fft_size()
-    }
-}
-
-impl SlidingStftContext {
+impl SlidingStftStreamContext {
     /// The batch size; each batch row is an independent stream.
     pub fn batch_size(&self) -> usize {
         self.queue.dims()[0]
     }
 
-    /// Resets the streaming queue to zeros.
+    /// Resets the queue to zeros.
     pub fn reset(&mut self) {
         self.queue = Tensor::zeros_like(&self.queue);
-    }
-
-    /// Pushes one hop and returns the spectrum of the updated window.
-    ///
-    /// # Arguments
-    /// * `hop`: `[batch, hop_size]` new samples.
-    ///
-    /// # Returns
-    /// `[batch, n_bins, 2]` spectrum; the trailing axis is `(re, im)`.
-    pub fn forward(
-        &mut self,
-        hop: Tensor<2>,
-    ) -> Tensor<3> {
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract!(
-            ["batch", "hop_size"],
-            &hop,
-            &[("batch", self.batch_size()), ("hop_size", self.hop_size())],
-        );
-
-        let hop_size = self.hop_size();
-        if self.win_len() == hop_size {
-            self.queue = hop;
-        } else {
-            // Inplace, so we can drop the reference before the update.
-            self.queue.inplace(|q| {
-                let keep = q.slice_dim(1, hop_size as isize..);
-                Tensor::cat(vec![keep, hop], 1)
-            });
-        }
-
-        // One full window -> one frame.
-        // [batch, 1, n_bins, 2]
-        let x = self.coef.analyze(self.queue.clone());
-        // [batch, n_bins, 2]
-        x.squeeze_dim(1)
-    }
-
-    /// Pushes `steps` consecutive hops at once.
-    ///
-    /// Equivalent to `steps` calls of [`forward`](Self::forward), but the
-    /// whole extended stream is analyzed with a single [`stft`] call.
-    ///
-    /// # Arguments
-    /// * `hops`: `[steps, batch, hop_size]` consecutive hops.
-    ///
-    /// # Returns
-    /// `[steps, batch, n_bins, 2]` per-hop spectra; the trailing axis is
-    /// `(re, im)`.
-    pub fn forward_sequence(
-        &mut self,
-        hops: Tensor<3>,
-    ) -> Tensor<4> {
-        #[cfg(any(debug_assertions, test))]
-        let [steps] = crate::contracts::unpack_shape_contract!(
-            ["steps", "batch", "hop_size"],
-            &hops,
-            &["steps"],
-            &[("batch", self.batch_size()), ("hop_size", self.hop_size())],
-        );
-
-        // [batch, steps, hop_size]
-        let stream = hops.swap_dims(0, 1);
-        // [batch, steps * hop_size]
-        let stream = stream.flatten::<2>(1, 2);
-
-        // Inplace, so we can drop the reference before the update.
-        let win_len = self.win_len();
-
-        let queue = self.queue.extract();
-        let ext = Tensor::cat(vec![queue, stream], 1);
-        self.queue = ext.clone().slice_dim(1, -(win_len as isize)..);
-
-        // `analyze` yields `steps + 1` frames at `hop_size` offsets; frame
-        // `s + 1` is the queue state after hop `s`, and frame 0 (the
-        // pre-push queue) is dropped.
-        //
-        // [batch, steps + 1, n_bins, 2]
-        let x = self.coef.analyze(ext);
-        // [batch, steps, n_bins, 2]
-        let x = x.slice_dim(1, 1..);
-        // [steps, batch, n_bins, 2]
-        let x = x.swap_dims(0, 1);
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract!(
-            ["steps", "batch", "n_bins", 2],
-            &x,
-            &[
-                ("steps", steps),
-                ("batch", self.batch_size()),
-                ("n_bins", self.n_bins())
-            ],
-        );
-        x
     }
 }
 
@@ -595,12 +570,7 @@ mod tests {
         }
         assert!(window[48..].iter().all(|&v| v == 0.0));
 
-        let stft = coef.init_state(3);
-
-        assert_eq!(stft.win_len(), cfg.win_len());
-        assert_eq!(stft.hop_size(), cfg.hop_size());
-        assert_eq!(stft.fft_size(), cfg.fft_size());
-        assert_eq!(stft.n_bins(), cfg.n_bins());
+        let stft = coef.new_stream_context(3);
         assert_eq!(stft.batch_size(), 3);
 
         // The queue starts zeroed.
@@ -626,10 +596,10 @@ mod tests {
             .with_fft_size(64);
 
         let coef: SlidingStft = cfg.init(&device);
-        let ctx = coef.clone().init_state(2);
+        let ctx = coef.new_stream_context(2);
 
-        // Traversal reaches the window, and the queue through the nested
-        // `coef`. `collect_devices` dedupes, so one device means one entry.
+        // Traversal reaches the window and the queue. `collect_devices`
+        // dedupes, so one device means one entry.
         assert_eq!(coef.devices(), vec![device.clone()]);
         assert_eq!(ctx.devices(), vec![device.clone()]);
 
@@ -657,20 +627,15 @@ mod tests {
             .queue
             .to_data_as::<F>()
             .assert_eq(&queue_before, true);
-        moved_ctx
-            .coef
-            .window
-            .to_data_as::<F>()
-            .assert_eq(&window_before, true);
         assert_eq!(moved_ctx.batch_size(), ctx.batch_size());
     }
 
     #[test]
     #[should_panic(expected = "batch_size must be non-zero")]
-    fn test_init_state_rejects_zero_batch() {
+    fn test_new_stream_context_rejects_zero_batch() {
         let device = cpu_device();
         let coef: SlidingStft = SlidingStftConfig::new().init(&device);
-        coef.init_state(0);
+        coef.new_stream_context(0);
     }
 
     /// Host-side reference: a sliding queue and naive windowed real DFT.
@@ -875,7 +840,7 @@ mod tests {
         let n_bins = cfg.n_bins();
 
         let coef: SlidingStft = cfg.init(&device);
-        let mut stft = coef.init_state(batch);
+        let mut stft = coef.new_stream_context(batch);
         let mut hosts: Vec<HostStft> = (0..batch).map(|_| HostStft::new(&cfg)).collect();
 
         // The first pushes cover the zero-padded warmup; the later ones a
@@ -889,7 +854,7 @@ mod tests {
                 TensorData::new(rows.concat(), [batch, cfg.hop_size]),
                 &device,
             );
-            let out = stft.forward(hop);
+            let out = coef.analyze_stream(hop, &mut stft);
             assert_eq!(out.dims(), [batch, n_bins, 2]);
 
             let expected: Vec<f64> = hosts
@@ -906,7 +871,7 @@ mod tests {
     }
 
     #[test]
-    fn test_forward_sequence_matches_stepwise() {
+    fn test_analyze_hops_stream_matches_stepwise() {
         let device = cpu_device();
         let steps = 7;
         let batch = 2;
@@ -926,16 +891,16 @@ mod tests {
                 Tensor::<3>::random([steps, batch, cfg.hop_size], Distribution::Default, &device);
 
             let coef: SlidingStft = cfg.init(&device);
-            let mut seq_stft = coef.init_state(batch);
+            let mut seq_stft = coef.new_stream_context(batch);
             let mut step_stft = seq_stft.clone();
 
-            let seq_out = seq_stft.forward_sequence(hops.clone());
+            let seq_out = coef.analyze_hops_stream(hops.clone(), &mut seq_stft);
             assert_eq!(seq_out.dims(), [steps, batch, cfg.n_bins(), 2]);
 
             let mut step_outs = Vec::with_capacity(steps);
             for step in 0..steps {
                 let hop = hops.clone().select_dim(0, step);
-                step_outs.push(step_stft.forward(hop));
+                step_outs.push(coef.analyze_stream(hop, &mut step_stft));
             }
             let step_out: Tensor<4> = Tensor::stack(step_outs, 0);
 
@@ -959,9 +924,9 @@ mod tests {
             .with_fft_size(64);
 
         let coef: SlidingStft = cfg.init(&device);
-        let mut stft = coef.init_state(1);
+        let mut stft = coef.new_stream_context(1);
         let hop = Tensor::random([1, 16], Distribution::Default, &device);
-        stft.forward(hop);
+        coef.analyze_stream(hop, &mut stft);
 
         stft.reset();
         stft.queue.to_data_as::<F>().assert_eq(
