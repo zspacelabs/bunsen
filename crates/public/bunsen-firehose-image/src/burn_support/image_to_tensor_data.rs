@@ -19,6 +19,7 @@ use serde::{
 use crate::burn_support::{
     IMAGE_TO_TENSOR_DATA,
     pixeldepth_support,
+    pixeldepth_support::image_to_pixeldepth_vec,
 };
 
 /// The `ImageToTensorData` operator.
@@ -68,7 +69,7 @@ impl FirehoseOperator for ImageToTensorData {
         let colors = image.color().channel_count() as usize;
         let shape = vec![height, width, colors];
 
-        let pixvec = crate::burn_support::image_to_pixeldepth_vec(image);
+        let pixvec = image_to_pixeldepth_vec(image);
         let data: Vec<f32> = pixvec
             .iter()
             .map(|p| pixeldepth_support::pixel_depth_to_f32(*p))

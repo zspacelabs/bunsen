@@ -23,8 +23,10 @@ use bunsen_app::{
 use super::{
     AsrDiarizeOutputArgs,
     AsrDiarizerArgs,
-    JsonTurn,
-    text_line,
+    support::{
+        JsonTurn,
+        text_line,
+    },
 };
 use crate::support::CaptureArgs;
 

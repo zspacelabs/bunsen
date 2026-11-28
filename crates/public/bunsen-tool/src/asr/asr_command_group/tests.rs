@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use super::*;
+use super::command_group::AsrSubCommand;
 use crate::asr::{
     Mode,
     presets,

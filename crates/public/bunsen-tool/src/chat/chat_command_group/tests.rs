@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use super::*;
+use super::command_group::ChatSubCommand;
 
 /// `chat`'s commands alone, as `bunsen-tool chat` parses them.
 #[derive(clap::Parser, Debug)]
