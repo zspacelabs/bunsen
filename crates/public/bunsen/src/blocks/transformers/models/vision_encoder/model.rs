@@ -18,7 +18,7 @@ use burn::{
 
 use super::{
     TokenPool,
-    TokenPoolConfig,
+    TokenPoolKind,
     VisionBackbone,
     VisionBackboneConfig,
 };
@@ -45,11 +45,13 @@ use crate::{
                 },
             },
         },
-        pooling::LatentAttentionPoolConfig,
-        transformers::decoders::stack::{
-            DecoderStack,
-            DecoderStackMeta,
-            DecoderStackStructureConfig,
+        transformers::{
+            decoders::stack::{
+                DecoderStack,
+                DecoderStackMeta,
+                DecoderStackStructureConfig,
+            },
+            models::vision_encoder::TokenPoolConfig,
         },
     },
     burner::module::{
@@ -117,17 +119,13 @@ pub struct VisionEncoderStructureConfig {
     /// (`Identity` when the head normalises after its pool).
     pub stack: DecoderStackStructureConfig,
 
-    /// The pool over the output tokens.
+    /// The pool over the output tokens; a [`Map`](TokenPoolConfig::Map) pool
+    /// carries its attention.
     #[config(default = "TokenPoolConfig::Token")]
     pub pool: TokenPoolConfig,
 
-    /// The attention pool of a [`Map`](TokenPoolConfig::Map) pool; `None`
-    /// for every other kind.
-    #[config(default = "None")]
-    pub latent_pool: Option<LatentAttentionPoolConfig>,
-
     /// The head, over the pooled features: distilled for a
-    /// [`Distilled`](TokenPoolConfig::Distilled) pool.
+    /// [`Distilled`](TokenPoolKind::Distilled) pool.
     pub head: ClassifierHeadConfig,
 
     /// The conv backbone before the patch embedding (the hybrid `ViT`'s);
@@ -188,7 +186,7 @@ impl VisionEncoderStructureConfig {
     /// width; when the tokens' patches are not the patch grid's; when the
     /// pool reads more prefix tokens than there are, or the head is distilled
     /// and the pool not (or the other way); when a
-    /// [`Map`](TokenPoolConfig::Map) pool has no attention pool, or another
+    /// [`Map`](TokenPoolKind::Map) pool has no attention pool, or another
     /// kind has one; when the stack has attention-residual routes; when a
     /// backbone's map is not the patch embedding's input (its channels and
     /// size); or as the patch embedding's
@@ -206,11 +204,12 @@ impl VisionEncoderStructureConfig {
             ("head", "d_features", self.head.d_features),
         ]
         .into_iter()
-        .chain(
-            self.latent_pool
-                .as_ref()
-                .map(|p| ("latent_pool", "d_model", p.d_model)),
-        );
+        .chain(match &self.pool {
+            TokenPoolConfig::Map(latent) => {
+                Some(("pool", "the attention's d_model", latent.d_model))
+            }
+            _ => None,
+        });
         for (part, width_name, width) in widths {
             if width != d {
                 return Err(ConstraintError::new(
@@ -267,36 +266,15 @@ impl VisionEncoderStructureConfig {
             )
             .into());
         }
-        match (self.pool, &self.latent_pool) {
-            (TokenPoolConfig::Map, Some(_)) => {}
-            (TokenPoolConfig::Map, None) => {
-                return Err(ConstraintError::new(
-                    "VisionEncoderStructureConfig",
-                    "latent_pool",
-                    Rule::Missing,
-                )
-                .into());
-            }
-            (pool, Some(_)) => {
-                return Err(ConstraintError::custom(
-                    "VisionEncoderStructureConfig",
-                    "latent_pool",
-                    format!("a {pool:?} pool with an attention pool: only a Map pool attends"),
-                )
-                .into());
-            }
-            (pool, None) => {
-                TokenPool::try_new(pool, self.tokens.n_prefix())?;
-            }
-        }
-        if self.head.distilled != (self.pool == TokenPoolConfig::Distilled) {
+        self.pool.try_check(self.tokens.n_prefix())?;
+        if self.head.distilled != (self.pool.kind() == TokenPoolKind::Distilled) {
             return Err(ConstraintError::custom(
                 "VisionEncoderStructureConfig",
                 "head.distilled",
                 format!(
                     "a {:?} pool with a head that is {}distilled: a distilled head reads the \
                      distilled pool's two tokens",
-                    self.pool,
+                    self.pool.kind(),
                     if self.head.distilled { "" } else { "not " }
                 ),
             )
@@ -335,13 +313,7 @@ impl ModuleInit<VisionEncoderModel> for VisionEncoderStructureConfig {
             patch_embed: self.patch_embed.try_init(device)?,
             tokens: self.tokens.try_init(device).context("the prefix tokens")?,
             stack: self.stack.try_init(device).context("the transformer")?,
-            pool: match &self.latent_pool {
-                Some(latent) => TokenPool::attention(
-                    latent.try_init(device).context("the attention pool")?,
-                    self.tokens.n_prefix(),
-                ),
-                None => TokenPool::try_new(self.pool, self.tokens.n_prefix())?,
-            },
+            pool: self.pool.try_init(self.tokens.n_prefix(), device)?,
             head: self.head.try_init(device).context("the head")?,
         })
     }

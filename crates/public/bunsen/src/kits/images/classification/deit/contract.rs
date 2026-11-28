@@ -5,6 +5,7 @@ use burn::config::Config;
 use crate::{
     blocks::transformers::models::vision_encoder::{
         TokenPoolConfig,
+        TokenPoolKind,
         VisionEncoderStructureConfig,
     },
     burner::module::ToStructureConfig,
@@ -39,7 +40,7 @@ impl ToStructureConfig for DeiTContractConfig {
     type Structure = VisionEncoderStructureConfig;
 
     /// The `ViT`'s structure; distilled, with the distillation token after
-    /// the class token and a [`Distilled`](TokenPoolConfig::Distilled) head.
+    /// the class token and a [`Distilled`](TokenPoolKind::Distilled) head.
     ///
     /// # Errors
     ///
@@ -53,7 +54,7 @@ impl ToStructureConfig for DeiTContractConfig {
         if !self.distilled {
             return Ok(structure);
         }
-        if self.vit.global_pool != TokenPoolConfig::Token || self.vit.uses_fc_norm() {
+        if self.vit.global_pool != TokenPoolKind::Token || self.vit.uses_fc_norm() {
             return Err(ConstraintError::custom(
                 "DeiTContractConfig",
                 "vit.global_pool",
@@ -96,7 +97,7 @@ mod tests {
         let distilled = DeiTContractConfig::new(tiny()).with_distilled(true);
         let structure = distilled.to_structure();
         assert_eq!(structure.n_prefix(), 2);
-        assert_eq!(structure.pool, TokenPoolConfig::Distilled);
+        assert_eq!(structure.pool.kind(), TokenPoolKind::Distilled);
         assert!(structure.head.distilled);
         let model: VisionEncoderModel = distilled.init(&device);
         assert!(model.tokens.dist_token.is_some());
@@ -109,7 +110,7 @@ mod tests {
         ErrorMatcher::illegal()
             .message_contains("reads the class and distillation tokens")
             .assert_err(
-                &DeiTContractConfig::new(tiny().with_global_pool(TokenPoolConfig::Avg))
+                &DeiTContractConfig::new(tiny().with_global_pool(TokenPoolKind::Avg))
                     .with_distilled(true)
                     .try_to_structure(),
             );

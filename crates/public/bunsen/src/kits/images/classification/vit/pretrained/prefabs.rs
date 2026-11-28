@@ -11,7 +11,7 @@ use crate::{
         activation::BunsenActivationConfig,
         norm::BunsenLayerNormConfig,
         transformers::{
-            models::vision_encoder::TokenPoolConfig,
+            models::vision_encoder::TokenPoolKind,
             sublayer::NormPlacement,
         },
     },
@@ -286,7 +286,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.75)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -305,7 +305,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.75)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -324,7 +324,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.75)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -343,7 +343,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.6667)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -362,7 +362,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.6667)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -381,7 +381,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.6667)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -400,7 +400,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.75)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -419,7 +419,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.75)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -438,7 +438,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.75)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -457,7 +457,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.6667)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -476,7 +476,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.6667)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -495,7 +495,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.6667)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -508,7 +508,7 @@ impl ViTContractConfig {
             .with_norm(BunsenLayerNormConfig::new(0).with_epsilon(1e-05).into())
             .with_scale_attn_norm(true)
             .with_scale_mlp_norm(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `beit3_large_patch16_224` prefab: `BEiT3-L/16` at 224 pixels: 24
@@ -520,19 +520,19 @@ impl ViTContractConfig {
             .with_norm(BunsenLayerNormConfig::new(0).with_epsilon(1e-05).into())
             .with_scale_attn_norm(true)
             .with_scale_mlp_norm(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `eva_large_patch14_196` prefab: `EVA-L/14` at 196 pixels: 24 layers,
     /// 1024 wide, 16 heads; average-pooled.
     pub fn eva_large_patch14_196() -> Self {
-        Self::vit(196, 14, 1024, 24, 16).with_global_pool(TokenPoolConfig::Avg)
+        Self::vit(196, 14, 1024, 24, 16).with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `eva_large_patch14_336` prefab: `EVA-L/14` at 336 pixels: 24 layers,
     /// 1024 wide, 16 heads; average-pooled.
     pub fn eva_large_patch14_336() -> Self {
-        Self::vit(336, 14, 1024, 24, 16).with_global_pool(TokenPoolConfig::Avg)
+        Self::vit(336, 14, 1024, 24, 16).with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `flexivit_small` prefab: `FlexiViT-S/16` at 240 pixels: 12 layers,
@@ -654,7 +654,7 @@ impl ViTContractConfig {
             .with_qkv_bias(false)
             .with_class_token(false)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -666,7 +666,7 @@ impl ViTContractConfig {
             .with_qkv_bias(false)
             .with_class_token(false)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -678,7 +678,7 @@ impl ViTContractConfig {
             .with_qkv_bias(false)
             .with_class_token(false)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -809,7 +809,7 @@ impl ViTContractConfig {
             .with_reg_tokens(1)
             .with_no_embed_class(true)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_little_patch16_reg1_gap_256` prefab: `ViT-little/16` at 256
@@ -823,7 +823,7 @@ impl ViTContractConfig {
             .with_reg_tokens(1)
             .with_no_embed_class(true)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_medium_patch16_reg1_gap_256` prefab: `ViT-M/16` at 256 pixels:
@@ -835,7 +835,7 @@ impl ViTContractConfig {
             .with_reg_tokens(1)
             .with_no_embed_class(true)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_betwixt_patch16_reg1_gap_256` prefab: `ViT-betwixt/16` at 256
@@ -848,7 +848,7 @@ impl ViTContractConfig {
             .with_reg_tokens(1)
             .with_no_embed_class(true)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_so150m2_patch16_reg1_gap_256` prefab: `ViT-so150m2/16` at 256
@@ -862,7 +862,7 @@ impl ViTContractConfig {
             .with_class_token(false)
             .with_reg_tokens(1)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_so150m2_patch16_reg1_gap_384` prefab: `ViT-so150m2/16` at 384
@@ -876,7 +876,7 @@ impl ViTContractConfig {
             .with_class_token(false)
             .with_reg_tokens(1)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_so150m2_patch16_reg1_gap_448` prefab: `ViT-so150m2/16` at 448
@@ -890,7 +890,7 @@ impl ViTContractConfig {
             .with_class_token(false)
             .with_reg_tokens(1)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_base_patch14_reg1_tipsv2` prefab: `ViT-B/14` at 448 pixels: 12
@@ -994,7 +994,7 @@ impl ViTContractConfig {
             .with_reg_tokens(4)
             .with_no_embed_class(true)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_medium_patch16_reg4_gap_256` prefab: `ViT-M/16` at 256 pixels:
@@ -1006,7 +1006,7 @@ impl ViTContractConfig {
             .with_reg_tokens(4)
             .with_no_embed_class(true)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_mediumd_patch16_reg4_gap_256` prefab: `ViT-mediumd/16` at 256
@@ -1019,7 +1019,7 @@ impl ViTContractConfig {
             .with_reg_tokens(4)
             .with_no_embed_class(true)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_mediumd_patch16_reg4_gap_384` prefab: `ViT-mediumd/16` at 384
@@ -1032,7 +1032,7 @@ impl ViTContractConfig {
             .with_reg_tokens(4)
             .with_no_embed_class(true)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_betwixt_patch16_reg4_gap_256` prefab: `ViT-betwixt/16` at 256
@@ -1045,7 +1045,7 @@ impl ViTContractConfig {
             .with_reg_tokens(4)
             .with_no_embed_class(true)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_betwixt_patch16_reg4_gap_384` prefab: `ViT-betwixt/16` at 384
@@ -1058,7 +1058,7 @@ impl ViTContractConfig {
             .with_reg_tokens(4)
             .with_no_embed_class(true)
             .with_layer_scale(true)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_so150m_patch16_reg4_gap_256` prefab: `ViT-so150m/16` at 256
@@ -1069,7 +1069,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.572)
             .with_class_token(false)
             .with_reg_tokens(4)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1081,7 +1081,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(2.572)
             .with_class_token(false)
             .with_reg_tokens(4)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1093,7 +1093,7 @@ impl ViTContractConfig {
             .with_qkv_bias(false)
             .with_class_token(false)
             .with_norm_placement(NormPlacement::ResPost)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
     }
 
     /// The `vit_base_patch32_siglip_256` prefab: `ViT-B/32` at 256 pixels: 12
@@ -1102,7 +1102,7 @@ impl ViTContractConfig {
         Self::vit(256, 32, 768, 12, 12)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_base_patch16_siglip_224` prefab: `ViT-B/16` at 224 pixels: 12
@@ -1110,7 +1110,7 @@ impl ViTContractConfig {
     pub fn vit_base_patch16_siglip_224() -> Self {
         Self::vit(224, 16, 768, 12, 12)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_base_patch16_siglip_256` prefab: `ViT-B/16` at 256 pixels: 12
@@ -1118,7 +1118,7 @@ impl ViTContractConfig {
     pub fn vit_base_patch16_siglip_256() -> Self {
         Self::vit(256, 16, 768, 12, 12)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_base_patch16_siglip_384` prefab: `ViT-B/16` at 384 pixels: 12
@@ -1126,7 +1126,7 @@ impl ViTContractConfig {
     pub fn vit_base_patch16_siglip_384() -> Self {
         Self::vit(384, 16, 768, 12, 12)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_base_patch16_siglip_512` prefab: `ViT-B/16` at 512 pixels: 12
@@ -1134,7 +1134,7 @@ impl ViTContractConfig {
     pub fn vit_base_patch16_siglip_512() -> Self {
         Self::vit(512, 16, 768, 12, 12)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_large_patch16_siglip_256` prefab: `ViT-L/16` at 256 pixels: 24
@@ -1142,7 +1142,7 @@ impl ViTContractConfig {
     pub fn vit_large_patch16_siglip_256() -> Self {
         Self::vit(256, 16, 1024, 24, 16)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_large_patch16_siglip_384` prefab: `ViT-L/16` at 384 pixels: 24
@@ -1150,7 +1150,7 @@ impl ViTContractConfig {
     pub fn vit_large_patch16_siglip_384() -> Self {
         Self::vit(384, 16, 1024, 24, 16)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_large_patch16_siglip_512` prefab: `ViT-L/16` at 512 pixels: 24
@@ -1160,7 +1160,7 @@ impl ViTContractConfig {
         Self::vit(512, 16, 1024, 24, 16)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_so400m_patch16_siglip_256` prefab: `ViT-so400m/16` at 256
@@ -1171,7 +1171,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(3.7362)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_so400m_patch16_siglip_384` prefab: `ViT-so400m/16` at 384
@@ -1182,7 +1182,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(3.7362)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_so400m_patch16_siglip_512` prefab: `ViT-so400m/16` at 512
@@ -1193,7 +1193,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(3.7362)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_so400m_patch14_siglip_224` prefab: `ViT-so400m/14` at 224
@@ -1203,7 +1203,7 @@ impl ViTContractConfig {
         Self::vit(224, 14, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_so400m_patch14_siglip_378` prefab: `ViT-so400m/14` at 378
@@ -1213,7 +1213,7 @@ impl ViTContractConfig {
         Self::vit(378, 14, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_so400m_patch14_siglip_384` prefab: `ViT-so400m/14` at 384
@@ -1223,7 +1223,7 @@ impl ViTContractConfig {
         Self::vit(384, 14, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_giantopt_patch16_siglip_256` prefab: `ViT-giantopt/16` at 256
@@ -1233,7 +1233,7 @@ impl ViTContractConfig {
         Self::vit(256, 16, 1536, 40, 16)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_giantopt_patch16_siglip_384` prefab: `ViT-giantopt/16` at 384
@@ -1243,7 +1243,7 @@ impl ViTContractConfig {
         Self::vit(384, 16, 1536, 40, 16)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
     }
 
     /// The `vit_base_patch32_siglip_gap_256` prefab: `ViT-B/32` at 256 pixels:
@@ -1253,7 +1253,7 @@ impl ViTContractConfig {
         Self::vit(256, 32, 768, 12, 12)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1263,7 +1263,7 @@ impl ViTContractConfig {
     pub fn vit_base_patch16_siglip_gap_224() -> Self {
         Self::vit(224, 16, 768, 12, 12)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1273,7 +1273,7 @@ impl ViTContractConfig {
     pub fn vit_base_patch16_siglip_gap_256() -> Self {
         Self::vit(256, 16, 768, 12, 12)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1283,7 +1283,7 @@ impl ViTContractConfig {
     pub fn vit_base_patch16_siglip_gap_384() -> Self {
         Self::vit(384, 16, 768, 12, 12)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1293,7 +1293,7 @@ impl ViTContractConfig {
     pub fn vit_base_patch16_siglip_gap_512() -> Self {
         Self::vit(512, 16, 768, 12, 12)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1303,7 +1303,7 @@ impl ViTContractConfig {
     pub fn vit_large_patch16_siglip_gap_256() -> Self {
         Self::vit(256, 16, 1024, 24, 16)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1313,7 +1313,7 @@ impl ViTContractConfig {
     pub fn vit_large_patch16_siglip_gap_384() -> Self {
         Self::vit(384, 16, 1024, 24, 16)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1324,7 +1324,7 @@ impl ViTContractConfig {
         Self::vit(512, 16, 1024, 24, 16)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1336,7 +1336,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(3.7362)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1348,7 +1348,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(3.7362)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1360,7 +1360,7 @@ impl ViTContractConfig {
             .with_mlp_ratio(3.7362)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1371,7 +1371,7 @@ impl ViTContractConfig {
         Self::vit(224, 14, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1382,7 +1382,7 @@ impl ViTContractConfig {
         Self::vit(378, 14, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1394,7 +1394,7 @@ impl ViTContractConfig {
         Self::vit(384, 14, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1405,7 +1405,7 @@ impl ViTContractConfig {
         Self::vit(448, 14, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1416,7 +1416,7 @@ impl ViTContractConfig {
         Self::vit(896, 14, 1152, 27, 16)
             .with_mlp_ratio(3.7362)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1427,7 +1427,7 @@ impl ViTContractConfig {
         Self::vit(256, 16, 1536, 40, 16)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
 
@@ -1438,7 +1438,7 @@ impl ViTContractConfig {
         Self::vit(384, 16, 1536, 40, 16)
             .with_act(BunsenActivationConfig::GeluApproximate)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false))
     }
     // gen_vit_prefabs: end fns

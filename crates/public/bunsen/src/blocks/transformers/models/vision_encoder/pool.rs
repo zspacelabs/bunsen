@@ -6,25 +6,35 @@ use burn::{
     config::Config,
     module::Module,
     prelude::Tensor,
-    tensor::s,
-};
-
-use crate::{
-    blocks::pooling::LatentAttentionPool,
-    errors::{
-        BunsenResult,
-        ConstraintError,
-        Rule,
+    tensor::{
+        Device,
+        s,
     },
 };
 
-/// The pool over a vision transformer's tokens, timm's `global_pool` kinds:
-/// the config of a [`TokenPool`].
+use crate::{
+    blocks::pooling::{
+        LatentAttentionPool,
+        LatentAttentionPoolConfig,
+    },
+    burner::module::ModuleInit,
+    errors::{
+        BunsenResult,
+        ConstraintError,
+        ResultContext,
+        Rule,
+        WithOkOrPanic,
+    },
+};
+
+/// The kind of pool over a vision transformer's tokens, timm's
+/// `global_pool`: what a policy and a catalog row name. A
+/// [`TokenPoolConfig`] builds the pool.
 ///
 /// The reducing kinds and the attention pool take the patch tokens alone,
 /// the prefix tokens left out.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
-pub enum TokenPoolConfig {
+pub enum TokenPoolKind {
     /// The class token, the sequence's first (timm's `token`).
     Token,
 
@@ -48,7 +58,7 @@ pub enum TokenPoolConfig {
     Map,
 }
 
-impl TokenPoolConfig {
+impl TokenPoolKind {
     /// The kind timm names `name` (`token`, `avg`, `max`, `avgmax`, `map`);
     /// `None` for a kind the head doesn't build (`prr`, `''`).
     pub fn from_timm(name: &str) -> Option<Self> {
@@ -81,48 +91,83 @@ impl TokenPoolConfig {
     }
 }
 
-/// A pool over the tokens: [`TokenPool::try_new`], or
-/// [`TokenPool::attention`] for the one kind with parameters.
-#[derive(Module, Debug)]
-pub struct TokenPool {
-    /// The kind.
-    #[module(skip)]
-    pub kind: TokenPoolConfig,
+/// The pool over a vision transformer's tokens, as a structure holds it:
+/// a [`TokenPoolKind`], the [`Map`](Self::Map) kind with its attention.
+/// Builds a [`TokenPool`].
+#[derive(Config, Debug)]
+pub enum TokenPoolConfig {
+    /// [`TokenPoolKind::Token`].
+    Token,
 
-    /// The prefix tokens a reducing pool leaves out.
-    pub n_prefix: usize,
+    /// [`TokenPoolKind::Avg`].
+    Avg,
 
-    /// The attention pool of a [`Map`](TokenPoolConfig::Map) pool; `None`
-    /// for every other kind.
-    pub latent: Option<LatentAttentionPool>,
+    /// [`TokenPoolKind::Max`].
+    Max,
+
+    /// [`TokenPoolKind::AvgMax`].
+    AvgMax,
+
+    /// [`TokenPoolKind::Distilled`].
+    Distilled,
+
+    /// [`TokenPoolKind::Map`]: a learned query's attention over the patch
+    /// tokens.
+    Map(LatentAttentionPoolConfig),
 }
 
-impl TokenPool {
-    /// The pool of `kind` over a sequence of `n_prefix` prefix tokens.
+impl TokenPoolConfig {
+    /// The config of a kind with no parameters.
     ///
     /// # Errors
     ///
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a pool that
-    /// reads more prefix tokens than there are
-    /// ([`prefix_read`](TokenPoolConfig::prefix_read)), or a
-    /// [`Map`](TokenPoolConfig::Map) pool, which is built with its attention
-    /// ([`attention`](Self::attention)).
-    pub fn try_new(
-        kind: TokenPoolConfig,
-        n_prefix: usize,
-    ) -> BunsenResult<Self> {
-        if kind == TokenPoolConfig::Map {
-            return Err(ConstraintError::custom(
-                "TokenPool::try_new",
-                "kind",
-                "a Map pool has parameters: it is built with its latent attention pool",
-            )
-            .into());
+    /// A [`ConstraintError`] for [`Map`](TokenPoolKind::Map), which is built
+    /// with its attention ([`TokenPoolConfig::Map`]).
+    pub fn try_from_kind(kind: TokenPoolKind) -> BunsenResult<Self> {
+        Ok(match kind {
+            TokenPoolKind::Token => Self::Token,
+            TokenPoolKind::Avg => Self::Avg,
+            TokenPoolKind::Max => Self::Max,
+            TokenPoolKind::AvgMax => Self::AvgMax,
+            TokenPoolKind::Distilled => Self::Distilled,
+            TokenPoolKind::Map => {
+                return Err(ConstraintError::custom(
+                    "TokenPoolConfig",
+                    "kind",
+                    "a Map pool has parameters: it is built with its latent attention pool",
+                )
+                .into());
+            }
+        })
+    }
+
+    /// The pool's kind.
+    pub fn kind(&self) -> TokenPoolKind {
+        match self {
+            Self::Token => TokenPoolKind::Token,
+            Self::Avg => TokenPoolKind::Avg,
+            Self::Max => TokenPoolKind::Max,
+            Self::AvgMax => TokenPoolKind::AvgMax,
+            Self::Distilled => TokenPoolKind::Distilled,
+            Self::Map(_) => TokenPoolKind::Map,
         }
+    }
+
+    /// Checks the pool over a sequence of `n_prefix` prefix tokens.
+    ///
+    /// # Errors
+    ///
+    /// A [`ConstraintError`] for a pool that reads more prefix tokens than
+    /// there are ([`prefix_read`](TokenPoolKind::prefix_read)).
+    pub fn try_check(
+        &self,
+        n_prefix: usize,
+    ) -> BunsenResult<()> {
+        let kind = self.kind();
         let read = kind.prefix_read();
         if read > n_prefix {
             return Err(ConstraintError::new(
-                "TokenPool::try_new",
+                "TokenPoolConfig",
                 "n_prefix",
                 Rule::Relation {
                     lhs: (
@@ -135,26 +180,60 @@ impl TokenPool {
             )
             .into());
         }
-        Ok(Self {
-            kind,
+        Ok(())
+    }
+
+    /// The pool over a sequence of `n_prefix` prefix tokens.
+    ///
+    /// # Errors
+    ///
+    /// As [`try_check`](Self::try_check), and as the attention pool's build.
+    pub fn try_init(
+        &self,
+        n_prefix: usize,
+        device: &Device,
+    ) -> BunsenResult<TokenPool> {
+        self.try_check(n_prefix)?;
+        Ok(TokenPool {
+            kind: self.kind(),
             n_prefix,
-            latent: None,
+            latent: match self {
+                Self::Map(latent) => Some(latent.try_init(device).context("the attention pool")?),
+                _ => None,
+            },
         })
     }
 
-    /// The [`Map`](TokenPoolConfig::Map) pool of `latent` over a sequence of
-    /// `n_prefix` prefix tokens, which it leaves out.
-    pub fn attention(
-        latent: LatentAttentionPool,
+    /// [`try_init`](Self::try_init), for a pool known to be sound.
+    ///
+    /// # Panics
+    ///
+    /// When it is not.
+    pub fn init(
+        &self,
         n_prefix: usize,
-    ) -> Self {
-        Self {
-            kind: TokenPoolConfig::Map,
-            n_prefix,
-            latent: Some(latent),
-        }
+        device: &Device,
+    ) -> TokenPool {
+        self.try_init(n_prefix, device).ok_or_panic()
     }
+}
 
+/// A pool over the tokens. Built by [`TokenPoolConfig`].
+#[derive(Module, Debug)]
+pub struct TokenPool {
+    /// The kind.
+    #[module(skip)]
+    pub kind: TokenPoolKind,
+
+    /// The prefix tokens a reducing pool leaves out.
+    pub n_prefix: usize,
+
+    /// The attention pool of a [`Map`](TokenPoolKind::Map) pool; `None`
+    /// for every other kind.
+    pub latent: Option<LatentAttentionPool>,
+}
+
+impl TokenPool {
     /// The pooled tokens.
     ///
     /// # Arguments
@@ -176,15 +255,15 @@ impl TokenPool {
         );
         let patches = || tokens.clone().slice(s![.., self.n_prefix..n]);
         let pooled: Tensor<3> = match self.kind {
-            TokenPoolConfig::Token => tokens.clone().slice(s![.., 0..1]),
-            TokenPoolConfig::Distilled => tokens.clone().slice(s![.., 0..2]).mean_dim(1),
-            TokenPoolConfig::Avg => patches().mean_dim(1),
-            TokenPoolConfig::Max => patches().max_dim(1),
-            TokenPoolConfig::AvgMax => (patches().max_dim(1) + patches().mean_dim(1)) * 0.5,
-            TokenPoolConfig::Map => self
+            TokenPoolKind::Token => tokens.clone().slice(s![.., 0..1]),
+            TokenPoolKind::Distilled => tokens.clone().slice(s![.., 0..2]).mean_dim(1),
+            TokenPoolKind::Avg => patches().mean_dim(1),
+            TokenPoolKind::Max => patches().max_dim(1),
+            TokenPoolKind::AvgMax => (patches().max_dim(1) + patches().mean_dim(1)) * 0.5,
+            TokenPoolKind::Map => self
                 .latent
                 .as_ref()
-                .expect("a Map pool is built with its attention")
+                .expect("a Map pool is built by TokenPoolConfig::Map, with its attention")
                 .forward(patches())
                 .unsqueeze_dim(1),
         };
@@ -224,27 +303,24 @@ mod tests {
             &device,
         );
         for (kind, want) in [
-            (TokenPoolConfig::Token, [9f32, 9.]),
-            (TokenPoolConfig::Avg, [2., 3.]),
-            (TokenPoolConfig::Max, [3., 4.]),
-            (TokenPoolConfig::AvgMax, [2.5, 3.5]),
+            (TokenPoolKind::Token, [9f32, 9.]),
+            (TokenPoolKind::Avg, [2., 3.]),
+            (TokenPoolKind::Max, [3., 4.]),
+            (TokenPoolKind::AvgMax, [2.5, 3.5]),
         ] {
-            let pool = TokenPool::try_new(kind, 1).unwrap();
+            let pool = TokenPoolConfig::try_from_kind(kind)
+                .unwrap()
+                .try_init(1, &device)
+                .unwrap();
             let got = pool.forward(tokens.clone()).into_data();
             assert_eq!(got.try_to_vec::<f32>().unwrap(), want, "{kind:?}");
         }
-        assert_eq!(
-            TokenPoolConfig::from_timm("avg"),
-            Some(TokenPoolConfig::Avg)
-        );
-        assert_eq!(
-            TokenPoolConfig::from_timm("map"),
-            Some(TokenPoolConfig::Map)
-        );
-        assert_eq!(TokenPoolConfig::from_timm("prr"), None);
+        assert_eq!(TokenPoolKind::from_timm("avg"), Some(TokenPoolKind::Avg));
+        assert_eq!(TokenPoolKind::from_timm("map"), Some(TokenPoolKind::Map));
+        assert_eq!(TokenPoolKind::from_timm("prr"), None);
         ErrorMatcher::illegal()
             .message_contains("a Map pool has parameters")
-            .assert_err(&TokenPool::try_new(TokenPoolConfig::Map, 0));
+            .assert_err(&TokenPoolConfig::try_from_kind(TokenPoolKind::Map));
     }
 
     /// The distilled pool is the two leading tokens' mean; a pool reading
@@ -256,13 +332,24 @@ mod tests {
             TensorData::new(alloc::vec![1f32, 2., 5., 6., 9., 9.], [1, 3, 2]),
             &device,
         );
-        let pool = TokenPool::try_new(TokenPoolConfig::Distilled, 2).unwrap();
+        let pool = TokenPoolConfig::try_from_kind(TokenPoolKind::Distilled)
+            .unwrap()
+            .try_init(2, &device)
+            .unwrap();
         assert_eq!(tensor_to_vec_as::<f32, _>(&pool.forward(tokens)), [3., 4.]);
         ErrorMatcher::illegal()
             .message_contains("prefix reads (2) must be <= n_prefix (1)")
-            .assert_err(&TokenPool::try_new(TokenPoolConfig::Distilled, 1));
+            .assert_err(
+                &TokenPoolConfig::try_from_kind(TokenPoolKind::Distilled)
+                    .unwrap()
+                    .try_init(1, &device),
+            );
         ErrorMatcher::illegal()
             .message_contains("prefix reads (1) must be <= n_prefix (0)")
-            .assert_err(&TokenPool::try_new(TokenPoolConfig::Token, 0));
+            .assert_err(
+                &TokenPoolConfig::try_from_kind(TokenPoolKind::Token)
+                    .unwrap()
+                    .try_init(0, &device),
+            );
     }
 }

@@ -41,6 +41,7 @@ use crate::{
                 stack::UniformStackConfig,
             },
             embedding::RotaryEmbeddingConfig,
+            models::vision_encoder::TokenPoolConfig,
         },
     },
     burner::module::{
@@ -65,7 +66,7 @@ fn norm(d: usize) -> BunsenNormalizationConfig {
 /// A tiny `ViT`: 16x16 images in 4x4 patches (a 4x4 grid), 8 wide, two
 /// layers of two heads, `reg` register tokens, and 5 classes.
 fn tiny(
-    pool: TokenPoolConfig,
+    pool: TokenPoolKind,
     reg: usize,
 ) -> VisionEncoderStructureConfig {
     let d = 8;
@@ -99,14 +100,14 @@ fn tiny(
         stack,
         ClassifierHeadConfig::new(d, 5).with_fc_norm(fc_norm.then(|| norm(d))),
     )
-    .with_pool(pool)
+    .with_pool(TokenPoolConfig::try_from_kind(pool).unwrap())
 }
 
 /// The steps' shapes, and the meta of the config and the model agree.
 #[test]
 fn test_shapes_and_meta() {
     let device = cpu_device();
-    for (pool, reg) in [(TokenPoolConfig::Token, 0), (TokenPoolConfig::Avg, 2)] {
+    for (pool, reg) in [(TokenPoolKind::Token, 0), (TokenPoolKind::Avg, 2)] {
         let config = tiny(pool, reg);
         let model: VisionEncoderModel = config.init(&device);
         for (name, a, b) in [
@@ -139,7 +140,7 @@ fn test_shapes_and_meta() {
 #[test]
 fn test_steps_compose() {
     let device = cpu_device();
-    let model: VisionEncoderModel = tiny(TokenPoolConfig::Token, 1).init(&device);
+    let model: VisionEncoderModel = tiny(TokenPoolKind::Token, 1).init(&device);
     let images: Tensor<4> = seeded_tensor(2, [2, 3, 16, 16], Distribution::Default, &device);
     let tolerance = Tolerance::rel_abs(1e-5, 1e-5);
     let (_, states) = model
@@ -168,7 +169,7 @@ fn test_steps_compose() {
 #[test]
 fn test_headless_and_with_classes() {
     let device = cpu_device();
-    let mut config = tiny(TokenPoolConfig::Token, 0);
+    let mut config = tiny(TokenPoolKind::Token, 0);
     config.head.num_classes = 0;
     let model: VisionEncoderModel = config.init(&device);
     assert_eq!(model.num_classes(), 0);
@@ -193,25 +194,25 @@ fn test_disagreeing_parts_are_illegal() {
                 &config, &device,
             ));
     };
-    let mut config = tiny(TokenPoolConfig::Token, 0);
+    let mut config = tiny(TokenPoolKind::Token, 0);
     config.tokens.d_model = 6;
     illegal(
         config,
         "tokens: d_model (6) must be == the stack's d_model (8)",
     );
-    let mut config = tiny(TokenPoolConfig::Token, 0);
+    let mut config = tiny(TokenPoolKind::Token, 0);
     config.tokens.n_patches = 9;
     illegal(
         config,
         "tokens.n_patches (9) must be == the patch grid's patches (16)",
     );
-    let mut config = tiny(TokenPoolConfig::Token, 0);
+    let mut config = tiny(TokenPoolKind::Token, 0);
     config.pool = TokenPoolConfig::Distilled;
     illegal(config, "prefix reads (2) must be <= n_prefix (1)");
-    let mut config = tiny(TokenPoolConfig::Token, 0);
+    let mut config = tiny(TokenPoolKind::Token, 0);
     config.head.distilled = true;
     illegal(config, "a Token pool with a head that is distilled");
-    let mut config = tiny(TokenPoolConfig::Token, 0);
+    let mut config = tiny(TokenPoolKind::Token, 0);
     config.patch_embed = PatchEmbedConfig::new([18, 16], 4, 3, 8);
     illegal(
         config,
@@ -220,32 +221,21 @@ fn test_disagreeing_parts_are_illegal() {
 
     let latent =
         |d: usize| LatentAttentionPoolConfig::new(d, 2, BunsenMlpConfig::new(d, 4 * d, d), norm(d));
-    let mut config = tiny(TokenPoolConfig::Token, 0);
-    config.pool = TokenPoolConfig::Map;
+    let mut config = tiny(TokenPoolKind::Token, 0);
+    config.pool = TokenPoolConfig::Map(latent(6));
     illegal(
         config,
-        "VisionEncoderStructureConfig.latent_pool: is required",
-    );
-    let mut config = tiny(TokenPoolConfig::Token, 0);
-    config.latent_pool = Some(latent(8));
-    illegal(config, "a Token pool with an attention pool");
-    let mut config = tiny(TokenPoolConfig::Token, 0);
-    config.pool = TokenPoolConfig::Map;
-    config.latent_pool = Some(latent(6));
-    illegal(
-        config,
-        "latent_pool: d_model (6) must be == the stack's d_model (8)",
+        "pool: the attention's d_model (6) must be == the stack's d_model (8)",
     );
 }
 
-/// A [`Map`](TokenPoolConfig::Map) pool attends over the patch tokens: its
+/// A [`Map`](TokenPoolKind::Map) pool attends over the patch tokens: its
 /// pool is one vector per image, the model's width.
 #[test]
 fn test_map_pool() {
     let device = cpu_device();
-    let mut config = tiny(TokenPoolConfig::Token, 0);
-    config.pool = TokenPoolConfig::Map;
-    config.latent_pool = Some(LatentAttentionPoolConfig::new(
+    let mut config = tiny(TokenPoolKind::Token, 0);
+    config.pool = TokenPoolConfig::Map(LatentAttentionPoolConfig::new(
         8,
         2,
         BunsenMlpConfig::new(8, 32, 8),
@@ -273,7 +263,7 @@ fn test_backbone() {
         .with_layers(ConvLayersConfig::new().with_same_pad(true))
         .to_structure()
     };
-    let mut config = tiny(TokenPoolConfig::Token, 0);
+    let mut config = tiny(TokenPoolKind::Token, 0);
     config.patch_embed = PatchEmbedConfig::new([8, 8], 2, 6, 8);
     config.backbone = Some(VisionBackboneConfig::new(net(0), [30, 32]));
     assert_eq!(config.in_channels(), 3);

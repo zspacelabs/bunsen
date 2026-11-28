@@ -37,7 +37,7 @@ use crate::{
         norm::BunsenLayerNormConfig,
         transformers::{
             models::vision_encoder::{
-                TokenPoolConfig,
+                TokenPoolKind,
                 VisionEncoderModel,
             },
             sublayer::NormPlacement,
@@ -109,17 +109,14 @@ fn test_token_toy_is_timms() {
 /// The mean pool, normed after the pool rather than before it.
 #[test]
 fn test_avg_toy_is_timms() {
-    check_toy(
-        "toy_avg",
-        toy_policy().with_global_pool(TokenPoolConfig::Avg),
-    );
+    check_toy("toy_avg", toy_policy().with_global_pool(TokenPoolKind::Avg));
 }
 
 #[test]
 fn test_avgmax_toy_is_timms() {
     check_toy(
         "toy_avgmax",
-        toy_policy().with_global_pool(TokenPoolConfig::AvgMax),
+        toy_policy().with_global_pool(TokenPoolKind::AvgMax),
     );
 }
 
@@ -159,7 +156,7 @@ fn test_gap_toy_is_timms() {
         "toy_gap",
         toy_policy()
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg),
+            .with_global_pool(TokenPoolKind::Avg),
     );
 }
 
@@ -195,7 +192,7 @@ fn test_rpn_toy_is_timms() {
         toy_policy()
             .with_norm_placement(NormPlacement::ResPost)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_qkv_bias(false),
     );
 }
@@ -221,7 +218,7 @@ fn test_bare_avg_toy_is_timms() {
         "toy_bare_avg",
         toy_policy()
             .with_final_norm(false)
-            .with_global_pool(TokenPoolConfig::Avg),
+            .with_global_pool(TokenPoolKind::Avg),
     );
 }
 
@@ -240,7 +237,7 @@ fn test_map_toy_is_timms() {
         "toy_map",
         toy_policy()
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Map)
+            .with_global_pool(TokenPoolKind::Map)
             .with_act(BunsenActivationConfig::GeluApproximate),
     );
 }
@@ -251,7 +248,7 @@ fn test_map_toy_is_timms() {
 fn test_map_cls_toy_is_timms() {
     check_toy(
         "toy_map_cls",
-        toy_policy().with_global_pool(TokenPoolConfig::Map),
+        toy_policy().with_global_pool(TokenPoolKind::Map),
     );
 }
 
@@ -271,7 +268,7 @@ fn test_aimv2_toy_is_timms() {
             .with_qkv_bias(false)
             .with_act(BunsenActivationConfig::Silu)
             .with_class_token(false)
-            .with_global_pool(TokenPoolConfig::Avg)
+            .with_global_pool(TokenPoolKind::Avg)
             .with_fc_norm(Some(false)),
     );
 }
@@ -299,7 +296,7 @@ fn test_beit3_toy_is_timms() {
             .with_scale_attn_norm(true)
             .with_scale_mlp_norm(true)
             .with_norm(BunsenLayerNormConfig::new(0).with_epsilon(1e-5).into())
-            .with_global_pool(TokenPoolConfig::Avg),
+            .with_global_pool(TokenPoolKind::Avg),
     );
 }
 

@@ -17,7 +17,7 @@ use crate::{
             decoders::causal::CausalDecoderBlockConfig,
             models::{
                 staged_vision_encoder::StagedVisionEncoderStructureConfig,
-                vision_encoder::TokenPoolConfig,
+                vision_encoder::TokenPoolKind,
             },
             sublayer::NormPlacement,
         },
@@ -87,8 +87,8 @@ pub struct SwinV2ContractConfig {
     pub qkv_bias: bool,
 
     /// The head's pool (timm's `global_pool`).
-    #[config(default = "TokenPoolConfig::Avg")]
-    pub global_pool: TokenPoolConfig,
+    #[config(default = "TokenPoolKind::Avg")]
+    pub global_pool: TokenPoolKind,
 
     /// The dropout before the classifier (training only).
     #[config(default = 0.0)]
