@@ -14,10 +14,7 @@ use crate::{
                 patch_merge::PatchMergeConfig,
             },
         },
-        norm::{
-            BunsenLayerNormConfig,
-            BunsenNormalizationConfig,
-        },
+        norm::BunsenNormalizationConfig,
         transformers::{
             decoders::{
                 causal::CausalDecoderBlockConfig,
@@ -43,14 +40,9 @@ use crate::{
     },
 };
 
-/// The epsilon of Swin's layer norms: `nn.LayerNorm`'s default, which timm
+/// The epsilon of Swin's default norm: `nn.LayerNorm`'s default, which timm
 /// keeps.
 pub const SWIN_NORM_EPSILON: f64 = 1e-5;
-
-/// A layer norm of Swin's epsilon, sized at init.
-pub(crate) fn swin_norm() -> BunsenNormalizationConfig {
-    BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0).with_epsilon(SWIN_NORM_EPSILON))
-}
 
 /// Each block's stochastic depth, by stage: one linear ramp from 0 to `rate`
 /// over all the blocks, split at the stages (timm's
@@ -87,6 +79,8 @@ pub(crate) struct SwinStages<'a> {
     pub num_heads: &'a [usize],
     pub num_classes: usize,
     pub global_pool: TokenPoolKind,
+    /// Every norm, its width filled in where it sits.
+    pub norm: &'a BunsenNormalizationConfig,
     pub drop_rate: f64,
     /// Whether a merge norms before its reduction (V1), not after (V2).
     pub merge_norm_first: bool,
@@ -142,7 +136,7 @@ impl SwinStages<'_> {
             self.in_channels,
             self.embed_dim,
         )
-        .with_norm(Some(swin_norm()));
+        .with_norm(Some(self.norm.clone()));
         patch_embed.try_validate()?;
         let width = |i: usize| self.embed_dim << i;
         let mut grid = [self.image_size / self.patch_size; 2];
@@ -166,7 +160,7 @@ impl SwinStages<'_> {
                 .into());
             }
             let downsample = (stage > 0).then(|| {
-                PatchMergeConfig::new(grid, width(stage - 1), width(stage), swin_norm())
+                PatchMergeConfig::new(grid, width(stage - 1), width(stage), self.norm.clone())
                     .with_norm_first(self.merge_norm_first)
             });
             if let Some(merge) = &downsample {
@@ -195,7 +189,7 @@ impl SwinStages<'_> {
         Ok(StagedVisionEncoderStructureConfig::new(
             patch_embed,
             stages,
-            swin_norm(),
+            self.norm.clone(),
             ClassifierHeadConfig::new(width(n - 1), self.num_classes)
                 .with_drop_rate(self.drop_rate),
         )

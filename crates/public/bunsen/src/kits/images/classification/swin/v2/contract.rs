@@ -9,6 +9,10 @@ use crate::{
     blocks::{
         activation::BunsenActivationConfig,
         mlp::BunsenMlpConfig,
+        norm::{
+            BunsenLayerNormConfig,
+            BunsenNormalizationConfig,
+        },
         transformers::{
             attention::window::{
                 RelativePositionBiasConfig,
@@ -29,9 +33,9 @@ use crate::{
         Rule,
     },
     kits::images::classification::swin::common::{
+        SWIN_NORM_EPSILON,
         SwinStages,
         swin_block_drop_paths,
-        swin_norm,
     },
 };
 
@@ -89,6 +93,12 @@ pub struct SwinV2ContractConfig {
     /// The head's pool (timm's `global_pool`).
     #[config(default = "TokenPoolKind::Avg")]
     pub global_pool: TokenPoolKind,
+
+    /// Every norm (timm's `norm_layer`): a layer norm of
+    /// [`SWIN_NORM_EPSILON`](super::super::SWIN_NORM_EPSILON), its width
+    /// filled in where it sits.
+    #[config(default = "BunsenLayerNormConfig::new(0).with_epsilon(SWIN_NORM_EPSILON).into()")]
+    pub norm: BunsenNormalizationConfig,
 
     /// The dropout before the classifier (training only).
     #[config(default = 0.0)]
@@ -158,6 +168,7 @@ impl ToStructureConfig for SwinV2ContractConfig {
             num_heads: &self.num_heads,
             num_classes: self.num_classes,
             global_pool: self.global_pool,
+            norm: &self.norm,
             drop_rate: self.drop_rate,
             merge_norm_first: false,
         }
@@ -181,7 +192,7 @@ impl ToStructureConfig for SwinV2ContractConfig {
                     .with_bias(true)
                     .into(),
             )
-            .with_norm(swin_norm())
+            .with_norm(self.norm.clone())
             .with_norm_placement(NormPlacement::ResPost)
             .with_drop_path(drop_paths[site.stage][site.index]))
         })

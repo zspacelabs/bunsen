@@ -43,8 +43,7 @@ use crate::{
     },
 };
 
-/// The width every generated `RegNet` width is a multiple of (timm's
-/// `generate_regnet` `quant`).
+/// The default of [`RegNetContractConfig::quant`]: timm's `RegNetCfg.quant`.
 pub const REGNET_WIDTH_QUANT: usize = 8;
 
 /// One stage of a `RegNet`, as timm resolves it: its depth, its units' output
@@ -98,7 +97,7 @@ pub struct RegNetContractConfig {
     pub depth: usize,
 
     /// The first unit's width (timm's `w0`), a multiple of
-    /// [`REGNET_WIDTH_QUANT`].
+    /// [`quant`](Self::quant).
     pub w0: usize,
 
     /// The widths' slope per unit (timm's `wa`).
@@ -106,6 +105,11 @@ pub struct RegNetContractConfig {
 
     /// The ratio of one stage's width to the last's (timm's `wm`), over 1.
     pub wm: f64,
+
+    /// The width every generated width is a multiple of (timm's `quant`),
+    /// [`REGNET_WIDTH_QUANT`] by default.
+    #[config(default = "REGNET_WIDTH_QUANT")]
+    pub quant: usize,
 
     /// The channels of each group of the mixer (timm's `group_size`).
     pub group_size: usize,
@@ -181,17 +185,18 @@ impl RegNetContractConfig {
     /// The per-unit widths of timm's `generate_regnet`, computed as it
     /// computes them, in float32: `w0 + i * wa` for each unit `i`, its
     /// exponent `round(log(w / w0) / log(wm))`, and the width `w0 *
-    /// wm^exponent` rounded to [`REGNET_WIDTH_QUANT`]s, rounding ties to
+    /// wm^exponent` rounded to [`quant`](Self::quant)s, rounding ties to
     /// even as `torch.round` does.
     ///
     /// # Errors
     ///
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a negative
-    /// slope, a `wm` not over 1, a `w0` of 0 or not a multiple of
-    /// [`REGNET_WIDTH_QUANT`], or no units.
+    /// slope, a `wm` not over 1, a `quant` of 0, a `w0` of 0 or not a
+    /// multiple of [`quant`](Self::quant), or no units.
     pub fn try_unit_widths(&self) -> BunsenResult<Vec<usize>> {
-        let quant = REGNET_WIDTH_QUANT;
-        if self.wa < 0.0
+        let quant = self.quant;
+        if quant == 0
+            || self.wa < 0.0
             || self.wm <= 1.0
             || self.w0 == 0
             || !self.w0.is_multiple_of(quant)
