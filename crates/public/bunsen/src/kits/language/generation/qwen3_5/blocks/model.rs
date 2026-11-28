@@ -1,7 +1,6 @@
 //! The Qwen3.5 decoder.
 use burn::{
     config::Config,
-    module::Module,
     nn::norm::RmsNormConfig,
     tensor::FloatDType,
 };
@@ -31,11 +30,8 @@ use crate::{
             head::LmHeadConfig,
             mixers::GatedDeltaNetConfig,
             models::language_decoder::{
-                LmDecoderHolder,
                 LmDecoderMeta,
-                LmDecoderModel,
                 LmDecoderVariantConfig,
-                LmDecoderWrapper,
             },
         },
     },
@@ -62,7 +58,7 @@ pub enum Qwen3_5LayerKind {
     Full,
 }
 
-/// Config for [`Qwen3_5Model`]: `transformers`' `Qwen3_5TextConfig`, as far
+/// Config for [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel): `transformers`' `Qwen3_5TextConfig`, as far
 /// as a decode needs it.
 ///
 /// A hybrid stack: most layers are linear attention (a gated `DeltaNet`), and
@@ -415,48 +411,6 @@ impl ToStructureConfig for Qwen3_5ContractConfig {
     }
 }
 
-/// The Qwen3.5 decoder-only language model (Qwen team, 2026), the text model
-/// of the dense Qwen3.5 checkpoints: a hybrid [`LmDecoderModel`] of gated
-/// `DeltaNet` layers and gated full-attention layers
-/// ([`Qwen3_5ContractConfig::try_stack`]), its head tied to the embedding or a
-/// linear map of its own.
-///
-/// [`qwen3_5_rekey`](crate::kits::language::generation::qwen3_5::interop::transformers::qwen3_5_rekey)
-/// maps `transformers`' `Qwen3_5ForCausalLM` names onto the
-/// [`LmDecoderModel`]'s, and loads each `1 + w` norm's `w` as `1 + w`; the
-/// load is into [`lm`](Self::lm).
-///
-/// An [`LmDecoderWrapper`] with linear-attention layers: it decodes through its
-/// stack's [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
-/// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), which carries a
-/// KV cache for its full-attention layers and a state for each linear one,
-/// and runs uncached through
-/// [`LmKvForwardHidden`](crate::blocks::transformers::models::language_decoder::LmKvForwardHidden).
-///
-/// Built by [`Qwen3_5ContractConfig`].
-/// Implements [`LmDecoderMeta`].
-#[derive(Module, Debug)]
-pub struct Qwen3_5Model {
-    /// The language model.
-    pub lm: LmDecoderModel,
-}
-
-impl LmDecoderHolder for Qwen3_5Model {
-    fn lm(&self) -> &LmDecoderModel {
-        &self.lm
-    }
-
-    fn lm_mut(&mut self) -> &mut LmDecoderModel {
-        &mut self.lm
-    }
-
-    fn from_lm(lm: LmDecoderModel) -> Self {
-        Self { lm }
-    }
-}
-
-impl LmDecoderWrapper for Qwen3_5Model {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -468,7 +422,7 @@ mod tests {
                 GatedDeltaNetMeta,
                 TokenMixer,
             },
-            models::language_decoder::LmDecoderOps,
+            models::language_decoder::LmDecoderModel,
         },
         burner::module::ModuleInit,
         errors::testing::ErrorMatcher,
@@ -494,18 +448,18 @@ mod tests {
         let device = cpu_device();
         let config = config();
         assert_eq!(config.rotary_dim(), 4);
-        let model: Qwen3_5Model = config.init(&device);
+        let model: LmDecoderModel = config.init(&device);
         assert_eq!(model.n_vocab(), 40);
         assert_eq!(model.d_model(), 16);
         assert_eq!(model.n_layers(), 4);
         assert_eq!(model.n_kv_heads(), 2);
         assert_eq!(model.head_dim(), 8);
         assert_eq!(
-            model.lm.decoder.stack.layer_attends(),
+            model.decoder.stack.layer_attends(),
             [false, true, false, true],
             "the layer kinds"
         );
-        match &model.lm.decoder.stack.layers[1].attn.branch {
+        match &model.decoder.stack.layers[1].attn.branch {
             TokenMixer::Attention(attn) => {
                 assert!(
                     attn.output_gate == Some(AttentionOutputGate::Elementwise)
@@ -515,7 +469,7 @@ mod tests {
             }
             other => panic!("a full layer attends: {other:?}"),
         }
-        match &model.lm.decoder.stack.layers[0].attn.branch {
+        match &model.decoder.stack.layers[0].attn.branch {
             TokenMixer::GatedDeltaNet(net) => {
                 assert_eq!(
                     (
@@ -550,16 +504,16 @@ mod tests {
     #[test]
     fn test_convention_fields() {
         let device = cpu_device();
-        let model: Qwen3_5Model = config()
+        let model: LmDecoderModel = config()
             .with_attn_output_gate(None)
             .with_rotary_direction(RotaryDirection::Reverse)
             .with_qk_norm_placement(QkNormPlacement::AfterRope)
             .init(&device);
         assert_eq!(
-            model.lm.decoder.stack.rotary.direction,
+            model.decoder.stack.rotary.direction,
             RotaryDirection::Reverse
         );
-        match &model.lm.decoder.stack.layers[1].attn.branch {
+        match &model.decoder.stack.layers[1].attn.branch {
             TokenMixer::Attention(attn) => {
                 assert_eq!(attn.output_gate, None);
                 assert_eq!(attn.qk_norm, QkNormPlacement::AfterRope);

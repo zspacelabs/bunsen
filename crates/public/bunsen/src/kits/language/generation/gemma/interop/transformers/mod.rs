@@ -2,7 +2,7 @@
 //!
 //! A `transformers` Gemma checkpoint (Gemma 1, 2 or 3; a causal LM's, or a
 //! multimodal Gemma 3's text model, its vision tower dropped) as bunsen's
-//! [`GemmaModel`](crate::kits::language::generation::gemma::GemmaModel):
+//! [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
 //!
 //! - **Config:** [`gemma_config`] of a parsed `config.json`, and
 //!   [`gemma_config_from_str`] / [`gemma_config_from_path`].

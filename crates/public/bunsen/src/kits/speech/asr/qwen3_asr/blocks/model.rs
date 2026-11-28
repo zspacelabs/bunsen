@@ -24,7 +24,7 @@ use crate::{
         },
         transformers::models::language_decoder::{
             LmDecoderMeta,
-            LmDecoderOps,
+            LmDecoderModel,
             LmKvForwardHidden,
         },
     },
@@ -37,10 +37,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::language::generation::qwen3::{
-        Qwen3ContractConfig,
-        Qwen3Model,
-    },
+    kits::language::generation::qwen3::Qwen3ContractConfig,
 };
 
 /// The audio placeholder of `Qwen3-ASR-0.6B`'s vocabulary, `<|audio_pad|>`.
@@ -155,7 +152,7 @@ pub struct Qwen3Asr {
     pub multi_modal_projector: BunsenMlp,
 
     /// The text model.
-    pub language_model: Qwen3Model,
+    pub language_model: LmDecoderModel,
 
     /// The audio placeholder token.
     pub audio_token: usize,
@@ -309,7 +306,7 @@ impl CanonicalKeys for Qwen3Asr {
     fn canonical_rekey(&self) -> Rekey {
         Rekey::keep_rest()
             .mount_canonical("audio_tower.", &self.audio_tower)
-            .mount_canonical("language_model.lm.", &self.language_model.lm)
+            .mount_canonical("language_model.", &self.language_model)
     }
 }
 

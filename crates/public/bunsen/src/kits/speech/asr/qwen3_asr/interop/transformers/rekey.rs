@@ -39,14 +39,11 @@ pub fn qwen3_asr_rekey() -> Rekey {
             )
             .mount_indexed(
                 "language_model.layers.",
-                "language_model.lm.stack.layers.",
+                "language_model.stack.layers.",
                 text_layer_rekey(),
             )
-            .rename(
-                "language_model.embed_tokens.",
-                "language_model.lm.embedding.",
-            )
-            .rename("language_model.norm.", "language_model.lm.stack.norm.")
+            .rename("language_model.embed_tokens.", "language_model.embedding.")
+            .rename("language_model.norm.", "language_model.stack.norm.")
             .mount(
                 "multi_modal_projector.",
                 "multi_modal_projector.",

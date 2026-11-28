@@ -6,12 +6,10 @@ use burn::{
 
 use super::gemma_rekey;
 use crate::{
+    blocks::transformers::models::language_decoder::LmDecoderModel,
     data::formats::NamedTensorsApplied,
     errors::BunsenResult,
-    kits::{
-        language::generation::gemma::GemmaModel,
-        support::interop::load_lm_rekeyed,
-    },
+    kits::support::interop::load_lm_rekeyed,
 };
 
 /// Loads tensors named as a `transformers` Gemma state dict into `model`'s
@@ -23,11 +21,11 @@ use crate::{
 /// # Errors
 /// As [`load_lm_rekeyed`].
 pub fn load_gemma_tensors(
-    model: &mut GemmaModel,
+    model: &mut LmDecoderModel,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: Option<FloatDType>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = gemma_rekey(model.lm.decoder.stack.layers[0].attn.post.is_some());
+    let rekey = gemma_rekey(model.decoder.stack.layers[0].attn.post.is_some());
     load_lm_rekeyed(model, tensors, rekey, dtype)
 }
 
@@ -45,7 +43,7 @@ pub fn load_gemma(
     config: &crate::kits::language::generation::gemma::GemmaContractConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
-) -> BunsenResult<GemmaModel> {
+) -> BunsenResult<LmDecoderModel> {
     crate::kits::support::transformers::interop::load_transformers_lm(
         loaded,
         crate::kits::language::generation::gemma::pretrained::CHECKPOINT,

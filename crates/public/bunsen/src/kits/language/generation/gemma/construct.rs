@@ -1,14 +1,16 @@
 //! A loaded Gemma model, with the files a decode reads beside it.
-use super::GemmaModel;
 pub use crate::kits::support::construct::{
     CHAT_TEMPLATE,
     GENERATION_CONFIG,
     TOKENIZER,
     TOKENIZER_CONFIG,
 };
-use crate::kits::support::construct::{
-    LmConstruct,
-    LmPolicy,
+use crate::{
+    blocks::transformers::models::language_decoder::LmDecoderModel,
+    kits::support::construct::{
+        LmConstruct,
+        LmPolicy,
+    },
 };
 
 /// What ends a turn in a Gemma's chat template, `<end_of_turn>`: a reply
@@ -28,4 +30,4 @@ pub type GemmaPolicy = LmPolicy;
 ///
 /// [`default_gemma_factory`](super::pretrained::default_gemma_factory)
 /// builds one from a name.
-pub type GemmaConstruct = LmConstruct<GemmaModel>;
+pub type GemmaConstruct = LmConstruct<LmDecoderModel>;

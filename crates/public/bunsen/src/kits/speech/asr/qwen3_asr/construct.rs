@@ -20,10 +20,6 @@ use super::{
     },
 };
 use crate::{
-    blocks::transformers::models::language_decoder::{
-        LmDecoderOps,
-        LmPlainStackOps,
-    },
     burner::module::ModuleInit,
     data::catalog::presets::PresetSelection,
     errors::{

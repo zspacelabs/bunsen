@@ -416,11 +416,11 @@ impl<B: ChatBackend> ChatSession<B> {
 #[cfg(test)]
 mod tests {
     use bunsen::{
+        blocks::transformers::models::language_decoder::LmDecoderModel,
         burner::module::ModuleInit,
         kits::{
             language::generation::qwen3::{
                 Qwen3ContractConfig,
-                Qwen3Model,
                 TOKENIZER,
                 TOKENIZER_CONFIG,
             },
@@ -444,7 +444,7 @@ mod tests {
             ),
         ];
         let device = cpu_device();
-        let model: Qwen3Model = Qwen3ContractConfig::new(310, 12, 2, 3, 1, 6, 20).init(&device);
+        let model: LmDecoderModel = Qwen3ContractConfig::new(310, 12, 2, 3, 1, 6, 20).init(&device);
         // Greedy, stopping at 301, the template its `tokenizer_config.json`'s:
         // what a `generation_config.json` of `{"eos_token_id": 301}` and the
         // `chat_template` probe find.

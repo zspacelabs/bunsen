@@ -7,6 +7,7 @@ use super::{
     GEMMA_TEMPLATE_CLASS,
 };
 use crate::{
+    blocks::transformers::models::language_decoder::LmDecoderModel,
     data::{
         catalog::presets::ResolvedPresetSet,
         formats::LoadPolicy,
@@ -19,7 +20,6 @@ use crate::{
             END_OF_TURN,
             GENERATION_CONFIG,
             GemmaContractConfig,
-            GemmaModel,
             TOKENIZER_CONFIG,
             interop::transformers::{
                 gemma_config,
@@ -54,7 +54,7 @@ pub struct GemmaConstructConfig;
 
 impl TransformersLmKit for GemmaConstructConfig {
     type Config = GemmaContractConfig;
-    type Model = GemmaModel;
+    type Model = LmDecoderModel;
 
     const CHECKPOINT: &'static str = CHECKPOINT;
     const KIT: &'static str = GEMMA_KIT;
@@ -69,7 +69,7 @@ impl TransformersLmKit for GemmaConstructConfig {
         config: &GemmaContractConfig,
         device: &Device,
         policy: LoadPolicy,
-    ) -> BunsenResult<GemmaModel> {
+    ) -> BunsenResult<LmDecoderModel> {
         load_gemma(loaded, config, device, policy)
     }
 

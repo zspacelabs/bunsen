@@ -36,7 +36,7 @@ pub fn text_layer_rekey() -> Rekey {
 }
 
 /// `transformers`' Qwen3.5 state-dict names onto the module paths of a
-/// [`Qwen3_5Model`](crate::kits::language::generation::qwen3_5::Qwen3_5Model)'s
+/// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)'s
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
 /// under either of [`QWEN3_5_TEXT_PREFIXES`], the layers by
 /// [`text_layer_rekey`], the embedding (`embed_tokens`, the model's

@@ -1,4 +1,4 @@
-//! Loading a `Qwen3ForCausalLM` state dict into a `Qwen3Model`.
+//! Loading a `Qwen3ForCausalLM` state dict into an `LmDecoderModel`.
 use burn::{
     store::burn_pack::Tensor as PackTensor,
     tensor::FloatDType,
@@ -6,12 +6,10 @@ use burn::{
 
 use super::qwen3_rekey;
 use crate::{
+    blocks::transformers::models::language_decoder::LmDecoderModel,
     data::formats::NamedTensorsApplied,
     errors::BunsenResult,
-    kits::{
-        language::generation::qwen3::Qwen3Model,
-        support::interop::load_lm_rekeyed,
-    },
+    kits::support::interop::load_lm_rekeyed,
 };
 
 /// Loads tensors named as `transformers`' `Qwen3ForCausalLM` state dict into
@@ -27,7 +25,7 @@ use crate::{
 /// # Errors
 /// As [`load_lm_rekeyed`].
 pub fn load_qwen3_tensors(
-    model: &mut Qwen3Model,
+    model: &mut LmDecoderModel,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: Option<FloatDType>,
 ) -> BunsenResult<NamedTensorsApplied> {
@@ -49,7 +47,7 @@ pub fn load_qwen3(
     config: &crate::kits::language::generation::qwen3::Qwen3ContractConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
-) -> BunsenResult<Qwen3Model> {
+) -> BunsenResult<LmDecoderModel> {
     crate::kits::support::transformers::interop::load_transformers_lm(
         loaded,
         crate::kits::language::generation::qwen3::pretrained::CHECKPOINT,

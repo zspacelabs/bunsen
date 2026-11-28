@@ -5,7 +5,7 @@
 //! [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack),
 //! windowed, over chunked convolutions), a projector (a
 //! [`BunsenMlp`](crate::blocks::mlp::BunsenMlp): linear, GELU, linear), and a
-//! [`Qwen3Model`](crate::kits::language::generation::qwen3::Qwen3Model) text model.
+//! [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel) text model.
 
 mod audio_encoder;
 mod front_end;

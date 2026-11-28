@@ -6,6 +6,7 @@ use super::{
     QWEN3_5_KIT,
 };
 use crate::{
+    blocks::transformers::models::language_decoder::LmDecoderModel,
     data::{
         catalog::presets::ResolvedPresetSet,
         formats::LoadPolicy,
@@ -17,7 +18,6 @@ use crate::{
             CHAT_TEMPLATE,
             GENERATION_CONFIG,
             Qwen3_5ContractConfig,
-            Qwen3_5Model,
             TOKENIZER_CONFIG,
             interop::transformers::{
                 load_qwen3_5,
@@ -56,7 +56,7 @@ pub struct Qwen3_5ConstructConfig;
 
 impl TransformersLmKit for Qwen3_5ConstructConfig {
     type Config = Qwen3_5ContractConfig;
-    type Model = Qwen3_5Model;
+    type Model = LmDecoderModel;
 
     const CHECKPOINT: &'static str = CHECKPOINT;
     const KIT: &'static str = QWEN3_5_KIT;
@@ -71,7 +71,7 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
         config: &Qwen3_5ContractConfig,
         device: &Device,
         policy: LoadPolicy,
-    ) -> BunsenResult<Qwen3_5Model> {
+    ) -> BunsenResult<LmDecoderModel> {
         load_qwen3_5(loaded, config, device, policy)
     }
 

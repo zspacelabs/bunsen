@@ -2,7 +2,7 @@
 //!
 //! Google's Gemma decoder-only language models, generations 1, 2 and 3
 //! (their text models), as `transformers`' `GemmaModel`, `Gemma2Model` and
-//! `Gemma3TextModel` define them. One [`GemmaModel`], built from a
+//! `Gemma3TextModel` define them. One [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel), built from a
 //! [`GemmaContractConfig`], covers the three: an
 //! [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
 //! whose stack is `GeGLU` layers with `1 + w` RMS norms; from Gemma 2, a norm

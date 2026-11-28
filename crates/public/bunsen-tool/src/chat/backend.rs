@@ -7,6 +7,7 @@ use std::{
 use bunsen::{
     blocks::transformers::models::language_decoder::{
         LmDecoderMeta,
+        LmDecoderModel,
         LmDecoderOps,
     },
     errors::{
@@ -14,14 +15,9 @@ use bunsen::{
         BunsenResult,
     },
     kits::{
-        language::generation::{
-            driver::{
-                CachedHistory,
-                CachedLm,
-            },
-            gemma::GemmaModel,
-            qwen3::Qwen3Model,
-            qwen3_5::Qwen3_5Model,
+        language::generation::driver::{
+            CachedHistory,
+            CachedLm,
         },
         support::{
             construct::LmConstruct,
@@ -281,19 +277,9 @@ pub fn template_chat_parts<M>(bundle: &LmConstruct<M>) -> BunsenResult<ChatParts
     })
 }
 
-impl ChatLm for Qwen3Model {
-    fn chat_parts(bundle: &LmConstruct<Self>) -> BunsenResult<ChatParts> {
-        template_chat_parts(bundle)
-    }
-}
-
-impl ChatLm for GemmaModel {
-    fn chat_parts(bundle: &LmConstruct<Self>) -> BunsenResult<ChatParts> {
-        template_chat_parts(bundle)
-    }
-}
-
-impl ChatLm for Qwen3_5Model {
+/// Qwen3, Gemma and Qwen3.5 all run on the one language decoder, and read
+/// their chat parts from the checkpoint's template.
+impl ChatLm for LmDecoderModel {
     fn chat_parts(bundle: &LmConstruct<Self>) -> BunsenResult<ChatParts> {
         template_chat_parts(bundle)
     }
@@ -315,15 +301,15 @@ pub struct LmChat<M> {
 }
 
 /// A chat over a loaded Qwen3.
-pub type Qwen3Chat = LmChat<Qwen3Model>;
+pub type Qwen3Chat = LmChat<LmDecoderModel>;
 
 /// A chat over a loaded Gemma.
-pub type GemmaChat = LmChat<GemmaModel>;
+pub type GemmaChat = LmChat<LmDecoderModel>;
 
 /// A chat over a loaded dense Qwen3.5: its decode state carries the linear
 /// layers' states, so a turn whose rendering parts from the last one's
 /// prefills the whole conversation again ([`CachedHistory::rewind`]).
-pub type Qwen3_5Chat = LmChat<Qwen3_5Model>;
+pub type Qwen3_5Chat = LmChat<LmDecoderModel>;
 
 /// The filter that keeps a reply off the ids of a head `n_vocab` wide that
 /// `tokenizer` cannot spell: a head may be wider than its tokenizer.

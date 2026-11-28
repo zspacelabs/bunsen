@@ -163,17 +163,15 @@ impl<M> LmConstruct<M> {
 mod tests {
     use super::*;
     use crate::{
+        blocks::transformers::models::language_decoder::LmDecoderModel,
         burner::module::ModuleInit,
-        kits::language::generation::qwen3::{
-            Qwen3ContractConfig,
-            Qwen3Model,
-        },
+        kits::language::generation::qwen3::Qwen3ContractConfig,
         support::testing::cpu_device,
     };
 
     #[test]
     fn test_files_by_key() {
-        let model: Qwen3Model =
+        let model: LmDecoderModel =
             Qwen3ContractConfig::new(40, 12, 1, 3, 1, 6, 20).init(&cpu_device());
         let bundle = LmConstruct::new(model)
             .with_max_positions(Some(512))

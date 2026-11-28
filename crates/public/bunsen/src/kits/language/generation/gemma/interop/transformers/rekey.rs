@@ -39,7 +39,7 @@ pub fn text_layer_rekey(post_norms: bool) -> Rekey {
 }
 
 /// `transformers`' Gemma state-dict names onto the module paths of a
-/// [`GemmaModel`](crate::kits::language::generation::gemma::GemmaModel)'s
+/// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)'s
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
 /// under any of [`GEMMA_TEXT_PREFIXES`], the layers by [`text_layer_rekey`],
 /// the embedding (`embed_tokens`, the model's `embedding`) and the final norm;

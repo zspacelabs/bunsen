@@ -15,16 +15,13 @@ use core::ops::Range;
 
 use burn::prelude::*;
 
-use super::{
-    GemmaModel,
-    interop::transformers::{
-        gemma_config_from_path,
-        load_gemma_tensors,
-    },
+use super::interop::transformers::{
+    gemma_config_from_path,
+    load_gemma_tensors,
 };
 use crate::{
     blocks::transformers::models::language_decoder::{
-        LmDecoderOps,
+        LmDecoderModel,
         LmKvForwardHidden,
     },
     burner::module::ModuleInit,
@@ -46,7 +43,7 @@ use crate::{
 };
 
 struct Toy {
-    model: GemmaModel,
+    model: LmDecoderModel,
     fixture: ToyFixture,
     device: Device,
 }
@@ -63,7 +60,7 @@ impl Toy {
         let config = gemma_config_from_path(&dir.join(format!("{name}.config.json")))
             .expect("read the toy config");
         let mut fixture = ToyFixture::load(dir.join(format!("{name}.safetensors")), device);
-        let mut model: GemmaModel = config.init(device);
+        let mut model: LmDecoderModel = config.init(device);
         let applied = load_gemma_tensors(&mut model, fixture.take_weights(), None)
             .expect("load the toy weights");
         assert!(applied.unused.is_empty(), "{name}: {:?}", applied.unused);
@@ -110,7 +107,7 @@ fn test_toy_forward() {
         let embeds = model.embed(toy.ids());
         let r_emb = model.rotary(embeds.dims()[1], &toy.device);
         let layer0 =
-            model.lm.decoder.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
+            model.decoder.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
         assert_io_close(&format!("{name} layer 0"), layer0, toy.fixture.io("layer0"));
         let hidden = model.forward_hidden(embeds, &r_emb, None);
         toy.fixture.assert_io(name, "hidden", hidden.clone());
