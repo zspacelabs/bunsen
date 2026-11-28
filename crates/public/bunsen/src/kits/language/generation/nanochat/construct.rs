@@ -27,10 +27,6 @@ pub const TOKENIZER: &str = "tokenizer";
 /// a nanochat resource set.
 pub const TOKEN_BYTES: &str = "token_bytes";
 
-/// How a nanochat pretrained is run: the [`LmPolicy`] its presets patch,
-/// over [`nanochat_default_policy`].
-pub type NanoChatPolicy = LmPolicy;
-
 /// The sampling upstream's chat scripts reply under: temperature 0.6, top-k
 /// 50 (nanochat's checkpoints carry no generation config).
 pub const NANOCHAT_SAMPLING: SamplingPolicy = SamplingPolicy {
@@ -43,7 +39,7 @@ pub const NANOCHAT_SAMPLING: SamplingPolicy = SamplingPolicy {
 /// The policy a nanochat pretrained resolves its presets over: its
 /// generation [`NANOCHAT_SAMPLING`]. Its stop tokens are its tokenizer's
 /// (`<|assistant_end|>`, `<|bos|>`), which the kit does not read.
-pub fn nanochat_default_policy() -> NanoChatPolicy {
+pub fn nanochat_default_policy() -> LmPolicy {
     LmPolicy {
         generation: GenerationPolicy {
             sampling: Some(NANOCHAT_SAMPLING),

@@ -9,7 +9,6 @@ use bunsen::{
         language::generation::gemma::{
             CHAT_TEMPLATE,
             END_OF_TURN,
-            GemmaPolicy,
             TOKENIZER,
             TOKENIZER_CONFIG,
             pretrained::{
@@ -17,10 +16,13 @@ use bunsen::{
                 default_gemma_factory,
             },
         },
-        support::tokens::{
-            BunsenTokenizer,
-            Detokenizer,
-            Tokenizer,
+        support::{
+            construct::LmPolicy,
+            tokens::{
+                BunsenTokenizer,
+                Detokenizer,
+                Tokenizer,
+            },
         },
     },
 };
@@ -66,7 +68,7 @@ fn check_row(row: &str) {
     let tok = BunsenTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
     let stops = default_gemma_factory()
         .unwrap()
-        .resolve_presets(row, &GemmaPolicy::default())
+        .resolve_presets(row, &LmPolicy::default())
         .unwrap()
         .config
         .generation

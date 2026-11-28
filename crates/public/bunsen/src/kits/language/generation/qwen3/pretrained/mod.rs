@@ -1,6 +1,6 @@
 //! # Pretrained Qwen3 models
 //!
-//! From a model's name to a loaded [`Qwen3Construct`](super::Qwen3Construct),
+//! From a model's name to a loaded [`Qwen3Construct`],
 //! through the data layer's pretrained machinery
 //! ([`data::pretrained`](crate::data::pretrained)). The whole module needs the
 //! `store` and `cache` features.
@@ -43,7 +43,7 @@
 //!
 //! # Presets
 //!
-//! A construct carries the [`Qwen3Policy`](super::Qwen3Policy) its presets
+//! A construct carries the [`LmPolicy`](crate::kits::support::construct::LmPolicy) its presets
 //! resolved to: its
 //! [`GenerationPolicy`](crate::kits::support::model_config::GenerationPolicy),
 //! for a chat driver. Every row's base holds what its `generation_config.json`

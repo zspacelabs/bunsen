@@ -1,6 +1,6 @@
 //! # Pretrained Gemma models
 //!
-//! From a model's name to a loaded [`GemmaConstruct`](super::GemmaConstruct),
+//! From a model's name to a loaded [`GemmaConstruct`],
 //! through the data layer's pretrained machinery
 //! ([`data::pretrained`](crate::data::pretrained)). The whole module needs the
 //! `store` and `cache` features.
@@ -36,7 +36,7 @@
 //!
 //! # Presets
 //!
-//! A construct carries the [`GemmaPolicy`](super::GemmaPolicy) its presets
+//! A construct carries the [`LmPolicy`](crate::kits::support::construct::LmPolicy) its presets
 //! resolved to: its
 //! [`GenerationPolicy`](crate::kits::support::model_config::GenerationPolicy),
 //! for a chat driver. Every row's base holds what its `generation_config.json`

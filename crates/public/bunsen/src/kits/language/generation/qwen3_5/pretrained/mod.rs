@@ -1,7 +1,7 @@
 //! # Pretrained Qwen3.5 models
 //!
 //! From a model's name to a loaded
-//! [`Qwen3_5Construct`](super::Qwen3_5Construct), through the data layer's
+//! [`Qwen3_5Construct`], through the data layer's
 //! pretrained machinery ([`data::pretrained`](crate::data::pretrained)). The
 //! whole module needs the `store` and `cache` features.
 //!
@@ -31,7 +31,7 @@
 //!
 //! # Presets
 //!
-//! A construct carries the [`Qwen3_5Policy`](super::Qwen3_5Policy) its presets
+//! A construct carries the [`LmPolicy`](crate::kits::support::construct::LmPolicy) its presets
 //! resolved to. The dense repos have no `generation_config.json`: every row's
 //! base holds its `tokenizer_config.json`'s stop tokens (its `eos_token`, and
 //! a chat row's `<|endoftext|>`) and its chat template, probed when the

@@ -21,7 +21,9 @@
 //! the text model of
 //! [`kits::speech::asr::qwen3_asr`](crate::kits::speech::asr::qwen3_asr).
 //!
-//! - [`blocks`]: the model, built from a [`Qwen3ContractConfig`].
+//! - [`Qwen3ContractConfig`]: the policy the model,
+//!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
+//!   is built from; its prefabs are [`pretrained`]'s.
 //! - Decoding: the model is a
 //!   [`StackedLm`](crate::kits::support::decoding::StackedLm), its decode state
 //!   its stack's
@@ -39,16 +41,19 @@
 //! A tokenizer and a chat template are not part of the kit; the searches are
 //! [`kits::support::decoding`](crate::kits::support::decoding)'s.
 
-pub mod blocks;
-
-mod construct;
-pub use construct::*;
+mod contract;
 
 pub mod interop;
 
 pub mod pretrained;
-
-pub use blocks::model::*;
+pub use contract::*;
+#[cfg(feature = "store")]
+pub use pretrained::{
+    GENERATION_CONFIG,
+    Qwen3Construct,
+    TOKENIZER,
+    TOKENIZER_CONFIG,
+};
 
 #[cfg(all(test, feature = "store"))]
 mod toy_tests;
