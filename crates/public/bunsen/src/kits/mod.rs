@@ -207,7 +207,10 @@
 //! - **An interop module is ungated; its loaders sit in a `store`-gated
 //!   child**, so a build without `store` still reads a `config.json` into a
 //!   bunsen config. A kit's toy tests load through its interop's rungs, so a
-//!   toy catches a broken rekey or config read.
+//!   toy catches a broken rekey or config read. Its files are `mirror.rs` (the
+//!   mirrors), `config.rs` (the conversions and the ladder's `_from_str` /
+//!   `_from_path`), `rekey.rs` (the names), `weights.rs` (the loaders) and
+//!   `tests.rs`; its `mod.rs` holds the docs, the `mod`s and the `pub use`s.
 //! - **A kit's tests read no fetched asset.** They run toy fixtures and
 //!   committed recordings, and a validation crate holds the kit's checkpoints
 //!   to their upstream reference, on an accelerator in a half dtype as well as

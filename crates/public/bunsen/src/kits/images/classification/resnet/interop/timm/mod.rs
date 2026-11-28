@@ -6,122 +6,19 @@
 //! ([`resnet_rekey`](super::torchvision::resnet_rekey)).
 //!
 //! - **Conversion:** [`resnet_contract_config`], a timm `config.json` as the
-//!   [`ResNetContractConfig`] it builds.
+//!   [`ResNetContractConfig`](crate::kits::images::classification::resnet::ResNetContractConfig)
+//!   it builds.
 //! - **Loading** (feature `store`): `load_resnet`, a resource set's safetensors
 //!   checkpoint.
-
-use crate::{
-    errors::BunsenResult,
-    kits::images::{
-        classification::resnet::ResNetContractConfig,
-        support::interop::timm::TimmModelConfigMirror,
-    },
-};
 
 #[cfg(feature = "store")]
 mod weights;
 #[cfg(feature = "store")]
 pub use weights::*;
 
-/// The [`ResNetContractConfig`] a timm `config.json` describes: the prefab of
-/// its architecture's name (`resnet50`, `resnet50_gn`, …), with its class
-/// count and its global pool.
-///
-/// # Errors
-/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for an
-/// architecture the kit has no prefab of (`resnest50d`, …), a headless model
-/// (0 classes), or a pool timm's `SelectAdaptivePool2d` names but the head
-/// doesn't build (`''`, no pool).
-pub fn resnet_contract_config(
-    config: &TimmModelConfigMirror
-) -> BunsenResult<ResNetContractConfig> {
-    use crate::kits::images::support::interop::timm::{
-        timm_conv_global_pool,
-        timm_prefab,
-    };
-    let mut contract: ResNetContractConfig = timm_prefab(config, "resnet")?;
-    if let Some(pool) = timm_conv_global_pool(config, "resnet")? {
-        contract.global_pool = pool;
-    }
-    contract.num_classes = config.num_classes;
-    Ok(contract)
-}
+mod config;
+
+pub use config::*;
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        blocks::images::models::conv_net::GlobalPool2dConfig,
-        data::pretrained::Prefabs,
-        errors::testing::ErrorMatcher,
-        kits::images::support::interop::timm::timm_model_config_from_str,
-        support::testing::assert_config_eq,
-    };
-
-    /// A timm config of `architecture` with `num_classes` classes.
-    fn config(
-        architecture: &str,
-        num_classes: usize,
-    ) -> TimmModelConfigMirror {
-        timm_model_config_from_str(&format!(
-            r#"{{"architecture": "{architecture}", "num_classes": {num_classes},
-                "num_features": 2048, "pretrained_cfg": {{"input_size": [3, 224, 224],
-                "mean": [0.5, 0.5, 0.5], "std": [0.5, 0.5, 0.5]}}}}"#
-        ))
-        .unwrap()
-    }
-
-    /// Each prefab is a timm architecture of its name; the class count is
-    /// the config's.
-    #[test]
-    fn test_prefab_architectures_map() {
-        for name in ResNetContractConfig::prefab_names() {
-            let mut want = ResNetContractConfig::expect_prefab(name);
-            want.num_classes = 11821;
-            assert_config_eq(
-                name,
-                &resnet_contract_config(&config(name, 11821)).unwrap(),
-                &want,
-            );
-        }
-    }
-
-    #[test]
-    fn test_unbuilt_architectures_are_unsupported() {
-        let unsupported = || ErrorMatcher::unsupported();
-        unsupported()
-            .message_contains("timm's resnest50d")
-            .assert_err(&resnet_contract_config(&config("resnest50d", 1000)));
-        // A headless repo builds a headless model: its pooled features.
-        assert_eq!(
-            resnet_contract_config(&config("resnet50", 0))
-                .unwrap()
-                .num_classes,
-            0
-        );
-        let mut unpooled = config("resnet50", 1000);
-        unpooled.global_pool = Some("".into());
-        unsupported()
-            .message_contains("\"\" pool")
-            .assert_err(&resnet_contract_config(&unpooled));
-    }
-
-    /// timm's pools are the head's.
-    #[test]
-    fn test_pools_map() {
-        for (name, pool) in [
-            ("avg", GlobalPool2dConfig::Avg),
-            ("max", GlobalPool2dConfig::Max),
-            ("avgmax", GlobalPool2dConfig::AvgMax),
-            ("catavgmax", GlobalPool2dConfig::CatAvgMax),
-        ] {
-            let mut pooled = config("resnet50", 1000);
-            pooled.global_pool = Some(name.into());
-            assert_eq!(
-                resnet_contract_config(&pooled).unwrap().global_pool,
-                pool,
-                "{name}"
-            );
-        }
-    }
-}
+mod tests;
