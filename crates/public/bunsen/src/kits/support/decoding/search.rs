@@ -94,7 +94,7 @@ impl Candidate {
 #[derive(Config, Debug, PartialEq)]
 pub struct SearchConfig {
     /// Beams per group; one is greedy.
-    #[config(default = "1")]
+    #[config(default = 1)]
     pub beam_size: usize,
 
     /// Finished candidates to collect before a beam search stops, as a
@@ -110,7 +110,7 @@ pub struct SearchConfig {
     /// Sampling temperature; zero is the argmax. Above zero the search is
     /// greedy sampling, `best_of` trajectories per group, whatever
     /// `beam_size` says.
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub temperature: f64,
 
     /// Independent sample trajectories per group when `temperature` is

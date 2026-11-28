@@ -36,7 +36,7 @@ pub struct Qwen3AsrGreedyDecoderConfig {
     pub eos: Vec<usize>,
 
     /// The most tokens one decode generates.
-    #[config(default = "512")]
+    #[config(default = 512)]
     pub max_new_tokens: usize,
 }
 

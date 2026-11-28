@@ -88,16 +88,16 @@ pub struct Qwen3Config {
     pub d_ff: usize,
 
     /// The RMS normalization epsilon.
-    #[config(default = "1e-6")]
+    #[config(default = 1e-6)]
     pub rms_eps: f64,
 
     /// The rotary embedding's base.
-    #[config(default = "1_000_000.0")]
+    #[config(default = 1_000_000.0)]
     pub rope_theta: f64,
 
     /// Whether the output head is the embedding (`transformers`'
     /// `tie_word_embeddings`); otherwise it is a linear map of its own.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub tied_head: bool,
 
     /// The widening attention's softmax runs in. `transformers` runs it in

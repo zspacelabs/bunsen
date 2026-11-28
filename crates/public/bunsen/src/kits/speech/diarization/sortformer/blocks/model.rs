@@ -128,7 +128,7 @@ pub struct SortformerStructureConfig {
 
     /// Whether the model carries a learned silence embedding, the speaker
     /// cache's silence fill.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub learned_silence: bool,
 }
 
@@ -225,40 +225,40 @@ impl ModuleInit<Sortformer> for SortformerStructureConfig {
 #[derive(Config, Debug)]
 pub struct NemotronDiarizationConfig {
     /// The mel channels.
-    #[config(default = "128")]
+    #[config(default = 128)]
     pub n_mels: usize,
 
     /// The encoder's width.
-    #[config(default = "512")]
+    #[config(default = 512)]
     pub d_model: usize,
 
     /// The encoder layers.
-    #[config(default = "31")]
+    #[config(default = 31)]
     pub n_layers: usize,
 
     /// The attention heads.
-    #[config(default = "8")]
+    #[config(default = 8)]
     pub n_heads: usize,
 
     /// The feed-forward's hidden width over `d_model`.
-    #[config(default = "4")]
+    #[config(default = 4)]
     pub ff_expansion: usize,
 
     /// The mel frames stacked into one encoder frame, and the upsampling
     /// back.
-    #[config(default = "8")]
+    #[config(default = 8)]
     pub subsampling_factor: usize,
 
     /// The rotary embedding's base.
-    #[config(default = "10000.0")]
+    #[config(default = 10000.0)]
     pub rope_base: f64,
 
     /// The head's width.
-    #[config(default = "192")]
+    #[config(default = 192)]
     pub d_hidden: usize,
 
     /// The speakers.
-    #[config(default = "8")]
+    #[config(default = 8)]
     pub n_speakers: usize,
 }
 
@@ -358,55 +358,55 @@ impl ToStructureConfig for NemotronDiarizationConfig {
 #[derive(Config, Debug)]
 pub struct SortformerV2Config {
     /// The mel channels.
-    #[config(default = "128")]
+    #[config(default = 128)]
     pub n_mels: usize,
 
     /// The encoder's width.
-    #[config(default = "512")]
+    #[config(default = 512)]
     pub d_model: usize,
 
     /// The Conformer blocks.
-    #[config(default = "17")]
+    #[config(default = 17)]
     pub n_layers: usize,
 
     /// The Conformer's attention heads.
-    #[config(default = "8")]
+    #[config(default = 8)]
     pub n_heads: usize,
 
     /// The Conformer's feed-forward width over `d_model`.
-    #[config(default = "4")]
+    #[config(default = 4)]
     pub ff_expansion: usize,
 
     /// The mel frames per encoder frame: a power of two.
-    #[config(default = "8")]
+    #[config(default = 8)]
     pub subsampling_factor: usize,
 
     /// The subsampling's convolution channels.
-    #[config(default = "256")]
+    #[config(default = 256)]
     pub subsampling_channels: usize,
 
     /// The Conformer's depthwise convolution kernel.
-    #[config(default = "9")]
+    #[config(default = 9)]
     pub conv_kernel_size: usize,
 
     /// The head's width, and the transformer's.
-    #[config(default = "192")]
+    #[config(default = 192)]
     pub d_hidden: usize,
 
     /// The transformer's layers.
-    #[config(default = "18")]
+    #[config(default = 18)]
     pub transformer_layers: usize,
 
     /// The transformer's attention heads.
-    #[config(default = "8")]
+    #[config(default = 8)]
     pub transformer_heads: usize,
 
     /// The transformer's feed-forward width over `d_hidden`.
-    #[config(default = "4")]
+    #[config(default = 4)]
     pub transformer_ff_expansion: usize,
 
     /// The speakers.
-    #[config(default = "4")]
+    #[config(default = 4)]
     pub n_speakers: usize,
 }
 

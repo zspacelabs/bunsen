@@ -66,11 +66,11 @@ pub struct BottleneckPolicyConfig {
     pub pinch_factor: usize,
 
     /// The mixer's groups (timm's `cardinality`).
-    #[config(default = "1")]
+    #[config(default = 1)]
     pub cardinality: usize,
 
     /// The mixer's channels per group, per 64 planes (timm's `base_width`).
-    #[config(default = "64")]
+    #[config(default = 64)]
     pub base_width: usize,
 }
 
@@ -129,7 +129,7 @@ pub struct ResNetContractConfig {
     pub num_classes: usize,
 
     /// The input's channels: 3 for an RGB image (timm's `in_chans`).
-    #[config(default = "3")]
+    #[config(default = 3)]
     pub in_channels: usize,
 
     /// Each stage's planes, one per entry of `layers` (timm's `channels`): a
@@ -143,17 +143,17 @@ pub struct ResNetContractConfig {
 
     /// A deep or tiered stem's width (timm's `stem_width`): its output is
     /// twice it.
-    #[config(default = "64")]
+    #[config(default = 64)]
     pub stem_width: usize,
 
     /// A single-conv stem's width: 64 in every timm and torchvision `ResNet`.
-    #[config(default = "64")]
+    #[config(default = 64)]
     pub conv_stem_width: usize,
 
     /// Average-pool shortcuts (timm's `avg_down`, the D, E and T variants): a
     /// `2x2` average pool of the unit's stride, then a `1x1` conv; else a
     /// strided `1x1` conv.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub avg_down: bool,
 
     /// Each unit's channel attention, after its last norm (timm's
@@ -172,7 +172,7 @@ pub struct ResNetContractConfig {
 
     /// The stem's max pool replaced by a `3x3` conv of stride 2, its norm and
     /// its activation (timm's `replace_stem_pool`, `ResNet-RS`'s).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub replace_stem_pool: bool,
 
     /// The head's global pool (timm's `global_pool`): `avg`, `max`, `avgmax`
@@ -182,11 +182,11 @@ pub struct ResNetContractConfig {
 
     /// The dropout before the classifier (timm's `drop_rate`; training
     /// only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub drop_rate: f64,
 
     /// The net's stride at its last stage: 32, or 16 or 8 for a dilated net.
-    #[config(default = "32")]
+    #[config(default = 32)]
     pub output_stride: usize,
 
     /// Bottleneck units when set; else basic units.

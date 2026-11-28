@@ -233,7 +233,7 @@ pub struct KVCacheConfig {
     pub num_layers: usize,
 
     /// The positions the storage grows by when a step runs past its end.
-    #[config(default = "1024")]
+    #[config(default = 1024)]
     pub chunk_size: usize,
 
     /// The most positions the cache may hold; uncapped when `None`.

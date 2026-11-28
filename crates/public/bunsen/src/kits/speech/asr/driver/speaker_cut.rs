@@ -9,17 +9,17 @@ use crate::kits::speech::diarization::SpeakerActivity;
 pub struct SpeakerCutConfig {
     /// A window runs at least this long, in seconds, before a change of
     /// speaker may end it.
-    #[config(default = "2.0")]
+    #[config(default = 2.0)]
     pub min_window_seconds: f64,
 
     /// A speaker must hold this long, in seconds, to count as a turn: a
     /// shorter stretch (a backchannel, a flicker) does not end the window.
-    #[config(default = "0.5")]
+    #[config(default = 0.5)]
     pub min_turn_seconds: f64,
 
     /// A frame's dominant speaker must reach this probability; below it the
     /// frame is nobody's.
-    #[config(default = "0.5")]
+    #[config(default = 0.5)]
     pub threshold: f64,
 }
 

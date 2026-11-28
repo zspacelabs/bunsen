@@ -101,7 +101,7 @@ pub struct GemmaConfig {
     pub d_ff: usize,
 
     /// The RMS normalization epsilon.
-    #[config(default = "1e-6")]
+    #[config(default = 1e-6)]
     pub rms_eps: f64,
 
     /// The scores are scaled by `query_pre_attn_scalar^-0.5`; `None`, by the
@@ -111,12 +111,12 @@ pub struct GemmaConfig {
 
     /// Whether each sublayer's output is normalized before the residual add
     /// (Gemma 2 and 3).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub post_norms: bool,
 
     /// Whether the queries and keys are RMS normalized, over the head width,
     /// before the rotary embedding (Gemma 3).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub qk_norm: bool,
 
     /// Each layer's attention kind; empty, every layer full.
@@ -129,7 +129,7 @@ pub struct GemmaConfig {
 
     /// The global rotary table's base: the full layers', and every layer's
     /// without a local one.
-    #[config(default = "10000.0")]
+    #[config(default = 10000.0)]
     pub rope_theta: f64,
 
     /// The global rotary table's scaling.

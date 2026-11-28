@@ -208,39 +208,39 @@ pub fn window_pattern_windows(
 #[derive(Config, Debug)]
 pub struct NanoChatGptContractConfig {
     /// Initial sequence Length.
-    #[config(default = "1024")]
+    #[config(default = 1024)]
     pub init_seq_len: usize,
 
     /// Max `seq_len` factor.
-    #[config(default = "10")]
+    #[config(default = 10)]
     pub max_seq_len_factor: usize,
 
     /// Vocabulary Size.
-    #[config(default = "50304")]
+    #[config(default = 50304)]
     pub vocab_size: usize,
 
     /// Number of Blocks.
-    #[config(default = "12")]
+    #[config(default = 12)]
     pub n_layer: usize,
 
     /// Number of Query Heads.
-    #[config(default = "6")]
+    #[config(default = 6)]
     pub n_head: usize,
 
     /// Number of KV Heads.
-    #[config(default = "6")]
+    #[config(default = 6)]
     pub n_kv_head: usize,
 
     /// Embedding Size.
-    #[config(default = "768")]
+    #[config(default = 768)]
     pub n_embed: usize,
 
     /// Softcap for the logits.
-    #[config(default = "15.0")]
+    #[config(default = 15.0)]
     pub softcap: f64,
 
     /// MLP Expansion Factor.
-    #[config(default = "4")]
+    #[config(default = 4)]
     pub expansion_factor: usize,
 
     /// The MLP's activation, before its square (`relu(x)²` by default).
@@ -258,22 +258,22 @@ pub struct NanoChatGptContractConfig {
     /// Upstream's norms take fp32's epsilon (≈1.19e-7); 1e-6 is the
     /// `transformers` port's, and differs from upstream's by under 5e-5,
     /// relatively, at a mean square of 0.01.
-    #[config(default = "1e-6")]
+    #[config(default = 1e-6)]
     pub norm_eps: f64,
 
     /// The rotary embedding's base: 10000 in upstream's 2025 model, 100000
     /// in its 2026 one.
-    #[config(default = "10000.0")]
+    #[config(default = 10000.0)]
     pub rope_base: f64,
 
     /// Whether the rotary tables are rounded to bf16 values, as upstream's
     /// 2025 model keeps them whatever it computes in (its checkpoints were
     /// trained with them); its 2026 model builds them in the compute dtype.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub rope_bf16_tables: bool,
 
     /// Whether the head carries a bias. Upstream's has none.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub head_bias: bool,
 
     /// 2026: pad the embedding and the head to a multiple of this many
@@ -283,13 +283,13 @@ pub struct NanoChatGptContractConfig {
 
     /// 2026: before each block `i`, `x = resid_lambdas[i] * x +
     /// x0_lambdas[i] * x0`, `x0` the normalized (and smeared) embedding.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub residual_lambdas: bool,
 
     /// 2026: a value embedding on every other layer, the last always
     /// ([`has_value_embed`]), added to the attention's values through a gate
     /// ([`ValueResidualConfig`]).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub value_embeds: bool,
 
     /// 2026: the smear: each position adds the previous position's
@@ -300,7 +300,7 @@ pub struct NanoChatGptContractConfig {
 
     /// 2026: the residual stream after block `n_layer / 2`, times
     /// `backout_lambda`, is subtracted before the final norm.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub backout: bool,
 
     /// 2026: the queries' and keys' gain after their norm (upstream's 1.2):
@@ -472,7 +472,7 @@ pub struct NanoChatGptStructureConfig {
 
     /// Whether the residual stream is rescaled and mixed with the
     /// embedding before each block.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub residual_lambdas: bool,
 
     /// Each layer's value embedding, if it has one.
@@ -484,7 +484,7 @@ pub struct NanoChatGptStructureConfig {
     pub smear_channels: Option<usize>,
 
     /// Whether the mid-stack residual is backed out before the final norm.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub backout: bool,
 }
 

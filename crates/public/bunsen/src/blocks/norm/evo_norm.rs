@@ -29,11 +29,11 @@ pub struct EvoNormS0Config {
     pub num_features: usize,
 
     /// The groups the channels split into for the deviation.
-    #[config(default = "32")]
+    #[config(default = 32)]
     pub groups: usize,
 
     /// Added to each group's variance.
-    #[config(default = "1e-5")]
+    #[config(default = 1e-5)]
     pub epsilon: f64,
 }
 

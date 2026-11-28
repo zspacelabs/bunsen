@@ -52,7 +52,7 @@ pub struct ConformerTransformerConfig {
     pub n_layers: usize,
 
     /// Whether the input is scaled by `sqrt(d_model)` (`NeMo`'s `xscaling`).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub scale_input: bool,
 }
 

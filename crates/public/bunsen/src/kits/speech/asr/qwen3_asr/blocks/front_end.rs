@@ -52,19 +52,19 @@ pub trait Qwen3AsrFrontEndMeta {
 #[derive(Config, Debug)]
 pub struct Qwen3AsrFrontEndConfig {
     /// The mel channel count.
-    #[config(default = "128")]
+    #[config(default = 128)]
     pub n_mels: usize,
 
     /// The chunk, in seconds (upstream's `chunk_length`): shorter audio is
     /// zero-padded to it, and a construct transcribes at most this much at
     /// once (the utterances the model was trained on).
-    #[config(default = "30")]
+    #[config(default = 30)]
     pub chunk_seconds: usize,
 
     /// The shortest audio whose frames are all valid, in samples (upstream's
     /// `min_length`; the original library's half second): shorter audio is
     /// zero-padded to it before the chunk, and the encoder reads the padding.
-    #[config(default = "8000")]
+    #[config(default = 8000)]
     pub min_valid_samples: usize,
 
     /// The log-mel grid and clamp range this one shares with Whisper.

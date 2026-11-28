@@ -109,20 +109,20 @@ pub struct Qwen3_5Config {
     pub linear_value_dim: usize,
 
     /// The linear-attention layers' convolution taps.
-    #[config(default = "4")]
+    #[config(default = 4)]
     pub linear_conv_kernel: usize,
 
     /// The RMS normalization epsilon, every norm's.
-    #[config(default = "1e-6")]
+    #[config(default = 1e-6)]
     pub rms_eps: f64,
 
     /// The rotary embedding's base.
-    #[config(default = "10_000_000.0")]
+    #[config(default = 10_000_000.0)]
     pub rope_theta: f64,
 
     /// The share of each head the rotary embedding rotates, from its first
     /// dimension: `rotary_dim = head_dim · partial_rotary_factor`.
-    #[config(default = "0.25")]
+    #[config(default = 0.25)]
     pub partial_rotary_factor: f64,
 
     /// The full-attention layers' output gate (`attn_output_gate`):
@@ -139,14 +139,14 @@ pub struct Qwen3_5Config {
     /// Every how many layers one is full when
     /// [`layer_kinds`](Self::layer_kinds) is empty (`transformers`'
     /// `full_attention_interval`).
-    #[config(default = "4")]
+    #[config(default = 4)]
     pub full_attention_interval: usize,
 
     /// Whether the `1 + w` norms (each sublayer's, the QK-norms and the
     /// final norm) store their gain as `w`, as Qwen3.5's do; the loader then
     /// loads `1 + w`. The `DeltaNet`'s gated norm stores its gain as it is
     /// applied either way.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub zero_centered_norms: bool,
 
     /// The rotary convention: `transformers`' `rotate_half`.
@@ -160,7 +160,7 @@ pub struct Qwen3_5Config {
 
     /// Whether the output head is the embedding (`tie_word_embeddings`);
     /// otherwise it is a linear map of its own.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub tied_head: bool,
 
     /// The widening attention's softmax runs in. `transformers` runs it in

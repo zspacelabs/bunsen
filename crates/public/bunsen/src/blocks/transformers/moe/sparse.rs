@@ -47,7 +47,7 @@ pub struct SharedExpertConfig {
     pub hidden: usize,
 
     /// Whether a sigmoid gate on the layer's input scales it (Qwen's).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub gated: bool,
 }
 

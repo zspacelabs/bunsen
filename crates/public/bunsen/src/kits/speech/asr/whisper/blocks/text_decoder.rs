@@ -118,7 +118,7 @@ pub struct TextDecoderConfig {
     pub d_head: usize,
 
     /// Dropout.
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub block_dropout: f64,
 }
 

@@ -64,11 +64,11 @@ pub struct SwinV2ContractConfig {
     pub num_classes: usize,
 
     /// The side of a square patch.
-    #[config(default = "4")]
+    #[config(default = 4)]
     pub patch_size: usize,
 
     /// The image channels (timm's `in_chans`).
-    #[config(default = "3")]
+    #[config(default = 3)]
     pub in_channels: usize,
 
     /// The window each stage's weights were trained at, if not this one (0:
@@ -78,12 +78,12 @@ pub struct SwinV2ContractConfig {
     pub pretrained_window_sizes: Vec<usize>,
 
     /// The MLP's hidden width over the token width, rounded down.
-    #[config(default = "4.0")]
+    #[config(default = 4.0)]
     pub mlp_ratio: f64,
 
     /// Whether the attention's query and value have biases (timm's
     /// `q_bias`, `v_bias`).
-    #[config(default = "true")]
+    #[config(default = true)]
     pub qkv_bias: bool,
 
     /// The head's pool (timm's `global_pool`).
@@ -91,16 +91,16 @@ pub struct SwinV2ContractConfig {
     pub global_pool: TokenPoolConfig,
 
     /// The dropout before the classifier (training only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub drop_rate: f64,
 
     /// The dropout on the attention weights (training only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub attn_drop_rate: f64,
 
     /// The stochastic depth's last rate, ramped linearly over all the blocks
     /// in order, as timm's `calculate_drop_path_rates` (training only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub drop_path_rate: f64,
 }
 

@@ -82,54 +82,54 @@ pub struct KaldiFbankConfig {
     pub window: StftWindowConfig,
 
     /// The signal's sample rate, in Hz.
-    #[config(default = "16000.0")]
+    #[config(default = 16000.0)]
     pub sample_rate: f64,
 
     /// A frame's length, in milliseconds; the samples are truncated to a
     /// whole number.
-    #[config(default = "25.0")]
+    #[config(default = 25.0)]
     pub frame_length_ms: f64,
 
     /// The shift between frames, in milliseconds; truncated as the length
     /// is.
-    #[config(default = "10.0")]
+    #[config(default = 10.0)]
     pub frame_shift_ms: f64,
 
     /// The mel bins, `M`; at least 4.
-    #[config(default = "23")]
+    #[config(default = 23)]
     pub num_mel_bins: usize,
 
     /// The lowest bin's lower edge, in Hz.
-    #[config(default = "20.0")]
+    #[config(default = 20.0)]
     pub low_freq: f64,
 
     /// The highest bin's upper edge, in Hz; a value of 0 or less is an
     /// offset from the Nyquist frequency.
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub high_freq: f64,
 
     /// The pre-emphasis coefficient, in `[0, 1]`: each frame's sample `n`
     /// less this times sample `n - 1` (the first, less itself).
-    #[config(default = "0.97")]
+    #[config(default = 0.97)]
     pub preemphasis: f64,
 
     /// Whether each frame's mean is removed before the pre-emphasis.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub remove_dc_offset: bool,
 
     /// The power spectrum (`true`) or the magnitude.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub use_power: bool,
 
     /// The log of each bin's energy, floored at `f32::EPSILON`, or the
     /// energy.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub use_log: bool,
 
     /// Whether each bin's mean over the frames is subtracted
     /// (`torchaudio`'s `subtract_mean`: per-utterance cepstral mean
     /// normalization).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub subtract_mean: bool,
 }
 

@@ -117,7 +117,7 @@ impl<B: ChatBackend> ChatModel<B> {
 #[derive(Config, Debug)]
 pub struct ChatSessionConfig {
     /// The most tokens one reply generates, its stop token included.
-    #[config(default = "1024")]
+    #[config(default = 1024)]
     pub max_new_tokens: usize,
 
     /// Qwen3's thinking switch, as its chat template reads it; `None` leaves

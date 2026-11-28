@@ -229,11 +229,11 @@ impl AffineCompress {
 pub struct PerceptiveAudioConverterConfig {
     // ---- spectral ----
     /// The signal sample rate, in Hz.
-    #[config(default = "16000")]
+    #[config(default = 16000)]
     pub sample_rate: usize,
 
     /// The analysis window length, in samples.
-    #[config(default = "400")]
+    #[config(default = 400)]
     pub n_fft: usize,
 
     /// The analysis window.
@@ -247,16 +247,16 @@ pub struct PerceptiveAudioConverterConfig {
     /// `k·sr/fft_len`, and the bin count changes with it. It is a distinct
     /// frontend flavour, not a way to make a non-power-of-two `n_fft` work
     /// with `burn`'s `rfft`.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub pad_to_pow2: bool,
 
     // ---- mel ----
     /// The number of mel triangles.
-    #[config(default = "80")]
+    #[config(default = 80)]
     pub n_mels: usize,
 
     /// The low edge of the mel span, in Hz.
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub f_min: f64,
 
     /// The high edge of the mel span, in Hz; defaults to Nyquist.
@@ -277,7 +277,7 @@ pub struct PerceptiveAudioConverterConfig {
 
     // ---- framing ----
     /// The hop between consecutive frames, in samples.
-    #[config(default = "160")]
+    #[config(default = 160)]
     pub hop: usize,
 
     /// Padding applied once, before the first frame of a stream.
@@ -302,7 +302,7 @@ pub struct PerceptiveAudioConverterConfig {
     /// **Not implemented yet** — [`try_validate`](Self::try_validate) rejects it. It
     /// is per-frame, so it belongs inside framing rather than in the
     /// sample-domain preprocessing stage.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub remove_dc: bool,
 
     // ---- compression ----
@@ -312,7 +312,7 @@ pub struct PerceptiveAudioConverterConfig {
 
     /// Mel energies are clamped up to this before the log, so an all-zero
     /// frame yields a finite floor rather than `-inf`.
-    #[config(default = "1e-10")]
+    #[config(default = 1e-10)]
     pub log_floor: f64,
 
     // ---- impl ----

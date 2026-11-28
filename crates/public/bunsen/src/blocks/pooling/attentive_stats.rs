@@ -145,7 +145,7 @@ pub struct AttentiveStatsPoolingConfig {
     /// Whether each frame's attention also sees the sequence's mean and
     /// deviation, by the same [`deviation`](Self::deviation) under uniform
     /// weights.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub global_context: bool,
 
     /// How the deviations are taken.

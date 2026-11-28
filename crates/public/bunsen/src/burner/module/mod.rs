@@ -90,7 +90,12 @@
 //! - **A model's numeric choices are config fields**, with `#[config(default =
 //!   ..)]` defaults, not constants or statics in its code: a width rounding, an
 //!   epsilon, a kernel list. A prefab states a value by setting the field.
-//!   Configs are data: deserialized, assembled by loaders, edited by users.
+//!   Configs are data: deserialized, assembled by loaders, edited by users. A
+//!   literal default is written as a literal (`#[config(default = 3)]`, `=
+//!   1e-5`, `= false`); quotes mean an expression (`"VIT_NORM_EPSILON"`,
+//!   `"None"`, `"Vec::new()"`) or a negative number, which the derive takes
+//!   only as a string. The derive documents the default as written, so a quoted
+//!   literal reads as a string in rustdoc.
 //! - **A Simple family's config is `FooConfig`, and builds `Foo`. A Stacked
 //!   family is a `FooStructureConfig`**, the unrolled tree that implements
 //!   `ModuleInit`, plus policy configs named for their policy

@@ -48,7 +48,7 @@ pub struct BunsenGatedMlpConfig {
     pub d_ff: usize,
 
     /// Whether the three projections carry a bias.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub bias: bool,
 
     /// Whether the down projection carries a bias; `None` follows `bias`.

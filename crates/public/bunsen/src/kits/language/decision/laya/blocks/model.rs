@@ -111,15 +111,15 @@ pub struct LayaConfig {
     pub encoder: ModernBertContractConfig,
 
     /// The head's encoder layers (`rl_agent_config.json`'s `head_layers`).
-    #[config(default = "2")]
+    #[config(default = 2)]
     pub head_layers: usize,
 
     /// The act head's outputs: one per costed act, and one for none.
-    #[config(default = "2")]
+    #[config(default = 2)]
     pub n_act: usize,
 
     /// The act head's hidden width.
-    #[config(default = "256")]
+    #[config(default = 256)]
     pub act_hidden: usize,
 }
 

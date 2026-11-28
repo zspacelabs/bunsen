@@ -196,22 +196,22 @@ pub struct WindowAttentionConfig {
 
     /// Whether the block shifts its windows by half a window (every second
     /// block of a stage).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub shifted: bool,
 
     /// Whether the query and value projections have a bias.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub qkv_bias: bool,
 
     /// Whether the key projection has one too: Swin V1's does, Swin V2's has
     /// none (its `k_bias` a zero buffer).
-    #[config(default = "true")]
+    #[config(default = true)]
     pub key_bias: bool,
 
     /// Swin V2's cosine attention: the queries and keys L2-normalized, their
     /// dot product times a learnt per-head scale (`exp` of a logit clamped at
     /// `ln 100`); else scaled dot-product attention.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub cosine: bool,
 
     /// The per-head relative position bias.
@@ -220,7 +220,7 @@ pub struct WindowAttentionConfig {
 
     /// The dropout on the attention weights, after the softmax (training
     /// only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub attn_drop: f64,
 }
 

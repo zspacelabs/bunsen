@@ -79,7 +79,7 @@ pub struct ParakeetTdtConfig {
     pub d_pred: usize,
 
     /// The prediction network's LSTM layer count.
-    #[config(default = "2")]
+    #[config(default = 2)]
     pub n_pred_layers: usize,
 
     /// The durations, in encoder frames, the joint scores.

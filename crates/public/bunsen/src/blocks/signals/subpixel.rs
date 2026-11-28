@@ -40,11 +40,11 @@ pub struct SubpixelUpsample1dConfig {
     pub d_model: usize,
 
     /// The frames each input frame becomes.
-    #[config(default = "8")]
+    #[config(default = 8)]
     pub factor: usize,
 
     /// The convolution's kernel size; odd, padded to keep the length.
-    #[config(default = "3")]
+    #[config(default = 3)]
     pub kernel_size: usize,
 }
 

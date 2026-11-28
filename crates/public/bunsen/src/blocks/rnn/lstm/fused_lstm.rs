@@ -32,7 +32,7 @@ pub struct FusedLstmConfig {
     pub d_model: usize,
 
     /// Do the LSTM gate projections have a bias?
-    #[config(default = "true")]
+    #[config(default = true)]
     pub bias: bool,
 
     /// What is the configured IO layout of the Linear weights?

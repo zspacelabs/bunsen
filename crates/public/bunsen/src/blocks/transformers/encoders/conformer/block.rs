@@ -70,11 +70,11 @@ pub struct ConformerBlockConfig {
     pub conv_kernel_size: usize,
 
     /// Whether the attention and feed-forward projections carry a bias.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub bias: bool,
 
     /// Whether the convolution module's convolutions carry a bias.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub conv_bias: bool,
 
     /// The normalization before each module and after the block, sized to

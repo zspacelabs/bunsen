@@ -67,7 +67,7 @@ pub struct BunsenMlpConfig {
     pub activation: BunsenActivationConfig,
 
     /// Whether the projections carry a bias term.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub bias: bool,
 
     /// Whether `linear2` carries a bias; `None` follows `bias`. Swin V2's

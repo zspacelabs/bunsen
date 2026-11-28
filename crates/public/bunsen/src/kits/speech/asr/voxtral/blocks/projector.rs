@@ -47,7 +47,7 @@ pub struct VoxtralProjectorConfig {
     pub d_text: usize,
 
     /// The encoder frames stacked into one decoder position.
-    #[config(default = "4")]
+    #[config(default = 4)]
     pub downsample: usize,
 }
 

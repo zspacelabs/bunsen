@@ -114,23 +114,23 @@ pub struct RegNetContractConfig {
     pub num_classes: usize,
 
     /// The bottleneck's width over the unit's (timm's `bottle_ratio`).
-    #[config(default = "1.0")]
+    #[config(default = 1.0)]
     pub bottle_ratio: f64,
 
     /// The squeeze-excite after the mixer, its reduction `round(in *
     /// se_ratio)` of the unit's input (timm's `se_ratio`); 0, none
     /// (`RegNetX`).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub se_ratio: f64,
 
     /// The floor under which a bottleneck width rounded to its groups
     /// rounds up instead (timm's `group_min_ratio`, the `_tv` archs' 0.9);
     /// 0 rounds to the nearest.
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub group_min_ratio: f64,
 
     /// The stem's width (timm's `stem_width`).
-    #[config(default = "32")]
+    #[config(default = 32)]
     pub stem_width: usize,
 
     /// The shortcut of a unit that changes shape (timm's `downsample`).
@@ -139,19 +139,19 @@ pub struct RegNetContractConfig {
 
     /// No activation after each unit's add, and one after the last stage
     /// instead (timm's `linear_out`, `RegNetZ`'s).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub linear_out: bool,
 
     /// Pre-activation units (timm's `preact`, `RegNetV`'s `PreBottleneck`): a
     /// bare stem conv, each unit's input normalized and activated before its
     /// path and shortcut, each later conv after its own norm and activation,
     /// and an activation after the last stage.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub preact: bool,
 
     /// A `1x1` conv, norm and activation to this many features after the
     /// last stage (timm's `num_features`, `regnetz_040_h`'s 1536); 0, none.
-    #[config(default = "0")]
+    #[config(default = 0)]
     pub num_features: usize,
 
     /// The activation after each conv's norm and each unit's add (timm's
@@ -160,11 +160,11 @@ pub struct RegNetContractConfig {
     pub act_layer: BunsenActivationConfig,
 
     /// The image channels (timm's `in_chans`).
-    #[config(default = "3")]
+    #[config(default = 3)]
     pub in_channels: usize,
 
     /// The net's stride at its last stage: 32, or 16 or 8 for a dilated net.
-    #[config(default = "32")]
+    #[config(default = 32)]
     pub output_stride: usize,
 
     /// The head's global pool.
@@ -173,7 +173,7 @@ pub struct RegNetContractConfig {
 
     /// The dropout before the classifier (timm's `drop_rate`; training
     /// only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub drop_rate: f64,
 }
 

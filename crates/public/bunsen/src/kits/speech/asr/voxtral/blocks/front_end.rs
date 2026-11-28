@@ -42,13 +42,13 @@ pub trait VoxtralFrontEndMeta {
 #[derive(Config, Debug)]
 pub struct VoxtralFrontEndConfig {
     /// The mel channel count.
-    #[config(default = "128")]
+    #[config(default = 128)]
     pub n_mels: usize,
 
     /// The fixed level every log-mel is floored `whisper.range_clamp_db`
     /// under, in `log10` units: `processor_config.json`'s
     /// `global_log_mel_max`.
-    #[config(default = "1.5")]
+    #[config(default = 1.5)]
     pub global_log_mel_max: f64,
 
     /// The log-mel grid and clamp range this one shares with Whisper, but

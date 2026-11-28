@@ -127,21 +127,21 @@ pub struct ViTContractConfig {
     pub num_classes: usize,
 
     /// The image channels (timm's `in_chans`).
-    #[config(default = "3")]
+    #[config(default = 3)]
     pub in_channels: usize,
 
     /// The MLP's hidden width over the token width; the hidden width is
     /// rounded down, as timm's `int(dim * mlp_ratio)`.
-    #[config(default = "4.0")]
+    #[config(default = 4.0)]
     pub mlp_ratio: f64,
 
     /// Whether the attention's `qkv` projection has a bias.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub qkv_bias: bool,
 
     /// Whether the attention's output projection and the MLP's projections
     /// have biases (timm's `proj_bias`).
-    #[config(default = "true")]
+    #[config(default = true)]
     pub proj_bias: bool,
 
     /// The blocks' MLP (timm's `mlp_layer`).
@@ -155,35 +155,35 @@ pub struct ViTContractConfig {
 
     /// Whether each patch token is normalized (timm's `embed_norm_layer`, of
     /// the model's norm kind).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub embed_norm: bool,
 
     /// Whether the attention normalizes its output before the output
     /// projection (timm's `scale_attn_norm`, `BEiT3`'s sub-LN).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub scale_attn_norm: bool,
 
     /// Whether the MLP normalizes its hidden width before `fc2` (timm's
     /// `scale_mlp_norm`, `BEiT3`'s sub-LN); a plain MLP's only.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub scale_mlp_norm: bool,
 
     /// Whether a class token leads the sequence.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub class_token: bool,
 
     /// The register tokens after the class token.
-    #[config(default = "0")]
+    #[config(default = 0)]
     pub reg_tokens: usize,
 
     /// Whether the position embedding covers the patches alone, the prefix
     /// tokens joining after it.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub no_embed_class: bool,
 
     /// CLIP's pre-norm: the tokens normalised before the first layer
     /// (`norm_pre`), and a patch embedding with no bias.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub pre_norm: bool,
 
     /// Whether the norm follows the pool (`fc_norm`) rather than the last
@@ -200,7 +200,7 @@ pub struct ViTContractConfig {
 
     /// Layer scale on each sublayer (timm's `init_values` set, on its
     /// `Block`).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub layer_scale: bool,
 
     /// Where each block normalizes: before each sublayer (timm's `Block`),
@@ -212,7 +212,7 @@ pub struct ViTContractConfig {
     /// Whether the tokens are normalized after the last layer, before the
     /// head (timm's `final_norm`); `false`, no norm there or after the pool
     /// (C-RADIO's).
-    #[config(default = "true")]
+    #[config(default = true)]
     pub final_norm: bool,
 
     /// The layer norms' epsilon: [`VIT_NORM_EPSILON`], or
@@ -227,7 +227,7 @@ pub struct ViTContractConfig {
 
     /// The dropout before the classifier (timm's `drop_rate`; training
     /// only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub drop_rate: f64,
 
     /// The conv backbone the images go through before the patch embedding

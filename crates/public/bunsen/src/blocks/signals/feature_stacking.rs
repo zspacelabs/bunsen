@@ -100,11 +100,11 @@ pub struct FeatureStackingConfig {
     pub d_output: usize,
 
     /// The frames stacked into one.
-    #[config(default = "8")]
+    #[config(default = 8)]
     pub factor: usize,
 
     /// Whether the projection carries a bias.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub bias: bool,
 
     /// How a group's frames are laid side by side.

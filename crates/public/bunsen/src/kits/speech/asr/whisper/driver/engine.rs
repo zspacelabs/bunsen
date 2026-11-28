@@ -99,7 +99,7 @@ pub struct WhisperEngineConfig {
     /// Let the model emit timestamp tokens, under upstream's timestamp
     /// rules. Emissions are then split on them, and the seek pointer
     /// advances to the last closed timestamp rather than a whole window.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub timestamps: bool,
 
     /// Under `timestamps`, the latest time the first timestamp of a window
@@ -108,7 +108,7 @@ pub struct WhisperEngineConfig {
     pub max_initial_timestamp: Option<f64>,
 
     /// Cap on tokens generated per window.
-    #[config(default = "224")]
+    #[config(default = 224)]
     pub max_tokens: usize,
 
     /// The search of each window: its beams, patience and ranking. Its
@@ -119,7 +119,7 @@ pub struct WhisperEngineConfig {
 
     /// Prompt each window with the tail of the transcript so far, after
     /// `<|startofprev|>`, as upstream's `condition_on_previous_text` does.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub condition_on_previous_text: bool,
 
     /// With a diarizer attached, a window is cut at a change of speaker

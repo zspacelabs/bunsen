@@ -38,7 +38,7 @@ pub struct SortformerStreamingConfig {
     pub right_context: usize,
 
     /// The frames before its chunk each step re-encodes, as context.
-    #[config(default = "0")]
+    #[config(default = 0)]
     pub left_context: usize,
 
     /// The FIFO's capacity.
@@ -51,34 +51,34 @@ pub struct SortformerStreamingConfig {
     pub update_period: usize,
 
     /// The silence slots each speaker keeps in a compressed cache.
-    #[config(default = "1")]
+    #[config(default = 1)]
     pub silence_frames_per_speaker: usize,
 
     /// Probabilities are clamped into `[t, 1 - t]` before scoring.
-    #[config(default = "0.25")]
+    #[config(default = 0.25)]
     pub pred_score_threshold: f64,
 
     /// Added to the scores of the frames entering the cache.
-    #[config(default = "0.05")]
+    #[config(default = 0.05)]
     pub latest_boost: f64,
 
     /// The share of a speaker's budget boosted strongly.
-    #[config(default = "0.75")]
+    #[config(default = 0.75)]
     pub strong_boost_rate: f64,
 
     /// The share of a speaker's budget boosted weakly.
-    #[config(default = "1.5")]
+    #[config(default = 1.5)]
     pub weak_boost_rate: f64,
 
     /// The share of a speaker's budget that, positive, makes its non-positive
     /// speech frames ineligible.
-    #[config(default = "0.5")]
+    #[config(default = 0.5)]
     pub min_pos_scores_rate: f64,
 
     /// A frame whose speaker probabilities sum below this is silent: what a
     /// running-mean silence fill takes in
     /// ([`SilenceFill::RunningMean`](super::SilenceFill::RunningMean)).
-    #[config(default = "0.2")]
+    #[config(default = 0.2)]
     pub silence_threshold: f64,
 }
 
