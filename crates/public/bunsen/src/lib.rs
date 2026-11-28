@@ -184,6 +184,11 @@
 //!   modules.
 //! - **A module with submodules is laid out as `m/mod.rs` plus `m/sub.rs`**,
 //!   never as `m.rs` plus `m/`, so a module's files are always where you look.
+//!   A `mod.rs` holds the module's docs, its `mod`s and its `pub use`s, and no
+//!   code: each item lives in a sibling file named for what it holds
+//!   (`config.rs`, `rekey.rs`, `tests.rs`), and `pub use` keeps its path. The
+//!   one exception, in the firehose crates, is a definition whose value is its
+//!   module's path (`define_firehose_operator!`): schemas store that id.
 //!
 //! ## Interop by ecosystem
 //!

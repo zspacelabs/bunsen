@@ -5,7 +5,11 @@ use bunsen::kits::speech::diarization::{
     sortformer::pretrained::default_sortformer_factory,
 };
 
-use super::*;
+use super::support::{
+    JsonTurn,
+    speaker_totals,
+    text_line,
+};
 use crate::{
     asr::recording_id,
     support::with_presets,

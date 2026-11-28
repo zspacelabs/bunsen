@@ -24,10 +24,12 @@ use bunsen_app::{
 use super::{
     AsrDiarizeOutputArgs,
     AsrDiarizerArgs,
-    JsonDiarization,
-    JsonTurn,
-    speaker_totals,
-    text_line,
+    support::{
+        JsonDiarization,
+        JsonTurn,
+        speaker_totals,
+        text_line,
+    },
 };
 use crate::asr::recording_id;
 
