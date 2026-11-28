@@ -15,15 +15,14 @@ use crate::{
     errors::BunsenResult,
     kits::{
         language::generation::qwen3::{
-            GENERATION_CONFIG,
             Qwen3ContractConfig,
-            TOKENIZER_CONFIG,
             interop::transformers::{
                 load_qwen3,
                 qwen3_config,
             },
         },
         support::{
+            construct::LmConstruct,
             pretrained::{
                 ProbeSpec,
                 TransformersLmKit,
@@ -91,7 +90,7 @@ mod tests {
     use super::*;
     use crate::{
         data::builds::ConstructInit,
-        kits::language::generation::qwen3::Qwen3Policy,
+        kits::support::construct::LmPolicy,
     };
 
     #[test]
@@ -136,7 +135,7 @@ mod tests {
         };
 
         let factory = default_qwen3_factory().unwrap();
-        let policy = |spec: &str| factory.resolve_presets(spec, &Qwen3Policy::default());
+        let policy = |spec: &str| factory.resolve_presets(spec, &LmPolicy::default());
 
         let thinking = policy("qwen/qwen3-0.6b").unwrap();
         assert_eq!(thinking.presets, ["thinking"]);
@@ -183,3 +182,17 @@ mod tests {
         }
     }
 }
+
+pub use crate::kits::support::construct::{
+    GENERATION_CONFIG,
+    TOKENIZER,
+    TOKENIZER_CONFIG,
+};
+
+/// A Qwen3 model, the positions it was trained on, and its checkpoint's
+/// other files, unread: what a pretrained loads to
+/// ([`LmConstruct`]).
+///
+/// [`default_qwen3_factory`](super::default_qwen3_factory)
+/// builds one from a name.
+pub type Qwen3Construct = LmConstruct<LmDecoderModel>;

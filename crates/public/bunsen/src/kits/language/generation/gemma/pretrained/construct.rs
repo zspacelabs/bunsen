@@ -16,17 +16,14 @@ use crate::{
     errors::BunsenResult,
     kits::{
         language::generation::gemma::{
-            CHAT_TEMPLATE,
-            END_OF_TURN,
-            GENERATION_CONFIG,
             GemmaContractConfig,
-            TOKENIZER_CONFIG,
             interop::transformers::{
                 gemma_config,
                 load_gemma,
             },
         },
         support::{
+            construct::LmConstruct,
             pretrained::{
                 ProbeSpec,
                 TransformersLmKit,
@@ -99,9 +96,9 @@ mod tests {
     use super::*;
     use crate::{
         data::builds::ConstructInit,
-        kits::language::generation::gemma::{
-            GemmaPolicy,
-            pretrained::default_gemma_factory,
+        kits::{
+            language::generation::gemma::pretrained::default_gemma_factory,
+            support::construct::LmPolicy,
         },
     };
 
@@ -145,7 +142,7 @@ mod tests {
         let factory = default_gemma_factory().unwrap();
         let stops = |spec: &str| {
             factory
-                .resolve_presets(spec, &GemmaPolicy::default())
+                .resolve_presets(spec, &LmPolicy::default())
                 .unwrap_or_else(|e| panic!("{spec}: {e}"))
                 .config
                 .generation
@@ -179,7 +176,7 @@ mod tests {
         let factory = default_gemma_factory().unwrap();
         let template = |spec: &str| {
             factory
-                .resolve_presets(spec, &GemmaPolicy::default())
+                .resolve_presets(spec, &LmPolicy::default())
                 .unwrap_or_else(|e| panic!("{spec}: {e}"))
                 .config
                 .generation
@@ -214,3 +211,25 @@ mod tests {
         );
     }
 }
+
+pub use crate::kits::support::construct::{
+    CHAT_TEMPLATE,
+    GENERATION_CONFIG,
+    TOKENIZER,
+    TOKENIZER_CONFIG,
+};
+
+/// A Gemma model, the positions it was trained on, and its checkpoint's
+/// other files, unread: what a pretrained loads to ([`LmConstruct`]).
+///
+/// [`default_gemma_factory`](super::default_gemma_factory)
+/// builds one from a name.
+pub type GemmaConstruct = LmConstruct<LmDecoderModel>;
+
+/// What ends a turn in a Gemma's chat template, `<end_of_turn>`: a reply
+/// stops there as well as at the end of the text. Its id is the
+/// tokenizer's (106 in Gemma 3's, 107 in Gemma 1's and 2's), which the
+/// `tokenizer_config` probe reads by this name into a row's stop tokens: the
+/// `generation_config.json` of some instruction-tuned checkpoints (Gemma 1's,
+/// Gemma 2 9B's) names only the end of the text.
+pub const END_OF_TURN: &str = "<end_of_turn>";

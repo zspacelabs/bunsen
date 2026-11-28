@@ -10,7 +10,9 @@
 //! layer, and `1 + w` RMS norms. One [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel) is built from a
 //! [`Qwen3_5ContractConfig`].
 //!
-//! - [`blocks`]: the model, built from a [`Qwen3_5ContractConfig`].
+//! - [`Qwen3_5ContractConfig`]: the policy the model,
+//!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
+//!   is built from; its prefabs are [`pretrained`]'s.
 //! - Decoding: the model wraps an
 //!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
 //!   with linear-attention layers, and is a
@@ -33,16 +35,20 @@
 //! A tokenizer and a chat template are not part of the kit; the searches are
 //! [`kits::support::decoding`](crate::kits::support::decoding)'s.
 
-pub mod blocks;
-
-mod construct;
-pub use construct::*;
+mod contract;
 
 pub mod interop;
 
 pub mod pretrained;
-
-pub use blocks::model::*;
+pub use contract::*;
+#[cfg(feature = "store")]
+pub use pretrained::{
+    CHAT_TEMPLATE,
+    GENERATION_CONFIG,
+    Qwen3_5Construct,
+    TOKENIZER,
+    TOKENIZER_CONFIG,
+};
 
 #[cfg(all(test, feature = "store"))]
 mod toy_tests;

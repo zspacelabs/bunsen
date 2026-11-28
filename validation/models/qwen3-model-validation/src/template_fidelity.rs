@@ -1,9 +1,11 @@
 //! The `thinking-mode` presets' default against each chat template's own.
 
-use bunsen::kits::language::generation::qwen3::{
-    Qwen3Policy,
-    TOKENIZER_CONFIG,
-    pretrained::default_qwen3_factory,
+use bunsen::kits::{
+    language::generation::qwen3::{
+        TOKENIZER_CONFIG,
+        pretrained::default_qwen3_factory,
+    },
+    support::construct::LmPolicy,
 };
 use bunsen_tool::chat::{
     ChatMessage,
@@ -51,9 +53,7 @@ fn test_the_default_thinking_mode_is_the_templates() {
             false
         };
 
-        let policy = factory
-            .resolve_presets(row, &Qwen3Policy::default())
-            .unwrap();
+        let policy = factory.resolve_presets(row, &LmPolicy::default()).unwrap();
         assert_eq!(policy.presets, ["thinking"], "{row}");
         assert_eq!(
             policy.config.generation.template_kwargs["enable_thinking"].as_bool(),

@@ -15,16 +15,14 @@ use crate::{
     errors::BunsenResult,
     kits::{
         language::generation::qwen3_5::{
-            CHAT_TEMPLATE,
-            GENERATION_CONFIG,
             Qwen3_5ContractConfig,
-            TOKENIZER_CONFIG,
             interop::transformers::{
                 load_qwen3_5,
                 qwen3_5_config,
             },
         },
         support::{
+            construct::LmConstruct,
             pretrained::{
                 ProbeSpec,
                 TransformersLmKit,
@@ -100,9 +98,9 @@ mod tests {
     use super::*;
     use crate::{
         data::builds::ConstructInit,
-        kits::language::generation::qwen3_5::{
-            Qwen3_5Policy,
-            pretrained::default_qwen3_5_factory,
+        kits::{
+            language::generation::qwen3_5::pretrained::default_qwen3_5_factory,
+            support::construct::LmPolicy,
         },
     };
 
@@ -146,7 +144,7 @@ mod tests {
         let factory = default_qwen3_5_factory().unwrap();
         let resolve = |spec: &str| {
             factory
-                .resolve_presets(spec, &Qwen3_5Policy::default())
+                .resolve_presets(spec, &LmPolicy::default())
                 .unwrap_or_else(|e| panic!("{spec}: {e}"))
                 .config
                 .generation
@@ -180,3 +178,14 @@ mod tests {
         assert_eq!(top_p(&quick), Some(1.0));
     }
 }
+
+pub use crate::kits::support::construct::{
+    CHAT_TEMPLATE,
+    GENERATION_CONFIG,
+    TOKENIZER,
+    TOKENIZER_CONFIG,
+};
+
+/// A Qwen3.5 model, the positions it was trained on, and its checkpoint's
+/// other files, unread: what a pretrained loads to ([`LmConstruct`]).
+pub type Qwen3_5Construct = LmConstruct<LmDecoderModel>;

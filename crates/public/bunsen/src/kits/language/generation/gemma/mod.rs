@@ -13,7 +13,9 @@
 //! models. Every generation scales its embedding by `√d_model` and ties its
 //! head to it.
 //!
-//! - [`blocks`]: the model, built from a [`GemmaContractConfig`].
+//! - [`GemmaContractConfig`]: the policy the model,
+//!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
+//!   is built from; its prefabs are [`pretrained`]'s.
 //! - Decoding: the model wraps an attention-only
 //!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
 //!   and is a [`StackedLm`](crate::kits::support::decoding::StackedLm), its
@@ -32,16 +34,21 @@
 //! A tokenizer and a chat template are not part of the kit; the searches are
 //! [`kits::support::decoding`](crate::kits::support::decoding)'s.
 
-pub mod blocks;
-
-mod construct;
-pub use construct::*;
+mod contract;
 
 pub mod interop;
 
 pub mod pretrained;
-
-pub use blocks::model::*;
+pub use contract::*;
+#[cfg(feature = "store")]
+pub use pretrained::{
+    CHAT_TEMPLATE,
+    END_OF_TURN,
+    GENERATION_CONFIG,
+    GemmaConstruct,
+    TOKENIZER,
+    TOKENIZER_CONFIG,
+};
 
 #[cfg(all(test, feature = "store"))]
 mod toy_tests;
