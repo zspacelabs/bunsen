@@ -31,7 +31,7 @@ pub struct DeiTContractConfig {
 
     /// Whether it is distilled: a distillation token, and a classifier on it
     /// (timm's `head_dist`).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub distilled: bool,
 }
 

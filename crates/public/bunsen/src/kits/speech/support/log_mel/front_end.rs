@@ -46,24 +46,24 @@ use crate::{
 #[derive(Config, Debug, PartialEq)]
 pub struct LogMelFrontEndConfig {
     /// The sample rate, in Hz.
-    #[config(default = "16_000")]
+    #[config(default = 16_000)]
     pub sample_rate: usize,
 
     /// The hop between mel frames, in milliseconds. For Whisper, one
     /// timestamp step over the encoder's stride
     /// ([`AUDIO_ENCODER_STRIDE`](crate::kits::speech::asr::whisper::blocks::AUDIO_ENCODER_STRIDE)),
     /// so that one encoder position is one timestamp token.
-    #[config(default = "10")]
+    #[config(default = 10)]
     pub hop_ms: usize,
 
     /// The analysis window, in milliseconds.
-    #[config(default = "25")]
+    #[config(default = 25)]
     pub window_ms: usize,
 
     /// The dynamic range kept under each window's maximum, in dB:
     /// log-mels further below the maximum are floored to it
     /// before packaging.
-    #[config(default = "8.0")]
+    #[config(default = 8.0)]
     pub range_clamp_db: f64,
 }
 

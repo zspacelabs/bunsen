@@ -70,11 +70,11 @@ pub struct SileroVadSignalConfig {
     pub n_freq: usize,
 
     /// The recurrent hidden / cell width of the LSTM.
-    #[config(default = "128")]
+    #[config(default = 128)]
     pub d_hidden: usize,
 
     /// The encoder bottleneck dimension.
-    #[config(default = "64")]
+    #[config(default = 64)]
     pub d_bottleneck: usize,
 }
 
@@ -176,11 +176,11 @@ pub struct SileroVadStftConfig {
     pub stft_stride: usize,
 
     /// The recurrent hidden / cell width of the LSTM; above 0.
-    #[config(default = "128")]
+    #[config(default = 128)]
     pub d_hidden: usize,
 
     /// The encoder bottleneck dimension; above 0.
-    #[config(default = "64")]
+    #[config(default = 64)]
     pub d_bottleneck: usize,
 }
 

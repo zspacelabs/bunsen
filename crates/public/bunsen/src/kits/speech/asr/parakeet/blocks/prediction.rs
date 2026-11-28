@@ -51,7 +51,7 @@ pub struct TdtPredictionNetworkConfig {
     pub d_pred: usize,
 
     /// The LSTM layer count.
-    #[config(default = "2")]
+    #[config(default = 2)]
     pub n_layers: usize,
 }
 

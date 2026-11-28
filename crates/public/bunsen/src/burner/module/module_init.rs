@@ -223,7 +223,7 @@ use crate::errors::{
 ///     pub depth: usize,
 ///
 ///     /// Each layer divides the width by this.
-///     #[config(default = "2")]
+///     #[config(default = 2)]
 ///     pub taper: usize,
 /// }
 ///

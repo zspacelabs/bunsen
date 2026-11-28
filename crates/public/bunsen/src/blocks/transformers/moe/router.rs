@@ -138,11 +138,11 @@ pub struct TopKRouterConfig {
     /// Whether the chosen experts' weights are renormalized to sum to one
     /// (`transformers`' `norm_topk_prob`). Under a softmax score, the weights
     /// are then the softmax of the chosen logits alone.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub norm_top_k: bool,
 
     /// A factor on the weights (`DeepSeek`'s `routed_scaling_factor`).
-    #[config(default = "1.0")]
+    #[config(default = 1.0)]
     pub scale: f64,
 
     /// A normalization of the router's input, its own (ZONOS3's

@@ -53,15 +53,15 @@ pub trait SlidingStftMeta {
 #[derive(Config, Debug)]
 pub struct SlidingStftConfig {
     /// The analysis window length, in samples.
-    #[config(default = "768")]
+    #[config(default = 768)]
     pub win_len: usize,
 
     /// The hop size, in samples.
-    #[config(default = "256")]
+    #[config(default = 256)]
     pub hop_size: usize,
 
     /// The FFT size; the windowed queue is zero-padded to this length.
-    #[config(default = "1024")]
+    #[config(default = 1024)]
     pub fft_size: usize,
 
     /// The analysis window config.

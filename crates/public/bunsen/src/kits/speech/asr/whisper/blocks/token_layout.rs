@@ -66,13 +66,13 @@ pub struct WhisperTokenLayoutConfig {
     pub languages: Vec<String>,
 
     /// Base ranks in the English-only vocabulary, `gpt2.tiktoken`.
-    #[config(default = "50256")]
+    #[config(default = 50256)]
     pub english_base_ranks: usize,
 
     /// Base ranks in the multilingual vocabulary, `multilingual.tiktoken`:
     /// one more, and that one &mdash; rank 50256 &mdash; is a genuinely
     /// empty token.
-    #[config(default = "50257")]
+    #[config(default = 50257)]
     pub multilingual_base_ranks: usize,
 
     /// The two specials before the language block, in id order:
@@ -87,11 +87,11 @@ pub struct WhisperTokenLayoutConfig {
     pub control_tokens: Vec<String>,
 
     /// The timestamp tokens: `<|0.00|>` through `<|30.00|>`.
-    #[config(default = "1501")]
+    #[config(default = 1501)]
     pub timestamp_tokens: usize,
 
     /// Seconds between adjacent timestamp tokens.
-    #[config(default = "0.02")]
+    #[config(default = 0.02)]
     pub timestamp_step_seconds: f64,
 }
 

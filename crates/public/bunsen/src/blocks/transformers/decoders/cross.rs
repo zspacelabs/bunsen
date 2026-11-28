@@ -65,11 +65,11 @@ pub struct CrossDecoderBlockConfig {
     pub d_model: usize,
 
     /// Head width.
-    #[config(default = "64")]
+    #[config(default = 64)]
     pub d_head: usize,
 
     /// Dropout.
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub dropout: f64,
 
     /// The normalization before each sublayer, sized to `d_model` whatever

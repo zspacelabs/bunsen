@@ -37,11 +37,11 @@ use crate::ops::signal::kernels::{
 #[derive(Config, Copy, Debug, PartialEq)]
 pub struct HannSincResampler {
     /// The kernel's half-width in zero crossings of the sinc; at least 1.
-    #[config(default = "6")]
+    #[config(default = 6)]
     pub lowpass_filter_width: usize,
 
     /// The cut-off, as a fraction of the lower rate's Nyquist frequency.
-    #[config(default = "0.99")]
+    #[config(default = 0.99)]
     pub rolloff: f64,
 }
 

@@ -56,7 +56,7 @@ pub struct ConformerConvolutionConfig {
     pub kernel_size: usize,
 
     /// Whether the three convolutions carry a bias.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub bias: bool,
 }
 

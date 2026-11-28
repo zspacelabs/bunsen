@@ -33,14 +33,14 @@ use crate::{
 #[derive(Config, Debug, Copy)]
 pub struct ScaledDotProductAttentionOptions {
     /// Causal or not.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub is_causal: bool,
 
     /// Enable Group Query Attention: each key/value head serves `H_q / H_kv`
     /// consecutive query heads, as if repeated that many times (the query
     /// heads are grouped by key/value head; the keys and values are never
     /// copied).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub enable_gqa: bool,
 
     /// Manual Scale factor; `None` means `1 / sqrt(D)`.
@@ -52,7 +52,7 @@ pub struct ScaledDotProductAttentionOptions {
     pub dropout: Option<f64>,
 
     /// Enable dropout during inference.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub enable_dropout_during_inference: bool,
 
     /// The widening the softmax runs in, from the query's dtype: the scores

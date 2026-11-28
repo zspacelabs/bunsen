@@ -151,7 +151,7 @@ pub struct CausalSelfAttentionConfig {
     pub qk_norm: QkNormPlacement,
 
     /// Whether the query, key and value projections carry a bias.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub qkv_bias: bool,
 
     /// Whether the key projection carries a bias; `None` follows `qkv_bias`.
@@ -162,7 +162,7 @@ pub struct CausalSelfAttentionConfig {
     pub key_bias: Option<bool>,
 
     /// Whether the output projection carries a bias.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub output_bias: bool,
 
     /// The sliding attention window, in positions: a query attends to itself
@@ -222,7 +222,7 @@ pub struct CausalSelfAttentionConfig {
     /// the queries' scale still leaves each head its own temperature; it
     /// commutes with the rotary embedding. Initialized to ones. `false`
     /// builds none.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub query_gain: bool,
 }
 
@@ -239,11 +239,11 @@ pub struct CausalSelfAttentionConfig {
 #[derive(Config, Debug)]
 pub struct ValueResidualConfig {
     /// How many of the attention input's leading channels the gate reads.
-    #[config(default = "12")]
+    #[config(default = 12)]
     pub gate_channels: usize,
 
     /// The gate's range: `(0, gate_scale)`.
-    #[config(default = "3.0")]
+    #[config(default = 3.0)]
     pub gate_scale: f64,
 }
 

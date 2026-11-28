@@ -61,7 +61,7 @@ pub struct ProjectedDecoderStackConfig {
     pub output_width: Option<usize>,
 
     /// Whether the projections have a bias.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub bias: bool,
 }
 

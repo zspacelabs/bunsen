@@ -53,13 +53,13 @@ pub struct DecodeTriggers {
     /// pointer. The only trigger that needs no voice activity. Alongside
     /// `endpoint`, a full window is decoded only while speech is in
     /// progress inside it.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub window_full: bool,
 
     /// Decode when the voice-activity gate closes a region. Needs a
     /// voice-activity model on the driver
     /// ([`with_vad`](crate::kits::speech::asr::whisper::driver::WhisperStreamDriver::with_vad)).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub endpoint: bool,
 
     /// Decode every so often while speech is in progress, as a draft: once

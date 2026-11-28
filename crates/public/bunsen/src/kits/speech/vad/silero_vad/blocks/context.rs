@@ -43,7 +43,7 @@ pub struct SileroVadContextConfig {
     pub sample_rate: usize,
 
     /// The batch size.
-    #[config(default = "1")]
+    #[config(default = 1)]
     pub batch_size: usize,
 
     /// The size of the previous sequence window to preserve: the tail of

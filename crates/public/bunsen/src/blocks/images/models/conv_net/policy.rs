@@ -343,7 +343,7 @@ pub struct ConvLayersConfig {
     /// Whether each unit activates after its add: `false`, a linear output
     /// (`RegNetZ`'s `linear_out`). A pre-activation unit has none whatever
     /// this says.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub out_act: bool,
 
     /// Each conv's weight standardization, by this `eps` (timm's
@@ -353,13 +353,13 @@ pub struct ConvLayersConfig {
 
     /// Whether a pre-activation unit's identity shortcut reads the
     /// pre-activated input (`RegNetV`'s) or the raw one (`ResNetV2`'s).
-    #[config(default = "true")]
+    #[config(default = true)]
     pub pre_identity: bool,
 
     /// Whether each conv SAME-pads its input from its own size, the conv
     /// itself unpadded (timm's `Conv2dSame`, and `StdConv2dSame` with
     /// [`weight_std`](Self::weight_std); the hybrid `ViT`'s backbone).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub same_pad: bool,
 
     /// Each unit's spatial mixer.
@@ -368,7 +368,7 @@ pub struct ConvLayersConfig {
 
     /// Whether the anti-aliased downsampling ([`aa`](Self::aa)) goes before
     /// the mixer rather than after it (`ResNeSt`'s `avd_first`).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub aa_first: bool,
 }
 
@@ -590,7 +590,7 @@ pub struct ConvStemContractConfig {
     /// last conv, for a pre-activation net, whose first unit normalizes its
     /// input (`RegNetV`'s and `ResNetV2`'s stems; a deep stem's earlier convs
     /// keep theirs).
-    #[config(default = "true")]
+    #[config(default = true)]
     pub last_norm_act: bool,
 }
 
@@ -901,7 +901,7 @@ pub struct ConvNetContractConfig {
 
     /// The dropout before the classifier (timm's `drop_rate`; training
     /// only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub drop_rate: f64,
 }
 

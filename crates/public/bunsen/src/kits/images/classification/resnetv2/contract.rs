@@ -113,12 +113,12 @@ pub struct ResNetV2ContractConfig {
 
     /// The widths' multiplier (timm's `width_factor`, `BiT`'s `x1` to `x4`);
     /// every width is then rounded to 8s.
-    #[config(default = "1")]
+    #[config(default = 1)]
     pub width_factor: usize,
 
     /// The stem's width before [`width_factor`](Self::width_factor) (timm's
     /// `stem_chs`).
-    #[config(default = "64")]
+    #[config(default = 64)]
     pub stem_chs: usize,
 
     /// The stem (timm's `stem_type`).
@@ -132,12 +132,12 @@ pub struct ResNetV2ContractConfig {
 
     /// Whether each conv SAME-pads its input from its own size (timm's
     /// `conv_layer` `StdConv2dSame` or `Conv2dSame`; the hybrid `ViT`'s).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub same_pad: bool,
 
     /// Pre-activation units, a bare stem and a final norm (timm's `preact`,
     /// every published `ResNetV2`'s); `false`, the hybrid `ViT`'s backbone.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub preact: bool,
 
     /// The norm, with its activation (timm's `norm_layer`).
@@ -151,25 +151,25 @@ pub struct ResNetV2ContractConfig {
 
     /// Two-conv units (timm's `basic`, `PreActBasic`) rather than
     /// bottlenecks.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub basic: bool,
 
     /// A bottleneck's width over its unit's (timm's `bottle_ratio`): 0.25,
     /// or 1 for basic units.
-    #[config(default = "0.25")]
+    #[config(default = 0.25)]
     pub bottle_ratio: f64,
 
     /// An average pool before each projection shortcut's conv (timm's
     /// `avg_down`).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub avg_down: bool,
 
     /// The image channels (timm's `in_chans`).
-    #[config(default = "3")]
+    #[config(default = 3)]
     pub in_channels: usize,
 
     /// The net's stride at its last stage: 32, or 16 or 8 for a dilated net.
-    #[config(default = "32")]
+    #[config(default = 32)]
     pub output_stride: usize,
 
     /// The head's global pool.
@@ -178,7 +178,7 @@ pub struct ResNetV2ContractConfig {
 
     /// The dropout before the classifier (timm's `drop_rate`; training
     /// only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub drop_rate: f64,
 }
 

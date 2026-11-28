@@ -55,7 +55,7 @@ pub struct AdaptiveScaleConfig {
     pub activation: BunsenActivationConfig,
 
     /// Whether the two projections carry a bias.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub bias: bool,
 }
 

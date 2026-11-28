@@ -134,11 +134,11 @@ pub struct VoxtralAudioEncoderConfig {
     pub n_layers: usize,
 
     /// The RMS normalization epsilon.
-    #[config(default = "1e-5")]
+    #[config(default = 1e-5)]
     pub rms_eps: f64,
 
     /// The rotary embedding's base.
-    #[config(default = "1_000_000.0")]
+    #[config(default = 1_000_000.0)]
     pub rope_theta: f64,
 
     /// The attention window, in encoder frames; `None` attends to the whole

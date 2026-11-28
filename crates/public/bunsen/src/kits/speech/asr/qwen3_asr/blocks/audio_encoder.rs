@@ -167,11 +167,11 @@ pub struct Qwen3AsrAudioEncoderConfig {
     pub conv_channels: usize,
 
     /// Half the mel frames of a convolution chunk.
-    #[config(default = "50")]
+    #[config(default = 50)]
     pub n_window: usize,
 
     /// The mel frames an attention window spans at inference.
-    #[config(default = "800")]
+    #[config(default = 800)]
     pub n_window_infer: usize,
 
     /// The convolution stem's shape.

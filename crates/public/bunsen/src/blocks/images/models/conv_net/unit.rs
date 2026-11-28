@@ -541,13 +541,13 @@ pub struct ResidualUnitConfig {
     /// Whether the path's output adds to the shortcut's: `false`, the unit
     /// is its path alone, with no shortcut (`RegNetZ`'s units that change
     /// shape, timm's `downsample=None`).
-    #[config(default = "true")]
+    #[config(default = true)]
     pub residual: bool,
 
     /// Under [`pre`](Self::pre), whether an identity shortcut reads the
     /// pre-activated input (`RegNetV`'s) or the raw one (`ResNetV2`'s); a
     /// projection shortcut reads the pre-activated input either way.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub pre_identity: bool,
 
     /// The anti-aliased downsampling after the mixer's activation, which then
@@ -558,7 +558,7 @@ pub struct ResidualUnitConfig {
 
     /// Whether [`aa`](Self::aa) goes before the mixer (`ResNeSt`'s
     /// `avd_first`).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub aa_first: bool,
 
     /// The shortcut, when the path changes the channels or the size; else the
@@ -587,7 +587,7 @@ pub struct ResidualUnitConfig {
 
     /// The probability the whole path is dropped (stochastic depth, training
     /// only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub drop_path_prob: f64,
 }
 

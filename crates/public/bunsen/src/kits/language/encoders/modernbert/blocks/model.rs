@@ -100,7 +100,7 @@ pub struct ModernBertContractConfig {
     pub d_ff: usize,
 
     /// The `LayerNorm` epsilon.
-    #[config(default = "1e-5")]
+    #[config(default = 1e-5)]
     pub norm_eps: f64,
 
     /// Each layer's attention kind; empty, `transformers`' pattern: every
@@ -110,15 +110,15 @@ pub struct ModernBertContractConfig {
 
     /// How far a local layer's query sees on either side, in positions:
     /// `local_attention / 2` (64 of 128).
-    #[config(default = "64")]
+    #[config(default = 64)]
     pub local_radius: usize,
 
     /// The global layers' rotary base.
-    #[config(default = "160000.0")]
+    #[config(default = 160000.0)]
     pub global_rope_theta: f64,
 
     /// The local layers' rotary base.
-    #[config(default = "10000.0")]
+    #[config(default = 10000.0)]
     pub local_rope_theta: f64,
 }
 

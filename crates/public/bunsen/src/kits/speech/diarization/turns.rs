@@ -45,31 +45,31 @@ impl SpeakerTurn {
 #[derive(Config, Debug, PartialEq)]
 pub struct TurnFilterConfig {
     /// The onset threshold.
-    #[config(default = "0.5")]
+    #[config(default = 0.5)]
     pub onset: f64,
 
     /// The offset threshold.
-    #[config(default = "0.5")]
+    #[config(default = 0.5)]
     pub offset: f64,
 
     /// Seconds added before each turn.
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub pad_onset: f64,
 
     /// Seconds added after each turn.
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub pad_offset: f64,
 
     /// Turns shorter than this, in seconds, are dropped; 0 keeps them all.
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub min_duration_on: f64,
 
     /// Gaps shorter than this, in seconds, are filled; 0 fills none.
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub min_duration_off: f64,
 
     /// Drop short turns before filling short gaps.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub filter_speech_first: bool,
 }
 

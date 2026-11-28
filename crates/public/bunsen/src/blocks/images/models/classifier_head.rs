@@ -52,12 +52,12 @@ pub struct ClassifierHeadConfig {
 
     /// The dropout before the classifier (timm's `drop_rate`; training
     /// only).
-    #[config(default = "0.0")]
+    #[config(default = 0.0)]
     pub drop_rate: f64,
 
     /// Whether a second classifier reads a distillation token (timm's
     /// `head_dist`).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub distilled: bool,
 }
 

@@ -119,12 +119,12 @@ pub struct Zonos3CodecConfig {
 
     /// Its kernel's half-width in the sinc's zero crossings: upstream's
     /// `lowpass_filter_width`, which `config.json` does not carry.
-    #[config(default = "16")]
+    #[config(default = 16)]
     pub resample_zero_crossings: usize,
 
     /// Its cut-off, as a fraction of the lower rate's Nyquist frequency:
     /// upstream's `rolloff`, which `config.json` does not carry.
-    #[config(default = "0.99")]
+    #[config(default = 0.99)]
     pub resample_rolloff: f64,
 
     /// Output samples per frame of codes.

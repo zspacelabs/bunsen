@@ -49,7 +49,7 @@ pub struct PatchMergeConfig {
 
     /// Whether the norm comes before the reduction (Swin V1), not after
     /// (Swin V2).
-    #[config(default = "false")]
+    #[config(default = false)]
     pub norm_first: bool,
 }
 

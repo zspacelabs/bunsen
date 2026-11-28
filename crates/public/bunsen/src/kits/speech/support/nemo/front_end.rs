@@ -68,31 +68,31 @@ pub trait NemoMelFrontEndMeta {
 #[derive(Config, Debug, PartialEq)]
 pub struct NemoMelFrontEndConfig {
     /// The sample rate the front end expects, in Hz.
-    #[config(default = "16000")]
+    #[config(default = 16000)]
     pub sample_rate: usize,
 
     /// The analysis window length, in samples (25 ms).
-    #[config(default = "400")]
+    #[config(default = 400)]
     pub win_length: usize,
 
     /// The hop between frames, in samples (10 ms).
-    #[config(default = "160")]
+    #[config(default = 160)]
     pub hop: usize,
 
     /// The mel channel count.
-    #[config(default = "128")]
+    #[config(default = 128)]
     pub n_mels: usize,
 
     /// The pre-emphasis coefficient `a` of `y[n] = x[n] - a * x[n - 1]`.
-    #[config(default = "0.97")]
+    #[config(default = 0.97)]
     pub preemphasis: f64,
 
     /// Added to every mel energy before the natural log: `2^-24`.
-    #[config(default = "5.960464477539063e-8")]
+    #[config(default = 5.960464477539063e-8)]
     pub log_guard: f64,
 
     /// Added to each feature's standard deviation before dividing by it.
-    #[config(default = "1e-5")]
+    #[config(default = 1e-5)]
     pub norm_epsilon: f64,
 
     /// How each item's log-mels are normalized.
@@ -101,7 +101,7 @@ pub struct NemoMelFrontEndConfig {
 
     /// Round the analysis window and the mel filterbank to `bf16`, as a
     /// checkpoint that stores them in `bf16` computes with them.
-    #[config(default = "false")]
+    #[config(default = false)]
     pub bf16_tables: bool,
 }
 

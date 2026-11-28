@@ -18,40 +18,40 @@ pub const VOXTRAL_LONG_DELAY_MS: usize = 2400;
 #[derive(Config, Debug, PartialEq)]
 pub struct VoxtralTokenLayoutConfig {
     /// `<s>`, the prompt's first token.
-    #[config(default = "1")]
+    #[config(default = 1)]
     pub bos: usize,
 
     /// `</s>`, which ends a decode.
-    #[config(default = "2")]
+    #[config(default = 2)]
     pub eos: usize,
 
     /// `[STREAMING_PAD]`: a position with nothing new to write.
-    #[config(default = "32")]
+    #[config(default = 32)]
     pub streaming_pad: usize,
 
     /// `[STREAMING_WORD]`: a word starts here; its text follows.
-    #[config(default = "33")]
+    #[config(default = 33)]
     pub streaming_word: usize,
 
     /// The audio one decoder position covers, in ms (`1000 / frame_rate`).
-    #[config(default = "80")]
+    #[config(default = 80)]
     pub position_ms: usize,
 
     /// How far the text runs behind the audio, in ms
     /// (`transcription_delay_ms`): a multiple of `position_ms` up to
     /// [`VOXTRAL_MAX_DELAY_MS`], or [`VOXTRAL_LONG_DELAY_MS`].
-    #[config(default = "480")]
+    #[config(default = 480)]
     pub delay_ms: usize,
 
     /// The positions of silence before the audio
     /// (`streaming_n_left_pad_tokens`).
-    #[config(default = "32")]
+    #[config(default = 32)]
     pub left_pad_positions: usize,
 
     /// The positions of silence after the audio beyond the delay and the
     /// first position: room for the last word to finish
     /// (`mistral_common`'s `OFFLINE_STREAMING_BUFFER_TOKENS`).
-    #[config(default = "10")]
+    #[config(default = 10)]
     pub right_buffer_positions: usize,
 }
 

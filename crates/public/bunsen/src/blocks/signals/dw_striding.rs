@@ -150,7 +150,7 @@ pub struct DwStridingSubsamplingConfig {
     pub d_model: usize,
 
     /// The number of strided stages: 3 for 8x subsampling.
-    #[config(default = "3")]
+    #[config(default = 3)]
     pub n_stages: usize,
 
     /// How the last convolution's output is flattened for the projection.

@@ -9,15 +9,15 @@ use super::{
 #[derive(Config, Debug, PartialEq)]
 pub struct VoiceActivityFilterConfig {
     /// The audio sample rate.
-    #[config(default = "16_000")]
+    #[config(default = 16_000)]
     pub sample_rate: usize,
 
     /// The samples per chunk.
-    #[config(default = "512")]
+    #[config(default = 512)]
     pub samples_per_chunk: usize,
 
     /// A probability at or above this opens a region.
-    #[config(default = "0.5")]
+    #[config(default = 0.5)]
     pub threshold: f64,
 
     /// A probability below this counts as silence inside an open region.
@@ -26,7 +26,7 @@ pub struct VoiceActivityFilterConfig {
     pub neg_threshold: Option<f64>,
 
     /// Regions shorter than this are dropped.
-    #[config(default = "0")]
+    #[config(default = 0)]
     pub min_speech_ms: usize,
 
     /// Regions longer than this are split: at the longest silence longer
@@ -38,23 +38,23 @@ pub struct VoiceActivityFilterConfig {
     pub max_speech_s: Option<f64>,
 
     /// Silence that must elapse before an open region closes.
-    #[config(default = "2000")]
+    #[config(default = 2000)]
     pub min_silence_ms: usize,
 
     /// Padding added on each side of a region by
     /// [`VoiceActivityFilterConfig::speech_regions`].
-    #[config(default = "400")]
+    #[config(default = 400)]
     pub speech_pad_ms: usize,
 
     /// A silence at least this long is a candidate split point for a
     /// region that reaches its maximum length.
-    #[config(default = "98")]
+    #[config(default = 98)]
     pub min_silence_at_max_speech_ms: usize,
 
     /// Split an over-long region at the longest candidate silence rather
     /// than the last one. Upstream's default, and the better cut: the
     /// longest interior pause beats the most recent one.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub split_at_longest_silence: bool,
 }
 

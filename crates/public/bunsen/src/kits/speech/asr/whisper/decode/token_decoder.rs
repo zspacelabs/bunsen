@@ -68,7 +68,7 @@ pub struct GreedyDecodeConfig {
     pub eot_token: i64,
 
     /// The most tokens to sample per window.
-    #[config(default = "224")]
+    #[config(default = 224)]
     pub max_tokens: usize,
 }
 
@@ -83,7 +83,7 @@ pub struct DecodeConfig {
     pub eot_token: i64,
 
     /// The most tokens to sample per window.
-    #[config(default = "224")]
+    #[config(default = 224)]
     pub max_tokens: usize,
 
     /// The search: beam width, temperature and trajectories, ranking.
@@ -104,7 +104,7 @@ pub struct DecodeConfig {
     /// cache (the tower's first level) or each carries a copy (the ground,
     /// kept as the oracle). The decode is the same either way; the copies
     /// are not.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub shared_cross_kv: bool,
 }
 

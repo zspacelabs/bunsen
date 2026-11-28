@@ -70,7 +70,7 @@ pub struct VoxtralRealtimeConfig {
     pub text: VoxtralTextConfig,
 
     /// The encoder frames stacked into one decoder position.
-    #[config(default = "4")]
+    #[config(default = 4)]
     pub downsample: usize,
 }
 

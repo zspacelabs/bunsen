@@ -62,7 +62,7 @@ pub struct RelPosSelfAttentionConfig {
 
     /// Whether the query, key, value and output projections carry a bias.
     /// The position projection never does.
-    #[config(default = "true")]
+    #[config(default = true)]
     pub bias: bool,
 }
 
