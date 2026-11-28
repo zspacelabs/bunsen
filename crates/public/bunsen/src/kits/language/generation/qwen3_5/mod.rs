@@ -7,15 +7,13 @@
 //! [`GatedDeltaNet`](crate::blocks::transformers::mixers::GatedDeltaNet), and
 //! every few full attention, with QK-norm, a sigmoid gate on its output and
 //! a rotary embedding over a quarter of each head; a `SwiGLU` in every
-//! layer, and `1 + w` RMS norms. One [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel) is built from a
-//! [`Qwen3_5ContractConfig`].
+//! layer, and `1 + w` RMS norms. A [`Qwen3_5ContractConfig`] builds it as an
+//! [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel).
 //!
 //! - [`Qwen3_5ContractConfig`]: the policy the model,
 //!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
 //!   is built from; its prefabs are [`pretrained`]'s.
-//! - Decoding: the model wraps an
-//!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
-//!   with linear-attention layers, and is a
+//! - Decoding: the model, with its linear-attention layers, is a
 //!   [`StackedLm`](crate::kits::support::decoding::StackedLm), its decode state
 //!   its stack's
 //!   [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache):

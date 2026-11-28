@@ -51,6 +51,11 @@
 //!   however many kits use it, one or none: the library of blocks is a good of
 //!   its own. Only a part that knows one model's layout lives in that kit.
 //!   Blocks stay composable and ops reusable.
+//! - **A norm or activation choice is the wrapper, in a field named `norm` or
+//!   `act`** (`BunsenNormalizationConfig`, `BunsenActivationConfig`), in a
+//!   block and in a kit's policy alike, its width filled in where it sits. A
+//!   block whose norm or activation would be fixed takes the slot, its default
+//!   the fixed choice, without waiting for a kit to need another.
 //! - **A block names no kit and no model family**, nor links one, except in a
 //!   `## Discussion` section at the end of its structure doc (the type's or
 //!   module's main doc, not a method's, field's or variant's), which may name
@@ -123,6 +128,9 @@
 //! - [`activation`]: the activation seam, `BunsenActivationConfig` and
 //!   `BunsenActivation`: burn's activations, and bunsen's (`Silu`, `Pow`,
 //!   `Snake`, `Chain`), behind one seam bunsen owns.
+//! - [`norm`]: the normalization seam, `BunsenNormalizationConfig` and
+//!   `BunsenNormalization` (batch, group, layer, RMS and `EvoNorm-S0`), with
+//!   `BunsenLayerNorm` and a gated norm.
 //! - [`conv`]: conv / norm / activation blocks, in 1D and 2D (`ConvBlock1d`,
 //!   `ConvBlock2d`), and sequences of them (`ConvSeq1d`, `ConvSeq2d`); causal
 //!   1-d convolutions and upsamplers (`CausalConv1d`, `CausalConvTranspose1d`)
@@ -131,8 +139,8 @@
 //!   [`ops::signal`](crate::ops::signal)'s fixed front ends: the frame-rate
 //!   changes `FeatureStacking` (frames stacked and projected),
 //!   `DwStridingSubsampling` (depthwise-striding convolutions) and
-//!   `SubpixelUpsample1d` (a sub-pixel convolution), and `EncoderSubsampling`,
-//!   an encoder front end chosen by config.
+//!   `SubpixelUpsample1d` (a sub-pixel convolution), `EncoderSubsampling`, an
+//!   encoder front end chosen by config, and the DAC decoder.
 //! - [`images`]: vision blocks.
 //!   - [`images::anti_alias`]: anti-aliased downsampling, `BlurPool2d` and an
 //!     average pool, behind the `AntiAlias` seam.
@@ -140,33 +148,56 @@
 //!     behind the `ChannelAttention` seam.
 //!   - [`images::drop`]: structured drop layers, `DropBlock2d` and `DropPath`,
 //!     and the drop-path rate tables.
-//!   - [`images::patching`]: `PatchEmbed`, a vision transformer's patch
-//!     embedding.
+//!   - [`images::mixers`]: the spatial mixers that take a residual unit's
+//!     strided conv's place: scale splits, split attention and the selective
+//!     kernel.
+//!   - [`images::models`]: whole image models: the generic residual conv net
+//!     (`ConvNetModel`, built from a `ConvNetStructureConfig` or the
+//!     `ConvNetContractConfig` policy) and the classifier head.
+//!   - [`images::patching`]: a vision transformer's tokens: `PatchEmbed` (an
+//!     image cut into embedded patches), `PrefixTokens` (the class, register
+//!     and position tokens) and `PatchMerge` (a staged encoder's downsampling).
 //! - [`mlp`]: position-wise MLPs over any rank: `BunsenMlp`, the general form
-//!   of burn's `PositionWiseFeedForward`.
+//!   of burn's `PositionWiseFeedForward`, and the gated `BunsenGatedMlp`.
 //! - [`layout`]: `BoundaryPermutes`, the axis permutes a block applies at its
 //!   boundary, so a caller's activation layout and the block's need not agree.
-//! - [`pooling`]: a sequence pooled over time: `AttentiveStatsPooling`, each
-//!   channel's attention-weighted mean and deviation (speaker encoders').
+//! - [`pooling`]: a sequence pooled into one vector: `AttentiveStatsPooling`,
+//!   each channel's attention-weighted mean and deviation, and
+//!   `LatentAttentionPool`, a learned query's attention.
 //! - [`quantization`]: a residual vector quantizer's decode, codes to their
 //!   latent: `EuclideanCodebook`, `ResidualVectorQuantizer` and
 //!   `SplitResidualVectorQuantizer`.
 //! - [`rnn`]: recurrent blocks: `FusedLstm`, a single-step LSTM with fused
 //!   gates, and its state type.
-//! - [`transformers`]: transformer blocks: the parts, and the layers and stacks
-//!   assembled from them.
+//! - [`transformers`]: transformer blocks: the parts, and the layers, stacks
+//!   and models assembled from them.
 //!   - [`transformers::attention`]: `CausalSelfAttention`, with QK-norm, rotary
-//!     embeddings, grouped-query attention and an optional KV cache; and the
-//!     encoders' bidirectional attentions, relative-position and rotary.
-//!   - [`transformers::embedding`]: `RotaryEmbedding`, and fixture embeddings
-//!     for tests.
+//!     embeddings, grouped-query attention and an optional KV cache; windowed
+//!     attention; and the encoders' bidirectional attentions, relative-position
+//!     and rotary.
+//!   - [`transformers::mixers`]: `TokenMixer`, what a layer mixes positions
+//!     with: causal self-attention, windowed attention, or a `GatedDeltaNet`.
+//!   - [`transformers::embedding`]: `TokenEmbedding`, `RotaryEmbedding` and its
+//!     per-layer sets, and fixture embeddings for tests.
 //!   - [`transformers::mlp`]: `TransformerFeedForward`, a transformer layer's
 //!     feed-forward (a `BunsenMlp`, a `BunsenGatedMlp` or a mixture of
-//!     experts).
-//!   - [`transformers::encoders`]: bidirectional encoder layers and stacks: the
-//!     residual layer, the rotary encoder, and the Conformer encoder with its
-//!     relative-position attention, convolution and feed-forward modules and
-//!     depthwise-striding subsampling.
+//!     experts); [`transformers::moe`] holds the mixture's router, experts and
+//!     shared expert.
+//!   - [`transformers::sublayer`]: `ResidualSublayer`, a branch, its norms and
+//!     its residual add, the unit every layer is built of.
+//!   - [`transformers::decoders`]: causal decoder layers (`CausalDecoderBlock`,
+//!     `CrossDecoderBlock`) and the stacks of them, with their attention
+//!     residuals and depth decoders.
+//!   - [`transformers::encoders`]: bidirectional encoder stacks
+//!     (`EncoderTransformer`), a subsampled encoder, and the Conformer encoder
+//!     with its relative-position attention, convolution and feed-forward
+//!     modules.
+//!   - [`transformers::conditioning`]: layers that let a vector outside the
+//!     sequence steer a layer (`AdaptiveScale`).
+//!   - [`transformers::head`]: `LmHead`, a language model's output head.
+//!   - [`transformers::models`]: whole models generic over what tells their
+//!     users apart: `LmDecoderModel`, `VisionEncoderModel` and
+//!     `StagedVisionEncoderModel`.
 //!
 //! See the per-item rustdoc for shape contracts, defaults, and the papers each
 //! block implements.
@@ -175,8 +206,9 @@
 //!
 //! - The named models are [`crate::kits`]' (`ResNet`, `NanoChatGpt`, Whisper,
 //!   ...): a typical user picks an existing kit.
-//! - The Llama and Whisper layer names, and `PyTorch`'s
-//!   `nn.TransformerEncoderLayer`'s, are in `kits::support::interop`.
+//! - The Llama and Whisper layer names are in
+//!   `kits::support::transformers::interop`, and `PyTorch`'s
+//!   `nn.TransformerEncoderLayer`'s in `kits::support::torch::interop`.
 //! - The Conformer encoder, with its depthwise-striding subsampling
 //!   (`DwStridingSubsampling`), is the `FastConformer`'s; `PatchEmbed` is the
 //!   Swin Transformer V2 patch embedding; and `SplitResidualVectorQuantizer` is

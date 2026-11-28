@@ -4,14 +4,13 @@
 //! defines it: grouped-query causal self-attention with per-head query/key
 //! RMS normalization before a rotary embedding, a `SwiGLU` feed-forward, and a
 //! head tied to the embedding or a linear map of its own
-//! (`tie_word_embeddings`). [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel) is built from a
-//! [`Qwen3ContractConfig`] out of the shared
+//! (`tie_word_embeddings`). A [`Qwen3ContractConfig`] builds it as an
+//! attention-only [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
+//! out of the shared
 //! [`CausalSelfAttention`](crate::blocks::transformers::attention::csa::CausalSelfAttention),
 //! [`BunsenGatedMlp`](crate::blocks::mlp::BunsenGatedMlp) and
 //! [`RotaryEmbedding`](crate::blocks::transformers::embedding::RotaryEmbedding),
-//! wrapping an attention-only
-//! [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel), and
-//! decodes through a [`KVCache`](crate::ops::transformers::attention::KVCache).
+//! which decodes through a [`KVCache`](crate::ops::transformers::attention::KVCache).
 //!
 //! It is the model of the dense Qwen3 checkpoints up to 8B: `Qwen3-0.6B`,
 //! `Qwen3-1.7B`, `Qwen3-4B`, their `-Base` builds and `Qwen3-4B`'s `2507`

@@ -10,28 +10,35 @@
 //!
 //! The kits are grouped by the task each does:
 //!
-//! - [`classification`]: image classifiers, the `ResNet` family and Swin
-//!   Transformer V2.
+//! - [`classification`]: image classifiers, ten kits: the conv nets (`ResNet`,
+//!   `ResNetV2`, `RegNet`, `Res2Net`, `ResNeSt`, `SKNet`), the vision
+//!   transformers (`ViT`, `DeiT`) and the staged ones (Swin V1 and V2), each
+//!   with `timm`'s checkpoints by name.
 //!
 //! What the kits share sits in [`support`]: the eval transform that turns a
 //! resized image into a model's input.
 //!
-//! Both families are Stacked configs: a policy config, what the model
+//! Every family is a Stacked config: a policy config, what the model
 //! means, lowers to a structure config, the unrolled tree, which builds
 //! the module
 //! ([`ModuleInit`](crate::burner::module::ModuleInit#stacked-config)). A
-//! conv-net family has no model type of its own: its policy lowers to the
-//! generic conv net's, and the model it builds is a
-//! [`ConvNetModel`](crate::blocks::images::models::conv_net::ConvNetModel).
-//! `ResNet` adds the pretrained pathway on top: a name resolves to a row,
+//! family has no model type of its own: its policy lowers to a generic
+//! model's, the
+//! [`ConvNetModel`](crate::blocks::images::models::conv_net::ConvNetModel),
+//! the
+//! [`VisionEncoderModel`](crate::blocks::transformers::models::vision_encoder::VisionEncoderModel)
+//! or the
+//! [`StagedVisionEncoderModel`](crate::blocks::transformers::models::staged_vision_encoder::StagedVisionEncoderModel).
+//! Each kit adds the pretrained pathway on top: a name resolves to a row,
 //! the row's prefab is the policy, and the kit's hook builds the model and
 //! reads the checkpoint into it.
 //!
-//! `ResNet`'s parity is checked: the `timm-model-validation` crate compares
-//! its rows' logits and features with timm's on `ImageNet`'s validation
-//! images, and its toy tests compare every stage with timm's own model.
-//! Swin's is not checked yet. `examples/resnet_finetune`,
-//! `examples/resnet_tiny` and `examples/swin_tiny` train them.
+//! Parity is checked: the `timm-model-validation` crate compares every kit's
+//! rows' logits and features with timm's on `ImageNet`'s validation images,
+//! and the kits' toy tests compare their models with timm's own on toy
+//! fixtures.
+//! `examples/resnet_finetune`, `examples/resnet_tiny` and `examples/swin_tiny`
+//! train them.
 
 pub mod classification;
 pub mod support;

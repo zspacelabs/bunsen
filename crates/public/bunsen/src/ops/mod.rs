@@ -124,6 +124,11 @@
 //!   rather than a one-shot call.
 //! - [`math`]: [`LogBase`](math::LogBase), a logarithm in a configurable base.
 //!
+//! ### Reductions
+//! - [`reduce`]: chunked row reductions over a wide last axis (a decode step's
+//!   logits): the argmax, the top `k`, and the log-sum-exp a log probability or
+//!   a nucleus normalizes by.
+//!
 //! ### Regularization
 //! - [`mod@drop`]: [`dropout`](drop::dropout), [`drop_path`](drop::drop_path)
 //!   (stochastic depth), and [`drop_block_2d`](drop::drop_block_2d) with its
@@ -157,16 +162,24 @@
 //! ### Transformers
 //! - [`transformers`]: [`attention`](transformers::attention), scaled
 //!   dot-product attention, attention over burn's `MultiHeadAttention` weights,
-//!   and the key/value cache every decoder uses (`KVCache`).
+//!   and the key/value cache every decoder uses (`KVCache`);
+//!   [`linear_attention`](transformers::linear_attention), the gated
+//!   `DeltaNet`'s token mixing and its decode state;
+//!   [`moe`](transformers::moe), the dispatch every sparse mixture of experts
+//!   runs its experts through; and [`attn_res`](transformers::attn_res),
+//!   attention residuals' routing.
 //!
 //! ### Signal processing
-//! - [`signal`]: sliding-window STFT, analysis windows, and waveform-to-log-mel
-//!   conversion ([`signal::perceptive_audio`]), with per-stream contexts.
+//! - [`signal`]: the sliding-window STFT and its inverse, the coefficient
+//!   kernels (windows, sinc, mel), waveform-to-log-mel conversion
+//!   ([`signal::perceptive_audio`]), Kaldi filterbanks, resamplers, and quiet
+//!   cuts for long audio, with per-stream contexts.
 //!
 //! ### Images
 //! - [`images`]: the tensor half of image preprocessing: center crops (with
 //!   padding where an image is smaller) at torchvision's offsets, and
-//!   per-channel normalisation.
+//!   per-channel normalisation; and [`images::windows`], the window partition,
+//!   shift and merge a windowed vision transformer does around its attention.
 //!
 //! [`DropBlock2d`]: crate::blocks::images::drop::drop_block::DropBlock2d
 //! [`DropBlock2dConfig`]: crate::blocks::images::drop::drop_block::DropBlock2dConfig
