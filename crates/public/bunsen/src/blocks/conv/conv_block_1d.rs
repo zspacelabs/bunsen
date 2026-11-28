@@ -31,7 +31,7 @@ use crate::{
         BunsenResult,
         ConstraintError,
     },
-    ops::conv::maybe_conv1d_output_size,
+    ops::conv::try_conv1d_output_size,
 };
 
 /// [`ConvBlock1d`] Meta.
@@ -96,15 +96,15 @@ pub trait ConvBlock1dMeta {
             }
         };
         // Fold the (possibly asymmetric) total padding into the effective input
-        // length so we can reuse the symmetric `maybe_conv1d_output_size`.
-        maybe_conv1d_output_size(
+        // length so we can reuse the symmetric `try_conv1d_output_size`.
+        try_conv1d_output_size(
             in_length + total_padding,
             kernel_size,
             stride,
             0,
             self.dilation(),
         )
-        .ok_or_else(|| {
+        .map_err(|_| {
             ConstraintError::custom(
                 "ConvBlock1d",
                 "in_length",

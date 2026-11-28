@@ -234,7 +234,7 @@ fn toy_vocab() -> crate::kits::support::tokens::ByteLevelVocabulary {
 }
 
 /// The construct runs the toy end to end, from samples to a parsed transcript;
-/// a long recording is the concatenation of its windows' transcriptions.
+/// its reply parses as the prompt parses it.
 #[test]
 fn test_toy_construct() {
     let toy = Toy::load();
@@ -262,22 +262,6 @@ fn test_toy_construct() {
         .parse(one.tokens.clone(), &[6], &construct.vocab)
         .unwrap();
     assert_eq!(one, expected);
-
-    let long = construct
-        .transcribe_long(&samples, 16_000, &device)
-        .unwrap();
-    let windows = crate::ops::signal::quiet_cuts(&samples, 16_000, 160);
-    assert!(windows.len() >= 3);
-    let mut tokens = Vec::new();
-    for (a, b) in windows {
-        tokens.extend(
-            construct
-                .transcribe(&samples[a..b], &device)
-                .unwrap()
-                .tokens,
-        );
-    }
-    assert_eq!(long.tokens, tokens);
 }
 
 /// A reply's attention onto the audio comes from the positions that predict

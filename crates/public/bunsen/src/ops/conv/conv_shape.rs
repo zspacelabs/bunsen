@@ -1,15 +1,28 @@
 //! Convolution shape arithmetic.
 
-use alloc::vec::Vec;
+use alloc::{
+    format,
+    string::ToString,
+    vec::Vec,
+};
 
 use burn::{
     module::Initializer,
     nn::PaddingConfig2d,
 };
 
-use crate::contracts::unpack_shape_contract;
+use crate::{
+    contracts::unpack_shape_contract,
+    errors::{
+        BunsenResult,
+        ConstraintError,
+        ResultContext,
+        Rule,
+        WithOkOrPanic,
+    },
+};
 
-/// Predicts the output size of a 1D convolution operation.
+/// The output size of a 1D convolution along one axis:
 ///
 /// ```text
 /// out_size = floor( ((in_size + 2*padding - dilation*(kernel_size-1) - 1) / stride) + 1 )
@@ -23,235 +36,168 @@ use crate::contracts::unpack_shape_contract;
 ///
 /// # Arguments
 ///
-/// - `input_size`: The input dimension size, must be > 0.
-/// - `kernel_size`: The kernel size, must be > 0.
-/// - `stride`: The stride of the convolution, must be > 0.
-/// - `padding`: The padding of the convolution, added evenly to all sides of
+/// - `input_size`: The input dimension size, > 0.
+/// - `kernel_size`: The kernel size, > 0.
+/// - `stride`: The stride of the convolution, > 0.
+/// - `padding`: The padding of the convolution, added evenly to both sides of
 ///   the input.
-/// - `dilation`: The dilation of the convolution, must be > 0.
+/// - `dilation`: The dilation of the convolution, > 0.
 ///
-/// # Returns
+/// # Errors
 ///
-/// An `Option<usize>` representing the output size; or `None` for <= 0.
-pub fn maybe_conv1d_output_size(
+/// A [`ConstraintError`] for a zero size, kernel, stride or dilation, or a
+/// kernel that does not fit the padded input (no output).
+pub fn try_conv1d_output_size(
     input_size: usize,
     kernel_size: usize,
     stride: usize,
     padding: usize,
     dilation: usize,
-) -> Option<usize> {
-    assert!(input_size > 0);
-    assert!(kernel_size > 0);
-    assert!(stride > 0);
-    assert!(dilation > 0);
-
-    let effective_size = input_size + 2 * padding;
-    let pos = effective_size + stride;
-    let kernel_width = 1 + dilation * (kernel_size - 1);
-
-    if pos < kernel_width {
-        return None;
+) -> BunsenResult<usize> {
+    const OWNER: &str = "try_conv1d_output_size";
+    for (name, value) in [
+        ("input_size", input_size),
+        ("kernel_size", kernel_size),
+        ("stride", stride),
+        ("dilation", dilation),
+    ] {
+        if value == 0 {
+            return Err(ConstraintError::zero_or_empty(OWNER, name).into());
+        }
     }
-    let x = (pos - kernel_width) / stride;
-    if x < 1 { None } else { Some(x) }
+    let pos = input_size + 2 * padding + stride;
+    let kernel_width = 1 + dilation * (kernel_size - 1);
+    match pos.checked_sub(kernel_width).map(|x| x / stride) {
+        Some(x) if x >= 1 => Ok(x),
+        _ => Err(ConstraintError::custom(
+            OWNER,
+            "input_size",
+            format!(
+                "{input_size} has no output under kernel_size {kernel_size}, stride {stride}, \
+                 padding {padding}, dilation {dilation}"
+            ),
+        )
+        .into()),
+    }
 }
 
-/// Predicts the output size of a 1D convolution operation.
-///
-/// This is the ``panic``-ing variant of [`maybe_conv1d_output_size`].
-///
-/// ```text
-/// out_size = floor( ((in_size + 2*padding - dilation*(kernel_size-1) - 1) / stride) + 1 )
-/// ```
-///
-/// # Reference
-///
-/// - [conv_arithmetic diagram](https://github.com/vdumoulin/conv_arithmetic/blob/master/README.md)
-///   visual explanations of these convolution parameters.
-/// - [pytorch conv1d](https://docs.pytorch.org/docs/stable/generated/torch.nn.Conv1d.html)
-///
-/// # Arguments
-///
-/// - `input_size`: The input dimension size, must be > 0.
-/// - `kernel_size`: The kernel size, must be > 0.
-/// - `stride`: The stride of the convolution, must be > 0.
-/// - `padding`: The padding of the convolution, added evenly to all sides of
-///   the input.
-/// - `dilation`: The dilation of the convolution, must be > 0.
-///
-/// # Returns
-///
-/// The output size of the convolution operation.
+/// [`try_conv1d_output_size`], for a geometry known to be sound.
 ///
 /// # Panics
 ///
-/// If the output size would be <= 0.
-pub fn expect_conv1d_output_size(
+/// When it is not.
+pub fn conv1d_output_size(
     input_size: usize,
     kernel_size: usize,
     stride: usize,
     padding: usize,
     dilation: usize,
 ) -> usize {
-    match maybe_conv1d_output_size(input_size, kernel_size, stride, padding, dilation) {
-        Some(x) => x,
-        None => panic!(
-            "No legal output size for conv1d with:\n input_size:{input_size}\n kernel_size:{kernel_size}\n stride:{stride}\n dilation:{dilation}\n padding:{padding}",
-        ),
-    }
+    try_conv1d_output_size(input_size, kernel_size, stride, padding, dilation).ok_or_panic()
 }
 
-/// Predicts the output shape of a D convolution operation; for dynamic slices.
+/// The output shape of a `D`-dimensional convolution:
+/// [`try_conv1d_output_size`] along each axis.
 ///
-/// This is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
+/// # Errors
 ///
-/// # Arguments
-///
-/// - `input_shape`: The input dimension shape, each dim must be > 0.
-/// - `kernel_shape`: The kernel shape; length must match `input_shape`, each
-///   dim must be > 0.
-/// - `stride`: The stride of the convolution; length must match `input_shape`,
-///   each dim must be > 0.
-/// - `padding`: The padding of the convolution, added evenly to all sides of
-///   the input.
-/// - `dilation`: The dilation of the convolution; length must match
-///   `input_shape`, each dim must be > 0.
-///
-/// # Returns
-///
-/// An `Option<Vec<usize>>` representing the output shape; or `None` for <= 0.
-pub fn maybe_conv_output_shape_dyn(
-    input_shape: &[usize],
-    kernel_shape: &[usize],
-    stride: &[usize],
-    padding: &[usize],
-    dilation: &[usize],
-) -> Option<Vec<usize>> {
-    let rank = input_shape.len();
-    assert_eq!(kernel_shape.len(), rank);
-    assert_eq!(stride.len(), rank);
-    assert_eq!(dilation.len(), rank);
-    assert_eq!(padding.len(), rank);
-
-    let mut output_shape = Vec::with_capacity(rank);
-    for i in 0..rank {
-        output_shape.push(maybe_conv1d_output_size(
-            input_shape[i],
-            kernel_shape[i],
-            stride[i],
-            padding[i],
-            dilation[i],
-        )?);
-    }
-    Some(output_shape)
-}
-
-/// Predicts the output shape of a D convolution operation.
-///
-/// This is the ``panic``-ing variant of [`maybe_conv_output_shape_dyn`];
-/// which is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
-///
-/// # Arguments
-///
-/// - `input_shape`: The input dimension shape, each dim must be > 0.
-/// - `kernel_shape`: The kernel shape, each dim must be > 0.
-/// - `stride`: The stride of the convolution, each dim must be > 0.
-/// - `padding`: The padding of the convolution, added evenly to all sides of
-///   the input.
-/// - `dilation`: The dilation of the convolution, each dim must be > 0.
-///
-/// # Returns
-///
-/// The output shape, as a `Vec<usize>`.
-///
-/// # Panics
-///
-/// If any output dimension would be <= 0.
-pub fn expect_conv_output_shape_dyn(
-    input_shape: &[usize],
-    kernel_shape: &[usize],
-    stride: &[usize],
-    padding: &[usize],
-    dilation: &[usize],
-) -> Vec<usize> {
-    match maybe_conv_output_shape_dyn(input_shape, kernel_shape, stride, padding, dilation) {
-        Some(shape) => shape,
-        None => panic!(
-            "No legal output size for conv with:\n input_shape:{input_shape:?}\n kernel_shape:{kernel_shape:?}\n stride:{stride:?}\n dilation:{dilation:?}\n padding:{padding:?}",
-        ),
-    }
-}
-
-/// Predicts the output shape of a D convolution operation.
-///
-/// This is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
-///
-/// # Arguments
-///
-/// - `input_shape`: The input dimension shape, each dim must be > 0.
-/// - `kernel_shape`: The kernel shape, each dim must be > 0.
-/// - `stride`: The stride of the convolution, each dim must be > 0.
-/// - `padding`: The padding of the convolution, added evenly to all sides of
-///   the input.
-/// - `dilation`: The dilation of the convolution, each dim must be > 0.
-///
-/// # Returns
-///
-/// An `Option<[usize; D]>` representing the output shape; or `None` for <= 0.
-pub fn maybe_conv_output_shape<const D: usize>(
+/// As [`try_conv1d_output_size`], on the first axis that fails, naming it.
+pub fn try_conv_output_shape<const D: usize>(
     input_shape: [usize; D],
     kernel_shape: [usize; D],
     stride: [usize; D],
     padding: [usize; D],
     dilation: [usize; D],
-) -> Option<[usize; D]> {
+) -> BunsenResult<[usize; D]> {
     let mut output_shape = input_shape;
     for i in 0..D {
-        output_shape[i] = maybe_conv1d_output_size(
+        output_shape[i] = try_conv1d_output_size(
             input_shape[i],
             kernel_shape[i],
             stride[i],
             padding[i],
             dilation[i],
-        )?;
+        )
+        .context(format!("axis {i} of {input_shape:?}"))?;
     }
-    Some(output_shape)
+    Ok(output_shape)
 }
 
-/// Predicts the output shape of a D convolution operation.
-///
-/// This is the ``panic``-ing variant of [`maybe_conv_output_shape`];
-/// which is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
-///
-/// # Arguments
-///
-/// - `input_shape`: The input dimension shape, each dim must be > 0.
-/// - `kernel_shape`: The kernel shape, each dim must be > 0.
-/// - `stride`: The stride of the convolution, each dim must be > 0.
-/// - `padding`: The padding of the convolution, added evenly to all sides of
-///   the input.
-/// - `dilation`: The dilation of the convolution, each dim must be > 0.
-///
-/// # Returns
-///
-/// The output shape, as a `[usize; D]`.
+/// [`try_conv_output_shape`], for a geometry known to be sound.
 ///
 /// # Panics
 ///
-/// If any output dimension would be <= 0.
-pub fn expect_conv_output_shape<const D: usize>(
+/// When it is not.
+pub fn conv_output_shape<const D: usize>(
     input_shape: [usize; D],
     kernel_shape: [usize; D],
     stride: [usize; D],
     padding: [usize; D],
     dilation: [usize; D],
 ) -> [usize; D] {
-    match maybe_conv_output_shape(input_shape, kernel_shape, stride, padding, dilation) {
-        Some(shape) => shape,
-        None => panic!(
-            "No legal output size for conv with:\n input_shape:{input_shape:?}\n kernel_shape:{kernel_shape:?}\n stride:{stride:?}\n dilation:{dilation:?}\n padding:{padding:?}",
-        ),
+    try_conv_output_shape(input_shape, kernel_shape, stride, padding, dilation).ok_or_panic()
+}
+
+/// [`try_conv_output_shape`] over slices, for a rank known only at run time.
+///
+/// # Errors
+///
+/// A [`ConstraintError`] when the slices' lengths differ from
+/// `input_shape`'s; as [`try_conv1d_output_size`] on each axis.
+pub fn try_conv_output_shape_dyn(
+    input_shape: &[usize],
+    kernel_shape: &[usize],
+    stride: &[usize],
+    padding: &[usize],
+    dilation: &[usize],
+) -> BunsenResult<Vec<usize>> {
+    let rank = input_shape.len();
+    for (name, len) in [
+        ("kernel_shape", kernel_shape.len()),
+        ("stride", stride.len()),
+        ("padding", padding.len()),
+        ("dilation", dilation.len()),
+    ] {
+        if len != rank {
+            return Err(ConstraintError::new(
+                "try_conv_output_shape_dyn",
+                name,
+                Rule::Relation {
+                    lhs: (format!("{name}'s rank"), len.to_string()),
+                    op: "==",
+                    rhs: ("input_shape's rank".into(), rank.to_string()),
+                },
+            )
+            .into());
+        }
     }
+    (0..rank)
+        .map(|i| {
+            try_conv1d_output_size(
+                input_shape[i],
+                kernel_shape[i],
+                stride[i],
+                padding[i],
+                dilation[i],
+            )
+            .context(format!("axis {i} of {input_shape:?}"))
+        })
+        .collect()
+}
+
+/// [`try_conv_output_shape_dyn`], for a geometry known to be sound.
+///
+/// # Panics
+///
+/// When it is not.
+pub fn conv_output_shape_dyn(
+    input_shape: &[usize],
+    kernel_shape: &[usize],
+    stride: &[usize],
+    padding: &[usize],
+    dilation: &[usize],
+) -> Vec<usize> {
+    try_conv_output_shape_dyn(input_shape, kernel_shape, stride, padding, dilation).ok_or_panic()
 }
 
 /// Returns the output resolution for a given input resolution.
@@ -371,13 +317,14 @@ mod tests {
                     for dilation in 1..2 {
                         for padding in 0..10 {
                             assert_eq!(
-                                maybe_conv1d_output_size(
+                                try_conv1d_output_size(
                                     input_shape,
                                     kernel_shape,
                                     stride,
                                     padding,
                                     dilation,
-                                ),
+                                )
+                                .ok(),
                                 conv1d_output_size_reference(
                                     input_shape,
                                     kernel_shape,
@@ -391,6 +338,40 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// The `try_` forms refuse what has no output; their twins panic.
+    #[test]
+    fn test_conv_output_refusals() {
+        use crate::errors::testing::ErrorMatcher;
+
+        assert_eq!(conv1d_output_size(8, 3, 2, 1, 1), 4);
+        assert_eq!(
+            conv_output_shape([8, 6], [3, 3], [2, 1], [1, 0], [1, 1]),
+            [4, 4]
+        );
+        assert_eq!(
+            conv_output_shape_dyn(&[8, 6], &[3, 3], &[2, 1], &[1, 0], &[1, 1]),
+            [4, 4]
+        );
+        ErrorMatcher::illegal()
+            .constraint("try_conv1d_output_size", "stride")
+            .assert_err(&try_conv1d_output_size(8, 3, 0, 0, 1));
+        ErrorMatcher::illegal()
+            .constraint("try_conv1d_output_size", "input_size")
+            .assert_err(&try_conv1d_output_size(2, 5, 1, 0, 1));
+        ErrorMatcher::illegal()
+            .constraint("try_conv1d_output_size", "input_size")
+            .assert_err(&try_conv_output_shape(
+                [8, 2],
+                [3, 5],
+                [1, 1],
+                [0, 0],
+                [1, 1],
+            ));
+        ErrorMatcher::illegal()
+            .constraint("try_conv_output_shape_dyn", "stride")
+            .assert_err(&try_conv_output_shape_dyn(&[8], &[3], &[1, 1], &[0], &[1]));
     }
 
     #[test]

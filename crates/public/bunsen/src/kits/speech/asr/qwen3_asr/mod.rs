@@ -15,9 +15,9 @@
 //! - [`Qwen3AsrPromptConfig`]: the chat prompt around an utterance's audio, and
 //!   parsing the reply into a [`Qwen3AsrTranscript`].
 //! - [`Qwen3AsrConstruct`]: a model with its front end, vocabulary, prompt and
-//!   decoder; [`transcribe`](Qwen3AsrConstruct::transcribe) one utterance, or
-//!   [`transcribe_long`](Qwen3AsrConstruct::transcribe_long) any recording in
-//!   windows.
+//!   decoder; [`transcribe`](Qwen3AsrConstruct::transcribe) one utterance. A
+//!   recording of any length streams through the
+//!   [`AsrStreamDriver`](crate::kits::speech::asr::driver::AsrStreamDriver).
 //! - [`token_frames`](Qwen3AsrConstruct::token_frames): when each reply token
 //!   is spoken, from the decoder's attention onto the audio, under the heads
 //!   that follow the speech ([`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`]).
