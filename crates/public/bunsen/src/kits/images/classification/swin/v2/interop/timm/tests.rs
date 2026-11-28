@@ -4,7 +4,7 @@ use crate::{
     errors::testing::ErrorMatcher,
     kits::images::{
         classification::swin::v2::SwinV2ContractConfig,
-        support::interop::timm::{
+        support::timm::interop::{
             TimmModelConfigMirror,
             timm_model_config_from_str,
         },

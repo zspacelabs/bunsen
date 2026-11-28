@@ -98,7 +98,7 @@ fn test_bunsen_configs() {
             encoders::conformer::ConformerEncoderMeta,
             sublayer::NormPlacement,
         },
-        kits::speech::support::nemo::FeatureNormalization,
+        kits::speech::support::nemo::front_end::FeatureNormalization,
     };
     let config: ToyConfig = toy().config().unwrap();
 

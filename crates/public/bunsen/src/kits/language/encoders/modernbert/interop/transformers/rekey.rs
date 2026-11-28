@@ -9,7 +9,7 @@ use crate::{
         Rekey,
         TensorLoadRowSplit,
     },
-    kits::support::interop::transformers::llama_layer_keys,
+    kits::support::transformers::interop::llama_layer_keys,
 };
 
 /// The fused projections of a `transformers` `ModernBERT` layer, split by

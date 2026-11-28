@@ -34,7 +34,7 @@ use crate::{
             ImageModelCard,
             ImageModelConstruct,
         },
-        interop::timm::{
+        timm::interop::{
             TimmModelConfigMirror,
             timm_model_config_from_path,
         },

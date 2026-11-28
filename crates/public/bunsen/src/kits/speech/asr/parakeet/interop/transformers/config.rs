@@ -13,7 +13,7 @@ use crate::{
     errors::BunsenResult,
     kits::{
         speech::asr::parakeet::ParakeetTdtConfig,
-        support::interop::transformers::{
+        support::transformers::interop::{
             TransformersConfigJson,
             config_from_path,
             config_from_str,

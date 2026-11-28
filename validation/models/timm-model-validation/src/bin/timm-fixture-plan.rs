@@ -10,7 +10,7 @@ use bunsen::{
     data::builds::CONFIG,
     kits::images::support::{
         card::ImageModelCard,
-        interop::timm::timm_model_config_from_path,
+        timm::interop::timm_model_config_from_path,
     },
 };
 use timm_model_validation::{

@@ -24,7 +24,7 @@ use bunsen::{
             },
             pretrained::CHECKPOINT,
         },
-        support::nemo::FeatureNormalization,
+        support::nemo::front_end::FeatureNormalization,
     },
     support::testing::cpu_device,
 };

@@ -16,11 +16,11 @@ use crate::{
             pretrained::RES2NET_KIT,
         },
         support::{
-            interop::timm::TimmModelConfigMirror,
             pretrained::{
                 TimmConstructConfig,
                 TimmImageContract,
             },
+            timm::interop::TimmModelConfigMirror,
         },
     },
 };

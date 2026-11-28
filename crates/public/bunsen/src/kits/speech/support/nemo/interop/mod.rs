@@ -1,4 +1,4 @@
-//! # `nemo`: `NeMo`'s configs and state-dict names, for any kit
+//! # `nemo` interop: `NeMo`'s configs and state-dict names, for any speech kit
 //!
 //! What NVIDIA's `NeMo` speech models (the Sortformer diarizers, Parakeet)
 //! share in their files. The `.nemo` container itself, a tar of a YAML config

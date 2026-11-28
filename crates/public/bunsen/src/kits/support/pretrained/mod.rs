@@ -9,7 +9,7 @@
 //! - [`Probe`]s: what a pretrained's files say of its presets' values
 //!   (`generation_config`, `tokenizer_config`, `chat_template`:
 //!   [`builtin_probes`]), each reading its file through
-//!   [`interop::transformers`](super::interop::transformers)'s mirrors. What
+//!   [`transformers::interop`](super::transformers::interop)'s mirrors. What
 //!   they find accumulates ([`accumulate_probed`]). The catalog builder (`cargo
 //!   catalog`) runs them when it builds the built-in catalog, and
 //!   [`probe_loaded`] runs them over a checkpoint no catalog build describes.

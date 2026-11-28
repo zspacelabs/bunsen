@@ -6,15 +6,15 @@ use crate::{
         BunsenErrorKind,
         testing::ErrorMatcher,
     },
-    kits::{
-        speech::{
-            diarization::sortformer::{
-                SortformerV2Config,
-                blocks::SortformerStructureConfig,
-            },
-            support::nemo::FeatureNormalization,
+    kits::speech::{
+        diarization::sortformer::{
+            SortformerV2Config,
+            blocks::SortformerStructureConfig,
         },
-        support::interop::nemo::parse_nemo_yaml,
+        support::nemo::{
+            front_end::FeatureNormalization,
+            interop::parse_nemo_yaml,
+        },
     },
     support::testing::testdata,
 };

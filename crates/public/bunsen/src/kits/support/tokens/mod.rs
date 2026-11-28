@@ -34,7 +34,7 @@
 //! vocabulary, `transformers`' `vocab.json` / `tokenizer.json` (GPT-2's, and
 //! Qwen's), into the same `{ id -> bytes }` table, and
 //! [`TekkenVocabulary`] is Mistral's, which
-//! [`TekkenMirror`](super::interop::mistral_common::TekkenMirror) reads from
+//! [`TekkenMirror`](super::mistral_common::interop::TekkenMirror) reads from
 //! `tekken.json`.
 //!
 //! # Whisper-specific helpers

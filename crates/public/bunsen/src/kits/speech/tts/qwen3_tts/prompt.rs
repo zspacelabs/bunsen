@@ -538,7 +538,7 @@ mod toy_tests {
         burner::module::ModuleInit,
         kits::{
             speech::tts::qwen3_tts::interop::qwen_tts::*,
-            support::interop::transformers::TransformersConfigJson,
+            support::transformers::interop::TransformersConfigJson,
         },
         support::testing::{
             ToyFixture,

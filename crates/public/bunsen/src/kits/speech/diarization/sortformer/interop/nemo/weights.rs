@@ -50,7 +50,7 @@ pub fn load_sortformer_v2(
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<(
     Sortformer,
-    crate::kits::speech::support::nemo::NemoMelFrontEndConfig,
+    crate::kits::speech::support::nemo::front_end::NemoMelFrontEndConfig,
 )> {
     use crate::{
         burner::module::ModuleInit,

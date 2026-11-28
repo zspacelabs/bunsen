@@ -3,7 +3,7 @@
 //! A `.nemo` of a `SortformerEncLabelModel` (Sortformer v2 and v2.1) as
 //! bunsen's [`Sortformer`](crate::kits::speech::diarization::sortformer::Sortformer): its `model_config.yaml`'s mirror,
 //! [`NemoSortformerMirror`] (whose sections are the shared
-//! [`support::interop::nemo`](crate::kits::support::interop::nemo)'s), the
+//! [`speech::support::nemo::interop`](crate::kits::speech::support::nemo::interop)'s), the
 //! configs it gives
 //! ([`sortformer_structure_config`](NemoSortformerMirror::sortformer_structure_config),
 //! [`mel_front_end_config`](NemoSortformerMirror::mel_front_end_config)),

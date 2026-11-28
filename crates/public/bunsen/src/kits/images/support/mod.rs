@@ -3,6 +3,9 @@
 //! What the image kits share across their tasks, at the area's lowest
 //! covering level (the [kits layout](crate::kits)):
 //!
+//! - [`timm`]: the image kits' shared timm tier: its
+//!   [`interop`](timm::interop), a timm hub repo's `config.json` and the eval
+//!   transform it states.
 //! - [`transform`]: an image model's eval transform,
 //!   [`ImageEvalTransformConfig`](transform::ImageEvalTransformConfig), with
 //!   timm's settings and size arithmetic, and the tensor half that crops and
@@ -16,8 +19,6 @@
 //!   [`ImageModelConstruct`](card::ImageModelConstruct).
 //! - [`imagenet`]: `ImageNet`'s data by its catalog names: the label sets, and
 //!   the validation images, pulled from a gated Hub mirror and never shipped.
-//! - [`interop`]: the image kits' shared interop: a timm hub repo's
-//!   `config.json` and the eval transform it states.
 //! - [`labels`]: a classifier's class labels,
 //!   [`ImageLabelSet`](labels::ImageLabelSet) (`ImageNet`'s `WordNet` synsets
 //!   and their lemmas, as timm ships them), and the `ImageNet` subset a class
@@ -30,8 +31,8 @@ pub mod encoder;
 #[cfg(feature = "images")]
 pub mod eval;
 pub mod imagenet;
-pub mod interop;
 pub mod labels;
 #[cfg(feature = "store")]
 pub mod pretrained;
+pub mod timm;
 pub mod transform;

@@ -14,7 +14,7 @@ use crate::{
                 Qwen3AsrAudioEncoderMeta,
             },
         },
-        support::interop::transformers::{
+        support::transformers::interop::{
             TransformersConfigJson,
             config_from_path,
             config_from_str,

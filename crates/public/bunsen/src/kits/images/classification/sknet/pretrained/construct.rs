@@ -16,11 +16,11 @@ use crate::{
             pretrained::SKNET_KIT,
         },
         support::{
-            interop::timm::TimmModelConfigMirror,
             pretrained::{
                 TimmConstructConfig,
                 TimmImageContract,
             },
+            timm::interop::TimmModelConfigMirror,
         },
     },
 };

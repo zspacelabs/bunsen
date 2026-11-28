@@ -31,7 +31,7 @@ use crate::{
             prompt::Qwen3TtsPromptConfig,
             sampler::Qwen3TtsSamplerConfig,
         },
-        support::interop::transformers::{
+        support::transformers::interop::{
             TransformersConfigJson,
             config_from_path,
             config_from_str,

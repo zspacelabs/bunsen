@@ -43,10 +43,8 @@ use crate::{
             },
         },
         support::{
-            interop::{
-                json_mirror_from_path,
-                mistral_common::TekkenMirror,
-            },
+            interop::json_mirror_from_path,
+            mistral_common::interop::TekkenMirror,
             model_config::resolve_ref_presets,
         },
     },

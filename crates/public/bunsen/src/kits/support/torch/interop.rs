@@ -1,4 +1,4 @@
-//! # `torch`: `PyTorch`'s own modules' names, for any kit
+//! # `torch` interop: `PyTorch`'s own modules' names, for any kit
 //!
 //! A checkpoint of a model built from `torch.nn`'s modules names their
 //! parameters as those modules do. The key sets here map them onto bunsen's

@@ -3,7 +3,7 @@
 use crate::{
     blocks::signals::DwStridingSubsamplingMeta,
     burner::module::Rekey,
-    kits::support::interop::nemo::{
+    kits::speech::support::nemo::interop::{
         conformer_encoder_rekey,
         transformer_encoder_rekey,
     },

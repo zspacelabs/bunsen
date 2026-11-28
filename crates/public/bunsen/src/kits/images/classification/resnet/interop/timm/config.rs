@@ -4,7 +4,7 @@ use crate::{
     errors::BunsenResult,
     kits::images::{
         classification::resnet::ResNetContractConfig,
-        support::interop::timm::TimmModelConfigMirror,
+        support::timm::interop::TimmModelConfigMirror,
     },
 };
 
@@ -20,7 +20,7 @@ use crate::{
 pub fn resnet_contract_config(
     config: &TimmModelConfigMirror
 ) -> BunsenResult<ResNetContractConfig> {
-    use crate::kits::images::support::interop::timm::{
+    use crate::kits::images::support::timm::interop::{
         timm_conv_global_pool,
         timm_prefab,
     };

@@ -6,7 +6,7 @@ use crate::{
     errors::BunsenResult,
     kits::{
         language::generation::qwen3::Qwen3Config,
-        support::interop::transformers::{
+        support::transformers::interop::{
             TransformersConfigJson,
             TransformersDecoderSection,
             config_from_path,

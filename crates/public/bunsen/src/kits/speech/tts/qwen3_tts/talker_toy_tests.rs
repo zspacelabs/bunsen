@@ -18,7 +18,7 @@ use crate::{
             blocks::Qwen3TtsTalker,
             interop::qwen_tts::*,
         },
-        support::interop::transformers::TransformersConfigJson,
+        support::transformers::interop::TransformersConfigJson,
     },
     ops::transformers::attention::{
         KVCacheModel,

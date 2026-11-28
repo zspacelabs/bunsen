@@ -10,7 +10,7 @@ use crate::{
             VoxtralRealtimeConfig,
             VoxtralTextConfig,
         },
-        support::interop::transformers::{
+        support::transformers::interop::{
             TransformersConfigJson,
             TransformersDecoderSection,
             config_from_path,

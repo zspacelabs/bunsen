@@ -37,7 +37,7 @@ pub fn load_gemma_tensors(
 ///
 /// # Errors
 /// As
-/// [`load_transformers_lm`](crate::kits::support::interop::transformers::load_transformers_lm)
+/// [`load_transformers_lm`](crate::kits::support::transformers::interop::load_transformers_lm)
 /// and [`load_gemma_tensors`].
 #[cfg(feature = "cache")]
 pub fn load_gemma(
@@ -46,7 +46,7 @@ pub fn load_gemma(
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<GemmaModel> {
-    crate::kits::support::interop::transformers::load_transformers_lm(
+    crate::kits::support::transformers::interop::load_transformers_lm(
         loaded,
         crate::kits::language::generation::gemma::pretrained::CHECKPOINT,
         config,

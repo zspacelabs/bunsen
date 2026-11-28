@@ -41,7 +41,7 @@ pub fn load_qwen3_tensors(
 ///
 /// # Errors
 /// As
-/// [`load_transformers_lm`](crate::kits::support::interop::transformers::load_transformers_lm)
+/// [`load_transformers_lm`](crate::kits::support::transformers::interop::load_transformers_lm)
 /// and [`load_qwen3_tensors`].
 #[cfg(feature = "cache")]
 pub fn load_qwen3(
@@ -50,7 +50,7 @@ pub fn load_qwen3(
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<Qwen3Model> {
-    crate::kits::support::interop::transformers::load_transformers_lm(
+    crate::kits::support::transformers::interop::load_transformers_lm(
         loaded,
         crate::kits::language::generation::qwen3::pretrained::CHECKPOINT,
         config,

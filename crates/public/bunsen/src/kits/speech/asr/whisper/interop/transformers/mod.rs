@@ -6,8 +6,8 @@
 //!
 //! - **Names:** [`whisper_rekey`], its layers by `transformers`' Whisper layer
 //!   names
-//!   ([`whisper_encoder_layer_rekey`](crate::kits::support::interop::transformers::whisper_encoder_layer_rekey),
-//!   [`whisper_decoder_layer_rekey`](crate::kits::support::interop::transformers::whisper_decoder_layer_rekey)).
+//!   ([`whisper_encoder_layer_rekey`](crate::kits::support::transformers::interop::whisper_encoder_layer_rekey),
+//!   [`whisper_decoder_layer_rekey`](crate::kits::support::transformers::interop::whisper_decoder_layer_rekey)).
 //! - **Loading** (feature `store`): `whisper_config_from_headers`, the geometry
 //!   from the files' headers; `load_whisper_tensors` and `load_whisper`, the
 //!   model from their tensors.

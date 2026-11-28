@@ -7,7 +7,7 @@ use crate::{
             interop::timm::swin_timm_input,
             v2::SwinV2ContractConfig,
         },
-        support::interop::timm::TimmModelConfigMirror,
+        support::timm::interop::TimmModelConfigMirror,
     },
 };
 
@@ -24,7 +24,7 @@ pub fn swin_v2_contract_config(
     config: &TimmModelConfigMirror
 ) -> BunsenResult<SwinV2ContractConfig> {
     let mut contract: SwinV2ContractConfig =
-        crate::kits::images::support::interop::timm::timm_prefab(config, "swin v2")?;
+        crate::kits::images::support::timm::interop::timm_prefab(config, "swin v2")?;
     let (image_size, pool) = swin_timm_input(config, "swin v2", contract.in_channels)?;
     contract.image_size = image_size;
     if let Some(pool) = pool {

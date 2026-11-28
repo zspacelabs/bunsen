@@ -1,4 +1,4 @@
-//! # `transformers`: a `config.json`, for any kit
+//! # `transformers` interop: a `config.json`, for any kit
 //!
 //! - [`TransformersConfigJson`]: a `transformers` `config.json`, or one section
 //!   of it, read field by field, each error naming the field's dotted path. A

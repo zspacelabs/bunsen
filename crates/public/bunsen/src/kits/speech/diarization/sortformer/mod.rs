@@ -35,7 +35,7 @@
 //!   config) and state dict.
 //!
 //! Its front end is `NeMo`'s mel front end:
-//! [`NemoMelFrontEndConfig::nemotron_diarization`](crate::kits::speech::support::nemo::NemoMelFrontEndConfig::nemotron_diarization)
+//! [`NemoMelFrontEndConfig::nemotron_diarization`](crate::kits::speech::support::nemo::front_end::NemoMelFrontEndConfig::nemotron_diarization)
 //! for Nemotron, a `.nemo`'s `preprocessor` section for v2.
 
 pub mod blocks;

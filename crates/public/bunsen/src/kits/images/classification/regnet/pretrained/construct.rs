@@ -16,11 +16,11 @@ use crate::{
             pretrained::REGNET_KIT,
         },
         support::{
-            interop::timm::TimmModelConfigMirror,
             pretrained::{
                 TimmConstructConfig,
                 TimmImageContract,
             },
+            timm::interop::TimmModelConfigMirror,
         },
     },
 };

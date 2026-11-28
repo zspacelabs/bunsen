@@ -3,7 +3,7 @@
 use crate::{
     blocks::transformers::decoders::causal::CausalDecoderBlock,
     burner::module::Rekey,
-    kits::support::interop::transformers::llama_layer_keys,
+    kits::support::transformers::interop::llama_layer_keys,
 };
 
 /// `transformers`' Qwen3 decoder layer names onto a

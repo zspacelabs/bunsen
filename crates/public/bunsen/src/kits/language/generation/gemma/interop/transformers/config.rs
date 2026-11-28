@@ -13,7 +13,7 @@ use crate::{
             GemmaConfig,
             GemmaLayerKind,
         },
-        support::interop::transformers::{
+        support::transformers::interop::{
             TransformersConfigJson,
             config_from_path,
             config_from_str,

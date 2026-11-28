@@ -14,7 +14,7 @@ use crate::{
 /// |---|---|
 /// | `stft_conv` | `stft` |
 /// | `conv1` … `conv4` | `encoder.blocks.0` … `3.conv`, by [`ConvSeq1d::one_based_rekey`] |
-/// | `lstm_cell` (an `nn.LSTMCell`) | `lstm`, by [`lstm_cell_rekey`](crate::kits::support::interop::torch::lstm_cell_rekey) |
+/// | `lstm_cell` (an `nn.LSTMCell`) | `lstm`, by [`lstm_cell_rekey`](crate::kits::support::torch::interop::lstm_cell_rekey) |
 /// | `final_conv` | `decoder` |
 pub fn silero_vad_rekey() -> Rekey {
     Rekey::drop_rest()
@@ -23,7 +23,7 @@ pub fn silero_vad_rekey() -> Rekey {
         .mount(
             "lstm_cell.",
             "lstm.",
-            crate::kits::support::interop::torch::lstm_cell_rekey(),
+            crate::kits::support::torch::interop::lstm_cell_rekey(),
         )
         .mount("conv", "encoder.", ConvSeq1d::one_based_rekey())
 }

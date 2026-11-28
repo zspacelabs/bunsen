@@ -82,7 +82,7 @@ pub trait CausalDecoderBlockMeta {
 /// [`CausalDecoderBlock::layer_rekey`] maps onto the block's.
 ///
 /// The machinery only: an ecosystem's own key set is its interop's (the
-/// Llama line's is `kits::support::interop::transformers::llama_layer_keys`).
+/// Llama line's is `kits::support::transformers::interop::llama_layer_keys`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecoderLayerKeys {
     /// The attention's input norm.

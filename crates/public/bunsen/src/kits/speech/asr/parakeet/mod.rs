@@ -13,7 +13,7 @@
 //!   builds.
 //! - [`ParakeetFrontEnd`]: the feature extractor, waveforms to normalized
 //!   log-mels, built from a [`ParakeetFrontEndConfig`]: `NeMo`'s
-//!   [`NemoMelFrontEnd`](crate::kits::speech::support::nemo::NemoMelFrontEnd)
+//!   [`NemoMelFrontEnd`](crate::kits::speech::support::nemo::front_end::NemoMelFrontEnd)
 //!   under its defaults.
 //! - [`TdtGreedyDecoderConfig`]: greedy decoding of the transducer, batched, to
 //!   [`TdtHypothesis`] tokens with their frames.

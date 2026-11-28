@@ -31,7 +31,7 @@ use crate::{
                 interop::qwen_tts::*,
             },
         },
-        support::interop::transformers::TransformersConfigJson,
+        support::transformers::interop::TransformersConfigJson,
     },
     support::testing::{
         ToyFixture,

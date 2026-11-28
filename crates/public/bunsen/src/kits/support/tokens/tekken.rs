@@ -12,7 +12,7 @@ use crate::errors::{
 
 /// The ids and bytes of a tekken vocabulary, Mistral's byte-level BPE
 /// (`tekken.json`, as `mistral_common` reads it, through
-/// [`TekkenMirror`](crate::kits::support::interop::mistral_common::TekkenMirror)): the `{ id -> bytes }` table
+/// [`TekkenMirror`](crate::kits::support::mistral_common::interop::TekkenMirror)): the `{ id -> bytes }` table
 /// `WordchipperDetokenizer::from_spans` (feature `tokenizer`) takes.
 ///
 /// The first `num_special` ids are the special tokens, in rank order (`<s>`
@@ -34,7 +34,7 @@ impl TekkenVocabulary {
     /// A vocabulary of `spans` (each id's bytes, the specials' their
     /// spellings), `specials` (each special's id by its spelling), the
     /// special count and the vocabulary size: what
-    /// [`TekkenMirror::tekken_vocabulary`](crate::kits::support::interop::mistral_common::TekkenMirror::tekken_vocabulary)
+    /// [`TekkenMirror::tekken_vocabulary`](crate::kits::support::mistral_common::interop::TekkenMirror::tekken_vocabulary)
     /// reads.
     pub(crate) fn from_parts(
         spans: BTreeMap<usize, Vec<u8>>,

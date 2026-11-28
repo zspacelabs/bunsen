@@ -61,7 +61,7 @@ pub fn encoder_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
 /// [`ParakeetTdt`](crate::kits::speech::asr::parakeet::ParakeetTdt)'s module
 /// paths: the encoder by [`encoder_rekey`], the prediction network's
 /// `nn.LSTM` by
-/// [`lstm_stack_rekey`](crate::kits::support::interop::torch::lstm_stack_rekey),
+/// [`lstm_stack_rekey`](crate::kits::support::torch::interop::lstm_stack_rekey),
 /// the batch-norm counters dropped, and everything else as it is.
 ///
 /// `striding` is the encoder's subsampling, a config or a built module: its
@@ -76,7 +76,7 @@ pub fn parakeet_tdt_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
         .mount(
             "decoder.lstm.",
             "decoder.lstm.",
-            crate::kits::support::interop::torch::lstm_stack_rekey(),
+            crate::kits::support::torch::interop::lstm_stack_rekey(),
         )
         .rename("decoder.decoder_projector.", "decoder.projector.")
 }
