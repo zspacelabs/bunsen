@@ -2,7 +2,6 @@
 
 use super::{
     AUDIO_ENCODER_STRIDE,
-    WHISPER_DEFAULT_D_HEAD,
     WhisperApiConfig,
 };
 
@@ -126,3 +125,7 @@ mod tests {
         assert_eq!(geometry.d_head, 64);
     }
 }
+
+/// The default width of a Whisper attention head: 64, every `OpenAI`
+/// checkpoint's.
+pub const WHISPER_DEFAULT_D_HEAD: usize = 64;

@@ -23,10 +23,6 @@
 //! [`KVCache`](crate::ops::transformers::attention::KVCache) the caller opens
 //! per decode ([`TextDecoder::new_cache`]), never on the model.
 
-/// The default width of a Whisper attention head: 64, every `OpenAI`
-/// checkpoint's.
-pub const WHISPER_DEFAULT_D_HEAD: usize = 64;
-
 mod audio_encoder;
 mod geometry;
 mod text_decoder;
