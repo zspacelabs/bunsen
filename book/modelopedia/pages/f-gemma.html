@@ -1,0 +1,57 @@
+<div class="prose">
+<p>Google's Gemma models are the open relatives of Gemini. Their three generations change more sockets per generation
+than any other family here, and each change answers a specific problem: an expensive cache, unstable logits, a
+long context. One bunsen config, <code>GemmaConfig</code>, covers all three. Its fields are the generations' choices.</p>
+</div>
+
+<section>
+<h2 id="gemma1">Gemma</h2>
+<p><b>Design change.</b> Against the Llama template: a GeGLU feed-forward (tanh GELU) with a hidden layer
+<span class="math">8D</span> wide; the embedding multiplied by <span class="math">√D</span>; the head tied to it,
+over a 256K vocabulary; RMS norms stored as <span class="math">1 + w</span>; heads 256 wide. The 2B uses multi-query
+attention, and the 7B full multi-head{{cite:gemma2024}}.</p>
+<p><b>Why.</b> A 256K vocabulary makes the table a large share of a small model, which argues for tying it. The √D
+scale lets the shared table serve both ends (<a href="c-embed.html#scale">embedding</a>). MQA at 2B cut the cache
+for on-device use. The very wide GeGLU and the wide heads come from Gemini's recipe. The report does not
+justify them separately.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis; the board below is one layer, drawn as its two
+residual sublayers, with the token mixer opened up in the middle panel. Solid chips are injected components (click
+one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes relative to its parent.</p>
+{{circuit:gemma1|Four sockets and the tie change against the template: the embedding's scale, GeGLU, 1 + w norms, and wide heads.}}
+</section>
+
+<section>
+<h2 id="gemma2">Gemma 2</h2>
+<p><b>Design change.</b> Three additions{{cite:gemma2024v2}}:</p>
+<ul>
+<li>The <a href="c-sublayer.html#sandwich">sandwich</a>: an RMS norm on each sublayer's output as well as its
+input.</li>
+<li>Sliding-window attention (4096) on alternate layers, with full attention between.</li>
+<li>Soft-caps: 50 on the attention scores, 30 on the final logits. And GQA (2:1) at every size, with a
+<code>query_pre_attn_scalar</code> setting the score scale.</li>
+</ul>
+<p><b>Why.</b> Gemma 2 was trained much longer and, for the small sizes, by distillation from a larger teacher.
+Both make stability more valuable. The sandwich and the caps each bound one place where values grow. Alternating
+windows cut the cost of attention at its 8K context while keeping every other layer global.</p>
+{{circuit:gemma2|Both POST sockets fill (the sandwich); the scores get a scale and a cap; half the layers become windowed.}}
+</section>
+
+<section>
+<h2 id="gemma3">Gemma 3</h2>
+<p><b>Design change.</b> QK-norm, which replaces both soft-caps. Five sliding layers to each full one, with a smaller
+window (512 at 270M and 1B, 1024 at 4B). Two rotary tables: θ = 10⁴ for the sliding layers and 10⁶ for the full ones,
+the global one scaled linearly by 8 at 4B to reach 128K tokens{{cite:gemma2025v3}}.</p>
+<p><b>Why.</b> The target was a 128K context at a modest memory cost. The KV cache of global layers dominates long
+contexts, so Gemma 3 made them rare and the windows short. The report shows this barely moves perplexity. Long
+range then lives in one layer in six, which gets its own high-θ, scaled table, while the local layers keep a
+fine-grained one. QK-norm gave the stability that the caps had provided, without capping the scores' range, and the
+caps went.</p>
+{{circuit:gemma3|QK-norm in, both caps out; two rotary tables; a 5 : 1 pattern with a short window.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-embed.html#scale">√D embedding</a> · <a href="c-mlp.html#glu">GeGLU</a> ·
+<a href="c-sublayer.html#gain">1 + w gains</a> · <a href="c-sublayer.html#sandwich">the sandwich</a> ·
+<a href="c-logits.html">soft-caps and QK-norm</a> · <a href="c-mask.html#patterns">patterns</a> ·
+<a href="c-rope.html#tables">two tables</a></div>
+<p>The Gemma 3 4B checkpoints are multimodal. The kit loads their text model and drops the vision tower. The vocabulary
+has 64 extra rows for image tokens (262 208), which a text decode never samples.</p>
+</section>

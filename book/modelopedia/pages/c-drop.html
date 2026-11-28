@@ -1,0 +1,28 @@
+<div class="prose">
+<p>Two regularizers are built into the conv net's structure rather than added on top: stochastic depth, which drops
+whole residual paths, and DropBlock, which drops contiguous regions of the mixer's output. Neither has parameters, and
+both disappear at inference. They are rewrites of the algebra that apply only during training. Plain dropout
+{{cite:srivastava2014}} only appears before the classifier (<a href="c-head.html">head</a>).</p>
+</div>
+
+<section>
+<h2 id="droppath">Stochastic depth (drop path)</h2>
+<figure class="fig">{{fig:drop_path}}
+<figcaption><b>Per sample, per unit, the path is either kept or replaced by zero</b>, so the unit becomes its shortcut.
+Kept paths are scaled by <span class="math">1/(1−p)</span> so that the expectation is unchanged. The drop rate ramps
+linearly with depth: early units, which feed everything after them, are dropped less{{cite:huang2016}}.</figcaption></figure>
+<p>In the <a href="c-residual.html#ensemble">ensemble view</a>, drop path trains a random sub-ensemble of short paths on
+every step and tests on the full product. It needs the residual. A unit with no residual (RegNetZ's reshaping units)
+cannot be dropped and is skipped.</p>
+</section>
+
+<section>
+<h2 id="dropblock">DropBlock</h2>
+<figure class="fig">{{fig:drop_block}}
+<figcaption><b>Spatial correlation defeats dropout.</b> Neighbouring activations of a conv map are strongly correlated,
+so a single dropped pixel is easily filled in from its neighbours. DropBlock removes contiguous
+<span class="math">b×b</span> squares instead, which forces the net to use evidence from elsewhere{{cite:ghiasi2018}}.</figcaption></figure>
+<p>In the generic unit DropBlock acts after the <b>mixer's norm</b>, before its activation: the hook in the
+<a href="c-conv.html">conv block</a>. Each exotic mixer defines where that hook lands. For Res2 it is the concatenated
+output, for split attention the grouped conv's norm, and for SK the mixer's output.</p>
+</section>

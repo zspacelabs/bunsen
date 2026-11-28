@@ -1,0 +1,83 @@
+<div class="prose">
+<p>RegNet{{cite:radosavovic2020}} changes the question. Instead of designing a network, Radosavovic et al. designed a
+<i>design space</i>: they started from a very general space of ResNeXt-like nets, sampled and trained many models,
+and narrowed the space step by step to the region where good models concentrate. The result is a rule. A RegNet is a
+ResNeXt-style trunk whose stage widths and depths come from <b>four numbers</b> instead of being listed by hand.</p>
+</div>
+
+<section>
+<h2 id="trunk">The fixed trunk</h2>
+<p>Every RegNet uses one 3×3 stride-2 stem with no pool, four stages of grouped bottleneck units (stride 2 on each
+stage's first mixer), and a pooled linear head. The unit is a ResNeXt bottleneck with two RegNet conventions:
+<b>bottleneck ratio</b> <span class="math">b</span> (mixer width = unit width × <span class="math">b</span>; 1 for X and
+Y, so there is no narrowing) and <b>group size</b> (channels per group, fixed across the net, rather than a group
+count).</p>
+<p class="circuit-key">Circuit key: the top row is the chassis, the board below is one residual unit. Solid chips are injected components (click one for its combinator chapter); dashed sockets are empty, and the wire passes straight through. <b>Δ</b> marks the sockets this variant changes relative to its parent.</p>
+{{circuit:regnetx|RegNetX against its ResNeXt parent: a 3×3 stem with no pool, generated stages, b = 1 and a fixed group size.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-units.html#grouped">grouped bottleneck</a> · <a href="c-conv.html#groups">groups</a> ·
+<a href="c-sampling.html#stems">RegNet stem</a></div>
+</section>
+
+<section>
+<h2 id="widths">The width rule</h2>
+<p>Per-unit widths come from a <b>linear</b> rule, which is then <b>quantized</b> to a geometric sequence. Runs of equal
+width become stages:</p>
+<p class="eq">u<sub>j</sub> = w<sub>0</sub> + w<sub>a</sub>·j,&nbsp;&nbsp; s<sub>j</sub> = round( log(u<sub>j</sub>/w<sub>0</sub>) / log w<sub>m</sub> ),&nbsp;&nbsp; w<sub>j</sub> = w<sub>0</sub> · w<sub>m</sub><sup>s<sub>j</sub></sup> &nbsp;(÷8)</p>
+<figure class="fig">{{regnet:13,24,36.44,2.49}}
+<figcaption><b>RegNetX-200MF</b> (<span class="math">d = 13, w₀ = 24, w<sub>a</sub> = 36.44, w<sub>m</sub> = 2.49</span>).
+The dashed line is the linear rule and the steps are its geometric quantization. Each step is a stage. In this instance
+the stages are 1, 1, 4 and 7 units at widths 24, 56, 152 and 368.</figcaption></figure>
+<p><b>What the paper found.</b> In the good region of the space, widths grow roughly linearly with depth, the best
+models have about 20 blocks almost regardless of compute, and bottleneck ratio 1 with a stage-width multiplier near
+2.5 works well. Inverted bottlenecks and depthwise convs did <i>not</i> help at their regime. The four parameters
+(plus group size) span a whole family across FLOP budgets, so each model's size label (200MF to 32GF) is a point on one
+curve and not a separate design.</p>
+<p>One correction follows the rule: each mixer width is rounded to a multiple of the group size, and the unit width is
+recomputed from it. In RegNetY-3.2GF the generated 80, 568 and 1504 become 72, 576 and 1512 for groups of 24. The
+torchvision-trained variants round with a floor of 0.9 instead of to the nearest multiple.</p>
+</section>
+
+<section>
+<h2 id="x">RegNetX</h2>
+<p>The base design space: the trunk above, BN and ReLU, a 1×1 conv shortcut where a unit changes shape. No attention.</p>
+</section>
+
+<section>
+<h2 id="y">RegNetY: + squeeze-excite</h2>
+<p>RegNetX with an <a href="c-attention.html">SE</a> gate in every unit, placed <b>after the mixer</b> rather than at the
+unit's output, and sized at ¼ of the unit's <i>input</i> width.
+ The paper's best models are RegNetYs. timm also hosts
+large RegNetY towers trained with self-supervision (SEER){{cite:goyal2021seer}} and weak supervision
+(SWAG){{cite:singh2022swag}}. Those are new weights for the same design.</p>
+<figure class="fig">{{fig:regnet_units}}
+<figcaption><b>The four RegNet unit designs</b> side by side. Each one changes one or two slots of the previous one; the circuits below show those changes on the full chassis.</figcaption></figure>
+{{circuit:regnety|One socket filled: SE after the mixer, sized from the unit's input width.}}
+</section>
+
+<section>
+<h2 id="v">RegNetV: pre-activated RegNetY</h2>
+<p>A timm design{{cite:timm}}: RegNetY units in <a href="c-residual.html#preact">pre-activation</a> form, a bare stem
+conv, an activation after the last stage, and SiLU. Unlike ResNetV2, its identity shortcut reads the
+<i>pre-activated</i> input (<a href="c-residual.html#preact">the two conventions</a>).</p>
+{{circuit:regnetv|RegNetY pre-activated: norm and activation in front, a bare stem, an activation in FINAL, and the identity tapped after PRE.}}
+</section>
+
+<section>
+<h2 id="z">RegNetZ: inverted and linear</h2>
+<p>From the model-scaling follow-up{{cite:dollar2021}}, which studied how to scale nets by width, depth and resolution so
+that activations, and so run time, grow slowly. RegNetZ reverses three of RegNetX's choices:</p>
+<ul>
+<li><b>Inverted bottleneck</b> (<span class="math">b = 4</span>): a narrow residual stream, widened 4× for the grouped
+mixer.</li>
+<li><b>Linear outputs</b>: no activation after the add, and one after the last stage instead
+(<a href="c-residual.html#linear">why</a>).</li>
+<li><b>No shortcut convs</b>: a unit that changes shape has no residual at all.</li>
+</ul>
+<p>It keeps SE at the mixer and uses SiLU. The <code>_h</code> variant adds a 1×1 conv to 1536 features before the pool
+(<a href="c-head.html#final">final layer</a>).</p>
+{{circuit:regnetz|Against RegNetY: the inverted width profile in CONV₀/CONV₂, no output activation, no shortcut on reshaping units, and an activation (or a 1×1 conv) in FINAL.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-units.html#inverted">inverted units</a> · <a href="c-residual.html#linear">linear output &amp; no residual</a> ·
+<a href="c-head.html#final">final conv</a></div>
+</section>

@@ -1,0 +1,47 @@
+<div class="prose">
+<p>Qwen3.5 is a hybrid. Three layers in four replace attention with a <a href="c-deltanet.html">gated DeltaNet</a>,
+a linear-attention mixer with a fixed-size state, and the fourth is attention with an output gate. The design came
+to Qwen with Qwen3-Next{{cite:qwen2025next}}. Qwen3.5 uses it for its whole dense line, from 0.8B to
+27B{{cite:qwen2026qwen35}}. In the algebra it is the first family with two different token mixers in one stack.</p>
+</div>
+
+<section>
+<h2 id="hybrid">The hybrid stack</h2>
+<figure class="fig">{{fig:hybrid_stack}}<figcaption><b>Qwen3.5-0.8B.</b> Each attention layer (F) sits after three DeltaNet layers (Δ).</figcaption></figure>
+<p>The stack is patterned with two kinds of layer, which share everything except the token mixer: the same
+<span class="math">1 + w</span> RMS norms, the same SwiGLU, the same residual layout. So the family needs two
+circuits, one per kind, and the second differs from the first only inside the token mixer.</p>
+</section>
+
+<section>
+<h2 id="full">The attention layer</h2>
+<p><b>Design change.</b> Against Qwen3's layer: an elementwise sigmoid
+<a href="c-attention.html#gate">output gate</a> before <span class="math">W<sub>O</sub></span>; RoPE on only the
+first quarter of each 256-wide head, with θ = 10⁷; <span class="math">1 + w</span> norms throughout; GQA of 4:1 to
+6:1. QK-norm before RoPE, as in Qwen3.</p>
+<p><b>Why.</b> The gate removes attention sinks and adds a nonlinearity between the value and output
+projections{{cite:qiu2025}}. That matters more when attention is one layer in four and must make every
+head count. Partial rotary leaves most of each head free to match content at any distance, since the DeltaNet layers
+already carry order (<a href="c-rope.html#partial">partial rotary</a>). The high base suits a 256K context.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis; the board below is one layer, drawn as its two
+residual sublayers, with the token mixer opened up in the middle panel. Solid chips are injected components (click
+one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes relative to its parent.</p>
+{{circuit:qwen35|Against Qwen3: an output gate, partial rotary, 1 + w norms, and a hybrid pattern.}}
+</section>
+
+<section>
+<h2 id="linear">The DeltaNet layer</h2>
+<p><b>Design change.</b> The token mixer is a gated DeltaNet: four input projections, a 4-tap causal conv, L2-normalized
+queries and keys, the gated delta rule over a 128 × 128 state per value head, and a gated RMS norm. It has no rotary
+table, no softmax and no KV cache.</p>
+<p><b>Why.</b> A linear layer costs the same per token at any context length, and its state is a few hundred
+kilobytes however long the context. The delta rule makes that state an editable associative memory rather than a
+running sum, and the decay lets it forget (<a href="c-deltanet.html#rule">the rule</a>). Three such layers to one
+attention layer cut the KV cache to a quarter, and keep exact retrieval in the attention layers.</p>
+{{circuit:qwen35-linear|Only the token mixer changes kind: every socket inside it is refilled; the feed-forward sublayer is the same.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-deltanet.html">the gated DeltaNet</a> · <a href="c-attention.html#gate">the output gate</a> ·
+<a href="c-rope.html#partial">partial rotary</a> · <a href="c-cache.html#state">two caches</a></div>
+<p>The released checkpoints are multimodal and also carry a multi-token-prediction head. The kit loads the text model
+and drops both. The 0.8B to 4B models tie their head; the 9B and 27B have their own.</p>
+</section>

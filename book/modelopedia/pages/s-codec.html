@@ -1,0 +1,69 @@
+<div class="prose">
+<p>A synthesizer's language model can't write a waveform: 24 000 samples a second is too many, and each sample
+carries too little meaning. It writes the codes of a <b>neural codec</b> instead: an autoencoder whose latent, a
+few dozen frames a second, is quantized into discrete tokens{{cite:zeghidour2021,defossez2022}}. bunsen loads only
+the codecs' decoders. The encoders that produced the training codes aren't needed to speak.</p>
+</div>
+
+<section>
+<h2 id="rvq">Residual vector quantization</h2>
+<figure class="fig">{{fig:rvq}}
+<figcaption><b>Coarse to fine.</b> Each codebook quantizes the residual the previous ones left, so the first codes
+carry the most and every later one refines.</figcaption></figure>
+<p>A single codebook big enough to quantize a latent finely would need billions of entries. Residual VQ uses
+<span class="math">K</span> small codebooks in sequence: the first picks the nearest code, the second quantizes what
+remains, and so on, and decoding sums the chosen vectors. <span class="math">K</span> codebooks of size
+<span class="math">N</span> give <span class="math">N<sup>K</sup></span> combinations for <span class="math">K·N</span>
+stored vectors. The codes are ordered by importance: dropping the last few lowers the bitrate gracefully.</p>
+<p>Mimi, Moshi's codec, split its quantizer: the first codebook is trained to carry <i>semantic</i> content (distilled
+from a speech model), the rest acoustic detail{{cite:defossez2024}}. Both codecs here follow that split.
+Qwen3-TTS's has 16 codebooks of 2048 at 12.5 Hz, one semantic and fifteen acoustic, decoded by two projections whose
+outputs are added. ZONOS3's has 10 codebooks of 4096 at 15 Hz, each code an 8-dimensional vector with its own
+projection, and the semantic codebook first passes through four ConvNeXt blocks.</p>
+</section>
+
+<section>
+<h2 id="decoders">The decoders</h2>
+<figure class="fig">{{fig:codec_decoders}}
+<figcaption><b>From latent to waveform.</b> Both run a windowed causal transformer at the frame rate, then raise the
+rate; they differ in the last stage.</figcaption></figure>
+<p>Both codec decoders start the same way: a <b>trunk</b> of causal, sliding-window transformer layers at the frame
+rate, with a layer scale on each sublayer, which gives every frame context from the last few seconds. Then they
+raise the rate:</p>
+<ul>
+<li><b>Qwen3-TTS</b> doubles twice with transposed convolutions, each followed by a causal ConvNeXt
+block{{cite:liu2022convnext}}, then hands the 50 Hz latent to a DAC-style vocoder.</li>
+<li><b>ZONOS3</b> interleaves its trunk with <b>patch-ups</b>: five attention stages, each pair joined by a
+parameter-free reshape that halves the width and doubles the rate. The windows shrink in time as the rate grows
+(10 s at 15 Hz down to 2 s at 240 Hz), so every stage attends over a similar number of frames.</li>
+</ul>
+<figure class="fig">{{fig:patch_up}}
+<figcaption><b>Patch-up.</b> The 1-d form of the sub-pixel shuffle{{cite:shi2016}}: width becomes time.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="vocoders">Two ways to the waveform</h2>
+<p><b>DAC's decoder</b> (Qwen3-TTS){{cite:kumar2023}} upsamples in the time domain: four blocks of a transposed
+convolution (×8, ×5, ×4, ×3) and three dilated residual units, halving the width each time from 1536 to 96 channels,
+then one convolution to a single sample stream. Its activations are <b>Snake</b>, <span class="math">x +
+sin²(αx)/β</span>, with learned α and β per channel{{cite:ziyin2020}}: a monotone function with a learned periodic
+ripple, which helps a network produce periodic signals, as BigVGAN showed for vocoders{{cite:lee2023bigvgan}}.</p>
+<figure class="fig">{{fig:snake}}
+<figcaption><b>Snake.</b> The ripple's frequency is learned per channel.</figcaption></figure>
+<p><b>ISTFT heads</b> (ZONOS3) don't generate samples at all. After eight ConvNeXt blocks at 240 Hz, each frame
+predicts a log-magnitude and a phase for every frequency bin, and an inverse STFT with overlap-add turns them into
+audio, as Vocos does{{cite:siuzdak2023}}. ZONOS3 runs two such heads, with FFT sizes of 736 and 2208 (fine time
+resolution and fine frequency resolution), mixes them with a 127-tap filter, and resamples from 44 160 Hz to
+44 100 Hz. Producing a spectrum per frame is far cheaper than upsampling through convolutions, because the inverse FFT
+does the last ×184 for free.</p>
+</section>
+
+<section>
+<h2 id="streaming">Streaming a codec</h2>
+<p>Every layer before the waveform stage is causal: left-padded convolutions, causal attention over a window, and
+transposed convolutions that carry their overlap. A codec stream therefore carries a state per layer (each conv's
+last inputs, each attention stage's windowed cache), and joined chunks equal the whole decode. ZONOS3's ISTFT,
+mixer and resampler look a little ahead, so its stream lags by a fixed number of samples, flushed at the end.
+Qwen3-TTS's release renders in 300-frame chunks with 25 frames of left context, shorter than its decoder's reach;
+bunsen reproduces that render exactly as well as the exact stream.</p>
+</section>

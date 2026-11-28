@@ -1,0 +1,134 @@
+<div class="prose">
+<p>The lineage's model names (timm's conventions{{cite:timm}}, which bunsen's prefabs keep) are compressed slot
+assignments. Once the grammar is known, a name reads as a list of slot fills on top of a base. Only the parts that
+change <i>design</i> are listed below. Depth digits and size labels are scale.</p>
+<p class="eq"><span class="n">[attention] base [anti-alias] depth [stem/shortcut] [_cardinality x width d]</span></p>
+<p>The transformers' names follow a second grammar:</p>
+<p class="eq"><span class="n">base _size _patch<i>p</i> [_tower/recipe] [_reg<i>k</i>] [_gap] _image</span></p>
+</div>
+
+<section>
+<h2 id="tokens">Image models: conv tokens</h2>
+<div class="tbl-wrap"><table>
+<thead><tr><th>token</th><th>slot</th><th>meaning</th></tr></thead>
+<tbody>
+<tr><td class="mono">resnet</td><td>base</td><td><a href="f-resnet.html">ResNet</a>; basic units below 50 layers (except 26/14), bottlenecks from 50</td></tr>
+<tr><td class="mono">resnext</td><td>mixer groups</td><td><a href="f-resnext.html">grouped bottleneck</a></td></tr>
+<tr><td class="mono">wide_…_2</td><td>mixer width</td><td>bottleneck mixer 2× wider</td></tr>
+<tr><td class="mono">se · eca</td><td>attention @ out</td><td><a href="c-attention.html">SE or ECA</a> gate on each unit</td></tr>
+<tr><td class="mono">aa · blur</td><td>anti-alias</td><td><a href="c-sampling.html#aa">avg or blur pool</a> takes each stride</td></tr>
+<tr><td class="mono">c · s</td><td>stem</td><td><a href="c-sampling.html#stems">deep stem</a>, width 32 or 64</td></tr>
+<tr><td class="mono">d</td><td>stem + shortcut</td><td>deep stem 32 + <a href="c-shortcut.html#grid">avg-down</a></td></tr>
+<tr><td class="mono">t</td><td>stem + shortcut</td><td>tiered stem + avg-down</td></tr>
+<tr><td class="mono">e</td><td>stem + shortcut</td><td>deep stem 64 + avg-down (ResNeSt's <code>e</code> nets)</td></tr>
+<tr><td class="mono">rs</td><td>several</td><td><a href="f-resnet.html#rs">ResNet-RS</a>: SE¼, deep stem with conv pool, avg-down</td></tr>
+<tr><td class="mono">_gn</td><td>norm</td><td>group norm everywhere</td></tr>
+<tr><td class="mono">_32x4d</td><td>mixer</td><td>cardinality 32, base width 4 per 64 planes</td></tr>
+<tr><td class="mono">resnetv2</td><td>unit placement</td><td><a href="f-resnetv2.html">pre-activation</a></td></tr>
+<tr><td class="mono">_bit · x3</td><td>norm, conv, width</td><td><a href="f-resnetv2.html#bit">GN + WS</a>; width multiplier</td></tr>
+<tr><td class="mono">_evos</td><td>norm</td><td>EvoNorm-S0</td></tr>
+<tr><td class="mono">res2net · 26w_4s</td><td>mixer</td><td><a href="c-res2.html">scale split</a>: chunk width 26, 4 chunks</td></tr>
+<tr><td class="mono">res2next</td><td>mixer</td><td>scale split with grouped branches</td></tr>
+<tr><td class="mono">sk</td><td>mixer</td><td><a href="c-sk.html">selective kernel</a></td></tr>
+<tr><td class="mono">resnest · 4s2x40d</td><td>mixer</td><td><a href="c-splitattn.html">split attention</a>: radix 4, cardinality 2, width 40</td></tr>
+<tr><td class="mono">regnetx · y · v · z</td><td>unit</td><td><a href="f-regnet.html">RegNet</a> plain · SE · pre-act · inverted-linear</td></tr>
+<tr><td class="mono">regnet…_032</td><td>scale</td><td>3.2 GFLOPs: a point on the width rule, not a design</td></tr>
+</tbody></table></div>
+</section>
+
+<section>
+<h2 id="tx-tokens">Image models: transformer tokens</h2>
+<div class="tbl-wrap"><table>
+<thead><tr><th>token</th><th>slot</th><th>meaning</th></tr></thead>
+<tbody>
+<tr><td class="mono">vit · deit · deit3</td><td>base</td><td><a href="f-vit.html">ViT</a>; <a href="f-deit.html">DeiT</a> (a ViT); DeiT III (+ layer scale, positions over the patches)</td></tr>
+<tr><td class="mono">tiny · small · base · large · huge · giant · so400m</td><td>scale</td><td>width, depth, heads: scale, not design</td></tr>
+<tr><td class="mono">patch16 · patch14 · patch8</td><td>patch embedding</td><td><a href="t-patch.html">patch size</a>: the token grid's stride</td></tr>
+<tr><td class="mono">_224 · _384 · _518</td><td>positions</td><td>the image size the position embedding was learnt for</td></tr>
+<tr><td class="mono">distilled</td><td>tokens, pool</td><td><a href="f-deit.html#deit">distillation token</a> and its classifier</td></tr>
+<tr><td class="mono">r50_s16 · r26_s32 · r_s16_p8</td><td>backbone</td><td><a href="f-vit.html#hybrid">hybrid</a>: a ResNetV2 trunk, its stride, the patch on its map</td></tr>
+<tr><td class="mono">clip · quickgelu</td><td>norm pre, activation</td><td><a href="f-clip.html#clip">CLIP's tower</a>; OpenAI's QuickGELU</td></tr>
+<tr><td class="mono">siglip · siglip_gap</td><td>pool</td><td><a href="f-clip.html#siglip">SigLIP's tower</a>: attention pool, or its mean-pooled form</td></tr>
+<tr><td class="mono">dinov2 · reg4 · reg1</td><td>layer scale, tokens</td><td><a href="f-dino.html">DINOv2</a>; <i>k</i> <a href="f-dino.html#registers">registers</a></td></tr>
+<tr><td class="mono">gap</td><td>pool</td><td>no class token, mean of the patch tokens</td></tr>
+<tr><td class="mono">rpn</td><td>norm placement</td><td><a href="f-vit.html#rpn">res-post-norm</a> blocks</td></tr>
+<tr><td class="mono">aimv2 · beit3 · radio · eva · flexivit</td><td>several</td><td>the towers of <a href="f-clip.html">CLIP &amp; co.</a> and <a href="f-dino.html">DINOv2 &amp; Registers</a></td></tr>
+<tr><td class="mono">swin · swin_s3 · swinv2</td><td>base</td><td><a href="f-swin.html">Swin</a> V1; searched windows; V2</td></tr>
+<tr><td class="mono">window7 · window12to24</td><td>token mixer</td><td><a href="t-window.html">window side</a>; pretrained at 12, run at 24</td></tr>
+<tr><td class="mono">_192to384</td><td>image</td><td>pretrained at 192 pixels, fine-tuned at 384</td></tr>
+</tbody></table></div>
+</section>
+
+<section>
+<h2 id="img-examples">Image models: worked examples</h2>
+<ul>
+<li><code>resnet50d</code>: ResNet bottlenecks [3, 4, 6, 3] · deep stem 32 · avg-down shortcuts.</li>
+<li><code>seresnextaa101d_32x8d</code>: ResNeXt (32 groups of 8) · SE at the output · avg-pool anti-aliasing · deep stem +
+avg-down · 101 layers. Five slots changed from ResNet v1, each by one token.</li>
+<li><code>ecaresnext26t_32x4d</code>: ResNeXt 32×4 · ECA · tiered stem + avg-down · 26 layers of bottlenecks.</li>
+<li><code>resnetv2_50x3_bit</code>: pre-activation bottlenecks · GN + WS · widths ×3.</li>
+<li><code>resnest50d_4s2x40d</code>: split attention with radix 4 over 2 cardinal groups of 40 · avd before the mixer ·
+deep stem + avg-down.</li>
+<li><code>regnety_032</code>: RegNetY (SE at the mixer) at the 3.2 GF point of its width rule.</li>
+<li><code>vit_base_r50_s16_384</code>: a ViT-B whose tokens are 1×1 patches of a ResNetV2-50 trunk's stride-16 map, at
+384 pixels.</li>
+<li><code>vit_so400m_patch14_siglip_gap_384</code>: SigLIP's shape-optimized tower in 14-pixel patches, its attention pool
+replaced by a mean, at 384 pixels (the 6 pixels past the last whole patch dropped).</li>
+<li><code>vit_large_patch14_reg4_dinov2</code>: DINOv2's ViT-L with four registers.</li>
+<li><code>swinv2_large_window12to24_192to384</code>: Swin V2-L, pretrained at window 12 and 192 pixels, run at window
+24 and 384.</li>
+</ul>
+</section>
+
+<div class="prose"><p>Language and speech checkpoints are named differently: by family, generation, size and tuning,
+and only some of those words are architecture. Speech checkpoints follow the same grammar as their family
+(<code>Qwen3-ASR-0.6B</code>, <code>Qwen3-TTS-12Hz-1.7B-CustomVoice</code>, <code>parakeet-tdt-0.6b-v3</code>,
+<code>whisper large-v3-turbo</code>), with the codec's frame rate or the decoder type as extra words.</p></div>
+
+<section>
+<h2 id="lm-grammar">Language and speech models: the grammar</h2>
+<p class="eq">family · generation · size · [ <span class="n">-Base | -pt | -it | -Instruct | -Thinking</span> ] · [ date ] · [ purpose ]</p>
+<div class="tbl-wrap"><table>
+<thead><tr><th>word</th><th>examples</th><th>what it means</th><th>architecture?</th></tr></thead>
+<tbody>
+<tr><td>generation</td><td><code>gemma-2</code>, <code>gemma-3</code>, <code>Qwen3</code> → <code>Qwen3.5</code>, nanochat <code>2026</code></td>
+<td>a new design: the only word that reliably changes the circuit</td><td><b>yes</b></td></tr>
+<tr><td>size</td><td><code>270m</code>, <code>1b</code>, <code>0.6B</code>, <code>27B</code>, <code>d20</code></td>
+<td>width, depth, head counts, window; read from the geometry, never from the name</td><td>no (but see below)</td></tr>
+<tr><td>pretrained</td><td><code>-Base</code>, <code>-pt</code>, no suffix (Gemma 1–2)</td>
+<td>the model after pretraining, before chat tuning</td><td>no</td></tr>
+<tr><td>tuned</td><td><code>-it</code>, <code>-Instruct</code>, nanochat <code>mid</code>, <code>sft</code>, <code>rl</code></td>
+<td>instruction, chat or reinforcement tuning of the same weights' shape</td><td>no</td></tr>
+<tr><td>reasoning</td><td><code>-Thinking</code>, <code>-Instruct-2507</code></td>
+<td>whether the model thinks before answering; a template and training matter</td><td>no</td></tr>
+<tr><td>date</td><td><code>2507</code></td><td>a refresh: Qwen3-4B-2507 also raised its rotary base to 5·10⁶ for a 256K context</td>
+<td>one number</td></tr>
+<tr><td>purpose</td><td><code>Qwen3Guard-Gen</code>, <code>SafeRL</code></td><td>the same model tuned for moderation or safety</td><td>no</td></tr>
+<tr><td>encoder</td><td><code>ModernBERT-base</code>, <code>mmBERT-base</code></td><td>BERT-style sizes; <code>mm</code> is massively multilingual (a 256k vocabulary)</td><td>the vocabulary only</td></tr>
+</tbody></table></div>
+<p>Size words sometimes carry a real structural choice, because families vary their structure with size. Gemma 1's
+<code>2b</code> uses multi-query attention and <code>7b</code> full multi-head. Qwen3 ties its head to the embedding up
+to 4B and gives <code>8B</code> its own. Gemma 3's <code>4b</code> doubles the window and scales its global rotary
+table. The book treats these as parameters of one circuit, and notes them in the family chapters.</p>
+</section>
+
+<section>
+<h2 id="lm-examples">Language and speech models: worked examples</h2>
+<div class="tbl-wrap"><table>
+<thead><tr><th>name</th><th>reads as</th><th>circuit</th></tr></thead>
+<tbody>
+<tr><td><code>gemma-3-1b-it</code></td><td>Gemma, generation 3, 1B, instruction-tuned</td><td><a href="f-gemma.html#gemma3">Gemma 3</a>: window 512, 4 q / 1 kv heads</td></tr>
+<tr><td><code>gemma-3-4b-pt</code></td><td>generation 3, 4B, pretrained; the text model of a multimodal checkpoint</td><td>Gemma 3: window 1024, global table × 8</td></tr>
+<tr><td><code>gemma-2-9b</code></td><td>generation 2, 9B, pretrained</td><td><a href="f-gemma.html#gemma2">Gemma 2</a>: 42 layers, soft-caps</td></tr>
+<tr><td><code>gemma-2b</code></td><td>generation 1 (no number), 2B</td><td><a href="f-gemma.html#gemma1">Gemma</a>: MQA</td></tr>
+<tr><td><code>Qwen3-0.6B-Base</code></td><td>Qwen3, 0.6B, pretrained only</td><td><a href="f-qwen3.html">Qwen3</a>, tied head</td></tr>
+<tr><td><code>Qwen3-4B-Thinking-2507</code></td><td>Qwen3, 4B, a thinking-only July 2025 refresh</td><td>Qwen3, θ 5·10⁶</td></tr>
+<tr><td><code>Qwen3Guard-Gen-8B</code></td><td>Qwen3-8B tuned to rate prompts and replies Safe, Unsafe or Controversial, generatively</td><td>Qwen3, own head</td></tr>
+<tr><td><code>Qwen3.5-9B-Base</code></td><td>Qwen3.5, 9B, pretrained; the text model of a multimodal checkpoint</td><td><a href="f-qwen35.html">Qwen3.5</a>, own head</td></tr>
+<tr><td><code>nanochat-students/rl-d20</code></td><td>a community run of nanochat's 2025 model at depth 20, after its RL stage</td><td><a href="f-nanochat.html">nanochat (2025)</a>, 20 × 1280</td></tr>
+<tr><td><code>nanochat-d18-2026</code></td><td>nanochat's 2026 model at depth 18</td><td><a href="f-nanochat.html#v2026">nanochat (2026)</a>, 18 × 1152</td></tr>
+<tr><td><code>laya/laya-multilingual</code></td><td>Laya's decision head on mmBERT-base</td><td><a href="f-laya.html">Laya</a> over <a href="f-modernbert.html#mmbert">mmBERT</a></td></tr>
+</tbody></table></div>
+<p>nanochat's <code>d</code> number is the whole geometry: upstream's rule makes the width <span class="math">64·d</span>
+and the heads 128 wide, so <code>d20</code> is 20 layers of width 1280 with 10 heads.</p>
+</section>

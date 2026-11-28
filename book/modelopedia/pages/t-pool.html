@@ -1,0 +1,51 @@
+<div class="prose">
+<p>A conv net ends with a global average pool. A transformer has more options, because one of its tokens can be
+<i>trained</i> to be the summary. The pool and the norm next to it are the head-end slots of the transformer board.
+After them comes the same dropout → fc <a href="c-head.html#fc">classifier</a> as in the conv half.</p>
+</div>
+
+<section>
+<h2 id="kinds">Pool kinds</h2>
+<figure class="fig">{{fig:token_pools}}
+<figcaption><b>Four ways to make one vector.</b> The reducing pools (avg, max, avgmax) and the attention pool read only
+the patch tokens; prefix tokens are left out.</figcaption></figure>
+<ul>
+<li><b>token</b>: the class token's final state{{cite:dosovitskiy2020}}. The class token pools in every layer, by
+attending to the patches, so the "pool" is really spread over the whole depth.</li>
+<li><b>avg</b> (and <b>max</b>, <b>avgmax</b>): a reduction over the patch tokens, like a conv net's global pool. Swin,
+EVA, BEiT3, AIMv2, SigLIP's <code>gap</code> towers and timm's GAP ViTs use avg. Without a class token, the model saves
+one token and keeps the readout translation-invariant.</li>
+<li><b>map</b>: a multi-head attention pool, introduced for ViTs in <i>Scaling Vision Transformers</i>{{cite:zhai2022scaling}}
+and used by SigLIP. One learnt latent query attends over the patch tokens, then
+<span class="math">x + MLP(LN x)</span>. It is the only pool with parameters of its own.</li>
+<li><b>distilled</b>: DeiT's two-token head. The class token and the distillation token each go through their own
+classifier, and the two logits are averaged{{cite:touvron2021deit}}.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="map">The attention pool, as a combinator</h2>
+<p>The map pool is the class token moved to the end. Instead of a query that takes part in every layer, there is one
+query that attends once to the finished tokens. It has its own <span class="math">h</span>-head attention, its own norm
+and MLP, and the model's width and activation. The latent query is a set function: the order of the tokens doesn't
+change its output. bunsen builds it as <code>LatentAttentionPool</code>, from the same multi-head attention as the
+blocks.</p>
+</section>
+
+<section>
+<h2 id="norms">Where the final norm goes</h2>
+<p>A pre-norm stack's stream is never normalized, so a norm has to come after the last block. There are three places
+it can go, and the circuits show it in FINAL NORM or POOL NORM:</p>
+<ul>
+<li><b>Before the pool</b>: every token is normalized, then pooled. This is the default for the token pool, and it is
+what Swin and SigLIP's gap towers do.</li>
+<li><b>After the pool</b> (timm's <code>fc_norm</code>): only the pooled vector is normalized. timm's default for the
+reducing pools, used by BEiT3, EVA, the res-post-norm ViT and most of timm's register GAP ViTs.</li>
+<li><b>None</b>: C-RADIO's towers have no final norm at all{{cite:ranzinger2024radio}}. What the last block emits goes
+straight to the pool.</li>
+</ul>
+<p>The choice matters for transfer. With the norm before the pool, the patch tokens come out normalized for dense
+tasks. With the norm after the pool, only the global vector does.</p>
+<div class="callout defer"><span class="t">Then</span> <a href="c-head.html#fc">the classifier</a>, shared with the
+conv half; a headless model (0 classes) stops at the pooled features</div>
+</section>

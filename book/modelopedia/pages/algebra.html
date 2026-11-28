@@ -1,0 +1,106 @@
+<div class="prose">
+<p>Every conv net in this part is a composition of the same five things:</p>
+<p class="eq">model = head ∘ pool ∘ final ∘ stage<sub>4</sub> ∘ stage<sub>3</sub> ∘ stage<sub>2</sub> ∘ stage<sub>1</sub> ∘ stem</p>
+<p>The rest of the book fills in the factors. This chapter sets out the shape, the slots, and how a family's own
+vocabulary (depth lists, cardinality, radix, RegNet's <span class="math">w₀, w<sub>a</sub>, w<sub>m</sub></span>)
+reduces to slot choices.</p>
+</div>
+
+<section>
+<h2 id="macro">The macro shape</h2>
+<p>A residual conv net turns an image into a hierarchy of feature maps. The <a href="c-sampling.html#stems">stem</a>
+cuts the resolution by 4 and lifts the channels from 3 to about 64. Four stages follow. Each one usually halves the
+side and doubles the width, so the total stride reaches 32. The <a href="c-head.html">head</a> then pools away space
+and classifies.</p>
+<figure class="fig">{{fig:macro}}
+<figcaption><b>The pyramid.</b> Slab height is spatial side and slab depth is (log) channel count. Every family keeps
+this pyramid; they differ in what happens inside a slab. Halving the side while doubling the width keeps each stage's
+compute roughly level, since a 3×3 conv costs <span class="math">∝ C²HW</span>.</figcaption></figure>
+
+<p>Inside a stage, the first unit does the reshaping (it strides and changes the channel count) and every later unit
+maps the feature space to itself:</p>
+<figure class="fig">{{fig:stage_chain}}
+<figcaption><b>A stage is a word in residual units.</b> Only the first unit needs a <a href="c-shortcut.html">projection
+shortcut</a>, because only it changes shape. The rest are perturbations of the identity on one space, which is the
+property that makes depth cheap (see <a href="c-residual.html">the residual unit</a>).</figcaption></figure>
+</section>
+
+<section>
+<h2 id="unit">The generic residual unit</h2>
+<p>All of the families' unit designs (basic, bottleneck, grouped, pre-activated, inverted, the attention variants, the
+three exotic mixers) are instances of <b>one</b> unit with optional slots:</p>
+<p class="eq">y = act<sub>out</sub>( shortcut(x̃) + droppath( attn<sub>out</sub>( path(x̃) ) ) ),&nbsp;&nbsp; x̃ = pre(x) or x</p>
+<p>where the path is a chain of convs, one of which is the <b>spatial mixer</b>, the only conv with a spatial kernel
+larger than 1×1, and the one that strides.</p>
+<figure class="fig">{{fig:unit_schema}}
+<figcaption><b>Every slot of the unit.</b> A plain ResNet bottleneck fills three convs, the identity or a 1×1
+projection, and the output ReLU. Each later family changes one or two slots: ResNeXt groups the mixer, SE fills
+attention, ResNetV2 moves normalization into <i>pre</i> and removes the output activation, Res2Net/SKNet/ResNeSt
+replace the mixer, anti-aliasing fills the pool after the mixer, RegNetZ drops the shortcut where shapes change.
+</figcaption></figure>
+<h3 id="board">The board</h3>
+<p>The family chapters draw each variant as a circuit on one fixed board: the macro chassis on top, and the unit's
+sockets below in signal order. A variant is a set of <i>injections</i>, parameterized components plugged into sockets.
+Every chip links to the combinator chapter that defines it, and Δ marks the sockets a variant changes relative to its
+parent. Here is the board with every socket labelled by the kinds it accepts:</p>
+{{circuit:generic|Every socket and the kinds that can fill it. Sockets can also be reordered: ResNeSt's avd-first puts ANTI-ALIAS before MIXER.}}
+</section>
+
+<section>
+<h2 id="slots">The slots, and who fills them</h2>
+<div class="tbl-wrap"><table>
+<thead><tr><th>slot</th><th>kinds</th><th>theory</th></tr></thead>
+<tbody>
+<tr><th>unit kind (the path's shape)</th><td>basic · bottleneck · pre-act basic · pre-act bottleneck; with a width ratio (inverted when &gt; 1)</td><td><a href="c-units.html">Unit kinds</a></td></tr>
+<tr><th>spatial mixer</th><td>conv block (optionally grouped) · Res2 scale split · split attention · selective kernel</td><td><a href="c-conv.html">Conv</a>, <a href="c-res2.html">Res2</a>, <a href="c-splitattn.html">SplitAttn</a>, <a href="c-sk.html">SK</a></td></tr>
+<tr><th>channel attention</th><td>squeeze-excite (ratio of the path, or of the unit input) · ECA; placed at the output or after the mixer</td><td><a href="c-attention.html">Channel attention</a></td></tr>
+<tr><th>shortcut</th><td>identity · 1×1 conv + norm · avg-pool then 1×1 + norm · none</td><td><a href="c-shortcut.html">Shortcuts</a></td></tr>
+<tr><th>anti-aliasing</th><td>none · avg pool · blur pool · ResNeSt's avd (before or after the mixer)</td><td><a href="c-sampling.html#aa">Downsampling</a></td></tr>
+<tr><th>layer choices</th><td>norm (BN · GN · EvoNorm-S0), activation (ReLU · SiLU), weight standardization, SAME padding, output activation on/off</td><td><a href="c-norm.html">Norms</a>, <a href="c-conv.html">Conv</a></td></tr>
+<tr><th>stem</th><td>single 7×7 · deep 3×3 ×3 · tiered · single 3×3; pool: max · avg · max+blur · conv · zero-pad max · SAME max · none</td><td><a href="c-sampling.html#stems">Stems</a></td></tr>
+<tr><th>final layer</th><td>none · act · norm + act · 1×1 conv block</td><td><a href="c-head.html">Head</a></td></tr>
+<tr><th>global pool</th><td>avg · max · avg+max mean · avg‖max concat</td><td><a href="c-head.html#pool">Head</a></td></tr>
+<tr><th>regularizers (train-time)</th><td>drop path per unit · drop block after the mixer's norm · dropout before the classifier</td><td><a href="c-drop.html">Regularizers</a></td></tr>
+</tbody></table></div>
+<p>The <a href="index.html#matrix">slot matrix</a> on the overview shows which cell each family changes.</p>
+</section>
+
+<section>
+<h2 id="laws">Algebraic laws worth knowing</h2>
+<p>A few identities between combinators come up again and again in the family chapters. Several "new
+architectures" turn out to be rewrites of older ones under one of these.</p>
+<ul>
+<li><b>Parallel paths are groups.</b> <span class="math">k</span> parallel bottleneck branches whose outputs are
+summed equal one bottleneck whose mixer is a <span class="math">k</span>-group conv. This is
+<a href="f-resnext.html">ResNeXt</a>'s central observation{{cite:xie2017}}, and it is why "cardinality" is just the
+mixer's <code>groups</code>.</li>
+<li><b>Small kernels compose into large reach.</b> <span class="math">n</span> stacked 3×3 convs have the reach of
+one <span class="math">(2n+1)×(2n+1)</span> conv, with fewer parameters and more nonlinearity{{cite:simonyan2014}}. The
+<a href="c-sampling.html#stems">deep stem</a> and the <a href="c-res2.html">Res2</a> hierarchy both use this.</li>
+<li><b>Stride and dilation trade.</b> Removing a stride and dilating every later conv by the same factor keeps each
+unit's receptive field and the weights' meaning, at higher resolution{{cite:yu2016,chen2017deeplab}}. This is
+<a href="c-conv.html#os">output stride</a>.</li>
+<li><b>A softmax over branches is a point on a simplex.</b> <a href="c-sk.html">SK</a> and
+<a href="c-splitattn.html">split attention</a> are the same fuse/select operator. SK's branches differ in receptive field
+and ResNeSt's in initialization; at radix 1 the operator degenerates to <a href="c-attention.html">SE</a>.</li>
+<li><b>Pre-activation commutes the unit boundary.</b> Moving the norm and activation from the end of one unit to
+the start of the next changes no layer, only where the identity is cut, and that alone makes the shortcut a pure
+identity{{cite:he2016id}}.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="lowering">From a family's vocabulary to slots</h2>
+<p>Every family speaks its paper's language. A ResNet is a depth list and a stem kind. A ResNeXt adds cardinality and
+base width, a ResNeSt a radix, a RegNet four real numbers. In bunsen each family's policy <i>lowers</i> onto the one
+generic conv-net policy, and that policy is resolved into a fully explicit structure: every unit's channels, strides,
+dilations and slot contents.</p>
+<figure class="fig">{{fig:lowering}}
+<figcaption><b>Families are front-ends.</b> A family adds no new kind of model, only a way of filling slots. The
+lowering is also where the <a href="c-conv.html#os">output-stride</a> rule turns late strides into dilation, and where
+the derived widths come from: a bottleneck's ×4 expansion, ResNeXt's
+<span class="math">⌊planes·w/64⌋·g</span>, RegNet's quantized width rule.</figcaption></figure>
+<p>The rest of the book follows the same split. <b>Family chapters</b> say which slots change and why. <b>Combinator
+chapters</b> say what a slot's kinds compute. The transformer half has a second generic model with its own slots, and
+<a href="tx-algebra.html">From Units to Blocks</a> maps them onto these.</p>
+</section>

@@ -1,0 +1,66 @@
+<div class="prose">
+<p>A mask decides which keys each query may see. It is the attention's only notion of direction, and, with a window,
+its only hard notion of distance. In bunsen the mask is a field of the attention config, so the same stack builds
+a decoder, an encoder, or a windowed encoder, and a <i>pattern</i> of windowed and full layers is just a list of
+layer kinds.</p>
+</div>
+
+<section>
+<h2 id="kinds">Kinds of mask</h2>
+<figure class="fig">{{fig:mask_kinds}}
+<figcaption><b>Five masks.</b> Rows are queries and columns keys; a filled cell may be attended to.</figcaption></figure>
+<ul>
+<li><b>Causal.</b> Each query sees itself and the past. Every decoder layer.</li>
+<li><b>Sliding (causal).</b> Each query sees the last <span class="math">w</span> positions. Gemma 2's and 3's
+sliding layers; nanochat 2026's short layers.</li>
+<li><b>Bidirectional.</b> Every query sees every key. ModernBERT's global layers and Laya's head layers.</li>
+<li><b>Two-sided window.</b> Each query sees <span class="math">±r</span> positions around it. ModernBERT's local
+layers, with <span class="math">r</span> = 64.</li>
+<li><b>Padding.</b> An encoder runs a batch of different lengths at once, and no query may attend to a padding key.
+That is a mask over keys, combined with the layer's own.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="bidirectional">Decoders and encoders</h2>
+<figure class="fig">{{fig:encoder_vs_decoder}}
+<figcaption><b>The same stack, two masks.</b> A causal stack generates; a bidirectional stack reads.</figcaption></figure>
+<p>BERT showed that a bidirectional stack, trained to fill in masked-out tokens, gives far better representations
+for understanding tasks than a left-to-right one, because every token's state is conditioned on its whole
+context{{cite:devlin2019}}. The price is that it cannot generate: no step is "the next one". In bunsen the difference
+is one field, <code>AttentionMask::Causal</code> or <code>::Bidirectional</code>, on the same
+<code>CausalDecoderBlock</code>. An encoder takes no cache, since it reads its input once.</p>
+</section>
+
+<section>
+<h2 id="windows">Sliding windows</h2>
+<figure class="fig">{{fig:receptive}}
+<figcaption><b>Reach grows with depth.</b> A windowed layer moves information <i>w</i> − 1 positions; stacked,
+<i>L</i> layers reach <i>L</i>(<i>w</i> − 1) back.</figcaption></figure>
+<p>Full attention costs <span class="math">O(T²)</span> in compute and <span class="math">O(T)</span> in cache per
+layer. A sliding window of <span class="math">w</span> costs <span class="math">O(Tw)</span> and caps the cache at
+<span class="math">w</span>. Like stacked convolutions, stacked windows still let information travel further than one
+window, one hop per layer. The idea came from sparse and long-document transformers{{cite:child2019,beltagy2020}},
+and Mistral made it standard in decoders{{cite:jiang2023}}. A window is one-sided in a decoder and two-sided in an
+encoder: bunsen counts a causal window of <span class="math">w</span> as the query and the <span class="math">w − 1</span>
+before it, and ModernBERT's ±64 as a window of 65.</p>
+</section>
+
+<section>
+<h2 id="patterns">Layer patterns</h2>
+<figure class="fig">{{fig:layer_patterns}}
+<figcaption><b>Who attends how far, layer by layer.</b> One letter per layer, bottom of the stack on the left.</figcaption></figure>
+<p>Windows alone lose long-range retrieval, so every windowed kit interleaves them with full layers: a full layer
+every few windowed ones resets the reach to the whole context, and the windows make the rest cheap. The ratio has
+grown over time. Gemma 2 alternated 1:1; Gemma 3 moved to 5 sliding to 1 full, with a smaller window, and found
+little loss in perplexity for a large cut in KV cache{{cite:gemma2025v3}}. ModernBERT puts a global layer every
+third{{cite:warner2024}}. Qwen3.5 applies the same logic with a different cheap layer: three gated DeltaNet layers to
+each full attention layer. nanochat 2026 takes its pattern as a string of <code>S</code> and <code>L</code>
+(upstream's default <code>SSSL</code>), with the last layer always long.</p>
+<p>In the code, a pattern is a <code>PatternedStackConfig</code>: a few layer kinds, which may differ in window,
+rotary table, mixer or attention norm, and a list giving each layer's kind. On a circuit, the LAYER PATTERN panel
+draws that list.</p>
+<div class="callout defer"><span class="t">See also</span>
+<a href="c-cache.html#window">windowed caches</a> · <a href="c-rope.html#tables">a rotary table per kind</a> ·
+<a href="c-deltanet.html#hybrid">the hybrid stack</a></div>
+</section>

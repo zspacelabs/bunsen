@@ -1,0 +1,52 @@
+<div class="prose">
+<p>Training runs a whole sequence at once. Generation runs one token at a time, and a step must not recompute the
+past. What each token mixer must remember between steps is its <b>decode state</b>, and the kind of mixer
+decides its size. In bunsen the state is always injected: the model is pure, and the caller makes the state and
+passes it to every step.</p>
+</div>
+
+<section>
+<h2 id="kv">The KV cache</h2>
+<figure class="fig">{{fig:prefill_decode}}
+<figcaption><b>Prefill, then steps.</b> The prompt runs in one call and fills the cache; each step after it runs
+one position, appends its keys and values, and returns the next logits.</figcaption></figure>
+<p>A causal attention layer's past keys and values never change, because no position can see the future. So a decode
+caches them. Each step computes <span class="math">q, k, v</span> for the new position only, appends
+<span class="math">k, v</span>, and attends over the cache. Per layer and token, the cache is
+<span class="math">2 · H<sub>kv</sub> · d</span> numbers. Multiplied by layers and context, that is why
+<a href="c-attention.html#gqa">grouped queries</a> matter: Qwen3-4B's 8 key/value heads instead of 32 make its cache
+4× smaller. Generation is bound by reading this cache, not by arithmetic{{cite:pope2022}}.</p>
+</section>
+
+<section>
+<h2 id="window">Windowed caches</h2>
+<figure class="fig">{{fig:cache_growth}}
+<figcaption><b>State against context length.</b> A full layer's cache grows with the context; a windowed layer's
+stops at its window; a DeltaNet layer's is constant.</figcaption></figure>
+<p>A sliding-window layer can never attend further back than its window, so its cache keeps only the last
+<span class="math">w</span> positions. For Gemma 3, with five sliding layers in six and a 512- or 1024-token window,
+most of the stack's cache is bounded at any context length. The stack's cache config records each layer's window, so a
+windowed layer drops what it can no longer see.</p>
+</section>
+
+<section>
+<h2 id="state">Recurrent state</h2>
+<p>A gated DeltaNet layer's state is its matrix <span class="math">S</span> (one 128 × 128 matrix per value head)
+and its convolution's last three inputs, whatever the context length. A hybrid stack keeps two caches side by side.
+Attention layers take consecutive slots in a KV cache, and DeltaNet layers take consecutive slots in a state cache:
+Qwen3.5-0.8B's 6 attention layers index a KV cache 0–5, and its 18 linear layers a state cache 0–17. A KV cache can
+be truncated to any earlier position. A recurrent state cannot, because it has folded its whole prefix into one
+matrix; rewinding means restoring a snapshot.</p>
+</section>
+
+<section>
+<h2 id="search">The search</h2>
+<p>The model returns logits; choosing a token is the decoder's job, and bunsen keeps it outside every model, in
+<code>kits::support::decoding</code>. Logit filters rewrite the last position's logits (suppressed tokens, repetition
+penalty, and the truncations top-k, top-p and min-p, after Holtzman et al.'s finding that sampling from the
+truncated head of the distribution avoids degenerate text{{cite:holtzman2020}}). A search then picks: greedy argmax,
+sampling at a temperature, or a beam search. Because every decoder kit exposes the same cached step, one decode loop
+runs all of them.</p>
+<div class="callout defer"><span class="t">Used by</span>
+every decoder kit · encoders (ModernBERT, Laya) read their input in one pass and keep no state</div>
+</section>

@@ -1,0 +1,47 @@
+<div class="prose">
+<p>A transducer is a decoder that walks the audio frame by frame. It doesn't attend over the audio; it decides, at
+each frame, whether to emit a token or move on. Parakeet uses the token-and-duration transducer (TDT), the latest step
+in a line that runs from CTC through RNN-T.</p>
+</div>
+
+<section>
+<h2 id="lineage">From CTC to TDT</h2>
+<ul>
+<li><b>CTC</b>{{cite:graves2006}} adds a <i>blank</i> symbol and emits one symbol (often blank) per frame; a
+transcript is any path that collapses to it. Outputs at different frames are independent given the audio.</li>
+<li><b>RNN-T</b>{{cite:graves2012}} adds a <i>prediction network</i> over the tokens emitted so far, and a
+<i>joint</i> that combines it with the current frame. Emitting a token stays on the frame; emitting blank moves to
+the next. Outputs now depend on each other.</li>
+<li><b>TDT</b>{{cite:xu2023tdt}} has the joint also predict a <i>duration</i>: how many frames the current output
+covers. A decode then jumps ahead by that many frames instead of stepping through blanks one at a time.</li>
+</ul>
+<figure class="fig">{{fig:lattice}}
+<figcaption><b>Paths through the grid.</b> RNN-T moves right one frame per blank; TDT moves right by a predicted
+duration, skipping frames where nothing new is said.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="joint">The prediction net and the joint</h2>
+<figure class="fig">{{fig:joint}}
+<figcaption><b>Parakeet's joint.</b> Two projections to 640, added, a ReLU, and one linear layer that scores tokens
+and durations together.</figcaption></figure>
+<p>Parakeet's prediction network is an embedding and two LSTM layers{{cite:hochreiter1997}} of width 640: a small
+language model of the transcript, started from blank. Its state is the caller's, like a KV cache. The joint is
+<span class="math">Linear(ReLU(W<sub>e</sub> e<sub>t</sub> + W<sub>p</sub> g<sub>u</sub>))</span>, whose 8198 outputs
+are 8193 token logits (8192 SentencePiece pieces and blank) and 5 duration logits for 0 to 4 frames.</p>
+</section>
+
+<section>
+<h2 id="tdt">Greedy TDT decoding</h2>
+<ol>
+<li>At frame <i>t</i>, score the joint on frame <i>t</i> and the prediction network's current output.</li>
+<li>Take the best token and, independently, the best duration.</li>
+<li>If the token isn't blank, emit it with its frame, and step the prediction network on it.</li>
+<li>Advance <i>t</i> by the duration. A blank with duration 0 is forced to 1, and so is any frame that has already
+emitted 10 tokens, so the decode always ends.</li>
+</ol>
+<p>Every emitted token carries its frame and duration, which give word timestamps on the 80 ms grid without any
+alignment step. Because most frames of speech carry no new token, skipping them makes TDT decoding much faster than
+RNN-T's{{cite:xu2023tdt}}.</p>
+<div class="callout defer"><span class="t">Used by</span><a href="f-parakeet.html">Parakeet TDT</a></div>
+</section>

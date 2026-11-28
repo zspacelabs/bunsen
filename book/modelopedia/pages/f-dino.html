@@ -1,0 +1,58 @@
+<div class="prose">
+<p>DINOv2 is the reference self-supervised ViT: a general-purpose feature extractor trained without labels. Its
+follow-up found a defect in large ViTs' feature maps and fixed it with <b>register tokens</b>. Several later towers
+(C-RADIO, timm's register baselines) inherit registers and layer scale. In the algebra, this lineage changes three
+sockets: TOKENS, LAYER SCALE and, at giant size, the MLP.</p>
+</div>
+
+<section>
+<h2 id="dinov2">DINOv2</h2>
+<p><b>Design change.</b> <a href="t-sublayer.html#scale">Layer scale</a> on every residual, 14×14 patches at 518 pixels
+(a 37×37 grid), and at giant size a <a href="t-mlp.html#glu">packed SwiGLU</a> MLP.</p>
+<p><b>Why.</b> DINOv2 trains by self-distillation: a student matches an exponential-moving-average teacher across
+augmented views, at both the image and the patch level, on a curated dataset of 142M
+images{{cite:oquab2023dinov2}}. Its architecture choices are the ones that keep that recipe stable at 1B parameters:
+layer scale from CaiT, and SwiGLU for the giant model.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis; the board below is one encoder block, drawn as its two
+residual sublayers. Solid chips are injected components (click one for its combinator chapter); dashed sockets are
+empty, and the wire passes straight through. <b>Δ</b> marks the sockets a variant changes relative to its parent.</p>
+{{circuit:dinov2|Layer scale fills both γ sockets; the patch size is 14.}}
+{{circuit:dinov2-g|At giant size the channel mixer becomes a packed SwiGLU, and the activation SiLU.}}
+</section>
+
+<section>
+<h2 id="registers">Registers</h2>
+<p><b>Design change.</b> <span class="math">k</span> extra learnt prefix tokens after the class token, read by nothing.
+Positions cover the patches alone.</p>
+<figure class="fig">{{fig:registers}}
+<figcaption><b>Artifacts, and where they go.</b> Large, well-trained ViTs repurpose a few low-information background
+patches as global scratch space. Those tokens have very high norms and attract attention. Registers give the model
+somewhere else to do that.</figcaption></figure>
+<p><b>Why.</b> Darcet et al. traced spikes in DINOv2's (and CLIP's, and DeiT III's) attention maps to a few
+background patch tokens that had stopped describing their patch and instead held global
+information{{cite:darcet2024registers}}. Adding even a handful of register tokens moves that role off the grid. The
+feature and attention maps become clean, and dense downstream tasks improve. The <code>reg4</code> in a name is the
+count.</p>
+{{circuit:dinov2-reg|Only the TOKENS socket changes: four registers, and positions that skip the prefix.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="t-patch.html#tokens">prefix tokens</a> · <a href="t-patch.html#pos">positions over the patches</a></div>
+</section>
+
+<section>
+<h2 id="radio">C-RADIO</h2>
+<p><b>Design change.</b> 7 or 9 registers, positions over the patches, and <i>no final norm</i>. The base and large
+towers keep layer scale; the huge and giant ones drop it.</p>
+<p><b>Why.</b> AM-RADIO distills several foundation models at once (CLIP-style, DINOv2 and SAM teachers) into one
+student. The student matches each teacher through its own small adaptor head{{cite:ranzinger2024radio}}. C-RADIO
+(v3, v4) is NVIDIA's continuation. Its towers end at the last block, with no norm, and in the kit's
+classifiers the pool reads the class token as the last block leaves it.</p>
+{{circuit:radio|More registers, a 16-pixel patch, and an empty FINAL NORM: the stream goes to the pool as the last block leaves it.}}
+</section>
+
+<section>
+<h2 id="sbb">Register baselines</h2>
+<p>timm's <code>reg1</code> and <code>reg4</code> GAP ViTs{{cite:timm}} combine the <a href="f-vit.html#gap">GAP
+baselines</a> with registers: no class token, one or four registers, layer scale and a mean pool, mostly with the norm
+after the pool. The TIPSv2 towers in the kit are another register geometry: a class token, one register and layer
+scale. Neither adds a socket beyond those above.</p>
+</section>

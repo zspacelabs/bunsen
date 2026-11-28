@@ -1,0 +1,59 @@
+<div class="prose">
+<p>A language model begins and ends with the vocabulary. The embedding maps each token id to a vector; the head maps
+the final vector back to a score for every token. Both are one matrix of shape <span class="math">[V, D]</span>, and
+in half the kits it is literally the same matrix.</p>
+</div>
+
+<section>
+<h2 id="table">The token table</h2>
+<figure class="fig">{{fig:embed_head}}
+<figcaption><b>In and out.</b> Embedding is a row lookup; the head is a matrix product against all rows at once.
+Tied, the score of token <i>v</i> is the dot product of the final state with <i>v</i>'s own embedding.</figcaption></figure>
+<p>An embedding is a lookup, <span class="math">x₀ = E[id]</span>: equivalent to multiplying a one-hot vector by
+<span class="math">E</span>, but costing nothing. Its row count is the vocabulary (50 368 for ModernBERT, 65 536 for
+nanochat d20, 151 936 for Qwen3, 248 320 for Qwen3.5, 256 000 for Gemma 1–2, 262 144 for Gemma 3), which makes it one
+of the largest single tensors in a small model: Gemma 3 270M spends 168M of its parameters on it. Three optional
+steps follow the lookup, one per family:</p>
+<ul>
+<li id="norm"><b>A parameter-free RMS norm</b> (nanochat): <span class="math">x₀ = E[id] / rms(E[id])</span>. The
+stream starts at unit scale whatever the table's rows have grown to, and nanochat 2026 feeds that normalized
+<span class="math">x₀</span> back into every layer.</li>
+<li><b>A LayerNorm without a bias</b> (ModernBERT). Its first layer then skips its own input norm, which would repeat
+this one (<a href="c-sublayer.html#placement">sublayers</a>).</li>
+<li id="scale"><b>A √D scale</b> (Gemma). Gemma's table is shared with the head. A common reading is that the head wants rows of a modest
+norm, and scaling on the way in lets the same rows start the stream at a scale comparable to the sublayers'
+writes. The scale is
+rounded to the table's dtype before it is applied, as upstream rounds it: in bf16, √1152 becomes 34.0.</li>
+</ul>
+<p>Qwen3 and Qwen3.5 use the plain lookup, as Llama does.</p>
+</section>
+
+<section>
+<h2 id="head">The head</h2>
+<p>The head computes <span class="math">logits = h · Wᵀ</span> over the final, normalized state
+<span class="math">h</span>, then applies up to three edits, each a config field of <code>LmHeadConfig</code>:</p>
+<ul>
+<li><b>Slice.</b> nanochat 2026 pads its vocabulary to a multiple of 64 for the sake of the matrix shapes; the head
+keeps only the first <span class="math">V</span> logits, so the padding rows can never be sampled.</li>
+<li><b>Soft-cap.</b> <span class="math">c · tanh(logits / c)</span>, with <span class="math">c</span> = 15 in nanochat
+and 30 in Gemma 2. It bounds how confident the model can be, and how far one logit can run away in training
+(<a href="c-logits.html#softcap">logit control</a>).</li>
+<li><b>dtype.</b> The logits leave in f32 whatever the model computes in, as <code>transformers</code> generates from
+them. Sampling from bf16 logits would quantize the tail of the distribution.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="tied">Tied and untied</h2>
+<p>Tying the head to the embedding (<span class="math">W = E</span>) was proposed by Press and Wolf, who showed that
+the output embedding is the better-trained of the two, and that sharing it improves perplexity while halving the
+vocabulary's parameter cost{{cite:press2017}}. Geometrically, tying says that a token is predicted when the final
+state points toward that token's own input vector.</p>
+<p>The kits split by size, for a budget reason. In a small model the table is a large share of the parameters, and
+tying saves it: Gemma (every size), Qwen3 up to 4B, and Qwen3.5 up to 4B are tied. Larger models can afford a head of
+their own, which frees input and output geometry to differ: Qwen3-8B, Qwen3.5-9B and -27B, and nanochat, whose
+training recipe gives the head its own optimizer settings. The circuit board marks a tied head with a dashed arc from
+HEAD back to EMBED.</p>
+<div class="callout defer"><span class="t">Used by</span>
+every kit · ModernBERT has no head: its user's head reads the hidden states (<a href="f-laya.html">Laya</a>'s scorer)</div>
+</section>

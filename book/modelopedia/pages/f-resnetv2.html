@@ -1,0 +1,60 @@
+<div class="prose">
+<p>ResNetV2 is ResNet with every norm and activation moved to the front of its conv{{cite:he2016id}}. BiT keeps that
+layout and makes it batch-independent with group norm and weight standardization, then scales it for transfer
+learning{{cite:kolesnikov2020}}. One bunsen kit covers both, plus timm's later pre-activation nets.</p>
+</div>
+
+<section>
+<h2 id="v2">Pre-activation ResNet</h2>
+<p><b>Design change.</b> Each unit normalizes and activates its input once, and both the path and a projection shortcut
+read the result. Every later conv in the path is preceded by its own norm and activation. Nothing follows the add, and
+an identity shortcut carries the <i>raw</i> stream. The stem's last conv is bare, and a final norm and activation runs
+before the pool.</p>
+<p><b>Why.</b> With a clean identity, <span class="math">x<sub>L</sub> = x<sub>l</sub> + ΣF<sub>i</sub></span> holds
+exactly, and gradients reach any unit unchanged through the shortcut chain. He et al. trained a 1001-layer net this
+way. The change is one of placement: the layer types and counts are the same.</p>
+<p><b>Slot fill.</b> unit = pre-act basic | pre-act bottleneck · pre = norm + act · out act = none · identity reads
+raw · stem: last conv bare · final = norm + act. Stems and avg-down shortcuts come from the ResNet toolbox (the
+<code>d</code> nets use the deep stem and avg-down).</p>
+<p class="circuit-key">Circuit key: the top row is the chassis, the board below is one residual unit. Solid chips are injected components (click one for its combinator chapter); dashed sockets are empty, and the wire passes straight through. <b>Δ</b> marks the sockets this variant changes relative to its parent.</p>
+{{circuit:resnetv2|Norms move in front of their convs, and the output activation becomes a final norm before the pool. The identity tap moves upstream of PRE.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-residual.html#preact">pre-activation</a> · <a href="c-units.html#pre">pre-activated units</a> ·
+<a href="c-head.html#final">final norm</a></div>
+</section>
+
+<section>
+<h2 id="bit">BiT: group norm + weight standardization</h2>
+<p><b>Design change.</b> Every BN becomes a 32-group GN and every conv becomes a weight-standardized "StdConv". The
+stem uses a zero-pad and unpadded max pool. Widths are multiplied by ×1 to ×4.</p>
+<p><b>Why.</b> BiT pretrains on very large data (ImageNet-21k, JFT) with large batches spread over many devices, then
+fine-tunes on small downstream sets. BN's batch statistics cause problems at both ends: they need cross-device
+synchronization, and they shift under fine-tuning. GN+WS depends on no batch at all and matches BN's
+accuracy{{cite:wu2018gn,qiao2019}}. The width multiplier is the scaling knob. BiT's finding is that larger models need
+more data to pay off, and the reverse{{cite:kolesnikov2020}}.</p>
+<p><b>Slot fill.</b> the pre-activation ResNet, with norm = GN(32) · weight std = on (ε = 10⁻⁸) · stem pool = zero-pad
+max · widths × <span class="math">k</span>.</p>
+{{circuit:bit|The layer choices (GN, weight standardization) reach every chip; only the stem pool and widths change structurally.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-norm.html#gn">group norm</a> · <a href="c-norm.html#ws">weight standardization</a> ·
+<a href="c-sampling.html#stems">stem pools</a></div>
+</section>
+
+<section>
+<h2 id="evo">EvoNorm ResNetV2</h2>
+<p>Each pre-activation "norm + act" pair becomes one EvoNorm-S0 layer{{cite:liu2020evo}}, which is batch-independent
+like GN and carries its own SiLU-like gate. In the algebra this is a change of norm kind whose activation comes with
+it. There is no new structure.</p>
+{{circuit:evonorm|EvoNorm-S0 replaces each norm → act pair; the deep stem and avg-down come from the ResNet-D toolbox.}}
+<div class="callout defer"><span class="t">Structure deferred to</span> <a href="c-norm.html#evo">EvoNorm-S0</a></div>
+</section>
+
+<section>
+<h2 id="boundary">As a trunk: the hybrid ViT</h2>
+<p>The same kit also describes ResNetV2 <i>without</i> pre-activation: a normed stem with a SAME-padded pool,
+post-activation bottlenecks, weight-standardized SAME-padded convs, and no final norm or head. That is the trunk of
+the hybrid Vision Transformer (R50+ViT-B/16), which cuts its feature map into patches for a transformer
+{{cite:dosovitskiy2020}}. Here the conv lineage hands over to the transformer one: see
+<a href="f-vit.html#hybrid">Hybrid ViT</a>, and <a href="tx-algebra.html">From Units to Blocks</a> for how the two
+halves of the algebra correspond.</p>
+</section>

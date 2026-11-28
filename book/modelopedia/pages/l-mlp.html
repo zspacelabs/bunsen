@@ -1,0 +1,44 @@
+<div class="prose">
+<p>The feed-forward is the channel mixer: the same small network applied to each position alone. It holds about two
+thirds of a dense model's non-embedding parameters, and is often read as the model's memory: its first layer's rows
+act as keys that match patterns in the stream, and its second layer's columns as the values written back when they
+fire{{cite:geva2021}}. The kits use two shapes, plain and gated, and four activations.</p>
+</div>
+
+<section>
+<h2 id="plain">The plain MLP</h2>
+<figure class="fig">{{fig:ffn_kinds}}
+<figcaption><b>Plain and gated.</b> A plain MLP expands, applies a nonlinearity, and projects back. A gated one
+computes two expansions and multiplies them, one through a nonlinearity.</figcaption></figure>
+<p>The Transformer's feed-forward expands to <span class="math">4D</span>, applies a ReLU, and projects
+back{{cite:vaswani2017}}. Two kits keep that shape:</p>
+<ul>
+<li><b>nanochat</b> uses <span class="math">ReLU(x)²</span>, without biases. Squared ReLU came out of Primer's
+architecture search as one of the few changes that reliably improved language-model training{{cite:so2021}}; it is
+exactly zero for negative inputs, so the hidden layer is sparse, and smooth at the origin.</li>
+<li><b>Laya's head layers</b> are PyTorch's stock encoder layer: ReLU, <span class="math">4D</span>, biased.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="glu">Gated MLPs</h2>
+<p>A gated linear unit computes <span class="math">(φ(x W<sub>gate</sub>) ⊙ x W<sub>up</sub>) W<sub>down</sub></span>:
+two parallel projections to the hidden width, one through an activation, multiplied elementwise. The idea came from
+gated convolutional language models{{cite:dauphin2017}}; Shazeer showed that in the transformer's feed-forward it
+beats the plain MLP at equal parameters and compute, and named the variants by their activation{{cite:shazeer2020}}.
+To keep the parameter count of a <span class="math">4D</span> plain MLP, the hidden width shrinks to
+<span class="math">8D/3</span>.</p>
+<ul>
+<li><b>SwiGLU</b> (φ = SiLU): Qwen3 and Qwen3.5, as in PaLM and Llama.</li>
+<li><b>GeGLU</b> (φ = GELU{{cite:hendrycks2016}}): Gemma, with GELU's tanh approximation, and ModernBERT, with exact
+GELU. Gemma uses a far wider hidden layer than the parity rule: <span class="math">8D</span> in Gemma 1. ModernBERT's
+is narrow (<span class="math">1.5D</span> in base), as befits an encoder tuned for inference speed.</li>
+</ul>
+<p>The gate multiplies two learned projections, so the unit is quadratic in its input, and each hidden channel can
+be shut off by its own gate. That second, multiplicative path is the usual explanation for the gain.</p>
+<figure class="fig">{{fig:activations}}
+<figcaption><b>The activations.</b> GELU and SiLU are smooth and dip slightly below zero; ReLU² is exactly zero for
+negative inputs and grows quadratically.</figcaption></figure>
+<div class="callout defer"><span class="t">Used by</span>
+plain: nanochat (ReLU²), Laya's head (ReLU) · SwiGLU: Qwen3, Qwen3.5 · GeGLU: Gemma 1–3 (tanh), ModernBERT (exact)</div>
+</section>

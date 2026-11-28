@@ -1,0 +1,40 @@
+<div class="prose">
+<p>Qwen3 is the plainest modern decoder in the kits: the Llama template, with one socket filled. It is also the
+most reused: it is the text model of Qwen3-ASR and the talker stack of Qwen3-TTS, and the kit covers every dense
+Qwen3 checkpoint up to 8B{{cite:yang2025qwen3}}.</p>
+</div>
+
+<section>
+<h2 id="design">Qwen3</h2>
+<p><b>Design change.</b> QK-norm: a learned RMS norm on each query and key head, applied before RoPE. Qwen2's biases on
+the query, key and value projections are gone{{cite:yang2024qwen2}}. Heads are 128 wide at every size, independent of
+the width (16 × 128 over a 1024-wide model at 0.6B), with GQA from 2:1 to 4:1. RoPE θ = 10⁶. The head is tied to
+the embedding up to 4B, and the 8B has its own.</p>
+<p><b>Why.</b> The Qwen3 report says the QK-norm replaced the QKV biases to make training stable{{cite:yang2025qwen3}}:
+it bounds the attention logits (<a href="c-logits.html#qknorm">logit control</a>), where the biases had only shifted
+them. Fixed-width heads keep each head's rank and rotary spectrum the same across sizes. θ = 10⁶ gives the 32K
+native context room to spare.</p>
+<p><b>Slot fill.</b> embed = plain · norms = RMS ε 10⁻⁶, pre-norm · mixer = GQA, head 128, QK-norm before RoPE ·
+FFN = SwiGLU · head = tied (≤ 4B) or own.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis; the board below is one layer, drawn as its two
+residual sublayers, with the token mixer opened up in the middle panel. Solid chips are injected components (click
+one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes relative to its parent.</p>
+{{circuit:qwen3|One new socket (Q/K NORM) and a tied head; everything else is the template's.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-logits.html#qknorm">QK-norm</a> · <a href="c-attention.html#headdim">head width</a> ·
+<a href="c-attention.html#gqa">GQA</a> · <a href="c-embed.html#tied">tying</a></div>
+</section>
+
+<section>
+<h2 id="variants">Variants that are not architecture</h2>
+<p>The kit's checkpoints differ in training, not in circuit. None of them needs a circuit of its own:</p>
+<ul>
+<li><b>-Base</b> checkpoints are the pretrained models; the unsuffixed ones are tuned to chat with a thinking mode
+that the chat template switches on and off.</li>
+<li><b>2507</b> (Qwen3-4B-Instruct-2507, -Thinking-2507) split the two modes into two models and extended the context
+to 256K. The only structural change is the rotary base, raised to 5·10⁶.</li>
+<li><b>Qwen3Guard-Gen</b> (0.6B, 4B, 8B) is Qwen3 tuned to classify a prompt or a reply as Safe, Unsafe or
+Controversial, with categories, by generating the verdict as text{{cite:qwen2025guard}}. <b>Qwen3-4B-SafeRL</b> is
+Qwen3-4B tuned for safety by reinforcement learning.</li>
+</ul>
+</section>

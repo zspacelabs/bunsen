@@ -1,0 +1,46 @@
+<div class="prose">
+<p>The Conformer{{cite:gulati2020}} is the speech encoder that combined attention with convolution: attention for
+global, content-based mixing, a depthwise convolution for local, offset-based mixing. Parakeet's FastConformer
+encoder{{cite:rekesh2023}} is a Conformer with a faster stem. In bunsen it is a third kind of layer for the same
+encoder stack, built from the same residual sublayers.</p>
+</div>
+
+<section>
+<h2 id="block">The macaron block</h2>
+<figure class="fig">{{fig:conformer_block}}
+<figcaption><b>Four residual sublayers.</b> Two half-weight feed-forwards around attention and a convolution, then a
+LayerNorm.</figcaption></figure>
+<p>A Conformer block has four pre-norm residual sublayers where a transformer layer has two. The feed-forward is
+split into two halves, each added at half weight, placed before and after the mixers: the "macaron" shape, which
+Gulati et al. took from Lu et al.'s reading of a transformer layer as one step of an ODE solver. A final LayerNorm
+closes every block. Feed-forwards use Swish (SiLU) at 4× width; Parakeet's have no biases.</p>
+</section>
+
+<section>
+<h2 id="conv">The convolution module</h2>
+<figure class="fig">{{fig:conv_module}}
+<figcaption><b>Gated depthwise convolution.</b> A pointwise expansion and GLU gate, a per-channel filter over time,
+BatchNorm and SiLU, and a pointwise projection.</figcaption></figure>
+<p>The depthwise convolution gives every channel its own short filter over time (9 frames, 720 ms, in Parakeet).
+That is what attention lacks: a cheap, translation-invariant detector of local patterns such as formant transitions,
+whatever their absolute position. The GLU in front makes it input-gated, like the
+<a href="c-mlp.html#glu">gated MLPs</a>. It is the one place in the book where BatchNorm appears in a transformer
+layer.</p>
+</section>
+
+<section>
+<h2 id="relpos">Relative positions</h2>
+<figure class="fig">{{fig:relpos}}
+<figcaption><b>Scores by offset.</b> Every query–key pair at the same offset reads the same position vector, plus
+two learned biases.</figcaption></figure>
+<p>The Conformer's attention uses Transformer-XL's relative positional encoding{{cite:dai2019}}. A score is the sum
+of a content term and a position term: <span class="math">(q<sub>i</sub> + u) · k<sub>j</sub> +
+(q<sub>i</sub> + v) · W<sub>P</sub> p(i − j)</span>, where <span class="math">p</span> is a sinusoidal table over
+the <span class="math">2T − 1</span> possible offsets, and <span class="math">u</span>, <span class="math">v</span>
+are learned per head. The position term is computed against all offsets at once and then shifted into place (the
+"rel-shift"). One table serves every layer. Compared with <a href="c-rope.html">RoPE</a>, which rotates the content
+vectors so that position appears inside <span class="math">q·k</span>, this keeps position as a separate additive
+term with its own projection, at the cost of a <span class="math">T × 2T</span> product per head.</p>
+<div class="callout defer"><span class="t">Used by</span>
+<a href="f-parakeet.html">Parakeet TDT</a> · NVIDIA's Sortformer v2 diarizer reuses the same encoder (not covered)</div>
+</section>

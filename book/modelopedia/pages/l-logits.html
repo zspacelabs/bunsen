@@ -1,0 +1,65 @@
+<div class="prose">
+<p>A softmax is only as good as the range of its inputs. When attention scores grow too large, the softmax saturates
+to one-hot, gradients vanish, and large models' training can diverge. Each kit uses some combination of four controls
+on the scores and the final logits. Which ones a family uses is one of the clearest markers of its generation.</p>
+</div>
+
+<section>
+<h2 id="growth">Why scores grow</h2>
+<figure class="fig">{{fig:qk_growth}}
+<figcaption><b>Three controls.</b> Normalizing <i>q</i> and <i>k</i> bounds their dot product; a score scale sets its
+temperature; a soft-cap bounds the result smoothly.</figcaption></figure>
+<p>A score <span class="math">q·k = |q||k| cos α</span> grows with the norms of the queries and keys, and nothing in
+plain attention bounds those. Dehghani et al. found that at 22B parameters, attention logits grew without bound early
+in training and the softmax collapsed to near one-hot{{cite:dehghani2023}}. Wortsman et al. reproduced the same
+instability in small models trained at high learning rates, and showed which fixes remove it{{cite:wortsman2023}}.</p>
+</section>
+
+<section>
+<h2 id="qknorm">QK-norm</h2>
+<figure class="fig">{{fig:qk_order}}
+<figcaption><b>Before or after the rotation.</b> Qwen and Gemma 3 normalize the projections, then rotate; nanochat
+rotates, then normalizes.</figcaption></figure>
+<p>QK-norm normalizes each head's query and key before the dot product{{cite:henry2020}}, so
+<span class="math">|q·k|</span> is bounded by the norms' gains. With RMS norms, it is the fix both papers above
+adopted. Qwen3 introduced it to the Qwen line while dropping Qwen2's QKV biases{{cite:yang2025qwen3}}. Gemma 3 adopted
+it in place of Gemma 2's soft-cap{{cite:gemma2025v3}}. nanochat applies it with no learned gain at all, so every
+query and key is a vector of the same length, and the score is a scaled cosine similarity.</p>
+<p>Where the norm sits relative to RoPE matters only when the norm has a gain: a rotation preserves the RMS, but not
+a per-dimension weighting. With a learned gain, the order must match the checkpoint, and it differs between families.</p>
+</section>
+
+<section>
+<h2 id="scale">The score scale</h2>
+<p>The default scale, <span class="math">1/√d</span>, keeps scores near unit variance for random unit-variance
+<span class="math">q</span> and <span class="math">k</span>{{cite:vaswani2017}}. Two kits set it explicitly:</p>
+<ul>
+<li><b>Gemma 2 and 3</b> scale by <code>query_pre_attn_scalar</code><sup>−½</sup> = 256<sup>−½</sup>. In the 2B, 9B
+and every Gemma 3 model the head width is also 256, so the change does nothing there; it exists for Gemma 2 27B,
+whose heads are 128 wide but whose scale is taken from <span class="math">D/H</span> = 144{{cite:gemma2024v2}}.</li>
+<li><b>nanochat 2026</b> multiplies its normalized queries and keys by a gain <span class="math">g</span> = 1.2. With
+the norm pinning their lengths, that is a sharper temperature, <span class="math">g²/√d</span>.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="softcap">Soft-capping</h2>
+<figure class="fig">{{fig:softcap}}
+<figcaption><b>c · tanh(s / c).</b> Identity near zero, bounded at ±<i>c</i>. Large scores keep their order but lose
+the ability to dominate.</figcaption></figure>
+<p>A soft-cap passes small values through unchanged and squashes large ones toward <span class="math">±c</span>. Bello
+et al. used it to keep a pointer network's logits in range{{cite:bello2016}}. Gemma 2 caps attention scores at 50 and
+the final logits at 30{{cite:gemma2024v2}}; nanochat caps its final logits at 15. Unlike QK-norm, a cap acts on the
+whole score, so it also bounds the effect of the score scale and of any bias. Gemma 3 dropped both of Gemma 2's caps
+when it adopted QK-norm.</p>
+</section>
+
+<section>
+<h2 id="f32">The softmax in f32</h2>
+<p>The last control is numerical. Every decoder kit runs its attention softmax in f32 even when the model computes in
+bf16, as <code>transformers</code> does. With bf16's 8 bits of mantissa, a softmax over tens of thousands of keys
+rounds most small weights to zero, and their sum drifts away from one. Logits leave the head in f32 for the same reason.</p>
+<div class="callout defer"><span class="t">Used by</span>
+QK-norm: nanochat, Qwen3, Gemma 3, Qwen3.5 · score scale: Gemma 2–3, nanochat 2026 · soft-caps: Gemma 2 (scores,
+logits), nanochat (logits)</div>
+</section>

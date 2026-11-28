@@ -1,0 +1,80 @@
+<div class="prose">
+<p>bunsen builds dozens of model families: residual conv nets from ResNet to RegNet; vision transformers from ViT to
+Swin and the image towers of CLIP, SigLIP and DINOv2; language models from nanochat to Gemma 3 and Qwen3.5; and
+speech models that recognize (Whisper, Qwen3-ASR, Voxtral Realtime, Parakeet) and synthesize (Qwen3-TTS, ZONOS3).
+Read paper by paper they look like separate architectures, each with its own vocabulary. Read as structure they are
+<b>four generic models</b>, each a small set of <i>sockets</i> into which a family plugs its components, and all
+four are built from the same residual unit.</p>
+<figure class="fig" id="map">{{fig:atlas_map}}
+<figcaption><b>Four generic models.</b> Every kit lowers its config onto one of them, so the shared algebra is how
+bunsen's code is built, not just a way of reading it. Click a model for its part of the book.</figcaption></figure>
+<p>The Modelopedia follows that reading. Each family is described where it differs from its parent, with a circuit
+board that shows which sockets it filled and marks the ones it changed. Fine structure is left to the
+<b>combinators</b> the families are built from, and each combinator gets its own theory and geometric pictures.
+It documents architecture, not Rust APIs, and splits families only at real design changes, never by size or
+training recipe.</p>
+<div class="callout"><span class="t">Four parts</span>
+<b>I · <a href="algebra.html">Conv nets</a></b>: the residual unit, conv blocks, norms, spatial mixers, channel
+attention, shortcuts, stems and heads; ResNet, ResNeXt, ResNetV2, Res2Net, SKNet, ResNeSt, RegNet.<br>
+<b>II · <a href="tx-algebra.html">Vision transformers</a></b>: patches and tokens, self-attention, the MLP, the
+residual sublayer, windows, merges, pools; ViT, DeiT, the multimodal towers, DINOv2, Swin.<br>
+<b>III · <a href="lm-algebra.html">Language models</a></b>: embeddings and heads, causal attention, rotary positions,
+masks and windows, logit control, feed-forwards, norms, the gated DeltaNet, stream extras, decode state; nanochat,
+Qwen3, Gemma, Qwen3.5, ModernBERT, Laya.<br>
+<b>IV · <a href="sp-algebra.html">Speech</a></b>: front ends, stems, audio encoders, the Conformer, bridges,
+transducers, codecs, language models over codes, routes and experts, streams; Whisper, Qwen3-ASR, Voxtral, Parakeet,
+Qwen3-TTS, ZONOS3.
+</div>
+<p>The parts build on each other. A vision encoder's block is a conv net's residual unit with attention in the mixer;
+a language model's layer is that block with a causal mask and rotary positions; a speech model is a language model
+with a signal path attached. Wherever two parts describe the same idea from different sides, the chapters link to
+each other.</p>
+</div>
+
+<section>
+<h2 id="tree">The lineage tree</h2>
+<p>Each node gives the design change that sets it apart from its parent, with chips naming the combinators it
+touches. Click a name to go to its chapter, or a chip to go to the combinator's theory. Nodes outlined in the accent
+colour are bunsen kits; dashed nodes are ancestors and boundaries bunsen doesn't build.</p>
+{{tree}}
+</section>
+
+<section>
+<h2 id="conv-matrix">Slot matrix: conv nets</h2>
+<p>Each row is a design; each column a slot of the <a href="algebra.html#slots">generic conv net</a>. Most of a row
+is inherited: a family is its parent with a cell or two changed.</p>
+</section>
+{{matrix:conv}}
+<section>
+<h2 id="tx-matrix">Slot matrix: vision transformers</h2>
+<p>The columns are the slots of the <a href="tx-algebra.html#slots">vision encoder</a>. Most foundation-model towers
+change two or three cells of the ViT row.</p>
+</section>
+{{matrix:tx}}
+<section>
+<h2 id="lm-matrix">Slot matrix: language models</h2>
+<p>The columns are groups of sockets on the <a href="lm-algebra.html#board">language-model board</a>, read against
+the Llama template.</p>
+</section>
+{{matrix:lm}}
+<section>
+<h2 id="sp-matrix">Slot matrix: speech models</h2>
+<p>The columns follow the <a href="sp-algebra.html#board">speech board</a>: recognizers fill the left, synthesizers
+the right.</p>
+</section>
+{{matrix:sp}}
+
+<section>
+<h2 id="read">How to read it</h2>
+<div class="cards">
+<div class="card"><h4><a href="algebra.html">Start with a part's algebra</a></h4><p>Each part opens with its generic
+model, its board of sockets, and how a family's config lowers onto it.</p></div>
+<div class="card"><h4><a href="c-residual.html">Then the combinators</a></h4><p>The parts the families are made of,
+each with its theory and pictures. The residual unit is the one they all share.</p></div>
+<div class="card"><h4><a href="f-resnet.html">Then the families</a></h4><p>What each family changed, and why, with
+a circuit marking the changed sockets against its parent.</p></div>
+<div class="card"><h4><a href="names.html">Reading the names</a></h4><p><code>seresnextaa101d_32x8d</code>,
+<code>vit_so400m_patch14_siglip_gap_384</code> and <code>Qwen3-4B-Thinking-2507</code> are short sentences. This
+chapter is their grammar.</p></div>
+</div>
+</section>

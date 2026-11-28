@@ -1,0 +1,94 @@
+<div class="prose">
+<p>Attention by itself is blind to order: permute the keys and values together and every output is unchanged. Every
+decoder kit here tells attention where tokens are with the rotary position embedding (RoPE){{cite:su2021}}, which has
+no parameters, adds nothing to the stream, and makes every score a function of relative position.</p>
+</div>
+
+<section>
+<h2 id="rotation">Positions as rotations</h2>
+<figure class="fig">{{fig:rope_rotate}}
+<figcaption><b>One pair of dimensions.</b> A query at position <i>m</i> is turned by <i>mω</i>, a key at
+<i>n</i> by <i>nω</i>. Their dot product sees only the angle between them, which is the offset.</figcaption></figure>
+<p>RoPE splits each head of width <span class="math">d</span> into <span class="math">d/2</span> pairs, treats each
+pair as a point in a plane, and rotates it by an angle proportional to the token's position. Because rotations
+preserve dot products up to their difference,</p>
+<p class="eq">⟨R(mω) q, R(nω) k⟩ = ⟨q, R((n − m)ω) k⟩,</p>
+<p>the score between two tokens depends on their content and their offset, never on their absolute positions. Since
+it acts on queries and keys, not the stream, it applies to the attention layers only, and a key cached at step
+<i>n</i> keeps its rotation for good. Positions are not stored anywhere else in the model.</p>
+</section>
+
+<section>
+<h2 id="base">The base and the spectrum</h2>
+<figure class="fig">{{fig:rope_spectrum}}
+<figcaption><b>Wavelengths of the pairs.</b> Pair <i>i</i> turns with frequency θ<sup>−2i/d</sup>: the first pairs
+complete a turn every few tokens, the last barely move. Raising θ shifts the whole spectrum toward longer
+wavelengths.</figcaption></figure>
+<p>The frequencies <span class="math">ωᵢ = θ<sup>−2i/d</sup></span> form a geometric series from 1 radian per token
+down to about <span class="math">1/θ</span>. Fast pairs resolve fine order nearby; slow pairs separate distant
+positions. A pair whose wavelength is longer than any context seen in training never completes a turn, so its angle
+always stays in a range the model has learned. Long-context models raise θ to put more pairs in that regime, which is
+known as adjusting the base frequency{{cite:xiong2023}}. The kits trace that trend:</p>
+<div class="tbl-wrap"><table>
+<thead><tr><th>θ</th><th>who</th><th>context</th></tr></thead>
+<tbody>
+<tr><td>10⁴</td><td>nanochat 2025, Gemma 1 and 2, Gemma 3's and ModernBERT's local tables</td><td>2K–8K, or a local window</td></tr>
+<tr><td>10⁵</td><td>nanochat 2026</td><td>2K</td></tr>
+<tr><td>1.6·10⁵</td><td>ModernBERT's global table</td><td>8K</td></tr>
+<tr><td>10⁶</td><td>Qwen3, Gemma 3's global table</td><td>32K–128K</td></tr>
+<tr><td>5·10⁶</td><td>Qwen3-4B 2507</td><td>256K</td></tr>
+<tr><td>10⁷</td><td>Qwen3.5</td><td>256K</td></tr>
+</tbody></table></div>
+</section>
+
+<section>
+<h2 id="tables">Two tables</h2>
+<p>A stack can hold more than one rotary table and give each kind of layer its own. Gemma 3 does: its sliding layers
+only ever see 512 or 1024 tokens back, so they keep θ = 10⁴ and a fine-grained spectrum, while its full layers use
+θ = 10⁶ for long range{{cite:gemma2025v3}}. ModernBERT does the same with 10⁴ for its local layers and 1.6·10⁵ for its
+global ones{{cite:warner2024}}. On the board this is the POSITIONS socket reading "two RoPE tables", and the stack's
+pattern says which layers take which.</p>
+</section>
+
+<section>
+<h2 id="partial">Partial rotary</h2>
+<figure class="fig">{{fig:partial_rope}}
+<figcaption><b>A quarter of the head.</b> Qwen3.5 rotates 64 of each 256-wide head and leaves the rest
+position-free.</figcaption></figure>
+<p>Qwen3.5's attention layers rotate only the first quarter of each head. The rotated span still holds a full
+spectrum, since the frequencies are spread over it alone. The remaining 192 dimensions score pure content
+similarity, at any distance. In a hybrid stack this is reasonable: the DeltaNet layers around each attention layer
+already encode order through their convolution and recurrence, so the attention layer can spend most of its width on
+retrieval by content.</p>
+</section>
+
+<section>
+<h2 id="scaling">Scaled tables</h2>
+<figure class="fig">{{fig:rope_scaling}}
+<figcaption><b>Position interpolation.</b> Dividing every frequency by <i>f</i> maps <i>f</i>× more positions onto
+the angles the model was trained on.</figcaption></figure>
+<p>A model can be extended past its training length by dividing every frequency by a factor
+<span class="math">f</span>, so that position <span class="math">p</span> is rotated as <span class="math">p/f</span>.
+Every angle then stays within the trained range, at the cost of resolution between neighbours. A short fine-tune
+recovers most of it{{cite:chen2023pi}}. Gemma 3 4B applies this to its global table, with
+<span class="math">f</span> = 8, to reach 128K tokens; its local table is left alone.</p>
+</section>
+
+<section>
+<h2 id="conventions">Conventions</h2>
+<p>Two choices don't change what RoPE computes, but a checkpoint is trained under one of them, and applying the other
+silently ruins it:</p>
+<ul>
+<li><b>Which dimensions pair up.</b> <code>transformers</code>' <code>rotate_half</code> pairs dimension
+<i>i</i> with <i>i + d/2</i> (Llama, Qwen, Gemma, ModernBERT, nanochat). RoFormer's original pairs adjacent dimensions.
+Converting between them is a permutation of <span class="math">W<sub>Q</sub></span>'s and
+<span class="math">W<sub>K</sub></span>'s rows.</li>
+<li><b>Which way it turns.</b> nanochat rotates with the opposite sign to <code>transformers</code>. Scores depend
+only on the angle between query and key, so a model is fine either way, but only the way it was trained.</li>
+</ul>
+<p>nanochat's 2025 model also kept its rotary tables rounded to bf16, and its checkpoints were trained with those
+rounded angles. The kit reproduces the rounding; the 2026 model computes exact tables.</p>
+<div class="callout defer"><span class="t">Used by</span>
+every attention layer in the kits, except Laya's head layers (no positions of their own) ·
+the DeltaNet layers take none</div>
+</section>

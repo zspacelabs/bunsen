@@ -1,0 +1,69 @@
+<div class="prose">
+<p>Since 2021 the strongest ViTs have mostly been trained as the image towers of multimodal systems: matched against
+captions, made to predict text and pixels, or plugged into language models. Their training signals differ a great deal,
+but what they change in the <i>encoder</i> is small, and the circuits make that plain. Every model in this chapter is
+a prefab of the same ViT policy. Classification heads are timm's additions on top of the towers.</p>
+</div>
+
+<section>
+<h2 id="clip">CLIP</h2>
+<p><b>Design change.</b> A LayerNorm on the token sequence <i>before</i> the first block (<code>ln_pre</code>), a patch
+embedding with no bias, LayerNorm ε of 10⁻⁵, and in OpenAI's original weights the QuickGELU
+activation{{cite:radford2021clip}}.</p>
+<p><b>Why.</b> CLIP trains an image tower and a text tower contrastively on hundreds of millions of image–caption pairs,
+so that matching pairs land close together in a shared space. That makes a classifier from nothing but class names
+("zero-shot"), and features that transfer unusually well. The extra norm normalizes the sum of patch and position
+embeddings before the residual stream starts, so the patch projection needs no bias. Later CLIP-style weights (LAION,
+DataComp, MetaCLIP) keep the tower and change the data. The <code>_quickgelu</code> names mark weights trained with
+OpenAI's activation.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis; the board below is one encoder block, drawn as its two
+residual sublayers. Solid chips are injected components (click one for its combinator chapter); dashed sockets are
+empty, and the wire passes straight through. <b>Δ</b> marks the sockets a variant changes relative to its parent.</p>
+{{circuit:clip|A filled NORM PRE socket, a bias-free patch embedding, and CLIP's ε and activation throughout.}}
+</section>
+
+<section>
+<h2 id="siglip">SigLIP</h2>
+<p><b>Design change.</b> No class token. The readout is a multi-head <a href="t-pool.html#map">attention pool</a> ("map")
+over the patch tokens{{cite:zhai2022scaling}}, and some sizes use the tanh approximation of GELU.</p>
+<p><b>Why.</b> SigLIP replaces CLIP's batch-wide softmax with a per-pair sigmoid loss, which trains well at any batch
+size{{cite:zhai2023siglip}}. The loss doesn't touch the encoder. The tower keeps Google's big_vision conventions: no
+class token, and a MAP head. Its <code>so400m</code> shape (27 × 1152, MLP ratio 3.74) was fitted by scaling laws for
+compute-optimal shapes{{cite:alabdulmohsin2023}}.</p>
+{{circuit:siglip|The class token goes; a learnt query's attention pool reads the patches.}}
+<p>The <code>_gap</code> towers are the same weights with the attention pool removed and the patch tokens averaged.
+This is how PaliGemma reads the SigLIP tower, at up to 896 pixels{{cite:beyer2024paligemma}}.</p>
+{{circuit:siglip-gap|The attention pool becomes a mean over the normalized patch tokens.}}
+</section>
+
+<section>
+<h2 id="eva">EVA</h2>
+<p>EVA{{cite:fang2023eva}} pretrains a plain ViT by masked image modelling, with CLIP features as the reconstruction
+targets. timm's <code>eva_large</code> geometries in the ViT kit are mean-pooled ViT-Ls with the norm after the pool.
+On the board that is the ViT circuit with POOL = avg, the FINAL NORM moved to POOL NORM, and nothing else.</p>
+</section>
+
+<section>
+<h2 id="beit3">BEiT3</h2>
+<p><b>Design change.</b> Sub-LN: an extra LayerNorm inside each branch, on the attention's output before
+<span class="math">W<sub>O</sub></span> and on the MLP's hidden width before <span class="math">fc<sub>2</sub></span>.
+Mean pool, no class token.</p>
+<p><b>Why.</b> BEiT3 is a "multiway" transformer, pretrained by masked modelling on images, text and image–text pairs
+together{{cite:wang2022beit3}}. Its blocks follow Magneto's sub-LN, an initialization-and-norm scheme from <i>Foundation
+Transformers</i> that keeps very deep stacks stable across modalities{{cite:wang2022magneto}}. The vision-only
+classifier keeps the image expert's path.</p>
+{{circuit:beit3|The norm placement stays pre-norm; the new norms live inside the token and channel mixers.}}
+</section>
+
+<section>
+<h2 id="aimv2">AIMv2</h2>
+<p><b>Design change.</b> A language model's block: RMSNorm everywhere (on the patch tokens too), a SwiGLU MLP of ratio
+about 2.7, SiLU, and no biases on any projection. No class token, mean pool, norm before the pool.</p>
+<p><b>Why.</b> AIMv2 pretrains the image encoder with a multimodal decoder that autoregressively generates the image's
+patches and then its caption{{cite:fini2024aimv2}}. Building the encoder from the decoder's parts (RMSNorm, SwiGLU, no
+biases) is the generative-pretraining convention, and those parts work as well in an encoder.</p>
+{{circuit:aimv2|The most rewired tower: every norm becomes RMSNorm, the MLP becomes SwiGLU, the biases go, and a mean replaces the class token.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="t-sublayer.html#kinds">LayerNorm &amp; RMSNorm</a> · <a href="t-mlp.html#glu">SwiGLU</a> ·
+<a href="t-pool.html#map">attention pool</a> · <a href="t-attention.html#biases">sub-LN</a></div>
+</section>

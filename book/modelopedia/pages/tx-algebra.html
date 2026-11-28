@@ -1,0 +1,116 @@
+<div class="prose">
+<p>The vision transformers are the second half of the lineage. They look like a break with the conv nets, but they are
+built from the same algebra. A residual stream is perturbed by a run of branches. Each branch is normalized, mixes
+information, and is added back. Only the mixers are new. bunsen builds every family in this half as one of two
+generic models: the <b>vision encoder</b> (ViT and its descendants) and the <b>staged vision encoder</b> (Swin). As in the
+conv half, each family kit is just a policy that fills their slots.</p>
+<p class="eq">model = head ∘ pool ∘ final ∘ stack ∘ norm<sub>pre</sub> ∘ tokens ∘ patch [∘ backbone]</p>
+</div>
+
+<section>
+<h2 id="macro">The macro shape</h2>
+<p>A ViT cuts the image into <span class="math">p×p</span> patches, embeds each one as a token, puts learnt prefix
+tokens in front, adds a learnt position embedding, and runs a stack of identical encoder blocks over the
+sequence{{cite:dosovitskiy2020}}. A pool then turns the sequence into one vector for the
+<a href="c-head.html#fc">classifier</a>.</p>
+<figure class="fig">{{fig:vit_macro}}
+<figcaption><b>The ViT pipeline.</b> The patch embedding is a stride-<span class="math">p</span> conv and plays the stem's
+role, but it is the model's <i>only</i> downsampling. From then on every block sees all
+<span class="math">N = HW/p²</span> tokens at width <span class="math">D</span>.</figcaption></figure>
+<p>That isotropy is the first structural difference from the conv nets. Swin brings the pyramid back by merging
+neighbouring tokens between stages, so its feature maps have the same strides (4 to 32) as a ResNet's and it can be
+used in a ResNet's place{{cite:liu2021swin}}:</p>
+<figure class="fig">{{fig:pyramid}}
+<figcaption><b>Isotropic versus pyramid.</b> ViT keeps one grid and one width. Swin's
+<a href="t-merge.html">patch merges</a> halve the grid and double the width, which is what a ResNet stage's first unit
+does with its stride and projection.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="block">From a residual unit to an encoder block</h2>
+<p>Put a pre-activation bottleneck next to a pre-norm transformer block and they line up. Both keep a clean identity
+stream and normalize the input to each branch. The bottleneck mixes channels (1×1), then space (3×3), then channels
+again, all inside one residual. The transformer block <i>factors</i> the two kinds of mixing into two residual
+sublayers: self-attention mixes tokens, and the MLP mixes channels within each token.</p>
+<figure class="fig">{{fig:unit_vs_block}}
+<figcaption><b>Same law, mixers factored apart.</b> An MLP applied to every token is exactly a pair of 1×1 convs. The new
+part is the token mixer: attention takes its mixing weights from the content rather than from a fixed kernel
+(<a href="t-attention.html#vs-conv">attention versus convolution</a>).</figcaption></figure>
+<div class="tbl-wrap"><table>
+<thead><tr><th>conv half</th><th>transformer half</th><th>what carries over</th></tr></thead>
+<tbody>
+<tr><td><a href="c-sampling.html#stems">stem</a></td><td><a href="t-patch.html">patch embedding</a></td><td>a strided conv that sets the token grid; kernel = stride = <span class="math">p</span>, so patches don't overlap</td></tr>
+<tr><td>3×3 <a href="algebra.html#slots">spatial mixer</a></td><td><a href="t-attention.html">self-attention</a> · <a href="t-window.html">window attention</a></td><td>mixes across positions; fixed local weights become content-dependent ones</td></tr>
+<tr><td>1×1 convs</td><td><a href="t-mlp.html">MLP</a></td><td>per-position channel mixing, widened ×4 inside</td></tr>
+<tr><td>BN</td><td><a href="t-sublayer.html#kinds">LayerNorm · RMSNorm</a></td><td>per-token statistics over channels; no batch dependence (BiT's argument, built in)</td></tr>
+<tr><td><a href="c-residual.html#preact">pre-activation</a> (ResNetV2)</td><td><a href="t-sublayer.html#placement">pre-norm</a></td><td>the identity stream stays clean: <span class="math">x<sub>L</sub> = x<sub>l</sub> + Σ f<sub>i</sub></span></td></tr>
+<tr><td>post-activation (ResNet v1)</td><td>post-norm (the 2017 Transformer)</td><td>the stream is renormalized after every add</td></tr>
+<tr><td>zero-initialized last BN γ</td><td><a href="t-sublayer.html#scale">layer scale</a></td><td>each branch starts near zero, so each block starts near the identity</td></tr>
+<tr><td>a stage's first unit (stride + <a href="c-shortcut.html">projection</a>)</td><td><a href="t-merge.html">patch merge</a> (Swin) · none (ViT)</td><td>reshaping moves <i>out</i> of the block: blocks never change shape, so every shortcut is the identity</td></tr>
+<tr><td><a href="c-head.html#pool">global pool</a></td><td><a href="t-pool.html">token pool</a></td><td>avg is avg; a class token or an attention pool is a <i>learnt</i> pool</td></tr>
+<tr><td><a href="c-drop.html#droppath">drop path</a></td><td>drop path</td><td>unchanged, ramped linearly over depth</td></tr>
+</tbody></table></div>
+</section>
+
+<section>
+<h2 id="board">The board</h2>
+<p>The transformer chapters draw their variants on a second fixed board. The chassis on top gains the slots the conv
+board had no use for: a backbone (hybrids only), the patch embedding, the prefix tokens and position embedding, a norm
+before the stack, and a norm on either side of the pool. Below the chassis is one encoder block, drawn as its two
+residual sublayers. Each sublayer has the same five sockets. The norm sockets <i>pre</i>, <i>post</i> and <i>out</i>
+encode norm placement: a variant shows its norm placement by which of them it fills.</p>
+{{circuit:tx-generic|Every socket and the kinds that can fill it. A filled PRE is pre-norm, a filled POST is res-post-norm, a filled OUT is post-norm; the image families here use the first two.}}
+<p>As before, solid chips are injected components and link to their combinator chapter. Dashed sockets are empty
+jumpers, and <b>Δ</b> marks what a variant changes relative to its parent. The shortcut socket of the conv board is gone,
+because in a transformer block it is always the identity.</p>
+</section>
+
+<section>
+<h2 id="slots">The slots, and who fills them</h2>
+<div class="tbl-wrap"><table>
+<thead><tr><th>slot</th><th>kinds</th><th>theory</th></tr></thead>
+<tbody>
+<tr><th>backbone</th><td>none · a headless post-activation ResNetV2 (GN + WS, SAME padding)</td><td><a href="f-vit.html#hybrid">Hybrid ViT</a></td></tr>
+<tr><th>patch embedding</th><td>patch size · bias or none · a norm on each token or none</td><td><a href="t-patch.html">Patches</a></td></tr>
+<tr><th>prefix tokens</th><td>class · distillation · <i>k</i> registers</td><td><a href="t-patch.html#tokens">Tokens</a></td></tr>
+<tr><th>position embedding</th><td>learnt absolute, over the prefix too or the patches alone · none (Swin's relative bias)</td><td><a href="t-patch.html#pos">Positions</a>, <a href="t-window.html#bias">relative bias</a></td></tr>
+<tr><th>token mixer</th><td>global multi-head attention (biases, sub-LN) · shifted-window attention (dot-product or cosine; table or CPB bias)</td><td><a href="t-attention.html">Attention</a>, <a href="t-window.html">Windows</a></td></tr>
+<tr><th>channel mixer</th><td>MLP (GELU, QuickGELU, tanh-GELU; ratio; sub-LN) · SwiGLU · packed SwiGLU</td><td><a href="t-mlp.html">MLP</a></td></tr>
+<tr><th>norms</th><td>kind (LayerNorm · RMSNorm, ε) · placement (pre · res-post · post) · norm before the stack</td><td><a href="t-sublayer.html">Sublayer</a></td></tr>
+<tr><th>layer scale</th><td>none · a learnt γ per channel on each residual</td><td><a href="t-sublayer.html#scale">Layer scale</a></td></tr>
+<tr><th>stages</th><td>one isotropic stack · stages opened by patch merges (norm before or after the reduction)</td><td><a href="t-merge.html">Patch merging</a></td></tr>
+<tr><th>pool and its norm</th><td>token · avg · max · avgmax · map · distilled; the final norm before the pool, after it, or none</td><td><a href="t-pool.html">Pools</a></td></tr>
+</tbody></table></div>
+<p>The <a href="index.html#txmatrix">transformer slot matrix</a> on the overview shows which cells each family changes.</p>
+</section>
+
+<section>
+<h2 id="laws">Algebraic laws worth knowing</h2>
+<ul>
+<li><b>A pre-norm stack telescopes.</b> <span class="math">x<sub>L</sub> = x<sub>0</sub> + Σ<sub>i</sub>
+f<sub>i</sub>(LN(x<sub>i</sub>))</span>. This is ResNetV2's identity-mapping law{{cite:he2016id}}, and it is why pre-norm
+transformers train without the learning-rate warm-up post-norm ones need{{cite:xiong2020}}.</li>
+<li><b>The patch embedding is a conv.</b> Kernel = stride = <span class="math">p</span>. Run on a conv net's feature
+map with <span class="math">p = 1</span>, it is a 1×1 conv, and the result is a <a href="f-vit.html#hybrid">hybrid</a>.</li>
+<li><b>The MLP is two 1×1 convs.</b> It acts on every token alone, so it commutes with any permutation of the
+tokens.</li>
+<li><b>Attention can express convolution.</b> Multi-head attention with relative position terms and enough heads can
+reproduce any convolution's receptive field{{cite:cordonnier2020}}. ViT drops the bias towards locality, and
+<a href="t-window.html">window attention</a> puts it back as a hard constraint.</li>
+<li><b>Patch merging is a 2×2 stride-2 conv.</b> Space-to-depth (pixel-unshuffle) followed by a 1×1
+projection{{cite:shi2016pixelshuffle}}.</li>
+<li><b>A class token is a pool spread over depth.</b> The class token is a learnt query that takes part in attention in
+every layer. The <a href="t-pool.html#map">attention pool</a> is the same idea applied once, at the end.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="lowering">From a family's vocabulary to slots</h2>
+<p>This half pushes the conv half's lowering further. ViT, the CLIP towers, SigLIP, DINOv2, AIMv2, BEiT3, C-RADIO and
+the hybrids are all prefabs of <b>one</b> policy, bunsen's <code>ViTContractConfig</code>, which mirrors timm's
+<code>VisionTransformer</code> knobs{{cite:timm}}. DeiT's policy wraps it and adds distillation. Both lower to the
+vision encoder's structure. Swin's policies lower to the staged encoder, whose blocks are the same decoder-block
+combinator with window attention plugged into the token-mixer socket.</p>
+<p>So a "family" on this side is a <i>setting of knobs on one policy</i>. Several of the chapters ahead are therefore
+grouped by lineage and training story, not by kit, and the circuits show exactly which sockets each one changes.</p>
+</section>

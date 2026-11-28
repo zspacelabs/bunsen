@@ -1,0 +1,32 @@
+<div class="prose">
+<p>ResNeSt{{cite:zhang2020resnest}} is a ResNet-D whose bottleneck mixer is <a href="c-splitattn.html">split
+attention</a>: inside each cardinal group, <span class="math">r</span> radix splits are weighed per channel by a softmax
+attention. Every striding unit downsamples with an average pool (<i>avd</i>) instead of a strided conv.</p>
+</div>
+
+<section>
+<h2 id="design">Design</h2>
+<p><b>Change.</b> Mixer = split attention (radix <span class="math">r</span>, cardinality <span class="math">g</span>) ·
+anti-alias = avd 3×3 average pool, after the mixer or before it · stem = deep · shortcut = avg-down.</p>
+<p><b>Why.</b> ResNeSt unifies the attention ideas before it into one operator. SE's channel gating is radix 1. SK's
+branch selection becomes radix <span class="math">&gt;</span> 1 with same-shaped branches. ResNeXt's cardinality is
+the outer grouping. The paper's argument is practical: a single drop-in mixer, combined with the D tweaks and a modern
+training recipe, gives a backbone that transfers well to detection and segmentation.</p>
+<p><b>Slot fill.</b> A ResNet-D (deep stem of 32 or 64, avg-down shortcuts) with mixer = SplitAttn and aa = avd. It
+cannot also fill the separate attention or anti-aliasing slots: its mixer already plays both roles, and timm's block
+refuses the combination.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis, the board below is one residual unit. Solid chips are injected components (click one for its combinator chapter); dashed sockets are empty, and the wire passes straight through. <b>Δ</b> marks the sockets this variant changes relative to its parent.</p>
+{{circuit:resnest|Two sockets on a ResNet-D: the split-attention mixer at stride 1, and the avd pool that takes the stride.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-splitattn.html">split attention</a> · <a href="c-sampling.html#aa">avd placement</a> ·
+<a href="f-resnet.html#tricks">ResNet-D</a></div>
+</section>
+
+<section>
+<h2 id="variants">Design variants</h2>
+<p>The <code>radix·s·cardinality·x·width·d</code> names (<code>1s4x24d</code>, <code>4s2x40d</code>) trade radix
+against cardinality. In the radix-1 and radix-4 geometries the <i>avd</i> pool moves before the mixer
+(<code>avd_first</code>), so the expensive attended conv runs at the reduced resolution. The <code>d</code> and
+<code>e</code> suffixes mark deep stems of 32 and 64. Depth is scale.</p>
+{{circuit:resnest-first|Same components, with the avd socket moved before the mixer so the attended conv runs at reduced resolution.}}
+</section>

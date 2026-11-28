@@ -1,0 +1,53 @@
+<div class="prose">
+<p>The MLP is the transformer's channel mixer. It is applied to each token alone: a widening linear map, a nonlinearity,
+and a narrowing map back. In conv terms it is a 1×1 bottleneck turned inside out: wide in the middle instead of
+narrow.</p>
+</div>
+
+<section>
+<h2 id="mlp">Kinds</h2>
+<figure class="fig">{{fig:mlp_kinds}}
+<figcaption><b>Three channel mixers.</b> The plain MLP widens by a ratio <span class="math">r</span> (4 by default). The
+gated forms multiply a SiLU-activated gate with a second projection before narrowing.</figcaption></figure>
+<p>The plain MLP is <span class="math">fc<sub>2</sub>(act(fc<sub>1</sub> x))</span> with hidden width
+<span class="math">⌊rD⌋</span>. Because it acts on each token alone, it holds most of a ViT's parameters (about two
+thirds at <span class="math">r = 4</span>) but does no mixing between tokens. A useful reading is that attention moves
+information between tokens and the MLP transforms it within each one.</p>
+</section>
+
+<section>
+<h2 id="act">Activations</h2>
+<ul>
+<li><b>GELU</b>{{cite:hendrycks2016gelu}}: <span class="math">x·Φ(x)</span>, the default from ViT on.</li>
+<li><b>QuickGELU</b>: <span class="math">x·σ(1.702x)</span>, a sigmoid approximation used in OpenAI's CLIP
+weights{{cite:radford2021clip}}. Those weights only work with the activation they were trained with, so the
+<code>_quickgelu</code> names exist.</li>
+<li><b>tanh-GELU</b>: the tanh approximation of GELU, which some SigLIP towers keep{{cite:zhai2023siglip}}.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="glu">Gated MLPs: SwiGLU</h2>
+<p>A gated linear unit multiplies two projections of the input, one passed through an activation. With SiLU as the
+activation this is SwiGLU{{cite:shazeer2020glu}}:</p>
+<p class="eq">SwiGLU(x) = fc<sub>2</sub>( SiLU(x W<sub>g</sub>) ⊙ x W<sub>x</sub> )</p>
+<p>A gated MLP has three matrices instead of two, so its hidden width is usually shrunk to keep the parameter count. A
+ratio near <span class="math">⅔ · 4 ≈ 2.67</span> matches a plain <span class="math">4×</span> MLP, and AIMv2 uses 2.75
+and 2.67{{cite:fini2024aimv2}}. The multiplicative interaction lets each hidden unit act as a data-dependent gate,
+much as <a href="c-attention.html">channel attention</a> does in the conv half.</p>
+<p>The <b>packed</b> form fuses <span class="math">W<sub>g</sub></span> and <span class="math">W<sub>x</sub></span> into one
+<span class="math">fc<sub>1</sub></span> of twice the rows, split in halves after the projection. It is the same
+function in a different parameter layout. DINOv2's giant tower uses it with a nominal ratio of 5.33, so
+<span class="math">fc<sub>1</sub></span> has 8192 rows and the gated hidden width is 4096{{cite:oquab2023dinov2}}.</p>
+</section>
+
+<section>
+<h2 id="shape">Width ratios, and a norm inside</h2>
+<p>The ratio is a shape knob, not a design change. The "shape-optimized" SigLIP <code>so400m</code> tower (27 layers,
+width 1152, MLP ratio 3.74) came from fitting scaling laws over depth, width and MLP width{{cite:alabdulmohsin2023}}.</p>
+<p>BEiT3 adds a LayerNorm on the hidden width before <span class="math">fc<sub>2</sub></span>: the MLP half of
+Magneto's sub-LN{{cite:wang2022magneto}}, matching the norm it puts inside the
+<a href="t-attention.html#biases">attention</a>.</p>
+<div class="callout defer"><span class="t">Sits in</span>
+<a href="t-sublayer.html">the residual sublayer</a>, socket CHANNEL MIXER</div>
+</section>

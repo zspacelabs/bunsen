@@ -1,0 +1,100 @@
+<div class="prose">
+<p>ResNet{{cite:he2016}} is the root of the lineage and the most heavily refined member. The original idea, stages of
+<a href="c-residual.html">residual units</a> with identity shortcuts, has stayed fixed. Over six years nearly every
+slot around it has been revised. This chapter covers the design changes that define its sub-families. bunsen's ResNet
+kit covers all of them, along with <a href="f-resnext.html">ResNeXt and Wide ResNet</a>.</p>
+</div>
+
+<section>
+<h2 id="v1">ResNet v1</h2>
+<p><b>Design.</b> A 7×7 stride-2 stem with a 3×3 max pool. Four stages at stride 1, 2, 2, 2. Units are
+<a href="c-units.html#basic">basic</a> (two 3×3s) for the shallow nets and <a href="c-units.html#bottleneck">bottleneck</a>
+(1×1 → 3×3 → 1×1, expansion 4) for the deep ones. A <a href="c-shortcut.html">1×1 projection</a> on each stage's first
+unit, BN and ReLU everywhere, and global average pooling into one linear layer.</p>
+<p><b>Slot fill.</b> unit = basic | bottleneck · mixer = 3×3 conv · shortcut = 1×1 conv · stem = 7×7 + max · no
+attention, no anti-aliasing, no final layer.</p>
+<p><b>Depth is a list, not a design change.</b> Depth (18 through 152 and beyond) only changes the unit count per stage,
+and the basic/bottleneck switch follows depth. Neither creates a new family, so the kit treats them as one design. The
+widely used "stride on the 3×3" form (torchvision's, called ResNet-B) moves the stride from the first 1×1 to the mixer,
+so the path no longer discards ¾ of its input{{cite:he2019tricks}}.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis, the board below is one residual unit. Solid chips are injected components (click one for its combinator chapter); dashed sockets are empty, and the wire passes straight through. <b>Δ</b> marks the sockets this variant changes relative to its parent.</p>
+{{circuit:resnet-basic|Two full-width 3×3s; the first is the mixer and strides.}}
+{{circuit:resnet|Bottleneck: reduce → mix → expand ×4; the stride sits on the 3×3 (ResNet-B).}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-residual.html">residual unit</a> · <a href="c-units.html">basic &amp; bottleneck</a> ·
+<a href="c-shortcut.html">projection shortcut</a> · <a href="c-sampling.html#stems">single stem</a> ·
+<a href="c-head.html">head</a></div>
+</section>
+
+<section>
+<h2 id="tricks">The "bag of tricks" stems and shortcuts (C, D, S, T, E)</h2>
+<p>He et al. 2019 collected cheap fixes to the two places where ResNet v1 throws information away{{cite:he2019tricks}}:</p>
+<ul>
+<li><b>C: deep stem.</b> The 7×7 becomes three 3×3s (widths 32, 32, 64): the same reach, more nonlinearity, slightly
+more compute.</li>
+<li><b>D: average-down shortcut.</b> The projection shortcut's stride moves onto a 2×2 average pool before the 1×1
+(<a href="c-shortcut.html#grid">why</a>). D also uses the deep stem.</li>
+<li>timm adds <b>S</b> (a deep stem at width 64), <b>T</b> (a <i>tiered</i> deep stem with widths 24, 32, 64, plus avg-down) and
+<b>E</b> (a 64-wide deep stem plus avg-down){{cite:timm}}.</li>
+</ul>
+<p><b>Slot fill.</b> stem = deep | tiered · shortcut = avg → 1×1. The units are unchanged.</p>
+{{circuit:resnet-d|C changes the stem alone; T uses a tiered stem (24, 32, 64); S and E widen the deep stem to 64.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-sampling.html#stems">deep &amp; tiered stems</a> · <a href="c-shortcut.html#grid">average-down shortcut</a></div>
+</section>
+
+<section>
+<h2 id="attn">Channel attention: SE-ResNet and ECA-ResNet</h2>
+<p>Squeeze-and-excitation{{cite:hu2018}} gates each unit's residual branch with channel gains computed from the
+branch's global average. ECA{{cite:wang2020eca}} replaces SE's bottleneck MLP with a 1-d conv across channels. Both fill
+the <a href="c-attention.html">attention slot</a> at the <i>output</i> placement and leave every other slot as it was,
+so each attention net is "its base ResNet (or ResNeXt) plus a gate": SE-ResNeXt, ECA-ResNet-D, ECA-ResNeXt-T, and so
+on. The "light" ECA variant only changes the depth list.</p>
+{{circuit:resnet-se|One socket filled; on a ResNeXt or a D net the same injection gives SE-ResNeXt and ECA-ResNet-D.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-attention.html#se">squeeze-excite</a> · <a href="c-attention.html#eca">ECA</a> ·
+<a href="c-attention.html#place">placement</a></div>
+</section>
+
+<section>
+<h2 id="aa">Anti-aliased ResNets</h2>
+<p>Each stride-2 unit keeps its mixer at stride 1 and hands the stride to a low-pass pool after the mixer's activation.
+The stem's max pool becomes either a max at stride 1 followed by a blur of stride 2 (<i>blur</i> nets) or a 2×2
+average pool (<i>aa</i> nets){{cite:zhang2019aa}}. The result is more shift-invariant, and usually more accurate, at
+the cost of running each striding mixer at its input's resolution. It combines freely with D and SE (SE-ResNeXt-AA-D).</p>
+{{circuit:resnet-aa|The stride moves from the mixer onto a low-pass pool after its activation; the stem pool is anti-aliased too.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-sampling.html#aa">anti-aliased downsampling</a></div>
+</section>
+
+<section>
+<h2 id="rs">ResNet-RS</h2>
+<p>Bello et al. 2021 asked how much of the progress since ResNet came from architecture and how much from training and
+scaling{{cite:bello2021}}. Their architecture changes are modest: an SE gate at a reduction of ¼, the deep stem with
+its max pool replaced by a strided 3×3 conv, and avg-down shortcuts. The scaling rule is the real result: <i>increase
+depth when overfitting is not a concern, and increase resolution slowly</i>. That rule only affects the depth list,
+so in the algebra ResNet-RS is "ResNet-D + SE¼ + conv stem pool".</p>
+<p>A related point from the same period: ResNet-50 trained with a modern recipe ("ResNet strikes back") reaches 80.4%
+top-1 with no change to the architecture{{cite:wightman2021}}. Weight sets differ by recipe, not by design, so this
+book does not separate them.</p>
+{{circuit:resnet-rs|Three injections onto the bottleneck ResNet; the scaling rule changes only the stage depths.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-attention.html">SE</a> · <a href="c-sampling.html#stems">conv stem pool</a> ·
+<a href="c-shortcut.html">avg-down</a></div>
+</section>
+
+<section>
+<h2 id="norms">Norm variants</h2>
+<p>Replacing every BN with a 32-group GN (stem included){{cite:wu2018gn}} is a pure layer-choice change: the norm is
+stated once and reaches every conv block. It is the same knob <a href="f-resnetv2.html#bit">BiT</a> uses, there
+combined with pre-activation and weight standardization.</p>
+</section>
+
+<section>
+<h2 id="children">Descendants</h2>
+<p>Every later conv family starts from a ResNet policy and changes the mixer, the norm placement or the
+width rule. <a href="f-resnext.html">ResNeXt</a> groups the mixer. <a href="f-resnetv2.html">ResNetV2</a> moves the
+norms. <a href="f-res2net.html">Res2Net</a>, <a href="f-sknet.html">SKNet</a> and <a href="f-resnest.html">ResNeSt</a>
+replace the mixer while keeping the rest of a ResNet-D. <a href="f-regnet.html">RegNet</a> replaces the hand-set widths
+with a generated rule.</p>
+</section>

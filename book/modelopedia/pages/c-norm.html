@@ -1,0 +1,46 @@
+<div class="prose">
+<p>A normalization layer standardizes activations over some set of axes, then applies a learned per-channel affine map
+<span class="math">γ x̂ + β</span>. The kinds differ only in <b>which axes the statistics are taken over</b>, and
+that one choice decides whether the layer depends on the batch.</p>
+</div>
+<figure class="fig">{{fig:norm_cubes}}
+<figcaption><b>The axes of the statistics.</b> The highlighted cells share one mean and variance. Batch norm pools
+across samples, which couples examples and needs large batches. Group and layer norm stay inside one sample.</figcaption></figure>
+
+<section>
+<h2 id="bn">Batch norm</h2>
+<p class="eq">x̂<sub>n,c,h,w</sub> = (x − μ<sub>c</sub>) / √(σ²<sub>c</sub> + ε),&nbsp;&nbsp;μ<sub>c</sub>, σ²<sub>c</sub> over (N, H, W)</p>
+<p>BN is the default norm of the lineage{{cite:ioffe2015}}. At inference its statistics are frozen running averages,
+so BN becomes an affine map per channel and folds into the preceding conv. In the residual unit, BN's
+<span class="math">γ</span> on the last norm of the path controls the branch's initial magnitude. Initializing it to
+zero makes every unit start as the identity{{cite:goyal2017}}, which is the geometric reading of
+<a href="c-residual.html">residual learning</a>.</p>
+</section>
+
+<section>
+<h2 id="gn">Group norm</h2>
+<p>GN splits channels into 32 groups and normalizes each group over its channels and space, per sample
+{{cite:wu2018gn}}. It does not depend on the batch, which matters for transfer at small batch sizes, so
+<a href="f-resnetv2.html#bit">BiT</a> uses it throughout. Layer norm{{cite:ba2016ln}} is the one-group case. GN on its
+own trains worse than BN on ImageNet. Paired with weight standardization, it closes the gap.</p>
+</section>
+
+<section>
+<h2 id="ws">Weight standardization</h2>
+<figure class="fig">{{fig:ws_fig}}
+<figcaption><b>Normalizing the weights instead of the activations.</b> Each output filter is centred and scaled
+before it is used{{cite:qiao2019}}. Batch norm normalizes the conv's <i>outputs</i> using batch statistics; WS fixes
+the conv's own gain, which smooths the loss landscape in the way BN does but without the batch. BiT's "StdConv"
+is a conv with WS and <span class="math">ε = 10⁻⁸</span>{{cite:kolesnikov2020}}.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="evo">EvoNorm-S0</h2>
+<p>EvoNorm-S0 was found by searching over computation graphs that fuse a normalization and an activation into one
+layer{{cite:liu2020evo}}:</p>
+<p class="eq">y = x·σ(v·x) / std<sub>group</sub>(x) · γ + β</p>
+<p>The numerator is a SiLU-like gate with a learned slope. The denominator is a group-norm-style scale without mean
+subtraction. It takes the place of a "norm + act" pair and does not depend on the batch. In the slot algebra it is a
+norm whose activation is its own, so the layer choice for activation is ignored where it is used
+(<a href="f-resnetv2.html#evo">ResNetV2-EvoNorm</a>).</p>
+</section>

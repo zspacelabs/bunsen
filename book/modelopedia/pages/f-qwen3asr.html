@@ -1,0 +1,36 @@
+<div class="prose">
+<p>Qwen3-ASR is a recognizer built by giving a chat language model ears: a Whisper-style audio encoder whose frames
+take the place of placeholder tokens in a Qwen3 prompt{{cite:qwen2025asr}}. Everything after the splice is the
+<a href="f-qwen3.html">Qwen3</a> kit, unchanged.</p>
+</div>
+
+<section>
+<h2 id="design">Qwen3-ASR</h2>
+<p><b>Design change.</b> Against Whisper:</p>
+<ul>
+<li>The front end is Whisper's with 128 bands, levelled per 30 s window.</li>
+<li>The stem is three 2-d strided convolutions over each 1-second chunk, 100 frames to 13, then a linear map.</li>
+<li>The encoder adds sinusoidal positions that restart every chunk, and attends within 8 s blocks. Every projection
+has a bias.</li>
+<li>The bridge is a splice: a two-layer GELU MLP maps each frame to the text width, and the frames replace the
+<code>&lt;|audio_pad|&gt;</code> tokens of a chat prompt (system, user with the audio, assistant).</li>
+<li>The decoder is Qwen3 (0.6B or 1.7B), and replies <code>language English&lt;asr_text&gt;…</code>, naming the
+language it heard before the transcript.</li>
+</ul>
+<p><b>Why.</b> Splicing reuses everything a chat model already has: its tokenizer, its training, its context, and
+its decoding. The encoder only has to produce vectors the decoder can read as if they were tokens. Chunked
+positions and block attention bound the encoder's cost on long recordings, and 13 frames a second keeps the audio's
+share of the context small.</p>
+<p class="circuit-key">Circuit key: four rows, audio in to audio out, each read left to right. Solid chips are
+components (click one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes
+relative to its parent.</p>
+{{circuit:qwen3asr|Against Whisper: a chunked 2-d stem, block attention, a projector, and a splice into a Qwen3 prompt.}}
+<p><b>Word timing.</b> The model writes no timestamps. bunsen recovers them from eight of the decoder's attention
+heads that track the audio: their attention from each reply token onto the audio positions is averaged and aligned
+monotonically (a dynamic-time-warping path), and each token is placed at its peak.</p>
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="s-stem.html">the 2-d stem</a> · <a href="s-encoder.html">chunked positions, block masks</a> ·
+<a href="s-bridge.html#splice">the splice</a> · <a href="f-qwen3.html">Qwen3</a></div>
+<p>FermionResearch's Phonon-1 builds are English fine-tunes of the 0.6B model, with the same circuit and re-quantized
+weights.</p>
+</section>

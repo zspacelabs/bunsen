@@ -20,6 +20,8 @@ target
 /book/book/
 # mdbook-rustdoc-links' symlink to target/doc (dev builds link into it)
 /book/src/api
+# The Modelopedia, generated from book/modelopedia/ by its mdBook preprocessor
+/book/src/modelopedia/
 
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

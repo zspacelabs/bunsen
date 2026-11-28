@@ -1,0 +1,69 @@
+<div class="prose">
+<p>A transformer works on a set of vectors. To feed it an image, the image has to be cut into tokens, and whatever
+the model should know about <i>where</i> each token came from has to be added explicitly. This chapter covers three
+combinators that do that: the patch embedding, the prefix tokens, and the learnt position embedding.</p>
+</div>
+
+<section>
+<h2 id="embed">Patch embedding</h2>
+<p>A patch embedding cuts the image into non-overlapping <span class="math">p×p</span> patches, flattens each to a vector
+of <span class="math">p²C</span> pixels, and maps it to width <span class="math">D</span> with one shared linear map. That
+is exactly a conv with kernel <span class="math">p</span> and stride <span class="math">p</span>, which is how it is
+built{{cite:dosovitskiy2020}}.</p>
+<figure class="fig">{{fig:patchify}}
+<figcaption><b>Patchify.</b> The grid is flattened row by row into a sequence. After that, the order of the tokens means
+nothing to attention or to the MLP. Only the position embedding (or, in Swin, the
+<a href="t-window.html#bias">relative bias</a>) tells the model where a token was.</figcaption></figure>
+<p>The patch size is the main resolution knob. Halving it quadruples the token count, and
+<a href="t-attention.html#cost">global attention</a>'s cost grows with the square of that. The <code>patch16</code>,
+<code>patch14</code> and <code>patch8</code> in a name are this knob. Three small variations appear across the families:</p>
+<ul>
+<li><b>No bias</b> (CLIP's towers): the projection has no bias, because a norm follows it before the first
+block.</li>
+<li><b>A norm on each token</b>: Swin (LayerNorm) and AIMv2 (RMSNorm) normalize every patch token right after the
+projection.</li>
+<li><b>A remainder</b>: a ViT may take an image side that isn't a whole number of patches. The conv simply drops the
+pixels past the last whole patch, so <code>so400m_patch14_384</code> (27 patches of 14 is 378) drops the last 6 pixel rows and columns. Swin refuses such a
+geometry, because its windows must tile the grid.</li>
+</ul>
+<p>On a <a href="f-vit.html#hybrid">hybrid</a>, the patch embedding cuts a conv net's feature map instead of the image,
+usually with <span class="math">p = 1</span>.</p>
+</section>
+
+<section>
+<h2 id="tokens">Prefix tokens</h2>
+<p>Prefix tokens are learnt vectors placed in front of the patch tokens. They are the same for every image, so they
+carry no image content of their own. What they hold comes from attending to the patches.</p>
+<figure class="fig">{{fig:prefix_tokens}}
+<figcaption><b>Prefix tokens and positions.</b> The class token's final state is what a <a href="t-pool.html">token
+pool</a> reads. DeiT's distillation token is a second, independently supervised class token. Registers are read by
+nothing.</figcaption></figure>
+<ul>
+<li><b>Class token</b>{{cite:dosovitskiy2020}}: borrowed from BERT. It acts as a learnt pooling query that takes part in
+every layer.</li>
+<li><b>Distillation token</b>{{cite:touvron2021deit}}: follows the class token. It is trained against a teacher's
+predictions and has its own classifier (<a href="f-deit.html">DeiT</a>).</li>
+<li><b>Registers</b>{{cite:darcet2024registers}}: <i>k</i> extra tokens that no head reads. They give the model scratch
+space for the global computation it would otherwise do in background patch tokens
+(<a href="f-dino.html#registers">registers</a>).</li>
+</ul>
+<p>Families that pool by mean or attention (SigLIP, AIMv2, the GAP ViTs) often drop the class token altogether.</p>
+</section>
+
+<section>
+<h2 id="pos">The learnt position embedding</h2>
+<p>A learnt vector is added to each position: one per patch of the grid the model was trained at, plus, by default,
+one per prefix token. ViT found that 1-d learnt embeddings worked as well as 2-d or relative
+ones{{cite:dosovitskiy2020}}. Trained embeddings do recover the grid: nearby patches end up with similar
+embeddings.</p>
+<p>Under <code>no_embed_class</code>, the embedding covers the patches alone, and the prefix tokens join after it is
+added. That leaves the prefix tokens free of any position, which is what DeiT III, FlexiViT, the register models and
+C-RADIO use. It also makes the embedding a pure function of the grid, so it is simpler to
+resample{{cite:beyer2023flexivit}}.</p>
+<p>The embedding is fixed to one grid. A bunsen ViT runs at the image size its embedding was learnt for; timm's
+resampling for other sizes is not in the kit. Swin has no absolute embedding at all. Its positions enter each
+window's attention as a relative bias, which is one reason it changes resolution more easily.</p>
+<div class="callout defer"><span class="t">Used by</span>
+<a href="f-vit.html">ViT</a> · <a href="f-deit.html">DeiT</a> · <a href="f-clip.html">CLIP &amp; co.</a> ·
+<a href="f-dino.html">DINOv2</a> · <a href="f-swin.html">Swin</a> (patch embedding only)</div>
+</section>

@@ -1,0 +1,63 @@
+<div class="prose">
+<p>bunsen's speech kits are language models with a signal path attached at one end. A recognizer (Whisper,
+Qwen3-ASR, Voxtral Realtime, Parakeet) puts an <b>audio encoder</b> in front of a decoder; a synthesizer (Qwen3-TTS,
+ZONOS3) puts a <b>codec</b> after one. Between the signal and the decoder sits a <b>bridge</b>, and that is where the
+recognizers differ most. Inside, the decoders are the ones Part III describes: Qwen3-ASR's text
+model and Qwen3-TTS's talker are the Qwen3 kit, Voxtral's is a Mistral decoder built from the same block, and
+ZONOS3's is a gated-DeltaNet hybrid like Qwen3.5's.</p>
+</div>
+
+<section>
+<h2 id="pipelines">Two pipelines, one middle</h2>
+<figure class="fig">{{fig:speech_macro}}
+<figcaption><b>Recognition and synthesis.</b> A recognizer turns a waveform into frames and lets a decoder read
+them. A synthesizer has a decoder write codec codes, which a codec decoder turns back into a waveform.</figcaption></figure>
+<p>Both directions need audio turned into a short sequence of vectors: a transformer cannot attend over 16 000
+samples a second. Recognizers compute a log-mel spectrogram and subsample it with strided convolutions. Synthesizers
+use a <a href="s-codec.html">neural codec</a>, trained separately, whose quantized latents are the tokens the
+decoder writes. Either way the decoder runs at a frame rate between 12.5 and 50 Hz.</p>
+<figure class="fig">{{fig:frame_rates}}
+<figcaption><b>The grids.</b> Each kit's working frame rate, on 0.4 s of audio. An 80 ms frame (12.5 Hz) is about
+the length of a short syllable.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="board">The speech board</h2>
+<p>The speech board has four rows. AUDIO IN is the front end and audio encoder. BRIDGE is where frames meet tokens:
+a projector, the bridge itself, and any conditioning. TOKENS is the language model with its input rows, a second
+decoder if it has one, its heads and its search. AUDIO OUT is the codec decoder. Recognizers fill the top three rows
+and synthesizers the bottom two, so the two halves of the board read as mirror images. ZONOS3, which can clone a
+voice from a reference clip, also uses AUDIO IN for its speaker encoder. The LANGUAGE MODEL socket stands for a whole
+decoder stack, which links to its own circuit on the <a href="algebra.html#board">language-model board</a> where
+there is one.</p>
+<p class="circuit-key">Circuit key: each row reads left to right, and the dashed return wire carries its output to
+the next row. Solid chips are components (click one for its chapter); dashed sockets are empty. <b>Δ</b> marks the
+sockets a variant changes relative to its parent.</p>
+{{circuit:sp-generic|Every socket, with the range of components the speech kits plug into it.}}
+</section>
+
+<section>
+<h2 id="matrix">The speech slot matrix</h2>
+<p>The six speech kits, read across the board's sockets.</p>
+</section>
+{{matrix:sp}}
+
+<section>
+<h2 id="laws">What carries over, and what is new</h2>
+<ul>
+<li><b>The residual algebra carries over.</b> Every audio encoder, codec trunk and speech decoder here is built
+from the same <code>CausalDecoderBlock</code> and <code>DecoderStack</code> as the language kits, with a mask and a
+norm placement chosen by config. The Conformer adds a third sublayer kind, a convolution, and ZONOS3 replaces the
+residual stream itself with routes.</li>
+<li><b>Positions come in four new forms.</b> A learned table (Whisper), sinusoids restarted per chunk (Qwen3-ASR),
+relative positions with Transformer-XL biases (Parakeet), and none at all where convolutions carry order (the codec
+stems). Rotary positions remain the default in the decoders.</li>
+<li><b>Time is a constraint.</b> A stream can't wait for audio it hasn't heard. That decides the front end's level
+rule, the encoder's mask, the bridge, and the codec's causality, and it is why the kits differ most in exactly those
+sockets (<a href="s-stream.html">streams</a>).</li>
+<li><b>A frame can be several tokens.</b> A codec emits 10 or 16 codes per frame, so a synthesizer's language model
+must predict a small structured object at every step (<a href="s-codes.html">language models over codes</a>).</li>
+<li><b>State is injected, here too.</b> Every encoder cache, decoder cache, prediction-network state and codec
+stream state is made by the caller and passed in, so one loaded model serves many streams.</li>
+</ul>
+</section>

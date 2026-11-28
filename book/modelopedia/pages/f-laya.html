@@ -1,0 +1,50 @@
+<div class="prose">
+<p>Laya is an open decision model{{cite:laya2025}}. It is given a state and a typed question (pick one of several
+named options, choose a level on a scale, or answer yes or no) and returns calibrated probabilities over the options,
+in one forward pass, without generating text. In the algebra it is an encoder and a small task head: the
+<a href="f-modernbert.html">ModernBERT</a> (or mmBERT) circuit, then two more encoder layers and a scorer.</p>
+</div>
+
+<section>
+<h2 id="model">The model</h2>
+<figure class="fig">{{fig:laya}}
+<figcaption><b>Options as positions.</b> Each option sits behind a [MASK] marker in the prompt. After encoding, each
+marker's state is scored, so the number of options is just the number of markers.</figcaption></figure>
+<p><b>Design.</b> The prompt lays out the question, each option preceded by a <code>[MASK]</code> marker, then the
+state, cut to the release's token budgets (512 or 1024). The encoder reads it bidirectionally. A learnt embedding of
+the question's kind (choice, score or yes/no) is added at every position. Two head layers mix the result over the
+prompt's tokens. Then the head scores each marker.</p>
+<p><b>Why.</b> Scoring markers turns a multiple-choice decision into a per-position readout, which a bidirectional
+encoder does well, and it works for any number of options. Putting the options in the prompt lets each option's
+state attend to the state and to the other options, so the scores are comparative. The kind embedding tells the
+shared head which of three output conventions it is answering in.</p>
+</section>
+
+<section>
+<h2 id="head">The head</h2>
+<p>The two head layers are PyTorch's stock <code>TransformerEncoderLayer</code> as upstream builds it: pre-norm,
+biased LayerNorms and projections, <span class="math">max(1, d/64)</span> heads with no rotary positions, and a
+ReLU MLP of <span class="math">4D</span>. Positions reach the head only through the encoder's states. In bunsen they
+are a two-layer <code>DecoderStack</code> with a bidirectional mask and no final norm.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis; the board below is one layer, drawn as its two
+residual sublayers, with the token mixer opened up in the middle panel. Solid chips are injected components (click
+one for its chapter); dashed sockets are empty. <b>Δ</b> marks the sockets a variant changes relative to its parent.</p>
+{{circuit:laya-head|Against ModernBERT's layer: biased LayerNorms, a ReLU MLP, no rotary table, and a scorer in place of a head.}}
+<p>The <b>scorer</b> is a LayerNorm and an MLP (<span class="math">d → d</span>, exact GELU,
+<span class="math">d → 1</span>), applied at each marker, and positions past the question's options get a logit of
+−10⁴. An <b>act head</b> reads the first token's state with four statistics of the answer distribution (its top
+probability, its margin, its normalized entropy, and the option count) and scores a fixed set of costed actions and
+"none".</p>
+</section>
+
+<section>
+<h2 id="calibration">Calibration</h2>
+<p>A softmax's probabilities are rarely calibrated: a model that says 0.9 is right less than 90% of the time. Temperature
+scaling, dividing the logits by a <span class="math">T</span> fitted on held-out data, fixes most of
+that{{cite:guo2017}}. Laya fits one temperature per question kind and per bucket of option count (2, 3–5, 6–10, 11+)
+and ships them in its release's config. The answer is <span class="math">softmax(logits / T)</span>, computed in
+f64. That calibration is part of the model's contract, not of the network.</p>
+<p>The three releases share this design: the English model on ModernBERT-large (28 × 1024), the multilingual one on
+mmBERT-base (22 × 768, a 256K vocabulary), and a typed-decision model trained on typed questions with 1024-token
+prompts.</p>
+</section>

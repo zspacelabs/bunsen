@@ -1,0 +1,49 @@
+<div class="prose">
+<p>After the stem, an audio encoder is a stack of the same pre-norm residual layers as the language kits, built from
+the same <code>DecoderStack</code> with a different mask. What separates the recognizers' encoders is how they tell
+a layer where a frame is, and which frames it may see.</p>
+</div>
+
+<section>
+<h2 id="positions">Positions</h2>
+<ul>
+<li><b>A learned table</b> (Whisper): 1500 slots, one per 20 ms frame of a 30 s window, added once to the stem's
+output. Upstream fills it with sinusoids; bunsen loads it as a table, as the checkpoint stores it. A fixed table ties
+the encoder to its window: shorter audio is zero-padded to 30 s.</li>
+<li><b>Sinusoids per chunk</b> (Qwen3-ASR): a sinusoidal table that restarts every 1-second chunk, so position means
+"where in this second". Order across seconds is left to attention over the blocks.</li>
+<li><b>Rotary</b> (Voxtral Realtime): RoPE with θ = 10⁶ inside every attention layer, as in a decoder. Positions are
+relative, so the encoder can run over an unbounded stream.</li>
+<li><b>Relative, additive</b> (Parakeet): Transformer-XL's position term inside the score
+(<a href="s-conformer.html#relpos">the Conformer</a>).</li>
+</ul>
+</section>
+
+<section>
+<h2 id="masks">Masks</h2>
+<figure class="fig">{{fig:encoder_masks}}
+<figcaption><b>Who sees whom.</b> A bidirectional window, blocks, a causal window, and Parakeet's whole
+window.</figcaption></figure>
+<p>Whisper attends across its whole 30 s window. Qwen3-ASR attends within 8 s blocks (eight 1 s chunks), which bounds
+the cost of long audio and lets the blocks be processed independently. Voxtral's encoder is causal, with a 15 s
+sliding window, which is what lets the whole model stream with a fixed latency. Parakeet attends across each window it
+is given, up to 60 s at a time.</p>
+</section>
+
+<section>
+<h2 id="layers">The layers</h2>
+<div class="tbl-wrap"><table>
+<thead><tr><th>encoder</th><th>norm</th><th>attention</th><th>feed-forward</th><th>size</th></tr></thead>
+<tbody>
+<tr><td>Whisper</td><td>LayerNorm, pre</td><td>MHA, biased q/v/o, no key bias</td><td>GELU 4D, biased</td><td>4 × 384 to 32 × 1280</td></tr>
+<tr><td>Qwen3-ASR</td><td>LayerNorm, pre</td><td>MHA, all biased</td><td>GELU, biased</td><td>18 × 896 (0.6B), 24 × 1024 (1.7B)</td></tr>
+<tr><td>Voxtral Realtime</td><td>RMSNorm, pre</td><td>causal MHA, RoPE, no key bias</td><td>SwiGLU, biased down projection</td><td>32 × 1280</td></tr>
+<tr><td>Parakeet</td><td>LayerNorm, pre</td><td>MHSA + relative positions</td><td>two half FFNs + a conv module</td><td>24 × 1024</td></tr>
+</tbody></table></div>
+<p>Whisper's missing key bias is harmless: a bias on the keys adds the same amount to every score in a query's row,
+which the softmax cancels. Voxtral's encoder is the one built like a modern decoder, RMSNorm and SwiGLU, and the
+only causal one.</p>
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-sublayer.html">sublayers &amp; norms</a> · <a href="c-mask.html">masks</a> · <a href="c-rope.html">rotary</a> ·
+<a href="s-conformer.html">the Conformer</a></div>
+</section>

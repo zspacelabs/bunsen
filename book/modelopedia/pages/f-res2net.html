@@ -1,0 +1,33 @@
+<div class="prose">
+<p>Res2Net{{cite:gao2019res2}} is a ResNet whose bottleneck mixer is a <a href="c-res2.html">scale split</a>: the
+middle channels are cut into <span class="math">s</span> chunks and convolved in a hierarchy, so one unit mixes at
+receptive fields 1, 3, 5, … <span class="math">2s−1</span>. Everything outside the mixer (stem, depths, shortcuts,
+head) is a ResNet's.</p>
+</div>
+
+<section>
+<h2 id="design">Design</h2>
+<p><b>Change.</b> Mixer = Res2 scale split of <span class="math">s</span> chunks, each <span class="math">w</span> wide,
+where <span class="math">w</span> is the ResNet mixer width per 64 planes. The 1×1 reduce widens to
+<span class="math">s·w</span> channels per 64 planes (104 for <code>26w_4s</code>, against a ResNet's 64).</p>
+<p><b>Why.</b> CNNs had gained multi-scale representations only <i>between</i> layers (the stage pyramid, FPN). Res2Net
+adds them <i>inside</i> a layer at almost no cost. Scale <span class="math">s</span> becomes a new dimension next to depth,
+width and cardinality, and the paper reports accuracy gains from raising it at a matched budget.</p>
+<p><b>Slot fill.</b> unit = bottleneck (only) · mixer = Res2(s, w). The D variants (<code>res2net50d</code>) add the
+ResNet-D deep stem and avg-down shortcut.</p>
+<p>The design space is the pair (<span class="math">w</span>, <span class="math">s</span>), spelled
+<code>26w_4s</code>, <code>14w_8s</code>, <code>48w_2s</code>: a trade between chunk width and hierarchy length at a
+roughly constant <span class="math">s·w</span>. These are scale settings of one design, not separate families.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis, the board below is one residual unit. Solid chips are injected components (click one for its combinator chapter); dashed sockets are empty, and the wire passes straight through. <b>Δ</b> marks the sockets this variant changes relative to its parent.</p>
+{{circuit:res2net|The mixer socket takes the scale split; the reduce widens to s·w to feed it.}}
+{{circuit:res2net-d|The ResNet-D stem and shortcut, applied to Res2Net. Res2NeXt instead groups the split's branches.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-res2.html">Res2 scale split</a> · <a href="f-resnet.html#tricks">ResNet-D</a></div>
+</section>
+
+<section>
+<h2 id="res2next">Res2NeXt</h2>
+<p>The scale split's branch convs grouped by a cardinality. This crosses Res2 with
+<a href="f-resnext.html">ResNeXt</a>: the two axes compose because they act on different structure (chunks across
+the hierarchy, groups within a chunk).</p>
+</section>

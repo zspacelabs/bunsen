@@ -1,0 +1,59 @@
+<div class="prose">
+<p>Each layer is two residual sublayers, and each sublayer has norm sockets around its branch. bunsen's
+<code>ResidualSublayer</code> has four (input, pre, post, out), plus a layer scale and stochastic depth; the language
+kits use two of them. This chapter covers the kind of norm, how its gain is stored, and where it goes.</p>
+</div>
+
+<section>
+<h2 id="kinds">LayerNorm and RMSNorm</h2>
+<figure class="fig">{{fig:norm_geometry}}
+<figcaption><b>Two projections.</b> LayerNorm removes the mean and the scale; RMSNorm removes only the scale. Both
+leave a vector on a sphere, then apply a learned per-channel gain.</figcaption></figure>
+<p>LayerNorm subtracts each vector's mean and divides by its standard deviation{{cite:ba2016}}. Geometrically, it
+projects onto the hyperplane orthogonal to the all-ones vector, then onto a sphere. RMSNorm skips the centring and
+divides by the root mean square{{cite:zhang2019rms}}. That is cheaper, and Zhang and Sennrich found that re-centring
+contributes little: scale invariance is what stabilizes training. Every decoder kit uses RMSNorm, at
+ε = 10⁻⁶. ModernBERT and Laya use LayerNorm: ModernBERT's without a bias (in line with its bias-free projections),
+Laya's head with one.</p>
+</section>
+
+<section>
+<h2 id="gain">How the gain is stored</h2>
+<p>A norm's gain <span class="math">γ</span> multiplies its output channel by channel. Gemma and Qwen3.5 store it as
+<span class="math">w</span> and apply <span class="math">1 + w</span>, so a freshly initialized (or weight-decayed)
+gain of zero means "pass through" rather than "silence". bunsen loads such a checkpoint's <span class="math">w</span>
+as <span class="math">1 + w</span> and applies the gain as stored, so the forward is one kind of norm for every kit.
+nanochat's norms have no gain at all; bunsen's norms always have one, and loads it as ones, which is the same
+function. Qwen3.5's DeltaNet has one more norm, a gated RMSNorm, whose gain is stored as applied
+(<a href="c-deltanet.html#block">DeltaNet</a>).</p>
+</section>
+
+<section>
+<h2 id="placement">Placement</h2>
+<figure class="fig">{{fig:norm_placements}}
+<figcaption><b>Three placements in the kits.</b> Pre-norm in most; the sandwich in Gemma 2 and 3; and no norm before
+ModernBERT's first attention, whose input is already normalized.</figcaption></figure>
+<p>The Transformer normalized after the residual add, <span class="math">norm(x + f(x))</span>. That post-norm
+layout needs learning-rate warm-up and grows unstable with depth, because the gradient to early layers passes through
+every norm. Moving the norm onto the branch's input, <span class="math">x + f(norm(x))</span>, leaves a clean
+identity path from output to input, which is why GPT-2 and every decoder since use it{{cite:radford2019,xiong2020}}.
+Pre-norm is the transformer's version of ResNetV2's pre-activation. Every language kit is pre-norm, with two
+variations:</p>
+<ul>
+<li id="sandwich"><b>The sandwich</b> (Gemma 2 and 3): a second norm on the branch's <i>output</i>, before the add:
+<span class="math">x + norm₂(f(norm₁(x)))</span>. Pre-norm leaves the size of each write free, and the stream grows as
+writes accumulate. The output norm fixes every write's scale. It costs two norms per layer, and Gemma's are
+1 + w, so each sublayer's contribution starts at unit scale.</li>
+<li><b>A skipped input norm</b> (ModernBERT): the first layer's attention reads the stream as it is, since the
+embedding's LayerNorm has just normalized it.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="final">The final norm</h2>
+<p>Because the stream is never normalized in a pre-norm stack, the head reads it through one last norm, after the
+final layer. Every kit has one: RMSNorm in the decoders, LayerNorm in ModernBERT. Laya's head stack has none, and
+its scorer normalizes each marker's state itself.</p>
+<div class="callout defer"><span class="t">Used by</span>
+every layer of every kit · the vision half's <a href="t-sublayer.html">Residual Sublayer</a> covers the other two slots (post-norm and res-post-norm), layer scale and drop path</div>
+</section>

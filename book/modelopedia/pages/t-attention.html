@@ -1,0 +1,66 @@
+<div class="prose">
+<p>Self-attention is the transformer's token mixer: the slot a 3×3 conv fills in a ResNet. Each token's output is a
+weighted mix of every token's value. Unlike a conv's kernel, the weights are computed from the content of the
+tokens{{cite:vaswani2017}}.</p>
+</div>
+
+<section>
+<h2 id="mhsa">Multi-head self-attention</h2>
+<p>From the <span class="math">N×D</span> tokens <span class="math">X</span>, each head forms queries, keys and values by
+linear maps of width <span class="math">d<sub>h</sub> = D/h</span>. It scores every query against every key, normalizes
+each row with a softmax, and mixes the values:</p>
+<p class="eq">head(X) = softmax( Q Kᵀ / √d<sub>h</sub> ) V,&nbsp;&nbsp; MHSA(X) = [head<sub>1</sub> ‖ … ‖ head<sub>h</sub>] W<sub>O</sub></p>
+<figure class="fig">{{fig:attention_map}}
+<figcaption><b>Project, score, mix.</b> Each row of <span class="math">A</span> is a probability distribution over the
+tokens, so every output is a convex combination of the values. The <span class="math">√d<sub>h</sub></span> keeps the
+scores' variance near one, so the softmax doesn't saturate at initialization.</figcaption></figure>
+<p>The image encoders use the <b>bidirectional</b> form: every query sees every key, with no causal mask. Splitting
+into heads costs nothing extra (the <span class="math">h</span> heads together have one
+<span class="math">D×3D</span> projection) and lets the layer attend to <span class="math">h</span> different patterns
+at once.</p>
+</section>
+
+<section>
+<h2 id="vs-conv">Attention versus convolution</h2>
+<figure class="fig">{{fig:conv_vs_attn}}
+<figcaption><b>Where the weights come from.</b> A conv's mixing weights are parameters: local, and the same at every
+position. Attention's are activations: global, and recomputed for every image.</figcaption></figure>
+<p>Three consequences follow, and the later families exist to manage them:</p>
+<ul>
+<li><b>No locality bias.</b> Attention doesn't assume nearby pixels matter more. It has to learn that from data, which
+is why ViT needed very large datasets to beat ResNets{{cite:dosovitskiy2020}}, and why DeiT needed a heavy training
+recipe to do without them{{cite:touvron2021deit}}. Swin puts locality back with windows.</li>
+<li><b>Permutation equivariance.</b> Shuffle the tokens and the outputs shuffle the same way. All information about
+position comes from the <a href="t-patch.html#pos">position embedding</a>.</li>
+<li><b>Expressiveness.</b> With relative position terms and enough heads, attention can reproduce a
+convolution{{cite:cordonnier2020}}. A conv is in that sense a constrained attention.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="cost">Cost</h2>
+<p>The projections cost <span class="math">4ND²</span>, the same order as an MLP. The scores and mixing cost
+<span class="math">2N²D</span>, which is quadratic in the token count, so quartic in the image side at a fixed patch
+size. At 224 pixels in 16×16 patches (<span class="math">N = 196</span>) the projections still dominate. At high
+resolution or with small patches the <span class="math">N²</span> term takes over, and that is what
+<a href="t-window.html#cost">window attention</a> removes.</p>
+</section>
+
+<section>
+<h2 id="biases">Biases and inner norms</h2>
+<p>A few knobs on the attention vary between families. None changes what attention computes, but each shows up in a
+family's circuit:</p>
+<ul>
+<li><b>qkv bias</b>: on by default. The MIIL weights, timm's GAP and res-post-norm baselines, and AIMv2 drop it. Swin V2
+keeps biases on the query and value but not on the key (a key bias adds the same amount to every score in a row, and
+the softmax cancels it).</li>
+<li><b>Output-projection bias</b>: AIMv2, in the style of a language model, has no biases anywhere.</li>
+<li><b>Sub-LN</b>: BEiT3 normalizes the heads' concatenated output before <span class="math">W<sub>O</sub></span>,
+following Magneto's sub-LN for stable deep training{{cite:wang2022magneto}}. It is a norm placed <i>inside</i> the
+branch, separate from the sublayer's own norms.</li>
+</ul>
+<p>QK-norm and the parallel and differential attention blocks of some recent timm ViTs are not in bunsen's ViT kit yet.</p>
+<div class="callout defer"><span class="t">Variants</span>
+<a href="t-window.html">window attention</a> (local, shifted, with a relative bias) ·
+<a href="t-pool.html#map">attention pooling</a> (one learnt query, once)</div>
+</section>

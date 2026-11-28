@@ -119,6 +119,16 @@ anything public. The build runs `cargo doc` itself, so the first run is
 slow. The release workflow makes the `book-release` build and publishes
 it ([Releasing](./release.md)); run it locally only to preview that.
 
+### The Modelopedia
+
+[The Modelopedia](../organization/modelopedia.md), the architecture book of
+the kits, is hand-built HTML and SVG, not chapters of this book. Its sources
+are in `book/modelopedia/` (its `README.md` maps them). An mdBook
+preprocessor, `modelopedia/preprocess.py`, regenerates it into
+`book/src/modelopedia/` (gitignored) on every build, and mdBook copies it into
+the published book as static files. Every task above builds it, and it needs
+only Python 3. To build it alone, run `python3 book/modelopedia/build.py`.
+
 ## Writing a page
 
 Open each page with a sentence or two on what it covers. Say what a thing is

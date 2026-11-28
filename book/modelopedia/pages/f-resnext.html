@@ -1,0 +1,43 @@
+<div class="prose">
+<p>Both families answer the same question: how to make the bottleneck's mixer wider. ResNeXt splits it into many
+narrow groups{{cite:xie2017}}. Wide ResNet simply makes it wider{{cite:zagoruyko2016}}. In the algebra both are a
+single ResNet knob, the mixer width
+<span class="math">⌊planes · base_width / 64⌋ · cardinality</span>, applied to a grouped or ungrouped
+<a href="c-conv.html#groups">mixer</a>.</p>
+</div>
+
+<section>
+<h2 id="resnext">ResNeXt: cardinality</h2>
+<figure class="fig">{{fig:resnext_equiv}}
+<figcaption><b>Split-transform-merge is a grouped conv.</b> 32 parallel bottleneck branches of width 4, summed, compute
+exactly what one bottleneck with a 128-wide, 32-group mixer computes. ResNeXt adds no new operator. It adds a new axis,
+cardinality, next to depth and width.</figcaption></figure>
+<p><b>The claim.</b> At a fixed FLOP and parameter budget, raising cardinality (more, narrower groups) improves
+accuracy more than raising depth or width{{cite:xie2017}}. A grouped mixer spends its budget on more channels, each
+mixing spatially within its group, and the dense 1×1s on either side mix across groups.</p>
+<p><b>Slot fill.</b> A ResNet with mixer groups = cardinality and mixer width from <code>base_width</code>. The
+<code>32x4d</code> in a name is 32 groups of 4 channels per 64 planes. Everything else is inherited, so ResNeXt takes
+the same tricks as ResNet (D stems and shortcuts, SE, ECA, anti-aliasing) without any new structure.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis, the board below is one residual unit. Solid chips are injected components (click one for its combinator chapter); dashed sockets are empty, and the wire passes straight through. <b>Δ</b> marks the sockets this variant changes relative to its parent.</p>
+{{circuit:resnext|The bottleneck's reduce and mixer widen to g·w channels, and the mixer is grouped.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-conv.html#groups">grouped convolution</a> · <a href="c-units.html#bottleneck">bottleneck widths</a></div>
+</section>
+
+<section>
+<h2 id="wide">Wide ResNet</h2>
+<p>Zagoruyko and Komodakis argued that depth was over-emphasized: a much shallower but wider residual net matches a
+very deep thin one and trains faster{{cite:zagoruyko2016}}. The ImageNet versions in the kit (wide ResNet-50-2 and
+101-2) keep ResNet's depths and double only the bottleneck's mixer width (<code>base_width</code> 128): the same
+knob as ResNeXt, with one group.</p>
+{{circuit:wide|The same two sockets, widened with a single group.}}
+<div class="callout defer"><span class="t">Structure deferred to</span>
+<a href="c-units.html#bottleneck">bottleneck widths</a></div>
+</section>
+
+<section>
+<h2 id="children">Descendants</h2>
+<p>Cardinality is the axis three later families build on. <a href="f-sknet.html">SKResNeXt</a> and
+<a href="f-resnest.html">ResNeSt</a> make the grouped mixer attentive. <a href="f-regnet.html">RegNet</a> keeps the
+grouped bottleneck as its only unit and searches over its widths and group sizes.</p>
+</section>

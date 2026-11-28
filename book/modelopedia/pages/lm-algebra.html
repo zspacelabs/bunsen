@@ -1,0 +1,124 @@
+<div class="prose">
+<p>Every language kit in bunsen ends in the same module, <code>LmDecoderModel</code>: a token embedding, a
+<code>DecoderStack</code>, and a head. ModernBERT is the same stack without the head, and with its mask turned
+bidirectional. This chapter describes that shape, the stream that runs through it, the board of sockets each family
+fills, and the lowering that gets a family's config onto the board.</p>
+</div>
+
+<section>
+<h2 id="macro">One model shape</h2>
+<figure class="fig">{{fig:lm_macro}}
+<figcaption><b>The decoder-only language model.</b> Ids become vectors, a stack of identical-shaped layers refines
+them, and the head scores every vocabulary entry at every position. Training reads all of those predictions at
+once; generation reads only the last.</figcaption></figure>
+<p>The shape has not changed since GPT{{cite:radford2018}}: the Transformer's decoder{{cite:vaswani2017}} without its
+cross-attention, trained to predict the next token. Three things are fixed across every kit:</p>
+<ul>
+<li><b>The model is isotropic.</b> Every layer reads and writes vectors of the same width <span class="math">D</span>,
+at every position, so the stack is a sequence of maps from <span class="math">ℝ<sup>T×D</sup></span> to itself.
+There is no pyramid and no pooling.</li>
+<li><b>Only the token mixer moves information between positions.</b> The feed-forward, the norms and the head act on
+each position alone. Everything a model knows about order and context comes through its mixers: attention, or in
+Qwen3.5 also the gated DeltaNet.</li>
+<li><b>The mask fixes the direction of time.</b> A causal mask lets every position predict its successor in one
+parallel pass. A bidirectional mask turns the same stack into an encoder.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="stream">The residual stream</h2>
+<figure class="fig">{{fig:residual_stream}}
+<figcaption><b>Read and write.</b> A layer is two residual sublayers. Each reads a normalized copy of the stream and
+adds its output back. The stream is the sum of the embedding and every sublayer's write.</figcaption></figure>
+<p>The residual connection{{cite:he2016}} is the organizing fact of the whole design. Since every sublayer adds to the
+stream rather than replacing it, the final state is the embedding plus a sum of writes, and any sublayer can read what
+any earlier one wrote. Elhage et al. made this the basis of reading transformers as circuits: the stream is a shared
+communication channel, and each head and MLP is a reader and writer on it{{cite:elhage2021}}. Two consequences recur
+throughout the book:</p>
+<ul>
+<li><b>Norms sit on the reads, not on the stream.</b> In the pre-norm layout every family here uses, a sublayer
+normalizes its own <i>copy</i> of the stream. The stream itself is never normalized until the final norm, so it grows
+as writes accumulate. That growth is why <a href="c-sublayer.html#sandwich">sandwich norms</a>,
+<a href="c-logits.html">logit controls</a> and nanochat's <a href="c-stream.html#lambdas">stream lambdas</a> exist.</li>
+<li><b>Extra paths are cheap to add.</b> A new input to the stream is just another addition: nanochat 2026 feeds the
+embedding to every layer, and adds a value table inside attention, without changing the layer's shape.</li>
+</ul>
+</section>
+
+<section>
+<h2 id="board">The board</h2>
+<p>The generic model has a fixed set of sockets. A family is a choice of what to plug into each one, and an empty
+socket passes the wire straight through. The board below has every socket filled with the range of components the kits
+use. Each family chapter draws its own board, with Δ marking the sockets that changed from its parent.</p>
+<p class="circuit-key">Circuit key: the top row is the chassis (embedding, stream extras, stack, final norm, head).
+The board below it is one layer of the stack, drawn as its two residual sublayers. The middle panel opens up the token
+mixer, and the pattern panel shows which kind of layer sits at each depth. Solid chips are components (click one for
+its chapter); dashed sockets are empty.</p>
+{{circuit:generic|Every socket, with the range of components bunsen's language kits plug into it.}}
+<div class="tbl-wrap"><table>
+<thead><tr><th>socket</th><th>what fills it</th><th>chapter</th></tr></thead>
+<tbody>
+<tr><th>embed</th><td>a table lookup; optionally a parameter-free RMS norm, a LayerNorm, or a √D scale</td><td><a href="c-embed.html">Embedding &amp; head</a></td></tr>
+<tr><th>stream extras</th><td>the smear, x₀ mixing and the backout (nanochat 2026 only)</td><td><a href="c-stream.html">Stream extras</a></td></tr>
+<tr><th>stack</th><td>one layer config repeated, or a few kinds and a layer → kind pattern</td><td><a href="c-mask.html#patterns">Patterns</a></td></tr>
+<tr><th>pre · post</th><td>RMSNorm or LayerNorm before the branch; a second norm after it (the sandwich)</td><td><a href="c-sublayer.html">Sublayers &amp; norms</a></td></tr>
+<tr><th>token mixer</th><td>causal or bidirectional attention, or a gated DeltaNet</td><td><a href="c-attention.html">Attention</a>, <a href="c-deltanet.html">DeltaNet</a></td></tr>
+<tr><th>Q/K norm · scores</th><td>an RMS norm per head; a score scale; a soft-cap</td><td><a href="c-logits.html">Logit control</a></td></tr>
+<tr><th>positions</th><td>RoPE: its base, how much of the head it covers, its scaling; or a short conv</td><td><a href="c-rope.html">Rotary positions</a></td></tr>
+<tr><th>mask · window</th><td>causal or bidirectional, with or without a sliding window</td><td><a href="c-mask.html">Masks &amp; windows</a></td></tr>
+<tr><th>values · output gate</th><td>a gated value embedding; a sigmoid gate before W<sub>O</sub></td><td><a href="c-stream.html#values">Values</a>, <a href="c-attention.html#gate">Gate</a></td></tr>
+<tr><th>feed-forward</th><td>a plain MLP (ReLU², ReLU) or a gated one (SwiGLU, GeGLU)</td><td><a href="c-mlp.html">Feed-forward</a></td></tr>
+<tr><th>final · head</th><td>a final norm; the head tied to the table or its own, sliced, soft-capped, in f32</td><td><a href="c-embed.html#head">Head</a></td></tr>
+</tbody></table></div>
+</section>
+
+<section>
+<h2 id="template">The Llama template</h2>
+<p>bunsen has no Llama kit, but the decoder that LLaMA{{cite:touvron2023}} standardized in early 2023 is the reference
+point most of the kits differ from. It combined PaLM's choices{{cite:chowdhery2022}} into one recipe: RMSNorm before
+each sublayer, a SwiGLU feed-forward, rotary positions, no biases anywhere, and (from Llama 2{{cite:touvron2023b}})
+grouped-query attention. The family chapters draw their circuits against it: Qwen3 is this board with one socket
+filled, and Gemma 1 changes four.</p>
+{{circuit:llama|A boundary node, not a kit: the board every family chapter starts from.}}
+</section>
+
+<section>
+<h2 id="lowering">Lowering</h2>
+<figure class="fig">{{fig:lowering}}
+<figcaption><b>Policy → structure → module.</b> A kit's config speaks its paper's vocabulary. It lowers to a stack
+policy, which unrolls to one block config per layer, which builds the generic model.</figcaption></figure>
+<p>Each kit's config (<code>GemmaConfig</code>, <code>Qwen3Config</code>, <code>Qwen3_5Config</code>,
+<code>NanoChatGptContractConfig</code>, <code>ModernBertContractConfig</code>) is a <i>policy</i>: the fields its
+upstream config has, with its defaults. Lowering turns it into a stack in one of two shapes:</p>
+<ul>
+<li><b>Uniform</b>: one layer config repeated <span class="math">L</span> times (Qwen3, Gemma 1, Laya's head).</li>
+<li><b>Patterned</b>: a few layer configs, the stack's <i>kinds</i>, and a list giving each layer's kind. Each kind
+also names its rotary table. Gemma 2 and 3 have a sliding and a full kind, Qwen3.5 a linear and a full one, and
+ModernBERT three (its first layer, global, local).</li>
+<li>nanochat lowers straight to the per-layer structure, because in its 2026 form the windows and value
+embeddings vary layer by layer.</li>
+</ul>
+<p>Both unroll to the same structure, one block config per layer, which builds the
+<code>DecoderStack</code>. So "Gemma 3" is not a class with its own forward pass. It is a function from six numbers to
+a list of 26 block configs. Gemma, Qwen3 and Qwen3.5 hold an <code>LmDecoderModel</code> and nothing else, and get
+their forward, cache and decode from it. ModernBERT holds an embedding and a stack. nanochat is the exception: its extra paths run around the stack, so it keeps its own
+forward and calls the stack's with those paths as side inputs.</p>
+</section>
+
+<section>
+<h2 id="laws">Laws of the algebra</h2>
+<ul>
+<li><b>Mixing is factored.</b> Token mixing (across positions) and channel mixing (within a position) alternate, and
+never happen in the same sublayer. A family's novelty is almost always in one of the two.</li>
+<li><b>Positions live in the mixer.</b> No kit here adds a position vector to the stream. Rotary embeddings act
+inside attention's scores; the DeltaNet's conv and recurrence see order directly. The stream itself carries no
+position.</li>
+<li><b>Masks are config.</b> Causal or bidirectional, windowed or not: the same stack is a decoder, an encoder, or a
+local encoder, depending on one field per layer.</li>
+<li><b>State is injected.</b> No model owns its KV cache or recurrent state. The caller creates it and passes it to each
+step. See <a href="c-cache.html">decoding state</a>.</li>
+<li><b>Upstream's numerics are part of the design.</b> Where a checkpoint was trained with a particular rounding (bf16
+rotary tables, the √D scale rounded to the table's dtype, an f32 softmax), the kit reproduces it, because a
+different rounding is a slightly different model.</li>
+</ul>
+</section>

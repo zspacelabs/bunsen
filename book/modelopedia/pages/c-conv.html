@@ -1,0 +1,79 @@
+<div class="prose">
+<p>The conv block is the atom every other combinator is made from: a convolution, a normalization, and an activation,
+in that order. The families vary its four geometric parameters (kernel <span class="math">k</span>, stride
+<span class="math">s</span>, dilation <span class="math">d</span>, groups <span class="math">g</span>) and its two
+numerical options (weight standardization, SAME padding). They rarely touch anything else.</p>
+</div>
+<figure class="fig">{{fig:conv_block}}
+<figcaption><b>conv → norm → hook → act.</b> The hook between norm and activation is where
+<a href="c-drop.html">DropBlock</a> sits when a unit is regularized. The last conv of a residual path omits its
+activation: the unit applies one after the add, or none at all for pre-activation and linear-output units.</figcaption></figure>
+
+<section>
+<h2 id="theory">What a convolution is</h2>
+<p>A 2-d convolution is a linear map that commutes with translation. At each output position it applies the same
+<span class="math">C<sub>out</sub>×C<sub>in</sub></span> matrix to each of the <span class="math">k²</span> neighbouring
+input vectors and sums the results:</p>
+<p class="eq">y[p] = Σ<sub>δ∈K</sub> W<sub>δ</sub> · x[s·p + d·δ]</p>
+<p>The four parameters change the geometry of the index set <span class="math">s·p + d·δ</span>, not the algebra.
+<span class="math">k</span> sets how many taps there are, <span class="math">d</span> how far apart they are,
+<span class="math">s</span> how coarsely the output grid samples the input, and <span class="math">g</span> the sparsity
+of each <span class="math">W<sub>δ</sub></span>.</p>
+<p>A 1×1 conv (<span class="math">k = 1</span>) has no spatial extent. It is a per-pixel linear map of channels, the
+"network in network" layer{{cite:lin2013nin}}. In a bottleneck the 1×1s change width and the one larger-kernel conv,
+the <i>spatial mixer</i>, is the only place where neighbouring pixels interact.</p>
+</section>
+
+<section>
+<h2 id="groups">Groups and cardinality</h2>
+<p>A grouped conv splits the channels into <span class="math">g</span> blocks and convolves each block separately. Its
+channel-mixing matrix is block-diagonal: a direct sum of <span class="math">g</span> smaller convs.</p>
+<figure class="fig">{{fig:grouped}}
+<figcaption><b>Groups sparsify the channel map.</b> Parameters and FLOPs drop by <span class="math">g</span>. With the
+budget held fixed, the saving can buy more channels. AlexNet used groups to split across two GPUs{{cite:krizhevsky2012}};
+ResNeXt showed that they are the same thing as parallel branches, and called their number <i>cardinality</i>{{cite:xie2017}}.
+RegNet fixes the channels <i>per group</i> instead of the group count{{cite:radosavovic2020}}.</figcaption></figure>
+<p>Grouped convs only mix channels inside a group, so a grouped mixer has to be placed between dense 1×1s, which mix
+across groups. That is why the grouped mixer only appears inside <a href="c-units.html">bottleneck</a> units.</p>
+</section>
+
+<section>
+<h2 id="rf">Receptive field and dilation</h2>
+<p>A unit's <i>reach</i> on its input is <span class="math">d(k−1)+1</span>. Stacking adds reach. Striding multiplies
+the reach of every later layer, measured in input pixels.</p>
+<figure class="fig">{{fig:rf_stack}}
+<figcaption><b>Composition of small kernels.</b> Three 3×3 convs reach as far as one 7×7, with 55% of the
+weights and three nonlinearities instead of one{{cite:simonyan2014,szegedy2016}}. This is the argument behind the
+<a href="c-sampling.html#stems">deep stem</a>.</figcaption></figure>
+<figure class="fig">{{fig:dilation}}
+<figcaption><b>Dilation spreads the taps.</b> The kernel keeps its 9 weights and samples a wider neighbourhood
+{{cite:yu2016}}. <a href="c-sk.html">SKNet</a> uses a dilated 3×3 to get a 5×5 reach cheaply.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="os">Output stride: trading stride for dilation</h2>
+<p>Classification wants a stride of 32. Dense prediction (segmentation, detection backbones) wants the last maps
+larger. The conv net's lowering supports an <i>output stride</i> of 32, 16 or 8: once the running stride reaches the
+target, any further stride becomes dilation, multiplied into every later unit. The first unit of such a stage takes
+the dilation from before the stage, and the others take the new one{{cite:chen2017deeplab}}.</p>
+<figure class="fig">{{fig:output_stride}}
+<figcaption><b>Same weights, higher resolution.</b> A pretrained stride-32 net can be run at stride 16 or 8 without
+retraining any layer. Each unit sees the same relative neighbourhood, now sampled on a finer grid.</figcaption></figure>
+</section>
+
+<section>
+<h2 id="act">Activations</h2>
+<p>Most of the lineage uses ReLU{{cite:nair2010}}. RegNetV and RegNetZ (timm's later designs) use SiLU,
+<span class="math">x·σ(x)</span>{{cite:elfwing2017,ramachandran2017}}, which is smooth and non-monotone near zero.
+EvoNorm-S0 brings its own SiLU-like activation (see <a href="c-norm.html#evo">Normalization</a>). The activation is a
+layer choice made once for the net and inherited by every conv block and every unit's output.</p>
+</section>
+
+<section>
+<h2 id="pad">Padding and weight standardization</h2>
+<p>Convs are padded to keep the size at stride 1, and the output side is <span class="math">⌈H/s⌉</span>. Two numerical
+options exist for weight compatibility. <b>SAME padding</b> pads each input from its own size (TensorFlow's rule, used by the
+hybrid ViT trunk). <b>Weight standardization</b> normalizes each output filter's weights to zero mean and unit
+variance before the conv{{cite:qiao2019}}. It is a reparametrization of the conv, not a new layer, and its geometry is
+covered with the norms (<a href="c-norm.html#ws">weight standardization</a>), since it exists to pair with group norm.</p>
+</section>
