@@ -81,8 +81,14 @@ pub trait CausalDecoderBlockMeta {
 /// A decoder layer's names for its parts, as a checkpoint spells them: what
 /// [`CausalDecoderBlock::layer_rekey`] maps onto the block's.
 ///
-/// The machinery only: an ecosystem's own key set is its interop's (the
-/// Llama line's is `kits::support::transformers::interop::llama_layer_keys`).
+/// The machinery only: an ecosystem's own key set is its interop's.
+///
+/// ## Discussion
+///
+/// - The Llama line's key set is
+///   `kits::support::transformers::interop::llama_layer_keys`.
+/// - Gemma 2 and 3 name their post-norms `post_attention_layernorm` and
+///   `post_feedforward_layernorm` ([`with_post_norms`](Self::with_post_norms)).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecoderLayerKeys {
     /// The attention's input norm.
@@ -105,8 +111,8 @@ pub struct DecoderLayerKeys {
 
 impl DecoderLayerKeys {
     /// With post-norms: the attention's and the feed-forward's output norms
-    /// (`post_attention_layernorm` and `post_feedforward_layernorm` in
-    /// Gemma 2 and 3).
+    /// (for example `post_attention_layernorm` and
+    /// `post_feedforward_layernorm`).
     pub fn with_post_norms(
         self,
         attn_post_norm: impl Into<String>,
@@ -136,29 +142,26 @@ pub struct CausalDecoderBlockConfig {
     pub norm: BunsenNormalizationConfig,
 
     /// Whether the attention's input is normalized; without, the attention
-    /// takes the residual stream as it is (`ModernBERT`'s first layer, whose
-    /// input is the embedding's norm already).
+    /// takes the residual stream as it is (for a first layer whose input is
+    /// the embedding's norm already).
     #[config(default = true)]
     pub attn_norm: bool,
 
     /// Where each sublayer's `norm` is: before its branch, inside the
     /// residual (`x + f(norm(x))`, every decoder's); after the residual sum
-    /// (`norm(x + f(x))`, the original Transformer's encoder layer,
-    /// Sortformer v2's); or after the branch, inside the residual
-    /// (`x + norm(f(x))`, Swin V2's res-post-norm). A post-norm block's stack
+    /// (`norm(x + f(x))`, post-norm); or after the branch, inside the
+    /// residual (`x + norm(f(x))`, res-post-norm). A post-norm block's stack
     /// takes no routes.
     #[config(default = "NormPlacement::Pre")]
     pub norm_placement: NormPlacement,
 
     /// Whether each sublayer's output is normalized too, by a `norm` of its
-    /// own, before it is added to the residual stream: the sandwich of
-    /// Gemma 2 and 3.
+    /// own, before it is added to the residual stream: the sandwich.
     #[config(default = false)]
     pub post_norms: bool,
 
     /// Whether each sublayer's residual is scaled per channel by a learned
-    /// layer scale before it is added (`CaiT`'s `LayerScale`; ZONOS3's codec
-    /// trunk's `attention_scale` and `ffn_scale`).
+    /// layer scale before it is added (timm's `LayerScale`).
     #[config(default = false)]
     pub layer_scale: bool,
 
@@ -170,8 +173,8 @@ pub struct CausalDecoderBlockConfig {
 
     /// A scale on the feed-forward's normalized input, learned from a
     /// conditioning vector the forward pass is handed
-    /// ([`forward_with_caches`](CausalDecoderBlock::forward_with_caches)'s condition):
-    /// Voxtral Realtime's delay conditioning. `None` scales nothing.
+    /// ([`forward_with_caches`](CausalDecoderBlock::forward_with_caches)'s condition).
+    /// `None` scales nothing.
     #[config(default = "None")]
     pub mlp_scale: Option<AdaptiveScaleConfig>,
 }
@@ -269,20 +272,16 @@ impl CausalDecoderBlockConfig {
 /// ([`BunsenNormalization`](crate::blocks::norm::BunsenNormalization)),
 /// the feed-forward ([`TransformerFeedForward`]: a `BunsenMlp` or a gated
 /// `SwiGLU`), and the attention's own options (grouped-query heads, QK-norm and
-/// where it sits). RMS norms, a `ReLU`² `BunsenMlp` and QK-norm after the
-/// rotary embedding, it is nanochat's `Block`; RMS norms, a `SwiGLU` and
-/// QK-norm before it, Qwen3's decoder layer. With an [`AdaptiveScale`] on the
-/// feed-forward's input, `x = x + mlp(mlp.pre(x) * (1 + f(cond)))`, it is
-/// Voxtral Realtime's decoder layer.
+/// where it sits). An [`AdaptiveScale`] on the feed-forward's input conditions
+/// the block: `x = x + mlp(mlp.pre(x) * (1 + f(cond)))`.
 ///
 /// Without an [`attn_norm`](CausalDecoderBlockConfig::attn_norm), the
-/// attention takes the residual stream as it is, `x = x + attn(x)`:
-/// `ModernBERT`'s first layer.
+/// attention takes the residual stream as it is, `x = x + attn(x)`.
 ///
 /// With [`post_norms`](CausalDecoderBlockConfig::post_norms), each sublayer's
 /// output is normalized before it is added:
 /// `x = x + attn_post_norm(attn(attn_norm(x)))`, and the same for the
-/// feed-forward: Gemma 2's and 3's sandwich.
+/// feed-forward: the sandwich.
 ///
 /// With a [`layer_scale`](CausalDecoderBlockConfig::layer_scale), each
 /// sublayer's residual is scaled per channel by a learned `γ`:
@@ -296,6 +295,25 @@ impl CausalDecoderBlockConfig {
 /// Built by [`CausalDecoderBlockConfig`], whose `init` also takes the block's
 /// layer index: its mixer's slot in the decode's cache for its kind (a
 /// shared [`KVCache`]'s layer, or a [`DeltaNetCache`]'s).
+///
+/// ## Discussion
+///
+/// - RMS norms, a `ReLU`² `BunsenMlp` and QK-norm after the rotary embedding:
+///   nanochat's `Block`. RMS norms, a `SwiGLU` and QK-norm before it: Qwen3's
+///   decoder layer.
+/// - With an [`AdaptiveScale`]
+///   ([`mlp_scale`](CausalDecoderBlockConfig::mlp_scale)): Voxtral Realtime's
+///   decoder layer, its delay conditioning.
+/// - Without an [`attn_norm`](CausalDecoderBlockConfig::attn_norm):
+///   `ModernBERT`'s first layer, whose input is the embedding's norm already.
+/// - [`post_norms`](CausalDecoderBlockConfig::post_norms): Gemma 2's and 3's
+///   sandwich.
+/// - [`norm_placement`](CausalDecoderBlockConfig::norm_placement): post-norm is
+///   the original Transformer's encoder layer and Sortformer v2's;
+///   res-post-norm is Swin V2's.
+/// - [`layer_scale`](CausalDecoderBlockConfig::layer_scale): `CaiT`'s
+///   `LayerScale`, and ZONOS3's codec trunk's `attention_scale` and
+///   `ffn_scale`.
 #[derive(Module, Debug)]
 pub struct CausalDecoderBlock {
     /// The token-mixer sublayer: its input norm (`pre`), if the block has

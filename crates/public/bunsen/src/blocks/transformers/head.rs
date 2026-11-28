@@ -40,6 +40,11 @@ pub trait LmHeadMeta {
 }
 
 /// Config for [`LmHead`].
+///
+/// ## Discussion
+///
+/// - nanochat's own projection may carry a [`bias`](Self::bias).
+/// - [`softcap`](Self::softcap): nanochat's is 15, Gemma 2's 30.
 #[derive(Config, Debug)]
 pub struct LmHeadConfig {
     /// The hidden width.
@@ -53,12 +58,11 @@ pub struct LmHeadConfig {
     #[config(default = true)]
     pub tied: bool,
 
-    /// Whether a projection of its own carries a bias (nanochat's may).
+    /// Whether a projection of its own carries a bias.
     #[config(default = false)]
     pub bias: bool,
 
-    /// A final soft-cap, `c · tanh(logits / c)` (nanochat's 15, Gemma 2's
-    /// 30); `None`, none.
+    /// A final soft-cap, `c · tanh(logits / c)`; `None`, none.
     #[config(default = "None")]
     pub softcap: Option<f64>,
 

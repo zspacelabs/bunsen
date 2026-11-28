@@ -33,14 +33,13 @@ use crate::{
 #[derive(Config, Copy, Debug, PartialEq)]
 pub enum AttentiveStatsDeviation {
     /// `sqrt(max(Σ w x² - μ², floor))`, the raw second moment less the
-    /// squared mean (`WeSpeaker`'s and `AntSpeaker`'s ASTP).
+    /// squared mean.
     RawMoment {
         /// The variance's floor.
         floor: f64,
     },
 
-    /// `sqrt(max(Σ w (x - μ)², floor))`, the centered second moment
-    /// (`SpeechBrain`'s ECAPA-TDNN pooling).
+    /// `sqrt(max(Σ w (x - μ)², floor))`, the centered second moment.
     Centered {
         /// The variance's floor.
         floor: f64,
@@ -123,13 +122,19 @@ pub trait AttentiveStatsPoolingMeta {
 
 /// Config for [`AttentiveStatsPooling`].
 ///
-/// The defaults are ASTP's (`WeSpeaker`, `AntSpeaker`): a tanh between the
-/// attention's layers, no global context, the raw-moment deviation floored at
-/// `1e-7`. ECAPA-TDNN's pooling (`SpeechBrain`) is a `ReLU` then a tanh
-/// ([`Chain`](BunsenActivationConfig::Chain)), the global context, and the
-/// centered deviation floored at `1e-12`.
+/// The defaults are a tanh between the attention's layers, no global context,
+/// and the raw-moment deviation floored at `1e-7`. The other common form is a
+/// `ReLU` then a tanh ([`Chain`](BunsenActivationConfig::Chain)), the global
+/// context, and the centered deviation floored at `1e-12`.
 ///
 /// Implements [`AttentiveStatsPoolingMeta`].
+///
+/// ## Discussion
+///
+/// The defaults are ASTP's as `WeSpeaker` and `AntSpeaker` build it, the
+/// [`RawMoment`](AttentiveStatsDeviation::RawMoment) deviation; the other form
+/// is ECAPA-TDNN's pooling as `SpeechBrain` builds it, the
+/// [`Centered`](AttentiveStatsDeviation::Centered) deviation.
 #[derive(Config, Debug)]
 pub struct AttentiveStatsPoolingConfig {
     /// The channels, `C`.
@@ -420,7 +425,7 @@ mod tests {
         check(AttentiveStatsPoolingConfig::new(4, 3), f64::tanh);
     }
 
-    /// ECAPA-TDNN's form: `ReLU` then tanh, the global context, the centered
+    /// The other form: `ReLU` then tanh, the global context, the centered
     /// deviation.
     #[test]
     fn test_ecapa() {

@@ -97,11 +97,15 @@ pub struct VisionStageConfig {
 /// [`StagedVisionEncoderModel`]'s structure: the patch embedding, the
 /// stages, the final norm, the pool and the head.
 ///
-/// A family's policy (`SwinV2ContractConfig`) lowers to it. `try_init`
+/// A family's policy lowers to it. `try_init`
 /// checks that the parts agree: each stage's merge over the grid before it,
 /// one width through a stage, the head the last stage's width.
 ///
 /// Implements [`StagedVisionEncoderMeta`].
+///
+/// ## Discussion
+///
+/// The Swin V2 kit's policy, `SwinV2ContractConfig`, lowers to it.
 #[derive(Config, Debug)]
 pub struct StagedVisionEncoderStructureConfig {
     /// The patch embedding.
@@ -328,8 +332,7 @@ impl VisionStage {
 }
 
 /// The generic staged vision encoder: a [`PatchEmbed`], [`VisionStage`]s,
-/// a final norm, a [`TokenPool`] and a [`ClassifierHead`]: timm's Swin
-/// Transformer (V1 and V2) shape.
+/// a final norm, a [`TokenPool`] and a [`ClassifierHead`].
 ///
 /// [`forward`](Self::forward) maps `[batch, in_channels, height, width]`
 /// images to `[batch, num_classes]` logits;
@@ -339,6 +342,10 @@ impl VisionStage {
 /// at its own image size: each stage's windows are fixed to its grid.
 ///
 /// Implements [`StagedVisionEncoderMeta`].
+///
+/// ## Discussion
+///
+/// This is timm's Swin Transformer (V1 and V2) shape.
 #[derive(Module, Debug)]
 pub struct StagedVisionEncoderModel {
     /// The patch embedding.

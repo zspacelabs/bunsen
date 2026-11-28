@@ -3,7 +3,7 @@
 //! [`DecoderStack`]: a stack of [`CausalDecoderBlock`]s and a final norm,
 //! with the rotary embedding they share and their KV cache's geometry: the
 //! decoder of a causal language model, without its embedding or head, or a
-//! causal encoder (Voxtral's audio tower) as it stands.
+//! causal encoder as it stands.
 //!
 //! It has the Stacked config shape. [`DecoderStackStructureConfig`] is the
 //! unrolled tree, one block config per layer; two policies lower to it:
@@ -20,6 +20,10 @@
 //! linear-attention layers, which carry a state in its [`DeltaNetCache`].
 //! Each layer's mixer takes the next slot of its own kind's cache, so a KV
 //! cache holds the attention layers alone.
+//!
+//! ## Discussion
+//!
+//! Voxtral's audio tower is a causal encoder of this shape.
 
 use alloc::{
     string::ToString,
@@ -164,6 +168,12 @@ fn mixer_slots(attends: &[bool]) -> Vec<usize> {
 ///
 /// Implements [`DecoderStackMeta`] (it has at least one layer once
 /// [`try_init`](ModuleInit::try_init) has accepted it).
+///
+/// ## Discussion
+///
+/// - Gemma 3's global rotary table, beside its local one, is a
+///   [`rotary_alts`](Self::rotary_alts) entry.
+/// - ZONOS3's language model has [`routes`](Self::routes).
 #[derive(Config, Debug)]
 pub struct DecoderStackStructureConfig {
     /// The layers, in order; each one's index is its slot in a shared
@@ -184,8 +194,8 @@ pub struct DecoderStackStructureConfig {
     pub rotary: RotaryEmbeddingConfig,
 
     /// Rotary embeddings beside [`rotary`](Self::rotary), for the layers
-    /// [`layer_rotary`](Self::layer_rotary) points at them (Gemma 3's global
-    /// table, beside its local one).
+    /// [`layer_rotary`](Self::layer_rotary) points at them (a global table,
+    /// beside a local one).
     #[config(default = "Vec::new()")]
     pub rotary_alts: Vec<RotaryEmbeddingConfig>,
 
@@ -197,7 +207,7 @@ pub struct DecoderStackStructureConfig {
     /// Full Attention Residuals in place of the residual stream: each
     /// sublayer reads a learned route over the stack's input and every
     /// earlier sublayer's output ([`AttnResRoutes`]); `None`, the residual
-    /// stream (ZONOS3's language model has routes).
+    /// stream.
     #[config(default = "None")]
     pub routes: Option<AttnResRoutesConfig>,
 }
@@ -613,10 +623,14 @@ impl DecoderStackMeta for DecoderStack {
     }
 }
 
-/// A residual-stream mix around a [`DecoderStack`]'s layers (nanochat's):
+/// A residual-stream mix around a [`DecoderStack`]'s layers:
 /// before layer `i`, `x = x * resid[i] + x0 * x0_lambdas[i]`, with `x0` the
 /// stack's input; and the residual after layer `backout.0`, scaled by
 /// `backout.1`, taken from the stream after the last layer.
+///
+/// ## Discussion
+///
+/// nanochat's residual stream is mixed this way.
 #[derive(Clone, Debug, Default)]
 pub struct DecoderStackResidualMix {
     /// Per-layer `[n_layers]` scales of the stream and of the stack's input.
@@ -629,10 +643,14 @@ pub struct DecoderStackResidualMix {
 
 /// What a [`DecoderStack`]'s [`forward_with`](DecoderStack::forward_with)
 /// takes beside its input; each is only for layers configured for it.
+///
+/// ## Discussion
+///
+/// Voxtral's delay is a [`cond`](Self::cond).
 #[derive(Debug, Default)]
 pub struct DecoderStackSides {
     /// The condition every layer with an
-    /// [`mlp_scale`](CausalDecoderBlock::mlp_scale) takes (Voxtral's delay):
+    /// [`mlp_scale`](CausalDecoderBlock::mlp_scale) takes:
     /// `[B, T, D]`, or one that broadcasts to it.
     pub cond: Option<Tensor<3>>,
 
@@ -1290,9 +1308,9 @@ mod tests {
         )
     }
 
-    /// A windowed post-norm encoder without rotary positions (Qwen3-ASR's
-    /// audio encoder's shape, Sortformer v2's norms): each block of the input
-    /// encodes alone, as the stack would encode that block by itself.
+    /// A windowed post-norm encoder without rotary positions: each block of
+    /// the input encodes alone, as the stack would encode that block by
+    /// itself.
     #[test]
     #[serial]
     fn test_windowed_post_norm_encoder() {

@@ -65,7 +65,7 @@ pub trait LmDecoderMeta {
 ///
 /// It decodes through a
 /// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
-/// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or, when every
+/// ([`LmPlainStackOps`](super::LmPlainStackOps)), or, when every
 /// layer attends, through a flat [`KVCache`] too ([`LmKvForwardHidden`],
 /// [`KVCacheModel`]); a stack with linear-attention layers refuses a flat
 /// cache.
@@ -79,6 +79,11 @@ pub trait LmDecoderMeta {
 /// Built by [`LmDecoderVariantConfig`](super::LmDecoderVariantConfig) or
 /// [`LmDecoderStructureConfig`](super::LmDecoderStructureConfig). Implements
 /// [`LmDecoderMeta`].
+///
+/// ## Discussion
+///
+/// Its stack-cached decode is
+/// [`StackedLm`](crate::kits::support::decoding::StackedLm)'s.
 #[derive(Module, Debug)]
 pub struct LmDecoderModel {
     /// The token embedding, and the head's table when it is tied.

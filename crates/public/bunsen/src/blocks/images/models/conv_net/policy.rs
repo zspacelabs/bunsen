@@ -78,55 +78,68 @@ use crate::{
 /// [`ConvStageContractConfig`] lowers each unit to.
 ///
 /// Every kind lowers to a [`ResidualUnitConfig`]; the kinds differ in the
-/// path. The `ResNet` kinds are built; the families after it add kinds
-/// (`CSPNet`'s dark unit, the pre-activation units of `ResNetV2`).
+/// path. A kind of another path is added as a variant.
+///
+/// ## Discussion
+///
+/// [`Basic`](Self::Basic) and [`Bottleneck`](Self::Bottleneck) are `ResNet`'s
+/// `BasicBlock` and `Bottleneck`, [`PreBasic`](Self::PreBasic) is
+/// `ResNetV2`'s, and [`PreBottleneck`](Self::PreBottleneck) is `RegNetV`'s
+/// `PreBottleneck`. Further families add kinds: `CSPNet`'s dark unit, for one.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum ConvUnitKind {
     /// Two `kxk` convs, `in -> mid -> width`; the first strides and is the
-    /// mixer (`ResNet`'s `BasicBlock`).
+    /// mixer (timm's `BasicBlock`).
     Basic,
 
     /// A `1x1` reduce, a `kxk` mixer (grouped; it strides) and a `1x1`
-    /// expand, `in -> mid -> mid -> width` (`ResNet`'s `Bottleneck`).
+    /// expand, `in -> mid -> mid -> width` (timm's `Bottleneck`).
     Bottleneck,
 
     /// [`Basic`](Self::Basic)'s two convs, pre-activated as
-    /// [`PreBottleneck`](Self::PreBottleneck) is (timm's `PreActBasic`,
-    /// `ResNetV2`'s).
+    /// [`PreBottleneck`](Self::PreBottleneck) is (timm's `PreActBasic`).
     PreBasic,
 
     /// [`Bottleneck`](Self::Bottleneck)'s convs, pre-activated: the unit's
     /// input normalized and activated once, read by the path and the
     /// shortcut, then each later conv after its own norm and activation; no
     /// norm on a conv's output and no activation after the add, and a
-    /// shortcut conv with no norm (`RegNetV`'s `PreBottleneck`).
+    /// shortcut conv with no norm (timm's `PreBottleneck`).
     PreBottleneck,
 }
 
 /// A residual unit's shortcut, as a policy names it: what a
 /// [`ConvShortcutConfig`] is built from.
+///
+/// ## Discussion
+///
+/// [`AvgConv`](Self::AvgConv) is the shortcut of the `ResNet-D` variants, and
+/// [`None`](Self::None) is `RegNetZ`'s `downsample=None`.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum ConvShortcutKind {
     /// A strided `1x1` conv and a norm (torchvision's `downsample`).
     Conv,
 
-    /// An average pool, then a `1x1` conv and a norm (timm's `avg_down`, the
-    /// `ResNet-D` variants): [`ConvShortcutConfig::timm_avg_down`].
+    /// An average pool, then a `1x1` conv and a norm (timm's `avg_down`):
+    /// [`ConvShortcutConfig::timm_avg_down`].
     AvgConv,
 
     /// None: a unit that changes the channels or strides has no residual,
-    /// its output its path's (`RegNetZ`'s `downsample=None`); the others add
-    /// the identity.
+    /// its output its path's; the others add the identity.
     None,
 }
 
 /// A residual unit's channel attention, as a policy names it: sized from the
 /// channels where it applies ([`ConvLayersConfig::attn_place`]) when lowered.
+///
+/// ## Discussion
+///
+/// `ResNet-RS`'s attention is [`Se`](Self::Se) at a `rd_ratio` of 1/4, and
+/// [`SeFromInput`](Self::SeFromInput) is `RegNet`'s `SEModule`.
 #[derive(Config, Debug, Copy, PartialEq)]
 pub enum ConvAttentionKind {
     /// Squeeze-and-excitation, its reduction `rd_ratio` of the channels in 8s
-    /// ([`SqueezeExciteConfig::timm`]): timm's `'se'` is 1/16, `ResNet-RS`'s
-    /// 1/4.
+    /// ([`SqueezeExciteConfig::timm`]): timm's `'se'` is 1/16.
     Se {
         /// The reduction's share of the channels.
         rd_ratio: f64,
@@ -138,7 +151,7 @@ pub enum ConvAttentionKind {
 
     /// Squeeze-and-excitation whose reduction is `round(in_channels *
     /// se_ratio)` of the *unit's input* channels (ties to even, as Python's
-    /// `round`), its activation the layers': `RegNet`'s `SEModule`.
+    /// `round`), its activation the layers'.
     SeFromInput {
         /// The reduction's share of the unit's input channels.
         se_ratio: f64,
@@ -179,6 +192,10 @@ impl ConvAttentionKind {
 /// `aa_layer`): where a unit strides 2, or enters a dilated stage, its mixer
 /// keeps stride 1 and this pool, after the mixer's activation, takes the
 /// stride.
+///
+/// ## Discussion
+///
+/// [`Avd`](Self::Avd) is `ResNeSt`'s `avd`.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum ConvAaKind {
     /// An average pool of the stride (timm's `nn.AvgPool2d`).
@@ -187,9 +204,9 @@ pub enum ConvAaKind {
     /// A `3x3` binomial blur, then the stride (timm's `BlurPool2d`).
     Blur,
 
-    /// `ResNeSt`'s `avd`: a `3x3` average pool of the stride, padded 1, the
-    /// padding counted ([`AntiAliasConfig::avd`]); where a unit strides 2
-    /// alone, not where it enters a dilated stage.
+    /// A `3x3` average pool of the stride, padded 1, the padding counted
+    /// ([`AntiAliasConfig::avd`]); where a unit strides 2 alone, not where it
+    /// enters a dilated stage.
     Avd,
 }
 
@@ -212,12 +229,19 @@ impl ConvAaKind {
 ///
 /// A seam: a kind a unit can't hold is
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) there.
+///
+/// ## Discussion
+///
+/// [`Conv`](Self::Conv) is `ResNet`'s `3x3`; [`Res2`](Self::Res2) is
+/// `Res2Net`'s scale split, [`SplitAttn`](Self::SplitAttn) `ResNeSt`'s split
+/// attention, and [`SelectiveKernel`](Self::SelectiveKernel) `SKNet`'s
+/// selective kernel.
 #[derive(Config, Debug, Copy, PartialEq)]
 pub enum ConvMixerKind {
-    /// One conv block (`ResNet`'s `3x3`).
+    /// One conv block (a `kxk` conv).
     Conv,
 
-    /// `Res2Net`'s scale split of `scale` chunks of the mixer's width
+    /// A scale split of `scale` chunks of the mixer's width
     /// ([`Res2ConvConfig`]; a bottleneck's alone). Each branch is the layers'
     /// conv, norm and activation, `mid_width / scale` wide; in a unit that
     /// strides or reshapes, the branches are apart and the last chunk is
@@ -227,7 +251,7 @@ pub enum ConvMixerKind {
         scale: usize,
     },
 
-    /// `ResNeSt`'s split attention of `radix` splits
+    /// Split attention of `radix` splits
     /// ([`SplitAttnConfig::timm`]; a bottleneck's alone), in the stage's
     /// groups, the layers' norm and activation, its attention width
     /// `rd_ratio` of the splits' input in `rd_divisor`s.
@@ -241,7 +265,7 @@ pub enum ConvMixerKind {
         rd_divisor: usize,
     },
 
-    /// `SKNet`'s selective kernel ([`SelectiveKernelConfig::timm`]; a basic
+    /// A selective kernel ([`SelectiveKernelConfig::timm`]; a basic
     /// unit's first conv, a bottleneck's `3x3`): a path per kernel, the
     /// layers' norm and activation, an attention `rd_ratio` of the channels in
     /// `rd_divisor`s.
@@ -263,18 +287,21 @@ pub enum ConvMixerKind {
 
 /// The layer a policy puts between the last stage and the pool: what a
 /// [`ConvFinalConfig`] is built from.
+///
+/// ## Discussion
+///
+/// [`NormAct`](Self::NormAct) is `ResNetV2`'s `norm`, and
+/// [`Conv`](Self::Conv) `RegNetZ`'s `num_features`.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum ConvFinalKind {
     /// The layers' activation alone (a pre-activation or linear-output
     /// net's).
     Act,
 
-    /// The layers' norm and activation (a pre-activation net's last norm,
-    /// `ResNetV2`'s `norm`).
+    /// The layers' norm and activation (a pre-activation net's last norm).
     NormAct,
 
-    /// A `1x1` conv to `width` channels, the layers' norm and activation
-    /// (`RegNetZ`'s `num_features`).
+    /// A `1x1` conv to `width` channels, the layers' norm and activation.
     Conv {
         /// The features' width.
         width: usize,
@@ -282,29 +309,37 @@ pub enum ConvFinalKind {
 }
 
 /// The stem's pool, as a policy names it.
+///
+/// ## Discussion
+///
+/// - [`Max`](Self::Max) is `ResNet`'s; [`Avg`](Self::Avg) an
+///   average-anti-aliased `ResNet`'s, and [`MaxBlur`](Self::MaxBlur) a
+///   blur-anti-aliased one's.
+/// - [`ZeroPadMax`](Self::ZeroPadMax) is `BiT`'s `fixed` stem, and
+///   [`SameMax`](Self::SameMax) the hybrid `ViT`'s `same` stem.
+/// - [`Conv`](Self::Conv) is `ResNet-RS`'s.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum ConvStemPoolKind {
-    /// A `3x3` max pool, stride 2, padding 1 (`ResNet`'s).
+    /// A `3x3` max pool, stride 2, padding 1.
     Max,
 
-    /// A `2x2` average pool, stride 2 (an average-anti-aliased `ResNet`'s).
+    /// A `2x2` average pool, stride 2 (an average-anti-aliased stem's).
     Avg,
 
     /// A `3x3` max pool, stride 1, padding 1, then a `3x3` blur of stride 2
-    /// (a blur-anti-aliased `ResNet`'s).
+    /// (a blur-anti-aliased stem's).
     MaxBlur,
 
     /// A zero pad of 1, then a `3x3` max pool of stride 2 and no padding of
-    /// its own (`BiT`'s `fixed` stem).
+    /// its own.
     ZeroPadMax,
 
     /// A `3x3` max pool of stride 2 over the input SAME-padded from its own
-    /// size with `-inf` (timm's `MaxPool2dSame`, the hybrid `ViT`'s `same`
-    /// stem).
+    /// size with `-inf` (timm's `MaxPool2dSame`).
     SameMax,
 
     /// A `3x3` conv of stride 2 that keeps the channels, its norm and its
-    /// activation (`ResNet-RS`'s, timm's `replace_stem_pool`).
+    /// activation (timm's `replace_stem_pool`).
     Conv,
 
     /// No pool.
@@ -313,6 +348,17 @@ pub enum ConvStemPoolKind {
 
 /// The layer choices of a conv net, stated once for the model and replaced
 /// per stage ([`ConvStageContractConfig::layers`]).
+///
+/// ## Discussion
+///
+/// - [`attn_place`](Self::attn_place): `ResNet`'s attention is over the path's
+///   output, `RegNet`'s after the mixer.
+/// - [`out_act`](Self::out_act) `false` is `RegNetZ`'s `linear_out`.
+/// - [`weight_std`](Self::weight_std): `BiT`'s `eps` is 1e-8.
+/// - [`pre_identity`](Self::pre_identity): `RegNetV`'s identity shortcut reads
+///   the pre-activated input, `ResNetV2`'s the raw one.
+/// - [`same_pad`](Self::same_pad) is the hybrid `ViT`'s backbone's.
+/// - [`aa_first`](Self::aa_first) is `ResNeSt`'s `avd_first`.
 #[derive(Config, Debug)]
 pub struct ConvLayersConfig {
     /// The norm after each conv; its feature count is matched to the conv.
@@ -332,8 +378,8 @@ pub struct ConvLayersConfig {
     #[config(default = "None")]
     pub attn: Option<ConvAttentionKind>,
 
-    /// Where each unit's channel attention applies: over its path's output
-    /// (`ResNet`'s), or after its mixer (`RegNet`'s).
+    /// Where each unit's channel attention applies: over its path's output,
+    /// or after its mixer.
     #[config(default = "ConvAttentionPlace::Out")]
     pub attn_place: ConvAttentionPlace,
 
@@ -341,25 +387,24 @@ pub struct ConvLayersConfig {
     #[config(default = "None")]
     pub aa: Option<ConvAaKind>,
 
-    /// Whether each unit activates after its add: `false`, a linear output
-    /// (`RegNetZ`'s `linear_out`). A pre-activation unit has none whatever
-    /// this says.
+    /// Whether each unit activates after its add: `false`, a linear output.
+    /// A pre-activation unit has none whatever this says.
     #[config(default = true)]
     pub out_act: bool,
 
     /// Each conv's weight standardization, by this `eps` (timm's
-    /// `StdConv2d`, `BiT`'s 1e-8); none when `None`.
+    /// `StdConv2d`); none when `None`.
     #[config(default = "None")]
     pub weight_std: Option<f64>,
 
     /// Whether a pre-activation unit's identity shortcut reads the
-    /// pre-activated input (`RegNetV`'s) or the raw one (`ResNetV2`'s).
+    /// pre-activated input or the raw one.
     #[config(default = true)]
     pub pre_identity: bool,
 
     /// Whether each conv SAME-pads its input from its own size, the conv
     /// itself unpadded (timm's `Conv2dSame`, and `StdConv2dSame` with
-    /// [`weight_std`](Self::weight_std); the hybrid `ViT`'s backbone).
+    /// [`weight_std`](Self::weight_std)).
     #[config(default = false)]
     pub same_pad: bool,
 
@@ -368,7 +413,7 @@ pub struct ConvLayersConfig {
     pub mixer: ConvMixerKind,
 
     /// Whether the anti-aliased downsampling ([`aa`](Self::aa)) goes before
-    /// the mixer rather than after it (`ResNeSt`'s `avd_first`).
+    /// the mixer rather than after it.
     #[config(default = false)]
     pub aa_first: bool,
 }
@@ -575,10 +620,16 @@ impl ConvLayersConfig {
 }
 
 /// The stem, as a policy states it: a run of convs, then a pool.
+///
+/// ## Discussion
+///
+/// [`widths`](Self::widths) `[64]` is `ResNet`'s single `7x7` stem, and
+/// `[32, 32, 64]` its deep stem. `RegNetV`'s and `ResNetV2`'s stems have a
+/// bare last conv ([`last_norm_act`](Self::last_norm_act) `false`).
 #[derive(Config, Debug)]
 pub struct ConvStemContractConfig {
-    /// Each conv's output channels: `[64]` is `ResNet`'s single `7x7` stem,
-    /// `[32, 32, 64]` its deep stem.
+    /// Each conv's output channels: `[64]`, a single `7x7` stem;
+    /// `[32, 32, 64]`, a deep stem.
     pub widths: Vec<usize>,
 
     /// Every conv's kernel: 7 for a single conv, 3 for a deep stem.
@@ -595,8 +646,7 @@ pub struct ConvStemContractConfig {
 
     /// Whether the last conv has its norm and activation: `false`, a bare
     /// last conv, for a pre-activation net, whose first unit normalizes its
-    /// input (`RegNetV`'s and `ResNetV2`'s stems; a deep stem's earlier convs
-    /// keep theirs).
+    /// input (a deep stem's earlier convs keep theirs).
     #[config(default = true)]
     pub last_norm_act: bool,
 }
@@ -671,6 +721,10 @@ impl ConvStemContractConfig {
 
 /// One stage, as a policy states it: `depth` units of a kind and widths,
 /// and the stage's stride.
+///
+/// ## Discussion
+///
+/// [`groups`](Self::groups) is a `ResNeXt`'s cardinality.
 #[derive(Config, Debug)]
 pub struct ConvStageContractConfig {
     /// The number of units.
@@ -686,8 +740,8 @@ pub struct ConvStageContractConfig {
     /// first conv's output.
     pub mid_width: usize,
 
-    /// The mixer's groups (a `ResNeXt`'s cardinality); a basic unit's
-    /// second conv's too.
+    /// The mixer's groups (its cardinality); a basic unit's second conv's
+    /// too.
     #[config(default = 1)]
     pub groups: usize,
 
@@ -867,7 +921,7 @@ impl ConvStageContractConfig {
 /// resolved, and builds a
 /// [`ConvNetModel`](super::ConvNetModel) through the blanket
 /// [`ModuleInit`](crate::burner::module::ModuleInit). A family's policy
-/// (`ResNetContractConfig`) lowers to this one, in its own terms.
+/// lowers to this one, in its own terms.
 ///
 /// The lowering is timm's: the stem's stride (its conv's and its pool's)
 /// starts the net's; each stage's stride multiplies it until it reaches
@@ -875,6 +929,10 @@ impl ConvStageContractConfig {
 /// first unit takes the stride, the stage's input channels, and the dilation
 /// before the stage (`resnet.py`'s `first_dilation`); the others take none,
 /// the stage's width, and the stage's dilation.
+///
+/// ## Discussion
+///
+/// `ResNetContractConfig`, the `ResNet` kit's policy, lowers to this one.
 #[derive(Config, Debug)]
 pub struct ConvNetContractConfig {
     /// The stem.

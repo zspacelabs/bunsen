@@ -1,4 +1,4 @@
-//! The `FastConformer`'s depthwise-striding subsampling.
+//! [`DwStridingSubsampling`]: depthwise-striding subsampling.
 use alloc::{
     string::{
         String,
@@ -236,20 +236,23 @@ pub struct DwStridingStage {
     pub pointwise: ConvBlock2d,
 }
 
-/// The `FastConformer`'s depthwise-striding subsampling (`dw_striding` in
-/// `NeMo`): `n_stages` stride-2 convolutions over time and frequency, then a
-/// projection of the flattened channels and remaining frequencies to
-/// `d_model`.
+/// Depthwise-striding subsampling (`dw_striding` in `NeMo`): `n_stages`
+/// stride-2 convolutions over time and frequency, then a projection of the
+/// flattened channels and remaining frequencies to `d_model`.
 ///
 /// The first stage is a full 3x3 convolution from one channel and `ReLU`; each
-/// later one is a [`DwStridingStage`]. Rybakov et al. (2023), "Fast
-/// Conformer".
+/// later one is a [`DwStridingStage`].
 ///
 /// Padding frames are zeroed after every convolution, so a batch of
 /// different-length inputs computes what each would alone.
 ///
 /// Built by [`DwStridingSubsamplingConfig`].
 /// Implements [`DwStridingSubsamplingMeta`].
+///
+/// ## Discussion
+///
+/// This is the `FastConformer`'s subsampling: Rybakov et al. (2023), "Fast
+/// Conformer".
 #[derive(Module, Debug)]
 pub struct DwStridingSubsampling {
     /// The first stage: kernel 3, stride 2, `1 -> channels`, then `ReLU`.

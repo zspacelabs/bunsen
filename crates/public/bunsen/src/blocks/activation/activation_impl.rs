@@ -122,7 +122,8 @@ pub enum BunsenActivationConfig {
     /// `x^p`, for the exponent `p`.
     Pow(f64),
 
-    /// `x · sigmoid(1.702 x)`, CLIP's approximation of `GELU`: [`QuickGelu`].
+    /// `x · sigmoid(1.702 x)`, a sigmoid approximation of `GELU`:
+    /// [`QuickGelu`].
     QuickGelu,
 
     /// Snake or `SnakeBeta`, per channel on axis 1: [`SnakeActivation`].

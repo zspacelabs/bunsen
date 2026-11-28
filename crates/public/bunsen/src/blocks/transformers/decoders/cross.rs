@@ -73,7 +73,7 @@ pub struct CrossDecoderBlockConfig {
     pub dropout: f64,
 
     /// The normalization before each sublayer, sized to `d_model` whatever
-    /// feature count it names: a `LayerNorm` by default, Whisper's.
+    /// feature count it names: a `LayerNorm` by default.
     #[config(default = "BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0))")]
     pub norm: BunsenNormalizationConfig,
 }
@@ -125,7 +125,7 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
 /// pre-norm cross-attention over the encoder output, and a pre-norm MLP, each
 /// wrapped in a residual connection.
 ///
-/// Whisper's text decoder is a stack of these. The attention is burn's
+/// The attention is burn's
 /// [`MultiHeadAttention`] (without a key bias), and the norms are any
 /// [`BunsenNormalization`](crate::blocks::norm::BunsenNormalization),
 /// `LayerNorm`s by default: what the ported checkpoints hold. The fields are
@@ -138,6 +138,10 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
 /// against its [`KVCache`].
 ///
 /// Built by [`CrossDecoderBlockConfig`].
+///
+/// ## Discussion
+///
+/// Whisper's text decoder is a stack of these, its norms `LayerNorm`s.
 #[derive(Module, Debug)]
 pub struct CrossDecoderBlock {
     /// The self-attention sublayer: its norm (`pre`) and the attention

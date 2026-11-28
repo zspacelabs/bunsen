@@ -67,8 +67,8 @@ impl ModuleInit<EuclideanCodebook> for EuclideanCodebookConfig {
 }
 
 /// A codebook kept as the running sums of an exponential-moving-average
-/// k-means (Encodec's, Mimi's and Qwen3-TTS's codecs'): each code's summed
-/// vectors, `embedding_sum` `[S, d]`, and its usage, `cluster_usage` `[S]`.
+/// k-means: each code's summed vectors, `embedding_sum` `[S, d]`, and its
+/// usage, `cluster_usage` `[S]`.
 /// A code's vector is their quotient, the usage clamped below at `ε`:
 ///
 /// ```text
@@ -78,6 +78,10 @@ impl ModuleInit<EuclideanCodebook> for EuclideanCodebookConfig {
 /// The parameters keep the checkpoints' names.
 ///
 /// Built by [`EuclideanCodebookConfig`].
+///
+/// ## Discussion
+///
+/// This is the codebook of Encodec's, Mimi's and Qwen3-TTS's codecs.
 #[derive(Module, Debug)]
 pub struct EuclideanCodebook {
     /// Each code's usage, `[S]`.

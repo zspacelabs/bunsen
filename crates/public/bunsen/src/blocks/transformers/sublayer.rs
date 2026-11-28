@@ -53,6 +53,10 @@ use crate::{
 
 /// Config for a [`ResidualSublayer`]'s norms: each slot's norm, sized to the
 /// sublayer's width at init, or `None` for an empty slot.
+///
+/// ## Discussion
+///
+/// The [`layer_scale`](Self::layer_scale) is `CaiT`'s `LayerScale`.
 #[derive(Config, Debug)]
 pub struct ResidualSublayerConfig {
     /// On the stream, before the fork.
@@ -71,7 +75,7 @@ pub struct ResidualSublayerConfig {
     #[config(default = "None")]
     pub out: Option<BunsenNormalizationConfig>,
 
-    /// Whether the residual is scaled per channel by a learned `γ` (`CaiT`'s
+    /// Whether the residual is scaled per channel by a learned `γ` (timm's
     /// `LayerScale`), after `post`; initialized to ones. `false`, no scale.
     #[config(default = false)]
     pub layer_scale: bool,
@@ -85,17 +89,22 @@ pub struct ResidualSublayerConfig {
 
 /// Where a residual sublayer normalizes: before its branch, or after its
 /// sum ([`ResidualSublayerConfig::placed`]).
+///
+/// ## Discussion
+///
+/// - [`Pre`](Self::Pre) is Whisper's and Qwen3-ASR's.
+/// - [`Post`](Self::Post) is the original Transformer's, and Sortformer v2's.
+/// - [`ResPost`](Self::ResPost) is Swin V2's res-post-norm.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum NormPlacement {
-    /// Before the sublayer, inside its residual: `x + f(norm(x))`. Whisper's
-    /// and Qwen3-ASR's.
+    /// Before the sublayer, inside its residual: `x + f(norm(x))`.
     Pre,
 
-    /// After the residual sum: `norm(x + f(x))`. The original Transformer's,
-    /// and `NeMo`'s `TransformerEncoder` without `pre_ln`: Sortformer v2's.
+    /// After the residual sum: `norm(x + f(x))`; `NeMo`'s
+    /// `TransformerEncoder` without `pre_ln`.
     Post,
 
-    /// After the branch, inside the residual: `x + norm(f(x))`. Swin V2's
+    /// After the branch, inside the residual: `x + norm(f(x))`, the
     /// res-post-norm.
     ResPost,
 }
@@ -182,14 +191,17 @@ impl ResidualSublayerConfig {
 /// 1. `input`, on the stream before the fork: both the skip and the branch see
 ///    `input(x)`;
 /// 2. `pre`, on the branch's input (a pre-norm block's);
-/// 3. `post`, on the branch's output (the sandwich: Gemma 2's and 3's
-///    post-norms);
+/// 3. `post`, on the branch's output (the sandwich's post-norms);
 /// 4. `out`, after the add (a post-norm block's).
 ///
 /// An empty slot is the identity, and holds no parameters. A layer scale,
 /// when the sublayer has one, scales the residual per channel after `post`.
 ///
 /// Built by [`ResidualSublayerConfig::init`] around its branch.
+///
+/// ## Discussion
+///
+/// Gemma 2's and 3's sandwich post-norms are the `post` slot.
 #[derive(Module, Debug)]
 pub struct ResidualSublayer<M: Module> {
     /// On the stream, before the fork.

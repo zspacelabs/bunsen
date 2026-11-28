@@ -33,6 +33,11 @@ use crate::{
 ///
 /// The reducing kinds and the attention pool take the patch tokens alone,
 /// the prefix tokens left out.
+///
+/// ## Discussion
+///
+/// - [`Distilled`](Self::Distilled) is `DeiT`'s distilled models' pool.
+/// - [`Map`](Self::Map) is `SigLIP`'s.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum TokenPoolKind {
     /// The class token, the sequence's first (timm's `token`).
@@ -49,11 +54,11 @@ pub enum TokenPoolKind {
 
     /// The class and distillation tokens, the first two: their mean pooled,
     /// each through its own classifier, the two logits averaged (timm's
-    /// `VisionTransformerDistilled`, `DeiT`'s distilled models).
+    /// `VisionTransformerDistilled`).
     Distilled,
 
     /// A learned query's attention over the patch tokens, a
-    /// [`LatentAttentionPool`] (timm's `map`, `SigLIP`'s): the one kind with
+    /// [`LatentAttentionPool`] (timm's `map`): the one kind with
     /// parameters.
     Map,
 }

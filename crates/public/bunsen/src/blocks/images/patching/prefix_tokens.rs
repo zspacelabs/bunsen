@@ -4,6 +4,10 @@
 //! token, a distillation token, register tokens), and the learnt absolute
 //! position embedding added to the sequence: timm's
 //! `VisionTransformer._pos_embed`.
+//!
+//! ## Discussion
+//!
+//! The distillation token is `DeiT`'s, in its distilled models.
 
 use alloc::vec::Vec;
 
@@ -39,7 +43,7 @@ pub trait PrefixTokensMeta {
     /// Whether a class token leads the sequence.
     fn class_token(&self) -> bool;
 
-    /// Whether a distillation token follows the class token (`DeiT`'s).
+    /// Whether a distillation token follows the class token.
     fn dist_token(&self) -> bool;
 
     /// The register tokens after the class and distillation tokens.
@@ -86,7 +90,7 @@ pub struct PrefixTokensConfig {
     pub class_token: bool,
 
     /// Whether a distillation token follows the class token (timm's
-    /// `VisionTransformerDistilled`, `DeiT`'s distilled models).
+    /// `VisionTransformerDistilled`).
     #[config(default = false)]
     pub dist_token: bool,
 

@@ -4,8 +4,8 @@
 //! them. A *part* is one sublayer ([`attention`], [`embedding`], [`mlp`]); a
 //! *layer* wraps parts in normalization and residuals; a *stack* repeats a
 //! layer. A layer or stack lives here when it is generic (what tells its
-//! users apart is config: norm placement, which attention, which MLP) and
-//! more than one kit builds it; a named model, with its own weights and
+//! users apart is config: norm placement, which attention, which MLP),
+//! however many kits build it; a named model, with its own weights and
 //! quirks, stays in its kit and is assembled from these, or wraps a generic
 //! model from [`models`].
 //!
@@ -25,21 +25,19 @@
 //!   (behind the `testing` feature), two fixture embeddings for tests.
 //! - [`encoders`]: bidirectional encoders: a bidirectional
 //!   [`DecoderStack`](decoders::stack::DecoderStack) (pre- or post-norm, with
-//!   rotary positions or none, windowed or not: Whisper's, Qwen3-ASR's,
-//!   Sortformer's and `Nemotron-3-Diarization`'s encoders, Laya's head); and
+//!   rotary positions or none, windowed or not); and
 //!   [`ConformerEncoderConfig`](encoders::conformer::ConformerEncoderConfig),
-//!   the `FastConformer`, Parakeet's and Sortformer v2's.
-//!   [`EncoderTransformer`](encoders::EncoderTransformer) is any of their
-//!   stacks, chosen by config.
+//!   the `FastConformer`. [`EncoderTransformer`](encoders::EncoderTransformer)
+//!   is any of their stacks, chosen by config.
 //! - [`mixers`]: [`TokenMixer`](mixers::TokenMixer), a decoder layer's token
 //!   mixer: causal self-attention, or a
 //!   [`GatedDeltaNet`](mixers::GatedDeltaNet), the linear attention of a hybrid
-//!   stack's (Qwen3.5's) linear layers.
+//!   stack's linear layers.
 //! - [`decoders`]: causal decoder layers:
 //!   [`CausalDecoderBlock`](decoders::causal::CausalDecoderBlock), the
-//!   decoder-only layer, nanochat's and Qwen3's by config; and
+//!   decoder-only layer, its variants by config; and
 //!   [`CrossDecoderBlock`](decoders::cross::CrossDecoderBlock), the
-//!   encoder-decoder layer with cross-attention, Whisper's.
+//!   encoder-decoder layer with cross-attention.
 //! - [`head`]: [`LmHead`](head::LmHead), a language model's head: tied to the
 //!   token table or its own, with an optional slice, soft-cap and logits dtype.
 //! - [`mlp`]: [`TransformerFeedForward`](mlp::TransformerFeedForward), a
@@ -62,6 +60,19 @@
 //!
 //! The operations these layers call, and the key/value cache state, are in
 //! [`crate::ops::transformers`].
+//!
+//! ## Discussion
+//!
+//! - The bidirectional [`DecoderStack`](decoders::stack::DecoderStack) is
+//!   Whisper's, Qwen3-ASR's, Sortformer's and `Nemotron-3-Diarization`'s
+//!   encoders, and Laya's head; the `FastConformer` is Parakeet's and
+//!   Sortformer v2's encoder.
+//! - Qwen3.5's hybrid stack has [`GatedDeltaNet`](mixers::GatedDeltaNet) linear
+//!   layers.
+//! - nanochat's block and Qwen3's decoder layer are configs of
+//!   [`CausalDecoderBlock`](decoders::causal::CausalDecoderBlock); Whisper's
+//!   text decoder is built from
+//!   [`CrossDecoderBlock`](decoders::cross::CrossDecoderBlock)s.
 
 pub mod attention;
 pub mod conditioning;

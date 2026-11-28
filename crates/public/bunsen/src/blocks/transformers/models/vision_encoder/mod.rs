@@ -7,9 +7,8 @@
 //! [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack),
 //! a [`TokenPool`], and the image models'
 //! [`ClassifierHead`](crate::blocks::images::models::classifier_head::ClassifierHead).
-//! It is the one model type of the `ViT` families,
-//! timm's `VisionTransformer`: a `ViT` is a `VisionEncoderModel`, built from
-//! its family's policy.
+//! It has the shape of timm's `VisionTransformer`, and is built from a
+//! family's policy.
 //!
 //! ## The forward
 //!
@@ -20,9 +19,9 @@
 //!    embedding cuts its last map;
 //! 2. the prefix tokens go before them, and the position embedding is added
 //!    (over the prefix too, or the patches alone);
-//! 3. the transformer's input norm (timm's `norm_pre`, CLIP's), its pre-norm
-//!    layers (attention over every token, then an MLP; layer scale on each),
-//!    and its final norm;
+//! 3. the transformer's input norm (timm's `norm_pre`), its pre-norm layers
+//!    (attention over every token, then an MLP; layer scale on each), and its
+//!    final norm;
 //! 4. the pool (the class token, a reduction of the patch tokens, or the mean
 //!    of the class and distillation tokens), the head's norm (timm's `fc_norm`,
 //!    which replaces the final norm), and the classifier, none on a headless
@@ -41,6 +40,12 @@
 //! | the prefix tokens, the position embedding | `tokens.cls_token`, `tokens.dist_token`, `tokens.reg_token`, `tokens.pos_embed` |
 //! | the transformer | `stack.*`, [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)'s |
 //! | the head's norm and classifiers | `head.fc_norm`, `head.fc`, `head.fc_dist` |
+//!
+//! ## Discussion
+//!
+//! It is the one model type of the `ViT` families: a `ViT` is a
+//! `VisionEncoderModel`, built from its family's policy. CLIP's input norm is
+//! the transformer's input norm (`norm_pre`).
 
 mod backbone;
 mod model;

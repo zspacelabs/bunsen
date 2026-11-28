@@ -11,21 +11,27 @@
 //! - Configs: [`LmDecoderVariantConfig`], the stack in any of its configs'
 //!   shapes, lowers to [`LmDecoderStructureConfig`], which builds the model.
 //! - Decoding: through a
-//!   [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
-//!   ([`StackedLm`](crate::kits::support::decoding::StackedLm)), any stack; or
-//!   through a flat [`KVCache`](crate::ops::transformers::attention::KVCache)
+//!   [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache),
+//!   any stack; or through a flat
+//!   [`KVCache`](crate::ops::transformers::attention::KVCache)
 //!   ([`LmKvForwardHidden`]) when every layer attends (a stack with
 //!   linear-attention layers refuses one).
 //! - API, by layer: [`LmDecoderOps`] and [`LmDecoderMeta`], which say nothing
 //!   of the forward (the embedding, head, rotary tables, dtype); and
 //!   [`LmPlainStackOps`], for a model whose forward is its stack's alone (the
-//!   stack, the attention weights), which the kinds' forwards and
-//!   [`StackedLm`](crate::kits::support::decoding::StackedLm) build on.
+//!   stack, the attention weights), which the kinds' forwards and a
+//!   stack-cached decode build on.
 //! - Holders and wrappers: a kit's model that holds exactly an
 //!   [`LmDecoderModel`] implements [`LmDecoderHolder`], and gets the
 //!   forward-free API and its build through blanket impls; one whose forward is
 //!   the model's also implements [`LmDecoderWrapper`], and gets the forward, by
 //!   its kind. It writes no pass-throughs.
+//!
+//! ## Discussion
+//!
+//! The stack-cached decode is
+//! [`StackedLm`](crate::kits::support::decoding::StackedLm), which every
+//! [`LmPlainStackOps`] model is by a blanket impl.
 
 mod config;
 mod model;

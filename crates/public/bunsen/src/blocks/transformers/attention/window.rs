@@ -1,5 +1,16 @@
-//! [`WindowAttention`]: a Swin block's shifted-window self-attention, a token
-//! mixer of a stage's fixed grid.
+//! [`WindowAttention`]: shifted-window self-attention, a token mixer of a
+//! stage's fixed grid.
+//!
+//! ## Discussion
+//!
+//! This is the Swin Transformer block's attention, in both its versions:
+//!
+//! - Swin V1 learns a bias table ([`RelativePositionBiasConfig::Table`]) and
+//!   biases its key projection.
+//! - Swin V2 computes its bias with a continuous position bias MLP 512 wide
+//!   ([`RelativePositionBiasConfig::cpb`]), keeps its key projection bias-free
+//!   (its `k_bias` a zero buffer), and runs cosine attention under a per-head
+//!   logit scale ([`cosine`](WindowAttentionConfig::cosine)).
 
 use alloc::format;
 
@@ -62,16 +73,16 @@ use crate::{
 #[derive(Config, Debug)]
 pub enum RelativePositionBiasConfig {
     /// A learnt table, one row per offset of the window, one column per head
-    /// (Swin V1's `relative_position_bias_table`).
+    /// (timm's `relative_position_bias_table`).
     Table,
 
-    /// Swin V2's continuous position bias: an MLP (a `hidden`-wide `ReLU`
+    /// A continuous position bias: an MLP (a `hidden`-wide `ReLU`
     /// layer, then one bias-free output per head) over the window's
     /// log-spaced offsets, `16 * sigmoid` of its output. The offsets are
     /// scaled by the `pretrained` window when the weights were trained at
     /// another (timm's `pretrained_window_size`).
     Cpb {
-        /// The MLP's hidden width: 512 in Swin V2.
+        /// The MLP's hidden width.
         hidden: usize,
 
         /// The window the weights were trained at, if not this one.
@@ -80,7 +91,8 @@ pub enum RelativePositionBiasConfig {
 }
 
 impl RelativePositionBiasConfig {
-    /// Swin V2's: a 512-wide MLP, scaled by `pretrained` if given.
+    /// A continuous position bias with a 512-wide MLP, its offsets scaled by
+    /// `pretrained` if given.
     pub fn cpb(pretrained: Option<[usize; 2]>) -> Self {
         Self::Cpb {
             hidden: 512,
@@ -97,8 +109,12 @@ pub struct RelativePositionBiasTable {
     pub table: Param<Tensor<2>>,
 }
 
-/// Swin V2's continuous position bias MLP; built by
+/// A continuous position bias MLP; built by
 /// [`RelativePositionBiasConfig::Cpb`].
+///
+/// ## Discussion
+///
+/// This is Swin V2's continuous position bias.
 #[derive(Module, Debug)]
 pub struct ContinuousPositionBias {
     /// Offsets to the hidden layer (timm's `cpb_mlp.0`).
@@ -124,7 +140,7 @@ pub enum RelativePositionBias {
     /// A learnt table.
     Table(RelativePositionBiasTable),
 
-    /// Swin V2's continuous position bias.
+    /// A continuous position bias MLP.
     Cpb(ContinuousPositionBias),
 }
 
@@ -203,12 +219,11 @@ pub struct WindowAttentionConfig {
     #[config(default = true)]
     pub qkv_bias: bool,
 
-    /// Whether the key projection has one too: Swin V1's does, Swin V2's has
-    /// none (its `k_bias` a zero buffer).
+    /// Whether the key projection has one too.
     #[config(default = true)]
     pub key_bias: bool,
 
-    /// Swin V2's cosine attention: the queries and keys L2-normalized, their
+    /// Cosine attention: the queries and keys L2-normalized, their
     /// dot product times a learnt per-head scale (`exp` of a logit clamped at
     /// `ln 100`); else scaled dot-product attention.
     #[config(default = false)]
@@ -325,17 +340,23 @@ impl WindowAttentionConfig {
     }
 }
 
-/// A Swin block's shifted-window self-attention over a stage's fixed grid,
-/// as timm's `SwinTransformer[V2]Block._attn` and its `WindowAttention`: the
+/// Shifted-window self-attention over a stage's fixed grid, as timm's
+/// `SwinTransformer[V2]Block._attn` and its `WindowAttention`: the
 /// tokens rolled back by the shift, padded to whole windows, cut into
 /// windows; multi-head attention within each window, with a per-head
 /// relative position bias and, on a shifted block, the mask that keeps the
 /// rolled-in regions apart; the windows put back, unpadded, rolled forward.
 ///
 /// Its projections are `c_q`, `c_k`, `c_v` (timm's fused `qkv`, split on
-/// load, with V2's `q_bias` / `v_bias`) and `c_proj` (timm's `proj`).
+/// load, with timm's separate `q_bias` / `v_bias` where it has them) and
+/// `c_proj` (timm's `proj`).
 ///
 /// Built by [`WindowAttentionConfig`].
+///
+/// ## Discussion
+///
+/// This is a Swin Transformer block's attention; Swin V2's keeps its query
+/// and value biases apart from the fused `qkv`, as `q_bias` / `v_bias`.
 #[derive(Module, Debug)]
 pub struct WindowAttention {
     /// The layer's index in its stack.
@@ -365,7 +386,7 @@ pub struct WindowAttention {
     /// The output projection.
     pub c_proj: Linear,
 
-    /// Swin V2's per-head logit scale, `[heads, 1, 1]`, under cosine
+    /// The per-head logit scale, `[heads, 1, 1]`, under cosine
     /// attention.
     pub logit_scale: Option<Param<Tensor<3>>>,
 

@@ -34,6 +34,11 @@ pub trait SqueezeExciteMeta {
 }
 
 /// The config of a [`SqueezeExcite`].
+///
+/// ## Discussion
+///
+/// `ResNet-RS`'s squeeze-and-excitation is [`timm`](Self::timm) at `rd_ratio`
+/// 1/4.
 #[derive(Config, Debug)]
 pub struct SqueezeExciteConfig {
     /// The channels it gates.
@@ -50,7 +55,7 @@ pub struct SqueezeExciteConfig {
 impl SqueezeExciteConfig {
     /// timm's `SEModule` of `channels`: a reduction of `channels * rd_ratio`
     /// rounded to 8s ([`make_divisible`], no round limit), and a `ReLU`.
-    /// timm's `'se'` attention is `rd_ratio` 1/16; `ResNet-RS`'s is 1/4.
+    /// timm's `'se'` attention is `rd_ratio` 1/16.
     pub fn timm(
         channels: usize,
         rd_ratio: f64,

@@ -1,14 +1,18 @@
 //! A depth decoder: a frame's codebooks, one after another, from the
 //! backbone's hidden state.
 //!
-//! An audio language model whose frame is several codebooks deep (CSM's,
-//! Kyutai's DSM's, Dia2's, Qwen3-TTS's code predictor) predicts the first
-//! with its backbone and the rest with a second, small decoder that runs
-//! along the frame's depth: [`DepthDecoder`]. Each frame starts it afresh,
-//! from rows the backbone hands it (its last hidden state, the first
+//! An audio language model whose frame is several codebooks deep predicts
+//! the first with its backbone and the rest with a second, small decoder
+//! that runs along the frame's depth: [`DepthDecoder`]. Each frame starts it
+//! afresh, from rows the backbone hands it (its last hidden state, the first
 //! codebook's embedding), and each codebook after that is a step through
 //! its own cache: the codebook before's code embedded by that codebook's
 //! own table, the next codebook's logits read by its own head.
+//!
+//! ## Discussion
+//!
+//! CSM's, Kyutai's DSM's and Dia2's depth decoders, and Qwen3-TTS's code
+//! predictor, have this shape.
 
 use alloc::vec::Vec;
 

@@ -4,8 +4,8 @@
 //! [`GlobalPool2d`], and the image models'
 //! [`ClassifierHead`](crate::blocks::images::models::classifier_head::ClassifierHead).
 //! It is the one model type of the residual conv-net
-//! families: a `ResNet` is a `ConvNetModel`, built from
-//! `ResNetContractConfig`. The idea is timm's `byobnet` (a model is a stem,
+//! families: each family's model is a `ConvNetModel`, built from its own
+//! policy config. The idea is timm's `byobnet` (a model is a stem,
 //! stage specs and a head, with the layer choices stated once), in bunsen's
 //! own types: a unit's kind and every slot are enums of configs and modules,
 //! never strings or generics.
@@ -78,17 +78,17 @@
 //!   ([`ConvLayersConfig::same_pad`]);
 //! - a path's conv: [`ResidualConvConfig`] (a conv block, a pre-activation
 //!   conv, a spatial mixer of [`mixers`](crate::blocks::images::mixers));
-//! - the mixer: [`ConvMixerKind`] (a conv; `Res2Net`'s scale split, whose
-//!   branches are `convs.{k}` inside the mixer's conv; `ResNeSt`'s split
-//!   attention, `conv`, `fc1`, `fc2`; `SKNet`'s selective kernel, `paths.{k}`,
-//!   `reduce`, `select`, a basic unit's first conv too);
+//! - the mixer: [`ConvMixerKind`] (a conv; a scale split, whose branches are
+//!   `convs.{k}` inside the mixer's conv; split attention, `conv`, `fc1`,
+//!   `fc2`; a selective kernel, `paths.{k}`, `reduce`, `select`, a basic unit's
+//!   first conv too);
 //! - the shortcut: [`ConvShortcutKind`] (a conv and a norm; an average pool,
 //!   then a conv and a norm; none, and no residual), lowering to one
 //!   [`ConvShortcutConfig`], an optional pool before a conv block;
 //! - the channel attention: [`ConvAttentionKind`] /
 //!   [`ChannelAttentionConfig`](crate::blocks::images::attention::ChannelAttentionConfig)
-//!   (squeeze-excite, ECA, `RegNet`'s squeeze-excite of the unit's input), and
-//!   its [`ConvAttentionPlace`];
+//!   (squeeze-excite, ECA, a squeeze-excite of the unit's input), and its
+//!   [`ConvAttentionPlace`];
 //! - the stem's pool: [`ConvStemPoolKind`] / [`ConvStemPoolConfig`] (max,
 //!   average, max then blur, a strided conv, a zero pad then max, a SAME pad
 //!   then max, none);
@@ -96,6 +96,13 @@
 //!   norm and activation, a conv block);
 //! - the global pool: [`GlobalPool2dConfig`] (average, max, their mean, their
 //!   concatenation).
+//!
+//! ## Discussion
+//!
+//! - A `ResNet` is a `ConvNetModel`, built from `ResNetContractConfig`.
+//! - The mixers are `Res2Net`'s scale split, `ResNeSt`'s split attention and
+//!   `SKNet`'s selective kernel; the squeeze-excite of the unit's input is
+//!   `RegNet`'s.
 
 mod model;
 mod policy;

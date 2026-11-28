@@ -51,6 +51,12 @@ pub trait BunsenMlpMeta {
 }
 
 /// Config for [`BunsenMlp`].
+///
+/// ## Discussion
+///
+/// Swin V2's continuous position bias biases only `linear1`
+/// (`down_bias` `Some(false)`), and `BEiT3`'s sub-LN is a
+/// [`hidden_norm`](Self::hidden_norm).
 #[derive(Config, Debug)]
 pub struct BunsenMlpConfig {
     /// The input width.
@@ -70,8 +76,7 @@ pub struct BunsenMlpConfig {
     #[config(default = true)]
     pub bias: bool,
 
-    /// Whether `linear2` carries a bias; `None` follows `bias`. Swin V2's
-    /// continuous position bias biases only `linear1`.
+    /// Whether `linear2` carries a bias; `None` follows `bias`.
     #[config(default = "None")]
     pub down_bias: Option<bool>,
 
@@ -82,8 +87,7 @@ pub struct BunsenMlpConfig {
 
     /// A norm on the hidden width, after the activation's dropout and before
     /// `linear2`, sized to `d_hidden` whatever feature count it names
-    /// (`BEiT3`'s sub-LN, timm's `Mlp` with a `norm_layer`); `None` builds
-    /// none.
+    /// (a sub-LN, timm's `Mlp` with a `norm_layer`); `None` builds none.
     #[config(default = "None")]
     pub hidden_norm: Option<BunsenNormalizationConfig>,
 }

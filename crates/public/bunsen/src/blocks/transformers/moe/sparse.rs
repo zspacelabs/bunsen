@@ -1,4 +1,11 @@
 //! # The sparse mixture-of-experts feed-forward
+//!
+//! ## Discussion
+//!
+//! - Qwen gates its shared expert with a sigmoid on the layer's input
+//!   ([`SharedExpertConfig::gated`]).
+//! - `ZONOS3`'s latent mixture of experts runs them in a narrower latent
+//!   ([`SparseMoeConfig::latent`]).
 
 use alloc::string::ToString;
 
@@ -38,15 +45,18 @@ use crate::{
 };
 
 /// A shared expert's config: an always-on feed-forward beside the routed
-/// experts (Qwen's `shared_expert`, `DeepSeek`'s `n_shared_experts`). Not
-/// built: a [`SparseMoeConfig`] with one is refused as
+/// experts. Not built: a [`SparseMoeConfig`] with one is refused as
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
+///
+/// ## Discussion
+///
+/// This is Qwen's `shared_expert` and `DeepSeek`'s `n_shared_experts`.
 #[derive(Config, Debug)]
 pub struct SharedExpertConfig {
     /// Its hidden width.
     pub hidden: usize,
 
-    /// Whether a sigmoid gate on the layer's input scales it (Qwen's).
+    /// Whether a sigmoid gate on the layer's input scales it.
     #[config(default = false)]
     pub gated: bool,
 }
@@ -61,7 +71,7 @@ pub struct SparseMoeConfig {
     /// without one.
     pub experts: ExpertStackConfig,
 
-    /// A latent the experts run in (ZONOS3's latent MoE): the rows are
+    /// A latent the experts run in: the rows are
     /// projected down to this width before dispatch, and back up after,
     /// each by a linear without a bias. The router reads the full width.
     /// `None`, no latent.

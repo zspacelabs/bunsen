@@ -228,7 +228,7 @@ pub struct SplitResidualVectorQuantizerConfig {
     /// The latent's width: each half's projection's.
     pub output_dim: usize,
 
-    /// The first codebooks, apart from the rest (Mimi's semantic ones).
+    /// The first codebooks, apart from the rest (the "semantic" ones).
     #[config(default = 1)]
     pub first_codebooks: usize,
 
@@ -281,14 +281,19 @@ impl ModuleInit<SplitResidualVectorQuantizer> for SplitResidualVectorQuantizerCo
     }
 }
 
-/// A residual vector quantizer split in two (Mimi's and Qwen3-TTS's codecs'):
-/// the first codebooks (Mimi's "semantic" ones, distilled toward a speech
-/// model's features) and the rest (the "acoustic" ones), each a
-/// [`ResidualVectorQuantizer`] with its own projection, their latents added.
+/// A residual vector quantizer split in two: the first codebooks (the
+/// "semantic" ones, distilled toward a speech model's features) and the rest
+/// (the "acoustic" ones), each a [`ResidualVectorQuantizer`] with its own
+/// projection, their latents added.
 ///
 /// The halves keep the checkpoints' names, `rvq_first` and `rvq_rest`.
 ///
 /// Built by [`SplitResidualVectorQuantizerConfig`].
+///
+/// ## Discussion
+///
+/// This is the quantizer of Mimi's and Qwen3-TTS's codecs; the "semantic"
+/// codebooks are Mimi's, distilled toward a speech model's features.
 #[derive(Module, Debug)]
 pub struct SplitResidualVectorQuantizer {
     /// The first codebooks.

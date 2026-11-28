@@ -81,18 +81,24 @@ pub trait ConvNetMeta {
 
 /// What a conv net applies to its last stage's map before the pool: the
 /// config of a [`ConvFinal`] (timm's `final_conv`).
+///
+/// ## Discussion
+///
+/// [`Act`](Self::Act) is `RegNetV`'s and `RegNetZ`'s final layer,
+/// [`NormAct`](Self::NormAct) `ResNetV2`'s last norm, and [`Conv`](Self::Conv)
+/// `RegNetZ`'s `num_features`.
 #[derive(Config, Debug)]
 pub enum ConvFinalConfig {
     /// An activation alone (a pre-activation net's, or a linear-output
-    /// net's: `RegNetV`'s, `RegNetZ`'s).
+    /// net's).
     Act(BunsenActivationConfig),
 
     /// A norm and an activation, sized to the last stage (a pre-activation
-    /// net's last norm, `ResNetV2`'s).
+    /// net's last norm).
     NormAct(NormActConfig),
 
-    /// A conv block, widening the features (`RegNetZ`'s `num_features`, a
-    /// `1x1` conv, a norm and an activation).
+    /// A conv block, widening the features (a `1x1` conv, a norm and an
+    /// activation).
     Conv(ConvBlock2dConfig),
 }
 
@@ -146,6 +152,10 @@ impl ConvFinal {
 /// policy names: edit it, then `init` it. `try_init` checks that it chains.
 ///
 /// Implements [`ConvNetMeta`].
+///
+/// ## Discussion
+///
+/// A net of no stages, a stem alone, is the hybrid `ViT`'s smallest backbone.
 #[derive(Config, Debug)]
 pub struct ConvNetStructureConfig {
     /// The stem.
@@ -192,7 +202,7 @@ impl ConvNetMeta for ConvNetStructureConfig {
 
 impl ConvNetStructureConfig {
     /// Checks the tree: a valid stem, each stage valid (there may be none: a
-    /// stem alone, the hybrid `ViT`'s smallest backbone), the stem chaining
+    /// stem alone), the stem chaining
     /// into the first stage, each stage into the next, and the pooled
     /// features into a head that is not distilled.
     ///
@@ -385,14 +395,19 @@ impl ModuleInit<ConvNetModel> for ConvNetStructureConfig {
 /// [`ResidualUnit`](super::ResidualUnit)s, a [`GlobalPool2d`] and a
 /// [`ClassifierHead`].
 ///
-/// Every conv-net family is this type, built from its policy:
-/// `ResNetContractConfig::init` returns one. [`forward`](Self::forward) maps
-/// `[batch, in_channels, height, width]` images to `[batch, num_classes]`
-/// logits; [`feature_map`](Self::feature_map),
+/// Every conv-net family is this type, built from its policy.
+/// [`forward`](Self::forward) maps `[batch, in_channels, height, width]`
+/// images to `[batch, num_classes]` logits;
+/// [`feature_map`](Self::feature_map),
 /// [`pooled_features`](Self::pooled_features) and
 /// [`stage_maps`](Self::stage_maps) are the steps on the way.
 ///
 /// Implements [`ConvNetMeta`].
+///
+/// ## Discussion
+///
+/// A `ResNet` is one: the `ResNet` kit's `ResNetContractConfig::init` returns
+/// one, its [`feature_map`](Self::feature_map) at a stride of 32.
 #[derive(Module, Debug)]
 pub struct ConvNetModel {
     /// The stem.
@@ -487,7 +502,7 @@ impl ConvNetModel {
     /// # Returns
     ///
     /// `[batch, d_features, height / stride, width / stride]`, each side
-    /// rounded up; the stride is 32 on a `ResNet`.
+    /// rounded up.
     pub fn feature_map(
         &self,
         images: Tensor<4>,

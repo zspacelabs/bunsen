@@ -32,12 +32,17 @@
 //!   gated MLP with [`Silu`](BunsenActivationConfig::Silu)).
 //! - **bunsen's kinds**: [`Silu`](BunsenActivationConfig::Silu), which burn has
 //!   as a layer but not as a kind; [`Pow`](BunsenActivationConfig::Pow), `x^p`
-//!   ([`PowActivation`]); [`QuickGelu`](BunsenActivationConfig::QuickGelu),
-//!   CLIP's `x · sigmoid(1.702 x)` ([`QuickGelu`]);
+//!   ([`PowActivation`]); [`QuickGelu`](BunsenActivationConfig::QuickGelu), `x
+//!   · sigmoid(1.702 x)` ([`QuickGelu`]);
 //!   [`Snake`](BunsenActivationConfig::Snake), Snake and `SnakeBeta` per
 //!   channel ([`SnakeActivation`]: a vocoder's periodic activation); and
 //!   [`Chain`](BunsenActivationConfig::Chain), kinds applied in order:
-//!   nanochat's `relu(x)²` is `Chain([Relu, Pow(2)])`.
+//!   `relu(x)²` is `Chain([Relu, Pow(2)])`.
+//!
+//! ## Discussion
+//!
+//! [`QuickGelu`](BunsenActivationConfig::QuickGelu) is CLIP's approximation of
+//! `GELU`, and `relu(x)²` is nanochat's MLP activation.
 
 mod activation_impl;
 mod pow;

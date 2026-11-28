@@ -39,6 +39,11 @@ pub trait BunsenGatedMlpMeta {
 /// Config for [`BunsenGatedMlp`].
 ///
 /// Implements [`BunsenGatedMlpMeta`].
+///
+/// ## Discussion
+///
+/// Voxtral Realtime's audio encoder biases only its down projection
+/// (`down_bias` `Some(true)` without `bias`).
 #[derive(Config, Debug)]
 pub struct BunsenGatedMlpConfig {
     /// The input and output width.
@@ -53,13 +58,12 @@ pub struct BunsenGatedMlpConfig {
 
     /// Whether the down projection carries a bias; `None` follows `bias`.
     ///
-    /// Voxtral Realtime's audio encoder biases only its down projection
-    /// (`Some(true)` without `bias`).
+    /// `Some(true)` without `bias` biases only the down projection.
     #[config(default = "None")]
     pub down_bias: Option<bool>,
 
-    /// The gate's activation: `Silu` for a `SwiGLU`, `GeluApproximate` for
-    /// Gemma's `GeGLU`.
+    /// The gate's activation: `Silu` for a `SwiGLU`, `GeluApproximate` for a
+    /// `GeGLU`.
     #[config(default = "BunsenActivationConfig::Silu")]
     pub act: BunsenActivationConfig,
 }
@@ -97,14 +101,18 @@ impl ModuleInit<BunsenGatedMlp> for BunsenGatedMlpConfig {
 }
 
 /// The gated MLP (Shazeer 2020): `down(act(gate(x)) * up(x))` over the last
-/// axis of a tensor of any rank. With `silu`, the `SwiGLU` of Llama, Qwen and
-/// their kin; with tanh-approximated GELU, Gemma's `GeGLU`. The general form
-/// of burn's `SwiGlu`.
+/// axis of a tensor of any rank. With `silu`, a `SwiGLU`; with
+/// tanh-approximated GELU, a `GeGLU`. The general form of burn's `SwiGlu`.
 ///
 /// The fields carry the names `transformers` gives them.
 ///
 /// Built by [`BunsenGatedMlpConfig`].
 /// Implements [`BunsenGatedMlpMeta`].
+///
+/// ## Discussion
+///
+/// The `SwiGLU` is the MLP of Llama, Qwen and their kin; the `GeGLU` is
+/// Gemma's.
 #[derive(Module, Debug)]
 pub struct BunsenGatedMlp {
     /// `d_model -> d_ff`, the gate.

@@ -29,10 +29,15 @@
 //!   the network sees a shorter effective depth on each training step.
 //! - [`rate_table`] configures a stack of `DropPath` layers:
 //!   [`linear_drop_path_rate_schedule`](rate_table::linear_drop_path_rate_schedule)
-//!   ramps the drop rate linearly from 0 over the depth, as Swin Transformer V2
-//!   and `timm` do, and
+//!   ramps the drop rate linearly from 0 over the depth, as `timm` does, and
 //!   [`DropPathRateDepthTable`](rate_table::DropPathRateDepthTable) splits that
 //!   ramp across stages of given depths.
+//!
+//! ## Discussion
+//!
+//! Swin Transformer V2 ramps its drop-path rate linearly from 0 over the depth,
+//! as [`linear_drop_path_rate_schedule`](rate_table::linear_drop_path_rate_schedule)
+//! does.
 //!
 //! [`Dropout`]: burn::nn::Dropout
 

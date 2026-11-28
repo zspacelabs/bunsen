@@ -3,7 +3,12 @@
 //! [`ProjectedDecoderStack`]: a decoder stack between a projection in and a
 //! projection out, run over a whole sequence with positions from 0 and no
 //! cache: a codec's transformer trunk, at a width of its own between the
-//! latent's. ZONOS3's codec stages and Qwen3-TTS's codec transformer.
+//! latent's.
+//!
+//! ## Discussion
+//!
+//! ZONOS3's codec stages and Qwen3-TTS's codec transformer are
+//! [`ProjectedDecoderStack`]s.
 
 use burn::{
     Tensor,

@@ -39,7 +39,7 @@ pub struct SnakeActivationConfig {
     pub separate_magnitude: bool,
 
     /// Whether the parameters are stored as logs, the forward reading their
-    /// `exp` (`BigVGAN`'s `alpha_logscale`). Off by default.
+    /// `exp`. Off by default.
     #[config(default = false)]
     pub log_scale: bool,
 
@@ -67,8 +67,7 @@ impl SnakeActivationMeta for SnakeActivationConfig {
 }
 
 impl SnakeActivationConfig {
-    /// `SnakeBeta` over `channels`, its parameters stored as logs: the
-    /// activation of `BigVGAN`'s, DAC-style vocoders' and Qwen3-TTS's codec.
+    /// `SnakeBeta` over `channels`, its parameters stored as logs.
     pub fn snake_beta_log_scale(channels: usize) -> Self {
         Self::new(channels)
             .with_separate_magnitude(true)
@@ -95,8 +94,7 @@ impl ModuleInit<SnakeActivation> for SnakeActivationConfig {
     }
 }
 
-/// A periodic activation, per channel (Liu Ziyin et al., 2020, "Neural
-/// Networks Fail to Learn Periodic Functions and How to Fix It"):
+/// A periodic activation, per channel:
 ///
 /// - Snake: `x + 1/(α + ε) · sin²(α x)`;
 /// - `SnakeBeta`: `x + 1/(β + ε) · sin²(α x)`, the magnitude apart from the
@@ -104,10 +102,19 @@ impl ModuleInit<SnakeActivation> for SnakeActivationConfig {
 ///
 /// `α` and `β` are per channel, on axis 1 (`[B, C, ...]`); stored as logs
 /// ([`log_scale`](SnakeActivationMeta::log_scale)), the forward takes their
-/// `exp` each call. The parameters are named `alpha` and `beta`, as `BigVGAN`'s
-/// checkpoints name them.
+/// `exp` each call. The parameters are named `alpha` and `beta`.
 ///
 /// Built by [`SnakeActivationConfig`].
+///
+/// ## Discussion
+///
+/// Snake is from Liu Ziyin et al., 2020, "Neural Networks Fail to Learn
+/// Periodic Functions and How to Fix It". `SnakeBeta` with log-scale parameters
+/// ([`snake_beta_log_scale`](SnakeActivationConfig::snake_beta_log_scale)) is
+/// the activation of `BigVGAN`, of DAC-style vocoders and of Qwen3-TTS's codec.
+/// The parameter names `alpha` and `beta` are those of `BigVGAN`'s checkpoints,
+/// and its name for [`log_scale`](SnakeActivationConfig::log_scale) is
+/// `alpha_logscale`.
 #[derive(Module, Debug)]
 pub struct SnakeActivation {
     /// The frequency `α`, `[C]`; its log under `log_scale`.

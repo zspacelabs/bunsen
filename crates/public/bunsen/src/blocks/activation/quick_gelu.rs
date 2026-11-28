@@ -1,4 +1,4 @@
-//! [`QuickGelu`]: CLIP's sigmoid approximation of `GELU`.
+//! [`QuickGelu`]: a sigmoid approximation of `GELU`.
 
 use burn::{
     module::Module,
@@ -8,9 +8,13 @@ use burn::{
 /// The sigmoid's gain in `x · sigmoid(1.702 x)`.
 pub const QUICK_GELU_GAIN: f64 = 1.702;
 
-/// `x · sigmoid(1.702 x)`, elementwise: `OpenAI` CLIP's approximation of
-/// `GELU` (timm's `QuickGELU`), a layer with no parameters, the activation
-/// seam's [`QuickGelu`](super::BunsenActivationConfig::QuickGelu) kind.
+/// `x · sigmoid(1.702 x)`, elementwise: a sigmoid approximation of `GELU`
+/// (timm's `QuickGELU`), a layer with no parameters, the activation seam's
+/// [`QuickGelu`](super::BunsenActivationConfig::QuickGelu) kind.
+///
+/// ## Discussion
+///
+/// `OpenAI` CLIP's approximation of `GELU` is this one.
 #[derive(Module, Debug, Default)]
 pub struct QuickGelu;
 

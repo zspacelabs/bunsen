@@ -3,10 +3,14 @@
 //! [`ClassifierHead`]: what every image model does after its pool, timm's
 //! `forward_head` past the pool: a norm on the pooled features (timm's
 //! `fc_norm`), a dropout, and a classifier, none on a headless model; for a
-//! distilled model (`DeiT`'s), a second classifier on its distillation token,
-//! the two logits averaged. The pool is the model's own (a conv net's over
-//! a map, a vision transformer's over tokens); the head reads its
-//! `[batch, d_features]` output.
+//! distilled model, a second classifier on its distillation token, the two
+//! logits averaged. The pool is the model's own (a conv net's over a map, a
+//! vision transformer's over tokens); the head reads its `[batch, d_features]`
+//! output.
+//!
+//! ## Discussion
+//!
+//! The distilled head, with its distillation token's classifier, is `DeiT`'s.
 
 use burn::{
     config::Config,
