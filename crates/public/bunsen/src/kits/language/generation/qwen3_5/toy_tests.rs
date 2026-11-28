@@ -15,18 +15,15 @@
 
 use burn::prelude::*;
 
-use super::{
-    Qwen3_5Model,
-    interop::transformers::{
-        load_qwen3_5_tensors,
-        qwen3_5_config_from_path,
-    },
+use super::interop::transformers::{
+    load_qwen3_5_tensors,
+    qwen3_5_config_from_path,
 };
 use crate::{
     blocks::transformers::{
         decoders::stack::DecoderStackMeta,
         models::language_decoder::{
-            LmDecoderOps,
+            LmDecoderModel,
             LmKvForwardHidden,
         },
     },
@@ -74,7 +71,7 @@ fn close<const D: usize>(
 }
 
 struct Toy {
-    model: Qwen3_5Model,
+    model: LmDecoderModel,
     fixture: ToyFixture,
     device: Device,
 }
@@ -91,7 +88,7 @@ impl Toy {
         let config = qwen3_5_config_from_path(&dir.join(format!("{name}.config.json")))
             .expect("read the toy config");
         let mut fixture = ToyFixture::load(dir.join(format!("{name}.safetensors")), device);
-        let mut model: Qwen3_5Model = config.init(device);
+        let mut model: LmDecoderModel = config.init(device);
         let applied = load_qwen3_5_tensors(&mut model, &config, fixture.take_weights(), None)
             .expect("load the toy weights");
         // Unused: the dropped vision tower and prediction head, and a tied
@@ -125,7 +122,6 @@ impl Toy {
     /// The first full-attention layer's index.
     fn first_full(&self) -> usize {
         self.model
-            .lm
             .decoder
             .stack
             .layer_attends()
@@ -146,15 +142,7 @@ fn test_toy_forward() {
         let r_emb = model.rotary(embeds.dims()[1], &toy.device);
         let full = toy.first_full();
         let mut x = embeds.clone();
-        for (i, layer) in model
-            .lm
-            .decoder
-            .stack
-            .layers
-            .iter()
-            .enumerate()
-            .take(full + 1)
-        {
+        for (i, layer) in model.decoder.stack.layers.iter().enumerate().take(full + 1) {
             x = layer.forward(x, r_emb.for_layer(i), &mut None);
             if i == 0 {
                 close(

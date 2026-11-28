@@ -1,6 +1,6 @@
 //! # Qwen3 blocks.
 //!
-//! The model, [`Qwen3Model`] with its [`Qwen3ContractConfig`], both
+//! The model, [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel) with its [`Qwen3ContractConfig`], both
 //! [`LmDecoderMeta`](crate::blocks::transformers::models::language_decoder::LmDecoderMeta). Its
 //! repeated layer is the generic
 //! [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock),

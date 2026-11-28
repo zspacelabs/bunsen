@@ -1,13 +1,15 @@
 //! A loaded Qwen3 model, with the files a decode reads beside it.
-use super::Qwen3Model;
 pub use crate::kits::support::construct::{
     GENERATION_CONFIG,
     TOKENIZER,
     TOKENIZER_CONFIG,
 };
-use crate::kits::support::construct::{
-    LmConstruct,
-    LmPolicy,
+use crate::{
+    blocks::transformers::models::language_decoder::LmDecoderModel,
+    kits::support::construct::{
+        LmConstruct,
+        LmPolicy,
+    },
 };
 
 /// How a Qwen3 pretrained is run: the [`LmPolicy`] its presets and probes
@@ -20,4 +22,4 @@ pub type Qwen3Policy = LmPolicy;
 ///
 /// [`default_qwen3_factory`](super::pretrained::default_qwen3_factory)
 /// builds one from a name.
-pub type Qwen3Construct = LmConstruct<Qwen3Model>;
+pub type Qwen3Construct = LmConstruct<LmDecoderModel>;

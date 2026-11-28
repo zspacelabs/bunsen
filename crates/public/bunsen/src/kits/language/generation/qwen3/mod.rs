@@ -4,7 +4,7 @@
 //! defines it: grouped-query causal self-attention with per-head query/key
 //! RMS normalization before a rotary embedding, a `SwiGLU` feed-forward, and a
 //! head tied to the embedding or a linear map of its own
-//! (`tie_word_embeddings`). [`Qwen3Model`] is built from a
+//! (`tie_word_embeddings`). [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel) is built from a
 //! [`Qwen3ContractConfig`] out of the shared
 //! [`CausalSelfAttention`](crate::blocks::transformers::attention::csa::CausalSelfAttention),
 //! [`BunsenGatedMlp`](crate::blocks::mlp::BunsenGatedMlp) and

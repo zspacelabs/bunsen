@@ -3,7 +3,7 @@
 //! A dense `transformers` Qwen3.5 checkpoint (a
 //! `Qwen3_5ForConditionalGeneration`'s text model, its vision tower and
 //! multi-token-prediction head dropped, or a bare `Qwen3_5ForCausalLM`) as
-//! bunsen's [`Qwen3_5Model`](crate::kits::language::generation::qwen3_5::Qwen3_5Model):
+//! bunsen's [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
 //!
 //! - **Config:** [`qwen3_5_config`] of a parsed `config.json`, and
 //!   [`qwen3_5_config_from_str`] / [`qwen3_5_config_from_path`].

@@ -1,7 +1,6 @@
 //! The Gemma decoder.
 use burn::{
     config::Config,
-    module::Module,
     nn::norm::RmsNormConfig,
     tensor::FloatDType,
 };
@@ -28,11 +27,8 @@ use crate::{
             },
             head::LmHeadConfig,
             models::language_decoder::{
-                LmDecoderHolder,
                 LmDecoderMeta,
-                LmDecoderModel,
                 LmDecoderVariantConfig,
-                LmDecoderWrapper,
             },
         },
     },
@@ -60,7 +56,7 @@ pub enum GemmaLayerKind {
     Full,
 }
 
-/// Config for [`GemmaModel`]: `transformers`' `GemmaConfig`,
+/// Config for [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel): `transformers`' `GemmaConfig`,
 /// `Gemma2Config` and `Gemma3TextConfig`, as far as a decode needs them.
 /// One config covers the three generations; their choices are its fields:
 ///
@@ -432,51 +428,11 @@ impl ToStructureConfig for GemmaContractConfig {
     }
 }
 
-/// Google's Gemma decoder-only language model, generations 1 to 3 (text):
-/// an [`LmDecoderModel`] of `GeGLU` layers with `1 + w` RMS norms, sliding
-/// and full attention by layer ([`GemmaContractConfig::try_stack`]); the
-/// embedding scaled by `√d_model`; the head tied to it.
-///
-/// [`gemma_rekey`](crate::kits::language::generation::gemma::interop::transformers::gemma_rekey)
-/// maps `transformers`' `GemmaModel` names onto the [`LmDecoderModel`]'s, and
-/// loads each norm's `w` as `1 + w`; the load is into [`lm`](Self::lm).
-///
-/// An [`LmDecoderWrapper`] whose every layer attends: it decodes through its
-/// stack's
-/// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
-/// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or a flat
-/// [`KVCache`](crate::ops::transformers::attention::KVCache)
-/// ([`LmKvForwardHidden`](crate::blocks::transformers::models::language_decoder::LmKvForwardHidden),
-/// [`KVCacheModel`](crate::ops::transformers::attention::KVCacheModel)).
-///
-/// Built by [`GemmaContractConfig`].
-/// Implements [`LmDecoderMeta`].
-#[derive(Module, Debug)]
-pub struct GemmaModel {
-    /// The language model.
-    pub lm: LmDecoderModel,
-}
-
-impl LmDecoderHolder for GemmaModel {
-    fn lm(&self) -> &LmDecoderModel {
-        &self.lm
-    }
-
-    fn lm_mut(&mut self) -> &mut LmDecoderModel {
-        &mut self.lm
-    }
-
-    fn from_lm(lm: LmDecoderModel) -> Self {
-        Self { lm }
-    }
-}
-
-impl LmDecoderWrapper for GemmaModel {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
+        blocks::transformers::models::language_decoder::LmDecoderModel,
         burner::module::ModuleInit,
         ops::transformers::attention::KVCacheModel,
         support::testing::cpu_device,
@@ -516,7 +472,7 @@ mod tests {
         assert_eq!(stack.kind_rotary, [None, Some(0)]);
 
         let device = cpu_device();
-        let model: GemmaModel = config.init(&device);
+        let model: LmDecoderModel = config.init(&device);
         assert_eq!(
             (
                 model.n_vocab(),
@@ -527,15 +483,15 @@ mod tests {
             ),
             (40, 12, 3, 1, 8)
         );
-        assert_eq!(model.lm.embedding.scale, Some(12f64.sqrt()));
-        assert!(model.lm.decoder.head.proj.is_none(), "tied");
+        assert_eq!(model.embedding.scale, Some(12f64.sqrt()));
+        assert!(model.decoder.head.proj.is_none(), "tied");
         assert_eq!(
             model.kv_cache_config().layer_windows,
             [Some(4), None, Some(4)]
         );
         assert_eq!(model.kv_cache_config().seq_len, 1024, "one growth chunk");
 
-        let sized: GemmaModel = config.with_kv_cache_pre_size(64).init(&device);
+        let sized: LmDecoderModel = config.with_kv_cache_pre_size(64).init(&device);
         assert_eq!(sized.kv_cache_config().seq_len, 64);
     }
 

@@ -44,7 +44,6 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    blocks::transformers::models::language_decoder::LmDecoderOps,
     data::formats::LoadPolicy,
     kits::{
         language::generation::{

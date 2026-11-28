@@ -28,10 +28,7 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::language::generation::qwen3::{
-        Qwen3ContractConfig,
-        Qwen3Model,
-    },
+    kits::language::generation::qwen3::Qwen3ContractConfig,
     ops::transformers::attention::{
         KVCache,
         KVCacheConfig,
@@ -136,7 +133,7 @@ impl ModuleInit<Qwen3TtsTalker> for Qwen3TtsTalkerConfig {
             )
             .into());
         }
-        let Qwen3Model { lm } = self.lm.try_init(device)?;
+        let lm: LmDecoderModel = self.lm.try_init(device)?;
         Ok(Qwen3TtsTalker {
             lm,
             text_embedding: EmbeddingConfig::new(self.text_vocab, self.text_width).init(device),

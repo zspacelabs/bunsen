@@ -20,7 +20,7 @@ pub fn text_layer_rekey() -> Rekey {
 }
 
 /// `transformers`' `Qwen3ForCausalLM` state-dict names onto the module paths
-/// of a [`Qwen3Model`](crate::kits::language::generation::qwen3::Qwen3Model)'s
+/// of a [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)'s
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
 /// under `model.`, the layers by [`text_layer_rekey`], the embedding
 /// (`embed_tokens`, the model's `embedding`) and the final norm; and

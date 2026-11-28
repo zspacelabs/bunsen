@@ -13,16 +13,13 @@ use core::ops::Range;
 
 use burn::prelude::*;
 
-use super::{
-    Qwen3Model,
-    interop::transformers::{
-        load_qwen3_tensors,
-        qwen3_config_from_path,
-    },
+use super::interop::transformers::{
+    load_qwen3_tensors,
+    qwen3_config_from_path,
 };
 use crate::{
     blocks::transformers::models::language_decoder::{
-        LmDecoderOps,
+        LmDecoderModel,
         LmKvForwardHidden,
     },
     burner::module::ModuleInit,
@@ -44,7 +41,7 @@ use crate::{
 };
 
 struct Toy {
-    model: Qwen3Model,
+    model: LmDecoderModel,
     fixture: ToyFixture,
     device: Device,
 }
@@ -66,7 +63,7 @@ impl Toy {
             .expect("read the toy config");
         let mut fixture = ToyFixture::load(dir.join(format!("{name}.safetensors")), device);
         let device = device.clone();
-        let mut model: Qwen3Model = config.init(&device);
+        let mut model: LmDecoderModel = config.init(&device);
         let applied = load_qwen3_tensors(&mut model, fixture.take_weights(), None)
             .expect("load the toy weights");
         if config.tied_head {
@@ -136,7 +133,7 @@ fn check_forward(toy: &Toy) {
     let r_emb = model.rotary(seq, &toy.device);
 
     let layer0 =
-        model.lm.decoder.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
+        model.decoder.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
     assert_io_close("layer 0", layer0, toy.io("layer0"));
     let hidden = model.forward_hidden(embeds, &r_emb, None);
     assert_io_close("hidden", hidden.clone(), toy.io("hidden"));

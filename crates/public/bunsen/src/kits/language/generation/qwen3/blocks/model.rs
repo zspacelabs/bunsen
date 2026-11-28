@@ -1,7 +1,6 @@
 //! The Qwen3 decoder.
 use burn::{
     config::Config,
-    module::Module,
     nn::norm::RmsNormConfig,
     tensor::FloatDType,
 };
@@ -26,11 +25,8 @@ use crate::{
             },
             head::LmHeadConfig,
             models::language_decoder::{
-                LmDecoderHolder,
                 LmDecoderMeta,
-                LmDecoderModel,
                 LmDecoderVariantConfig,
-                LmDecoderWrapper,
             },
         },
     },
@@ -48,7 +44,7 @@ use crate::{
 /// The cache a Qwen3 of this geometry decodes with, before it is built: its
 /// KV heads, head width and layer count,
 /// [`kv_cache_pre_size`](Qwen3ContractConfig::kv_cache_pre_size) positions up front,
-/// uncapped; the built model's ([`LmDecoderModel`]'s) is the same.
+/// uncapped; the built model's ([`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)'s) is the same.
 impl KVCacheModel for Qwen3ContractConfig {
     fn kv_cache_config(&self) -> KVCacheConfig {
         KVCacheConfig::for_decode(
@@ -60,8 +56,8 @@ impl KVCacheModel for Qwen3ContractConfig {
     }
 }
 
-/// Config for [`Qwen3Model`]: `transformers`' `Qwen3Config`, as far as
-/// a decode needs it.
+/// Config for [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel): `transformers`' `Qwen3Config`, as far
+/// as a decode needs it.
 ///
 /// Implements [`LmDecoderMeta`].
 #[derive(Config, Debug)]
@@ -253,48 +249,6 @@ impl LmDecoderMeta for Qwen3ContractConfig {
     }
 }
 
-/// The Qwen3 decoder-only language model (Qwen team 2025): the dense Qwen3
-/// checkpoints, their head tied to the embedding (up to 4B) or a linear map
-/// of its own (8B), and the text model of Qwen3-ASR.
-///
-/// An [`LmDecoderModel`] whose stack ([`Qwen3ContractConfig::stack`]) is RMS
-/// norms, a `SwiGLU`, and QK-norm before the rotary embedding;
-/// [`qwen3_rekey`](crate::kits::language::generation::qwen3::interop::transformers::qwen3_rekey)
-/// maps `transformers`' `Qwen3ForCausalLM` names onto the
-/// [`LmDecoderModel`]'s, and the load is into [`lm`](Self::lm).
-///
-/// An [`LmDecoderWrapper`] whose every layer attends: it decodes through its
-/// stack's
-/// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
-/// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or a flat
-/// [`KVCache`](crate::ops::transformers::attention::KVCache)
-/// ([`LmKvForwardHidden`](crate::blocks::transformers::models::language_decoder::LmKvForwardHidden),
-/// [`KVCacheModel`]).
-///
-/// Built by [`Qwen3ContractConfig`].
-/// Implements [`LmDecoderMeta`].
-#[derive(Module, Debug)]
-pub struct Qwen3Model {
-    /// The language model.
-    pub lm: LmDecoderModel,
-}
-
-impl LmDecoderHolder for Qwen3Model {
-    fn lm(&self) -> &LmDecoderModel {
-        &self.lm
-    }
-
-    fn lm_mut(&mut self) -> &mut LmDecoderModel {
-        &mut self.lm
-    }
-
-    fn from_lm(lm: LmDecoderModel) -> Self {
-        Self { lm }
-    }
-}
-
-impl LmDecoderWrapper for Qwen3Model {}
-
 #[cfg(test)]
 mod tests {
     use burn::{
@@ -308,7 +262,7 @@ mod tests {
             head::LmHeadMeta,
             mixers::TokenMixerConfig,
             models::language_decoder::{
-                LmDecoderOps,
+                LmDecoderModel,
                 LmKvForwardHidden,
             },
         },
@@ -362,19 +316,19 @@ mod tests {
             "an RMS layer norm",
         );
         assert_eq!(layer_norm.epsilon, 1e-5);
-        let model: Qwen3Model = config.init(&device);
+        let model: LmDecoderModel = config.init(&device);
         assert_eq!(model.n_vocab(), config.n_vocab());
         assert_eq!(model.d_model(), config.d_model());
         assert_eq!(model.n_layers(), config.n_layers());
         assert_eq!(model.n_kv_heads(), config.n_kv_heads());
         assert_eq!(model.head_dim(), config.head_dim());
-        assert_eq!(model.lm.decoder.stack.rotary.base, config.rope_theta);
+        assert_eq!(model.decoder.stack.rotary.base, config.rope_theta);
         assert_eq!(
-            model.lm.decoder.stack.rotary.direction,
+            model.decoder.stack.rotary.direction,
             RotaryDirection::Reverse
         );
         assert_eq!(
-            model.lm.decoder.stack.layers[0]
+            model.decoder.stack.layers[0]
                 .attn
                 .branch
                 .attention()
@@ -382,7 +336,7 @@ mod tests {
             QkNormPlacement::AfterRope
         );
         assert_eq!(
-            model.lm.decoder.stack.layers[0]
+            model.decoder.stack.layers[0]
                 .attn
                 .branch
                 .attention()
@@ -391,7 +345,7 @@ mod tests {
                 .dims(),
             [12, 18]
         );
-        assert!(model.lm.decoder.head.is_tied(), "tied by default");
+        assert!(model.decoder.head.is_tied(), "tied by default");
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9]], &device);
         let embeds = model.embed(tokens);
@@ -413,10 +367,10 @@ mod tests {
     #[test]
     fn test_untied_head() {
         let device = cpu_device();
-        let model: Qwen3Model = Qwen3ContractConfig::new(40, 12, 1, 3, 1, 6, 20)
+        let model: LmDecoderModel = Qwen3ContractConfig::new(40, 12, 1, 3, 1, 6, 20)
             .with_tied_head(false)
             .init(&device);
-        let head = model.lm.decoder.head.proj.as_ref().expect("an untied head");
+        let head = model.decoder.head.proj.as_ref().expect("an untied head");
         assert_eq!(head.weight.dims(), [12, 40]);
         assert!(head.bias.is_none());
 
@@ -428,7 +382,7 @@ mod tests {
             &head.forward(hidden.clone()),
             burn::tensor::Tolerance::default(),
         );
-        let tied = unembed(model.lm.embedding.weight.val(), hidden);
+        let tied = unembed(model.embedding.weight.val(), hidden);
         assert!(
             !logits.all_close(tied, None, None),
             "the logits are not the embedding's"
@@ -442,7 +396,7 @@ mod tests {
     #[test]
     fn test_decode_cached() {
         let device = cpu_device();
-        let model: Qwen3Model = Qwen3ContractConfig::new(40, 12, 2, 3, 1, 6, 20).init(&device);
+        let model: LmDecoderModel = Qwen3ContractConfig::new(40, 12, 2, 3, 1, 6, 20).init(&device);
         let prompt = vec![1i64, 5, 7];
         let ids = |ids: &[i64], rows: usize| {
             let data: Vec<i64> = (0..rows).flat_map(|_| ids.iter().copied()).collect();

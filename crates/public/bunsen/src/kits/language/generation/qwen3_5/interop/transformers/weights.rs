@@ -6,13 +6,11 @@ use burn::{
 
 use super::qwen3_5_rekey;
 use crate::{
+    blocks::transformers::models::language_decoder::LmDecoderModel,
     data::formats::NamedTensorsApplied,
     errors::BunsenResult,
     kits::{
-        language::generation::qwen3_5::{
-            Qwen3_5ContractConfig,
-            Qwen3_5Model,
-        },
+        language::generation::qwen3_5::Qwen3_5ContractConfig,
         support::interop::load_lm_rekeyed,
     },
 };
@@ -26,7 +24,7 @@ use crate::{
 /// # Errors
 /// As [`load_lm_rekeyed`].
 pub fn load_qwen3_5_tensors(
-    model: &mut Qwen3_5Model,
+    model: &mut LmDecoderModel,
     config: &Qwen3_5ContractConfig,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: Option<FloatDType>,
@@ -48,7 +46,7 @@ pub fn load_qwen3_5(
     config: &crate::kits::language::generation::qwen3_5::Qwen3_5ContractConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
-) -> BunsenResult<Qwen3_5Model> {
+) -> BunsenResult<LmDecoderModel> {
     crate::kits::support::transformers::interop::load_transformers_lm(
         loaded,
         crate::kits::language::generation::qwen3_5::pretrained::CHECKPOINT,

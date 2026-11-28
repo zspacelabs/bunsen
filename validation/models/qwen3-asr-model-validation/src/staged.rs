@@ -2,10 +2,7 @@
 //! onnxruntime's run of the export on the same synthetic input.
 
 use bunsen::{
-    blocks::transformers::models::language_decoder::{
-        LmDecoderOps,
-        LmKvForwardHidden,
-    },
+    blocks::transformers::models::language_decoder::LmKvForwardHidden,
     burner::module::ModuleInit,
     ops::transformers::attention::KVCacheModel,
     support::testing::{

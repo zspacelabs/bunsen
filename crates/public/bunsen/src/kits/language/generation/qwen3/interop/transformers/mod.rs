@@ -1,6 +1,6 @@
 //! # Qwen3 in `transformers`' names
 //!
-//! A `Qwen3ForCausalLM` checkpoint as bunsen's [`Qwen3Model`]:
+//! A `Qwen3ForCausalLM` checkpoint as bunsen's [`LmDecoderModel`]:
 //!
 //! - **Config:** [`qwen3_config`] (a `config.json` section, or the
 //!   `text_config` of a model a Qwen3 is the text model of), and
@@ -10,7 +10,7 @@
 //!   dict's.
 //! - **Loading** (feature `store`): [`load_qwen3_tensors`].
 //!
-//! [`Qwen3Model`]: crate::kits::language::generation::qwen3::Qwen3Model
+//! [`LmDecoderModel`]: crate::blocks::transformers::models::language_decoder::LmDecoderModel
 
 #[cfg(feature = "store")]
 mod weights;

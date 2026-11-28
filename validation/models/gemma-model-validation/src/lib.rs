@@ -50,10 +50,7 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    blocks::transformers::models::language_decoder::{
-        LmDecoderOps,
-        LmKvForwardHidden,
-    },
+    blocks::transformers::models::language_decoder::LmKvForwardHidden,
     burner::module::ModuleInit,
     data::formats::LoadPolicy,
     kits::language::generation::gemma::GemmaConstruct,
